@@ -270,3 +270,13 @@
 /* `AM-302`: the blank copy — a quiet link and its one-line note under the template chosen;
    "Continue to details" stays the only filled action */
 .nc-blank { display: grid; gap: 2px; justify-items: start; margin-top: calc(-1 * var(--ws-s2)); }
+
+/* AM-316: the template chosen in step 1 (cards: `templates/card.css`); step 3 says which */
+.nc-cards { display: grid; gap: var(--ws-s3); }
+.nc-template { border-top: 0; padding-top: 0; }
+.nc-template .nc-quiet { margin-top: var(--ws-s1); }
+.nc-check__from { margin: var(--ws-s3) 0 var(--ws-s1); font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-900); }
+@media (max-width: 760px) {
+  .nc-foot .ws-btn { min-height: 44px; }
+  .nc-awaiting .nc-link { display: inline-flex; align-items: center; min-height: 44px; }
+}

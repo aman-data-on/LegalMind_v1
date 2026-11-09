@@ -60,6 +60,8 @@ describe("the dry run (PackageBar)", () => {
   });
   it("is absent when the deal goes out another way", () => {
     expect(packageApplies(plan({ available: false, blockers: [{ code: "NOT_OUR_TEMPLATE", message: "x" }] }))).toBe(false);
+    // AM-316 r7: a template kept without Annexure A — the reply goes back as tracked changes
+    expect(packageApplies(plan({ available: false, blockers: [{ code: "NO_ANNEXURE", message: "x" }] }))).toBe(false);
     expect(packageApplies(plan({ available: false, blockers: [{ code: "SC_NOT_CONFIGURED", detail: "x" }] }))).toBe(true);
     expect(packageApplies(null)).toBe(false);
   });

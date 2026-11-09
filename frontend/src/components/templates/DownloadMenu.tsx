@@ -71,15 +71,19 @@ export function DownloadMenu({ path, label, variant = "icon", text, align = "end
 
   // APG: opening puts focus on the first (or, from ↑, the last) item once it is drawn
   const [landing, setLanding] = useState(0);
+  // near the bottom of the window the menu opens upwards: below the fold, focusing its
+  // first item would scroll the page, and a scroll closes the menu (it drifts)
+  const [up, setUp] = useState(false);
   function show(first: "first" | "last") {
     setLanding(first === "first" ? 0 : ITEMS.length - 1);
+    setUp((trigger.current?.getBoundingClientRect().bottom ?? 0) > window.innerHeight - 120);
     setOpen(true);
   }
   function hide(restore: boolean) {
     setOpen(false);
     if (restore) trigger.current?.focus();
   }
-  useEffect(() => { if (open) items.current[landing]?.focus(); }, [open, landing]);
+  useEffect(() => { if (open) items.current[landing]?.focus({ preventScroll: true }); }, [open, landing]);
 
   useEffect(() => {
     if (!open) return;
@@ -144,7 +148,7 @@ export function DownloadMenu({ path, label, variant = "icon", text, align = "end
       <button ref={trigger} type="button"
               className={variant === "icon" ? "tpl-dl__icon" : "tpl-dl__link"}
               aria-haspopup="menu" aria-expanded={open} aria-controls={open ? menuId : undefined}
-              aria-label={variant === "icon" ? label : undefined}
+              aria-label={variant === "icon" || text ? label : undefined}
               aria-busy={busy ? true : undefined} data-tip-gone={tipGone || undefined}
               onMouseEnter={() => setTipGone(false)} onBlur={() => setTipGone(false)}
               onClick={() => (open ? hide(false) : show("first"))} onKeyDown={onTriggerKey}>
@@ -153,7 +157,7 @@ export function DownloadMenu({ path, label, variant = "icon", text, align = "end
         {variant === "icon" ? <span className="tpl-dl__tip" aria-hidden="true">{label}</span> : null}
       </button>
       {open ? (
-        <div ref={list} id={menuId} className="tpl-dl__menu" role="menu"
+        <div ref={list} id={menuId} className="tpl-dl__menu" role="menu" data-up={up || undefined}
              aria-label={label} onKeyDown={onMenuKey}>
           {ITEMS.map((item, i) => (
             <button key={item.format} ref={(el) => { items.current[i] = el; }} type="button"

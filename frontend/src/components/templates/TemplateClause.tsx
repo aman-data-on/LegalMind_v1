@@ -21,7 +21,7 @@ export function Runs({ text, numbers }: { text: string; numbers: Map<string, str
   );
 }
 
-function Blocks({ blocks, prefix, numbers }: { blocks: Block[]; prefix: string; numbers: Map<string, string> }) {
+export function Blocks({ blocks, prefix, numbers }: { blocks: Block[]; prefix: string; numbers: Map<string, string> }) {
   return (
     <>
       {blocks.map((b, i) => {

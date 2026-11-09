@@ -36,6 +36,7 @@
   display: grid; padding: 4px; background: var(--ws-surface); border: 1px solid var(--ws-ink-100);
   border-radius: var(--ws-radius); box-shadow: 0 6px 20px rgba(14, 20, 32, 0.14); }
 .tpl-dl--start .tpl-dl__menu { right: auto; left: 0; }
+.tpl-dl__menu[data-up] { top: auto; bottom: calc(100% + 4px); }
 .tpl-dl__item { font: inherit; font-size: var(--ws-text-sm); text-align: left; min-height: 32px; padding: 6px 10px;
   border: 0; border-radius: var(--ws-radius-sm); background: none; color: var(--ws-ink-700); cursor: pointer; }
 .tpl-dl__item:hover, .tpl-dl__item:focus { background: var(--ws-paper); color: var(--ws-ink-900); }

@@ -2088,6 +2088,20 @@
     "title": "Reasoned",
     "type": "object"
    },
+   "RecommendRequest": {
+    "additionalProperties": false,
+    "properties": {
+     "recommended": {
+      "title": "Recommended",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "recommended"
+    ],
+    "title": "RecommendRequest",
+    "type": "object"
+   },
    "Replacement": {
     "additionalProperties": false,
     "properties": {
@@ -9036,6 +9050,23 @@
        ],
        "title": "Brand"
       }
+     },
+     {
+      "in": "query",
+      "name": "template_key",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 64,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Template Key"
+      }
      }
     ],
     "responses": {
@@ -9504,9 +9535,65 @@
     ]
    }
   },
+  "/api/v1/templates/{template_id}/recommend": {
+   "post": {
+    "description": "`AM-316` r4: Legal (a holder of ``legal.approve_customization``) chooses which\npublished template of a type and company is recommended \u2014 at most one per pair,\naudited; nothing is computed from the points. Unsetting is allowed only for the\ntemplate that is recommended now.",
+    "operationId": "recommend_template_api_v1_templates__template_id__recommend_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "template_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Template Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RecommendRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Recommend Template Api V1 Templates  Template Id  Recommend Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Recommend Template",
+    "tags": [
+     "templates"
+    ]
+   }
+  },
   "/api/v1/templates/{template_id}/review-copy": {
    "get": {
-    "description": "A not-yet-published template's full text for management to approve, headed\n\"DRAFT FOR MANAGEMENT APPROVAL \u2014 not for client use\", placeholders highlighted.\nOnly a Legal approver, a Legal Decision Authority or the Lead; anyone else (and an\nunknown id) is the same 404. A published version is 409 \u2014 that is the blank.",
+    "description": "A not-yet-published template's full text for management to approve, headed\n`blank.REVIEW_HEADER` on every page, placeholders highlighted. A Legal approver, a\nLegal Decision Authority or the Lead; for a version awaiting approval (`AM-316` r5)\nalso anyone who may create a contract. Anyone else (and an unknown id) is the same\n404. A published version is 409 \u2014 that is the blank.",
     "operationId": "download_review_copy_api_v1_templates__template_id__review_copy_get",
     "parameters": [
      {
@@ -9557,6 +9644,62 @@
      }
     },
     "summary": "Download Review Copy",
+    "tags": [
+     "templates"
+    ]
+   }
+  },
+  "/api/v1/templates/{template_id}/withdraw": {
+   "post": {
+    "description": "`AM-316` r5: Legal takes a published version out of use \u2014 PUBLISHED \u2192 RETIRED,\nthe status a newer publish gives it, so the key offers nothing for a new contract\nuntil a version is published again. A contract already made from it keeps its pinned\nversion (rule 16). Audited with the reason.",
+    "operationId": "withdraw_template_api_v1_templates__template_id__withdraw_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "template_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Template Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/Reasoned"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Withdraw Template Api V1 Templates  Template Id  Withdraw Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Withdraw Template",
     "tags": [
      "templates"
     ]

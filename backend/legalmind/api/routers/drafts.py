@@ -26,6 +26,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from pydantic import Field
 from sqlalchemy import select
+from sqlalchemy.orm import Session as DBSession
 
 from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
 from legalmind.api.envelope import data
@@ -110,12 +111,15 @@ def _question(v: dict[str, Any]) -> dict[str, Any]:
             **({"profile_field": profile[0]} if profile else {})}
 
 
-def questionnaire(tv: M.TemplateVersion) -> dict[str, Any]:
+def questionnaire(db: DBSession, tv: M.TemplateVersion,
+                  recommended: set[str]) -> dict[str, Any]:
     """The template's fields as the form asks them; an annexure's condition with it
-    (the DPA annexure where a template has one — never added here)."""
+    (the DPA annexure where a template has one — never added here); its name, purpose,
+    known points and Legal's recommendation (`AM-316`)."""
     return {"id": str(tv.id), "template_key": tv.template_key, "version": tv.version,
             "doc_type": tv.doc_type, "brand": tv.brand,
             "title": (tv.layout or {}).get("title"),
+            **publish.card(db, tv, recommended),
             "questions": [_question(v) for v in tv.variables],
             "annexures": [{"key": a["key"], "title": a.get("title"),
                            "when": a.get("when")} for a in tv.annexures]}
@@ -124,6 +128,7 @@ def questionnaire(tv: M.TemplateVersion) -> dict[str, Any]:
 @router.get("/templates/published")
 def published_templates(doc_type: str | None = Query(None, max_length=32),
                         brand: str | None = Query(None, max_length=32),
+                        template_key: str | None = Query(None, max_length=64),
                         guard: Guard = Depends(get_guard)) -> dict:
     guard.permission(P.CONTRACT_CREATE)
     stmt = select(M.TemplateVersion).where(M.TemplateVersion.status == "PUBLISHED")
@@ -131,8 +136,11 @@ def published_templates(doc_type: str | None = Query(None, max_length=32),
         stmt = stmt.where(M.TemplateVersion.doc_type == doc_type)
     if brand:
         stmt = stmt.where(M.TemplateVersion.brand == brand)
+    if template_key:
+        stmt = stmt.where(M.TemplateVersion.template_key == template_key)
     rows = guard.db.execute(stmt.order_by(M.TemplateVersion.template_key)).scalars()
-    return data([questionnaire(tv) for tv in rows])
+    recommended = publish.recommended_keys(guard.db)
+    return data([questionnaire(guard.db, tv, recommended) for tv in rows])
 
 
 def _published(guard: Guard, template_version_id: UUID) -> M.TemplateVersion:
@@ -343,10 +351,12 @@ def create_from_draft(draft_id: UUID, body: DraftCreateContract,
     digest = model_.model_hash(model)
     layout = tv.layout or {}
     title = layout.get("title") or tv.template_key
+    # AM-316: two MSAs for one client are told apart by the template's name
+    named = (tv.source or {}).get("catalogue", {}).get("name") or title
     counterparty = (guard.db.get(M.Counterparty, row.counterparty_id)
                     if row.counterparty_id else None)
     made = create_contract(ContractCreate(
-        name=body.name or (f"{title} — {counterparty.name}" if counterparty else title),
+        name=body.name or (f"{named} — {counterparty.name}" if counterparty else named),
         contract_type=tv.doc_type, counterparty_id=row.counterparty_id,
         issuing_entity=publish.issuing_entity(tv.brand)),  # type: ignore[arg-type]
         guard)["data"]

@@ -158,19 +158,57 @@ def test_publish_refuses_a_draft_template(db, user, holder, placeholder):
         publish.publish_template(db, _template_row(db).id, actor_id=holder.id)
 
 
-def test_publish_refuses_anything_but_match(db, user, holder, placeholder, snapshot,
-                                            monkeypatch):
-    T.import_rows(db, *placeholder, actor_id=user.id)
+FINDINGS = [("REQ-A", "MATCH", "A", False, False), ("REQ-B", "DEVIATION", "B", False, True),
+            ("REQ-C", "DEVIATION", "C", True, True), ("REQ-D", "DEVIATION", "D", True, False)]
+
+
+def _declaring(db, user, placeholder, points):
+    template, clauses = copy.deepcopy(placeholder)
+    template["source"]["known_points"] = points
+    template["content_hash"] = T.template_hash(template, clauses)
+    T.import_rows(db, template, clauses, actor_id=user.id)
     _approve_all(db, user)
+
+
+@pytest.mark.parametrize(("points", "reference", "problems"), [
+    # AM-316: a point the engine sends to Legal, even in our favour (REQ-C), must be listed
+    ([], "", ["NOT_DECLARED: REQ-B goes to Legal on every deal; list it in the template's "
+              "known points", "NOT_DECLARED: REQ-C goes to Legal on every deal; list it in "
+              "the template's known points"]),
+    (["REQ-B"], "Owner, 9 Nov 2026", ["NOT_DECLARED: REQ-C goes to Legal on every deal; "
+                                      "list it in the template's known points"]),
+    # a listed point the engine no longer finds (REQ-D is in our favour, not sent to Legal)
+    (["REQ-B", "REQ-C", "REQ-D"], "Owner, 9 Nov 2026",
+     ["STALE: REQ-D is listed but now meets our standard; remove it"]),
+    (["REQ-B", "REQ-C"], "", ["APPROVAL_REFERENCE: a template with known points needs the "
+                              "approval reference of who accepted publishing it with them"]),
+])
+def test_publish_refuses_undeclared_stale_or_unreferenced_points(
+        db, user, holder, placeholder, snapshot, monkeypatch, points, reference, problems):
+    _declaring(db, user, placeholder, points)
     monkeypatch.delenv("LEGALMIND_SOFFICE", raising=False)
-    # AM-303: a deviation in our favour (the fourth field) passes; any other does not
-    monkeypatch.setattr(publish, "_findings", lambda *a, **k: [
-        ("REQ-A", "MATCH", "A", False, False), ("REQ-B", "DEVIATION", "B", False, True),
-        ("REQ-C", "DEVIATION", "C", True, True)])
+    monkeypatch.setattr(publish, "_findings", lambda *a, **k: FINDINGS)
     with pytest.raises(publish.PublishRefused) as exc:
-        publish.publish_template(db, _template_row(db).id, actor_id=holder.id)
-    assert exc.value.problems == ["NOT_MATCH: REQ-B is DEVIATION"]
+        publish.publish_template(db, _template_row(db).id, actor_id=holder.id,
+                                 approval_reference=reference)
+    assert exc.value.problems == problems
     assert _template_row(db).status == "APPROVED"
+
+
+def test_declared_points_publish_and_are_recorded_never_accepted(
+        db, user, holder, placeholder, snapshot, monkeypatch):
+    _declaring(db, user, placeholder, ["REQ-B", "REQ-C"])
+    monkeypatch.delenv("LEGALMIND_SOFFICE", raising=False)
+    monkeypatch.setattr(publish, "_findings", lambda *a, **k: FINDINGS)
+    publish.publish_template(db, _template_row(db).id, actor_id=holder.id,
+                             approval_reference="Owner, 9 Nov 2026")
+    row = _template_row(db)
+    assert row.status == "PUBLISHED"
+    audit = db.query(M.AuditEvent).filter_by(action=publish.TEMPLATE_PUBLISHED).one()
+    assert audit.after_state["known_points"] == [
+        {"code": "REQ-B", "name": "B", "classification": "DEVIATION"},
+        {"code": "REQ-C", "name": "C", "classification": "DEVIATION"}]
+    assert publish.published_points(db, row) == audit.after_state["known_points"]
 
 
 def test_publish_refuses_a_question_whose_label_reads_like_its_key(db, user, holder,

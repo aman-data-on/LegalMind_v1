@@ -546,6 +546,17 @@ def get_contract(contract_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
     if stage is not None:
         payload["negotiation_stage"] = stage
     payload["counts"] = _deal_counts(guard, [contract])[contract.id]
+    # AM-316: the published template it was generated from (omitted for an upload)
+    made = guard.db.execute(
+        select(M.TemplateVersion).join(
+            M.ContractDraft, M.ContractDraft.template_version_id == M.TemplateVersion.id)
+        .where(M.ContractDraft.contract_id == contract.id)
+        .order_by(M.ContractDraft.created_at).limit(1)).scalar_one_or_none()
+    if made is not None:
+        payload["made_from"] = {
+            "template_key": made.template_key, "version": made.version,
+            "doc_type": made.doc_type, "brand": made.brand,
+            "name": ((made.source or {}).get("catalogue") or {}).get("name")}
     # AM-309: the signed contract it amends and its amendments — readable ones only
     payload.update(relations(guard, contract))
     return data(payload)

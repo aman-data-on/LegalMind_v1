@@ -10,7 +10,7 @@
 import { useEffect, useState } from "react";
 
 import { api, describeError } from "@/lib/api";
-import { DEMO_WORDS, displayTitle, isDemo, templateName, type TemplateSummary } from "@/lib/templates";
+import { DEMO_WORDS, cardName, displayTitle, isDemo, type TemplateSummary } from "@/lib/templates";
 import { PageHeader } from "@/components/page/PageHeader";
 import { OfferList, usePlaybook } from "@/components/workspace/OfferPlaybook";
 import { CheckStatus } from "./TemplateList";
@@ -25,8 +25,8 @@ function TemplateOffer({ t }: { t: TemplateSummary }) {
   return (
     <section className="tpl-offer" aria-labelledby={head}>
       <header className="tpl-offer__head">
-        <h2 id={head}>{templateName(t)}</h2>
-        <p>{[t.title && displayTitle(t.title), `version ${t.version}`, isDemo(t) && DEMO_WORDS].filter(Boolean).join(", ")}</p>
+        <h3 id={head}>{cardName(t)}</h3>
+        <p>{[t.name ? null : t.title && displayTitle(t.title), `version ${t.version}`, isDemo(t) && DEMO_WORDS].filter(Boolean).join(", ")}</p>
       </header>
       {points === "loading" ? <p className="tpl-quiet" role="status">Reading the template against our standards…</p>
         : points === "failed" ? <p className="tpl-error"><CheckStatus state="failed" onRetry={() => setAttempt((n) => n + 1)} /></p>

@@ -205,6 +205,11 @@ ASSIST_ENDPOINTS: Final[dict[tuple[str, str], str]] = {
         P.LEGAL_APPROVE_CUSTOMIZATION,
     ("POST", f"{API_PREFIX}/templates/{{template_id}}/publish"):
         P.LEGAL_APPROVE_CUSTOMIZATION,
+    # AM-316 r4/r5: Legal's recommendation, and taking a published version out of use
+    ("POST", f"{API_PREFIX}/templates/{{template_id}}/recommend"):
+        P.LEGAL_APPROVE_CUSTOMIZATION,
+    ("POST", f"{API_PREFIX}/templates/{{template_id}}/withdraw"):
+        P.LEGAL_APPROVE_CUSTOMIZATION,
     # a clause's recorded versions: who approved each, how, and why
     ("GET", f"{API_PREFIX}/templates/{{template_id}}/clauses/{{clause_key}}/versions"):
         P.LEGAL_APPROVE_CUSTOMIZATION,

@@ -78,7 +78,7 @@ export interface SpecialConditions {
 /** The dry run says this deal does not go out as a final contract at all — the bar is
  *  absent, and "Prepare our reply" stays the step. */
 const OTHER_ROUTE = new Set(["NOTHING_TO_ANSWER", "NOT_OUR_TEMPLATE", "REDLINE_ROUND", "ROUND_CLOSED",
-                             "AMENDMENT_ROUND"]);
+                             "AMENDMENT_ROUND", "NO_ANNEXURE"]);
 
 export function packageApplies(plan: PackagePlan | null | undefined): plan is PackagePlan {
   return !!plan && !plan.blockers.some((b) => OTHER_ROUTE.has(b.code));

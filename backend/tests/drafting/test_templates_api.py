@@ -154,7 +154,8 @@ def test_check_previews_the_gate_and_keeps_nothing(db, api, template, lawyer, st
     assert checked.status_code == 200, checked.text
     said = checked.json()["data"]
     assert said.pop("special_conditions")["ready"] is False         # AM-307: none here
-    assert said == {"publishable": True, "problems": [], "standards": []}
+    assert said == {"publishable": True, "problems": [], "standards": [],
+                    "known_points": [], "stale": []}
     db.expire_all()
     assert (db.query(M.ClauseVersion).count(), db.query(M.AuditEvent).count()) == before
     assert db.get(M.TemplateVersion, template.id).status == "DRAFT"

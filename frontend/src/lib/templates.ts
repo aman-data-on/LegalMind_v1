@@ -21,12 +21,24 @@ export interface TemplateSummary {
   clauses_approved: number;
   clauses_total: number;
   progress: string;
+  /** `AM-316` — what the template says about itself (omitted when it says nothing) */
+  name?: string;
+  purpose?: string;
+  known_points?: KnownPoint[];
+  recommended?: boolean;
+  awaiting_approval?: boolean;
   published_at: string | null;
-  /** the file the template was imported from (tells two of one type apart) */
-  source_file?: string | null;
   /** `AM-308`: whether a contract made from it can go out as a final contract with Annexure A */
   special_conditions?: SpecialConditionsReadiness;
 }
+
+/** A point the template sends to Legal on every deal (`AM-316`): declared by Legal,
+ *  verified by the publish gate; never accepted by it. */
+export interface KnownPoint { code: string; name?: string; classification?: string }
+
+/** The card a template shows wherever it is chosen (`AM-316`). */
+export type TemplateCardData = Pick<TemplateSummary, "id" | "template_key" | "version" | "doc_type" | "brand"
+  | "name" | "purpose" | "known_points" | "recommended" | "awaiting_approval" | "published_at">;
 
 export interface Block {
   kind: string;
@@ -108,9 +120,22 @@ export interface CheckStandard {
   clause_keys: string[];
   /** present only for `legal_position.view` (LEGAL-02: omitted, never nulled) */
   position?: string | null;
+  /** `AM-303`: better for us than the standard */
+  in_our_favour?: boolean;
+  /** `AM-316`: the Review made from the template sends it to Legal — it must be declared */
+  to_legal?: boolean;
 }
 
-export interface TemplateCheck { publishable: boolean; problems: string[]; standards: CheckStandard[] }
+export interface TemplateCheck {
+  publishable: boolean; problems: string[]; standards: CheckStandard[];
+  /** `AM-316`: the points Legal declared, and those declared that the engine no longer finds */
+  known_points?: string[]; stale?: string[];
+}
+
+/** `AM-316`: a standard stops publishing unless it is a declared point, or in our favour
+ *  and not sent to Legal (the gate's own rule). */
+export const stopsPublishing = (s: CheckStandard, check: TemplateCheck) =>
+  !(check.known_points ?? []).includes(s.code) && !(s.in_our_favour && !s.to_legal);
 
 const BRANDS: Record<string, string> = { LEAPSWITCH: "LeapSwitch", CLOUDPE: "CloudPe" };
 
@@ -123,6 +148,22 @@ export function brandLabel(brand: string | null): string {
 export function templateName(t: Pick<TemplateSummary, "brand" | "doc_type">): string {
   const type = t.doc_type === "OTHER" ? "agreement" : t.doc_type.replace(/_/g, " ");
   return [brandLabel(t.brand), type].filter(Boolean).join(" ");
+}
+
+/** The template's own name ("LeapSwitch MSA — 2026"), else brand and type. */
+export const cardName = (t: Pick<TemplateSummary, "brand" | "doc_type" | "name">) => t.name ?? templateName(t);
+
+/** What a template sends to Legal on every deal, in one line; null when it declares nothing. */
+export function legalLine(points: KnownPoint[] | undefined): string | null {
+  if (!points) return null;
+  if (!points.length) return "Nothing goes to Legal unless your details change it.";
+  return points.length === 1 ? "1 point goes to Legal on every deal" : `${points.length} points go to Legal on every deal`;
+}
+
+/** Every usable template of a type and company: Legal's recommended one first, then the newest. */
+export function templatesFor<T extends TemplateCardData>(list: T[], docType: string, brand: string): T[] {
+  return list.filter((t) => t.doc_type === docType && t.brand === brand && !t.awaiting_approval)
+    .sort((a, b) => Number(!!b.recommended) - Number(!!a.recommended) || (b.published_at ?? "").localeCompare(a.published_at ?? ""));
 }
 
 /** A heading the document sets in capitals ("LIMITATION OF LIABILITY"), in sentence case
@@ -154,7 +195,9 @@ export function statusWords(t: TemplateSummary, check: TemplateCheck | null): st
   if (t.status === "RETIRED") return `Version ${t.version}, replaced by a newer one`;
   // ONE status word for a draft (cross-page pass); what still stands in the way is the
   // `blockers` sentence beside it, never a second status
-  return canPublish(t, check) ? "Ready to publish" : "Draft";
+  if (!canPublish(t, check)) return "Draft";
+  const n = check?.known_points?.length ?? 0;
+  return n ? `Ready to publish. ${n === 1 ? "1 point" : `${n} points`} will go to Legal on every deal` : "Ready to publish";
 }
 
 /** What stands in the way of publishing, in one sentence — or null when nothing does.
@@ -184,7 +227,8 @@ export function within<T>(promise: Promise<T>, ms = CHECK_TIMEOUT_MS): Promise<T
  *  the header and the publish sheet say the same number. */
 export function stopCount(check: TemplateCheck | null | undefined): number {
   if (!check) return 0;
-  return check.standards.length + problemLines(check.problems, [], check).length;
+  return check.standards.filter((s) => stopsPublishing(s, check)).length + (check.stale?.length ?? 0)
+    + problemLines(check.problems, [], check).length;
 }
 
 /**
@@ -296,6 +340,14 @@ export function problemWords(problem: string, clauses: TemplateClause[],
     const clause = clauses.find((c) => c.clause_key === key);
     return { text: `${clause ? displayTitle(clause.title) : key}: not approved yet`, clauseKey: key };
   }
+  if (head === "NOT_DECLARED" || head === "STALE") {
+    const code = tail.split(" ")[0]!;
+    const standard = check?.standards.find((s) => s.code === code);
+    const what = standard?.description ?? code;
+    return head === "STALE" ? { text: `Listed as going to Legal, but now meets our standard: ${what}. Take it off the list in a new version.` }
+      : { text: `Goes to Legal on every deal and is not listed: ${what}. List it in a new version of the template.` };
+  }
+  if (head === "APPROVAL_REFERENCE") return { text: "Say who accepted publishing it with these points (the approval reference)." };
   if (head === "NOT_MATCH") {
     const code = tail.split(" is ")[0]!;
     const standard = check?.standards.find((s) => s.code === code);

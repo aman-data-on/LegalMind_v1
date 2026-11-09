@@ -34,7 +34,7 @@ const questions: Question[] = [
 
 const template = (over: Partial<PublishedTemplate> = {}): PublishedTemplate => ({
   id: "tv-1", template_key: "NDA.LEAPSWITCH", version: 1, doc_type: "NDA", brand: "LEAPSWITCH",
-  title: "NON-DISCLOSURE AGREEMENT", questions, annexures: [], ...over,
+  title: "NON-DISCLOSURE AGREEMENT", published_at: null, questions, annexures: [], ...over,
 });
 
 describe("conditional questions", () => {

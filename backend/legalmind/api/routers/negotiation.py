@@ -1116,13 +1116,18 @@ def _in_package(guard: Guard, before: M.DocumentVersion | None,
     """`AM-308`: each change row's ``target {key, number, heading}`` and ``in_package``
     (replace · delete · insert · none · cannot), from `_derive`. The keys are absent —
     never null — where no final contract can be made from this pair: our side not a
-    contract made from our template, a tracked-changes round, or Special Conditions
-    that could not be read."""
+    contract made from our template, a tracked-changes round, Special Conditions
+    that could not be read, or a template that has none (`AM-316` r7)."""
     draft = _generated(guard.db, before)
     if before is None or draft is None or (before.doc_metadata or {}).get("reply_to") \
             or listed.get("special_conditions_not_applied"):
         return
-    rows = _derive(guard, before, after, listed, _basis(guard.db, draft))["rows"]
+    basis = _basis(guard.db, draft)
+    contract = guard.db.get(M.Contract, before.contract_id)
+    if special_conditions.config(basis["tv"]) is None and (
+            contract is None or contract.governed_by_contract_id is None):
+        return          # AM-316 r7: a template without Annexure A — no final contract
+    rows = _derive(guard, before, after, listed, basis)["rows"]
     for change in listed["changes"]:
         change.update(rows.get(change["row_key"], {"target": None, "in_package": "none"}))
 
@@ -1183,6 +1188,11 @@ def _package_plan(guard: Guard, contract: M.Contract, form: str = CHANGES_ONLY) 
     basis = _basis(db, draft)
     tv, rows, clauses, base = basis["tv"], basis["rows"], basis["clauses"], basis["base"]
     ready = special_conditions.readiness(db, tv)
+    if amendment_tv is None and special_conditions.config(tv) is None:
+        # AM-316 r7: a template kept without Annexure A (the July 2025 MSA) — agreed
+        # changes go back in the body, as tracked changes; no Annexure route is offered
+        return stop("NO_ANNEXURE", "This contract's template has no Annexure A — "
+                    "prepare our reply with tracked changes.")
     out["blockers"] += [{**m, "code": f"SC_{m['code']}"} for m in ready["missing"]]
     if tv.published_at is None:
         stop("TEMPLATE_NOT_PUBLISHED", "The template this contract was made from was "

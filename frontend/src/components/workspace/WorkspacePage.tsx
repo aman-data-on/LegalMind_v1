@@ -61,6 +61,7 @@ import { VersionComparison } from "./VersionComparison";
 import { PaneBoundary } from "./PaneBoundary";
 import { IconUploadCloud, IconX } from "./icons";
 import { PhoneBar, WorkspaceLayout, arrowTab, useMinWidth, type PhoneView, type Region } from "./WorkspaceLayout";
+import { templateName } from "@/lib/templates";
 
 type Load =
   | { kind: "loading" }
@@ -703,6 +704,9 @@ function RecordHeader({
         )}
         {versionMeta}
         <GovernedByLink contract={contract} />
+        {contract.made_from ? (
+          <span>Made from {contract.made_from.name ?? templateName(contract.made_from)}, version {contract.made_from.version}</span>
+        ) : null}
         {/* AB-13 r7 — the LINKED company wins; linked, it opens every document for it */}
         {company ? (
           <button type="button" className="ws-linkbtn" onClick={onCompany}>{company.name}</button>

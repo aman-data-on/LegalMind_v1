@@ -16,14 +16,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { api, ApiError, describeError } from "@/lib/api";
 import {
-  BRANDS, DOC_TYPES, OURS, answered, checkWords, display, groups, outsideRange, problemWords, profileValue,
+  BRANDS, DOC_TYPES, OURS, answered, checkWords, splitPoints, display, groups, outsideRange, problemWords, profileValue,
   toAnswers, unanswered, unavailable,
   type Answers, type Draft, type DraftCheck, type DraftPreview, type FieldProblem, type PublishedTemplate, type Question,
 } from "@/lib/newContract";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
-import { BLANK_NOTE, blankPath, brandLabel, templateName } from "@/lib/templates";
-import { DownloadMenu } from "@/components/templates/DownloadMenu";
+import { BLANK_NOTE, brandLabel, cardName, templatesFor, type TemplateCardData } from "@/lib/templates";
+import { CardDownload, TemplateCard } from "@/components/templates/TemplateCard";
 import type { Counterparty } from "@/lib/types";
 import { UploadContractDialog } from "@/components/workspace/UploadContractDialog";
 import { requirementTitle } from "@/components/workspace/findingLanguage";
@@ -102,24 +102,42 @@ const SAVE_WORDS: Record<SaveState, string> = {
 };
 
 // ---------------------------------------------------------------- step 1
-function StepOne({ published, onStart }: {
+export function StepOne({ published, awaiting, wanted, onStart }: {
   published: PublishedTemplate[] | null;
+  /** templates everyone can see but nobody can use yet (`AM-316` r5) */
+  awaiting: TemplateCardData[];
+  /** `?template=<key>` — the deep link from the Templates page */
+  wanted: string | null;
   onStart: (t: PublishedTemplate, client: Counterparty) => Promise<void>;
 }) {
   const { can } = useSession();
-  const [docType, setDocType] = useState<string | null>(null);
-  const [brand, setBrand] = useState<string | null>(null);
+  // the deep link (`?template=<key>`) chooses type, company and template until a person does
+  const link = wanted && published ? published.find((x) => x.template_key === wanted) : undefined;
+  const missingLink = !!wanted && !!published && !link;
+  const [docTypeSet, setDocType] = useState<string | null>(null);
+  const [brandSet, setBrand] = useState<string | null>(null);
+  const [chosenSet, setChosen] = useState<string | null>(null);
+  const docType = docTypeSet ?? link?.doc_type ?? null;
+  const brand = brandSet ?? link?.brand ?? null;
+  const chosen = chosenSet ?? link?.id ?? null;
   const [client, setClient] = useState<Counterparty | null>(null);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const linkId = link?.id;
+  // ...and the client search takes focus
+  useEffect(() => {
+    if (!linkId) return;
+    requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById("nc-client-search")?.focus()));
+  }, [linkId]);
 
   const brands = BRANDS.filter((b) => !(docType === "MSA" && b === "CLOUDPE"));
   const effectiveBrand = brand && brands.includes(brand as (typeof BRANDS)[number]) ? brand : null;
   const reason = docType && (effectiveBrand || docType === "MSA") && published
     ? unavailable(docType, effectiveBrand ?? "LEAPSWITCH", published) : null;
-  const template = docType && effectiveBrand && published
-    ? published.find((t) => t.doc_type === docType && t.brand === effectiveBrand) : undefined;
+  const choices = docType && effectiveBrand && published ? templatesFor(published, docType, effectiveBrand) : [];
+  const template = choices.length === 1 ? choices[0] : choices.find((t) => t.id === chosen);
+  const waiting = docType && effectiveBrand ? awaiting.filter((t) => t.doc_type === docType && t.brand === effectiveBrand) : [];
 
   async function start() {
     if (!template || !client) return;
@@ -129,6 +147,7 @@ function StepOne({ published, onStart }: {
 
   return (
     <div className="nc-one">
+      {missingLink ? <p className="nc-note" role="status">That template is not published any more. Choose one below.</p> : null}
       <fieldset className="nc-pick">
         <legend className="nc-sub">What are you making?</legend>
         <div className="nc-pick__row">
@@ -136,7 +155,9 @@ function StepOne({ published, onStart }: {
             <label key={t.id} className="nc-option">
               <input type="radio" name="nc-type" checked={docType === t.id} onChange={() => setDocType(t.id)} />
               <span className="nc-item__l1">{t.name}</span>
-              <span className="nc-item__l2">{t.long}</span>
+              <span className="nc-item__l2">
+                {t.long}{published && !published.some((x) => x.doc_type === t.id) ? ". Being approved by Legal" : ""}
+              </span>
             </label>
           ))}
         </div>
@@ -161,11 +182,29 @@ function StepOne({ published, onStart }: {
         </div>
       </fieldset>
 
-      {template ? (
-        <div className="nc-blank">
-          <DownloadMenu variant="link" align="start" path={blankPath(template)} label="Download blank copy" />
+      {choices.length > 1 ? (
+        <fieldset className="nc-pick">
+          <legend className="nc-sub">Which {docType}?</legend>
+          <div className="nc-cards">
+            {choices.map((t) => (
+              <TemplateCard key={t.id} t={t} radio={{ name: "nc-template", checked: chosen === t.id, onChange: () => setChosen(t.id) }}
+                            actions={<CardDownload t={t} />} />
+            ))}
+          </div>
           <p className="nc-quiet">{BLANK_NOTE}</p>
-        </div>
+        </fieldset>
+      ) : template ? (
+        <section className="nc-pick" aria-labelledby="nc-ours-t">
+          <h2 id="nc-ours-t" className="nc-sub">Our template</h2>
+          <TemplateCard t={template} actions={<CardDownload t={template} />} />
+          <p className="nc-quiet">{BLANK_NOTE}</p>
+        </section>
+      ) : null}
+
+      {waiting.length ? (
+        <p className="nc-quiet nc-awaiting">
+          A new {docType} is awaiting approval. <Link className="nc-link" href="/templates">See Templates</Link>
+        </p>
       ) : null}
 
       {reason && effectiveBrand ? (
@@ -181,12 +220,13 @@ function StepOne({ published, onStart }: {
 
       {published === null ? <p className="nc-quiet">Loading our templates…</p> : null}
       {failure ? <p className="nc-error" role="alert">{failure}</p> : null}
-      {template ? (
+      {choices.length ? (
         <div className="nc-foot">
-          <button type="button" className="ws-btn ws-btn--primary" disabled={!client || busy} onClick={() => void start()}>
+          <button type="button" className="ws-btn ws-btn--primary" disabled={!template || !client || busy} onClick={() => void start()}>
             {busy ? "Starting…" : "Continue to details"}
           </button>
-          {!client ? <p className="nc-quiet">Choose or add the client first.</p> : null}
+          {!template ? <p className="nc-quiet">Choose the {docType} and the client first.</p>
+            : !client ? <p className="nc-quiet">Choose or add the client first.</p> : null}
         </div>
       ) : null}
       {uploading ? <UploadContractDialog firstRun={false} onClose={() => setUploading(false)} /> : null}
@@ -398,7 +438,7 @@ function Drafting({ draftId, step, published, setStep }: {
     .filter((p, i, all) => !asked.has(p.field) && all.findIndex((x) => x.field === p.field && x.problem === p.problem) === i);
   const ownProblems = questions.filter((q) => outsideRange(q, local[q.key]));
   const ready = !left.length && !otherProblems.length && !ownProblems.length && !blocked;
-  const title = template.title ?? templateName(template);
+  const title = cardName(template);
   const shownGroups = groups(questions, local);
   const fromProfile = questions.filter((q) => {
     const v = profileValue(clientRecord, q);
@@ -417,7 +457,7 @@ function Drafting({ draftId, step, published, setStep }: {
   const head = (
     <PageHeader wide title="New contract" back={{ href: "/contracts", label: "Contracts" }}
       meta={<>
-        <span>{templateName(template)}{client ? ` for ${client.name}` : ""}</span>
+        <span>{cardName(template)}{client ? ` for ${client.name}` : ""}</span>
         <span className="nc-save" aria-live="polite" data-state={save}>{SAVE_WORDS[save]}</span>
       </>}
       primary={forward} />
@@ -446,10 +486,24 @@ function Drafting({ draftId, step, published, setStep }: {
   );
 
   const points = check?.check?.points ?? [];
+  // AM-316: what the template sends on every deal, apart from what the answers moved
+  const { fromTemplate, fromDetails } = splitPoints(points, template.known_points);
+  const pointList = (list: typeof points) => (
+    <ul className="nc-check__list">
+      {list.map((p) => (
+        <li key={p.code}><span className="nc-item__l1">{requirementTitle({ code: p.code, name: p.name })}</span>
+          <span className="nc-item__l2">{checkWords(p.classification)}</span></li>
+      ))}
+    </ul>
+  );
   const review = (
     <div className="nc-form nc-review">
       {blocked ? <ConflictBanner onReload={reload} /> : null}
       <h2 className="nc-sub">Review and create</h2>
+      <div className="nc-sum nc-template">
+        <dl><div><dt>Template</dt><dd>{cardName(template)}, version {template.version}</dd></div></dl>
+        <p className="nc-quiet">To use another template, start a new contract. These answers are kept for 30 days.</p>
+      </div>
       {left.length || otherProblems.length || ownProblems.length ? (
         <section aria-labelledby="nc-left">
           <h3 id="nc-left" className="nc-sub nc-sub--small">Still to fill in <span>{left.length + otherProblems.length + ownProblems.length}</span></h3>
@@ -487,12 +541,14 @@ function Drafting({ draftId, step, published, setStep }: {
         ) : points.length ? (
           <>
             <p className="nc-check__lead">These {points.length} point{points.length === 1 ? "" : "s"} will go to Legal before the contract can be sent:</p>
-            <ul className="nc-check__list">
-              {points.map((p) => (
-                <li key={p.code}><span className="nc-item__l1">{requirementTitle({ code: p.code, name: p.name })}</span>
-                  <span className="nc-item__l2">{checkWords(p.classification)}</span></li>
-              ))}
-            </ul>
+            {fromTemplate.length ? <>
+              <h4 className="nc-check__from">From this template, on every deal ({fromTemplate.length})</h4>
+              {pointList(fromTemplate)}
+            </> : null}
+            {fromDetails.length ? <>
+              <h4 className="nc-check__from">From your details ({fromDetails.length})</h4>
+              {pointList(fromDetails)}
+            </> : null}
             <p className="nc-quiet">You can still create it now. Legal decides each point; nothing here is decided.</p>
           </>
         ) : (
@@ -525,7 +581,7 @@ function Drafting({ draftId, step, published, setStep }: {
       <div className="nc-q">
         <label className="nc-q__label" htmlFor="nc-name">Name in LegalMind<span className="nc-q__req">Optional</span></label>
         <p className="nc-q__help" id="nc-name-help">How the contract is listed here. The client never sees it.</p>
-        <input id="nc-name" type="text" aria-describedby="nc-name-help" value={name} placeholder={`${title}${client ? `, ${client.name}` : ""}`}
+        <input id="nc-name" type="text" aria-describedby="nc-name-help" value={name} placeholder={`${title}${client ? ` \u2014 ${client.name}` : ""}`}
                onChange={(e) => setName(e.target.value)} />
       </div>
       <p className="nc-explain">
@@ -568,10 +624,12 @@ export function NewContract() {
   const draftId = params.get("draft");
   const step: Step = !draftId ? 1 : params.get("step") === "review" ? 3 : 2;
   const [published, setPublished] = useState<PublishedTemplate[] | null>(null);
+  const [awaiting, setAwaiting] = useState<TemplateCardData[]>([]);
   const [failure, setFailure] = useState<string | null>(null);
 
   useEffect(() => {
     api.publishedTemplates().then(setPublished).catch((e) => { setPublished([]); setFailure(describeError(e)); });
+    api.templates().then((rows) => setAwaiting(rows.filter((t) => t.awaiting_approval))).catch(() => undefined);
   }, []);
 
   const setStep = useCallback((s: Step) => {
@@ -594,7 +652,7 @@ export function NewContract() {
       <div className="nc nc--one">
       <Steps step={1} />
       {failure ? <p className="nc-error" role="alert">{failure}</p> : null}
-      {draftId ? <p className="nc-quiet">Loading…</p> : <StepOne published={published} onStart={startDraft} />}
+      {draftId ? <p className="nc-quiet">Loading…</p> : <StepOne published={published} awaiting={awaiting} wanted={params.get("template")} onStart={startDraft} />}
       </div>
     </div>
   );

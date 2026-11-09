@@ -22,9 +22,9 @@
 .tpl-card { display: grid; grid-template-columns: minmax(14rem, 1fr) minmax(0, 1.4fr) auto; gap: var(--ws-s2) var(--ws-s5);
   align-items: center; padding: var(--ws-s4) var(--ws-s5); border-top: 1px solid var(--ws-ink-100); }
 .tpl-card:first-child { border-top: 0; }
-.tpl-card h2 { margin: 0; font-size: var(--ws-text-md); font-weight: 600; }
-.tpl-card h2 a { color: var(--ws-ink-900); text-decoration: none; }
-.tpl-card h2 a:hover { text-decoration: underline; }
+.tpl-card h2, .tpl-card h4 { margin: 0; font-size: var(--ws-text-md); font-weight: 600; }
+.tpl-card h2 a, .tpl-card h4 a { color: var(--ws-ink-900); text-decoration: none; }
+.tpl-card h4 a:hover, .tpl-card h2 a:hover { text-decoration: underline; }
 .tpl-card__title { margin: 2px 0 0; font-family: var(--ws-serif); font-size: var(--ws-text-sm); color: var(--ws-ink-500);
   overflow-wrap: anywhere; }
 .tpl-card__sc { display: inline-flex; align-items: center; gap: 3px; margin: var(--ws-s1) 0 0; padding: 0 6px;
@@ -281,3 +281,31 @@
 .tpl-sheet__checking { margin: 0 0 var(--ws-s5); font-family: var(--ws-sans); }
 .tpl-skel__title { height: 1.4rem; margin-bottom: var(--ws-s5); }
 .tpl-sheet .ws-skel { height: 0.85rem; margin: 0.75rem 0; }
+
+/* ---- the library (`AM-316`): ready to use (type › company › cards), awaiting approval ---- */
+.tpl-lib { display: flex; flex-direction: column; gap: var(--ws-s3); }
+.tpl-lib + .tpl-lib { margin-top: var(--ws-s4); padding-top: var(--ws-s5); border-top: 1px solid var(--ws-ink-100); }
+.tpl-lib__h2 { margin: 0; font-size: var(--ws-text-lg); font-weight: 600; color: var(--ws-ink-900); }
+.tpl-lib__type { display: grid; gap: var(--ws-s3); }
+.tpl-lib__type + .tpl-lib__type { margin-top: var(--ws-s3); }
+.tpl-lib__h3 { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px var(--ws-s3);
+  font-size: var(--ws-text-md); font-weight: 600; color: var(--ws-ink-900); }
+.tpl-lib__h3 span { font-size: var(--ws-text-sm); font-weight: 400; color: var(--ws-ink-500); }
+.tpl-lib__brand { display: grid; grid-template-columns: 9rem minmax(0, 1fr); gap: var(--ws-s2) var(--ws-s4); align-items: start; }
+.tpl-lib__h4 { margin: 0; padding-top: var(--ws-s3); font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-700); }
+.tpl-lib__cards { display: grid; gap: var(--ws-s3); min-width: 0; }
+.tpl-lib__none, .tpl-lib__brand > .tpl-quiet { margin: 0; padding-top: var(--ws-s3); display: flex; flex-wrap: wrap; align-items: center;
+  gap: var(--ws-s2) var(--ws-s4); font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+.tpl-lib .tc__acts .ws-btn--primary { order: -1; }
+@media (max-width: 760px) {
+  .tpl-card h4 a { display: inline-flex; align-items: center; min-height: 44px; }
+  .tpl-lib__brand { grid-template-columns: minmax(0, 1fr); }
+  .tpl-lib__h4 { padding-top: 0; }
+  .tpl-lib__none .ws-btn { width: 100%; min-height: 44px; justify-content: center; }
+}
+
+/* the awaiting template's text, read in a dialog: the contract's serif, never a usable copy */
+.tpl-preview .ws-modal__box { width: min(52rem, calc(100vw - 32px)); max-width: none; }
+.tpl-preview__text { max-height: 60vh; overflow-y: auto; margin: var(--ws-s3) 0; padding: var(--ws-s4);
+  background: var(--ws-paper); border-radius: var(--ws-radius); }
+.tpl-preview__clause + .tpl-preview__clause { margin-top: var(--ws-s4); }

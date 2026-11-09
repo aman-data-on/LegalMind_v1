@@ -209,6 +209,8 @@ export interface Contract {
   updated_at: string | null;
   /** `AM-309`, detail only: the signed contract this amends — absent unless readable */
   governed_by?: { id: string; name: string; contract_type: string | null };
+  /** `AM-316`, detail only: the template it was made from — absent for an upload */
+  made_from?: { template_key: string; version: number; doc_type: string; brand: string | null; name: string | null };
   /** `AM-309`, detail only: this contract's amendments the reader may open */
   amendments?: { id: string; name: string; status: string; signed: boolean; archived: boolean }[];
 }

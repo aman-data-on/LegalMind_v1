@@ -12,12 +12,16 @@ API arrives with slice S4). The gate, in order, each step refusing with named pr
    newest published snapshot, inside a SAVEPOINT that is always rolled back (the
    `AM-143` temporary-review pattern, `api.temporary_review`) with recognition OFF — no
    embedding, no model, no egress: our own approved text must match our standards on its
-   words alone. EVERY Finding must be MATCH;
+   words alone. EVERY Finding must be MATCH or in our favour — except the template's
+   DECLARED known points (`source.known_points`, AM-283 as amended by AM-316): the set
+   of points the engine sends to Legal or finds not met must EQUAL the declared list,
+   both ways, and a non-empty list needs an approval reference. A declared point is
+   never accepted: every Review made from the template still sends it to Legal;
 5. then PUBLISHED, with the snapshot it was checked against; the previously published
    version of the same key is RETIRED in the same transaction (one PUBLISHED per key).
 
 Nothing here decides a legal outcome: the engine classifies, this module only refuses
-to publish over anything but MATCH (rule 13; `AM-33`).
+to publish over anything but MATCH or a declared point (rule 13; `AM-33`).
 """
 
 from __future__ import annotations
@@ -199,6 +203,70 @@ def _findings(db: DBSession, *, docx_bytes: bytes, tv: M.TemplateVersion,
         savepoint.rollback()
 
 
+def to_legal(findings: list[tuple[str, str, str, bool, bool]]) -> dict[str, dict]:
+    """The points a template sends to Legal on every deal: each Finding the Review sends
+    to Legal, or not MATCH and not in our favour — {code: {name, classification}}."""
+    return {code: {"name": name, "classification": cls}
+            for code, cls, name, ours, legal in findings
+            if legal or (cls != E.FindingClassification.MATCH.value and not ours)}
+
+
+def known_points(tv: M.TemplateVersion) -> list[str]:
+    """The points Legal declared before approval (`source.known_points`, hashed)."""
+    return list((tv.source or {}).get("known_points") or [])
+
+
+def published_points(db: DBSession, tv: M.TemplateVersion) -> list[dict[str, str]] | None:
+    """The declared points as the publish recorded them ({code, name, classification}),
+    or None when the template declares none (the card then claims nothing)."""
+    if "known_points" not in (tv.source or {}):
+        return None
+    said = db.execute(select(M.AuditEvent.after_state).where(
+        M.AuditEvent.action == TEMPLATE_PUBLISHED,
+        M.AuditEvent.entity_id == tv.id)).scalars().first() or {}
+    recorded = {p["code"]: p for p in said.get("known_points") or []}
+    return [recorded.get(c, {"code": c}) for c in known_points(tv)]
+
+
+#: `AM-316` r4: Legal's choice of the template to recommend for a type and company —
+#: stored as this audited event (no table, no column); the latest per pair wins
+TEMPLATE_RECOMMENDED = "template.recommended"
+
+
+def recommended_keys(db: DBSession) -> set[str]:
+    """The template keys Legal recommends: at most one per (type, company), the latest
+    `template.recommended` event for each pair (a null key clears it). Shown only while
+    that key is PUBLISHED. The one place to change if the owner rules otherwise."""
+    chosen: dict[tuple[str, str | None], str | None] = {}
+    # ``n`` orders choices made at one timestamp (one transaction)
+    for after in sorted(db.execute(select(M.AuditEvent.after_state).where(
+            M.AuditEvent.action == TEMPLATE_RECOMMENDED)).scalars(),
+            key=lambda a: a.get("n", 0)):
+        chosen[(after["doc_type"], after.get("brand"))] = after.get("template_key")
+    return {k for k in chosen.values() if k}
+
+
+def awaiting_approval(tv: M.TemplateVersion) -> bool:
+    """`AM-316` r5: a not-yet-published version Legal marked as awaiting management
+    approval (``source.catalogue.awaiting_approval``, frozen with it) — shown to everyone
+    who may create a contract, never usable for one until it is published."""
+    return tv.status in ("DRAFT", "APPROVED") and bool(
+        ((tv.source or {}).get("catalogue") or {}).get("awaiting_approval"))
+
+
+def card(db: DBSession, tv: M.TemplateVersion, recommended: set[str]) -> dict[str, Any]:
+    """What a template says about itself to the reader (`AM-316` r3): its name and
+    purpose (`source.catalogue`, frozen with the version), the points it sends to Legal
+    on every deal, and whether Legal recommends it. A template without them omits them."""
+    catalogue = (tv.source or {}).get("catalogue") or {}
+    points = published_points(db, tv)
+    return {**{k: catalogue[k] for k in ("name", "purpose") if catalogue.get(k)},
+            **({"known_points": points} if points is not None else {}),
+            "recommended": tv.status == "PUBLISHED" and tv.template_key in recommended,
+            "awaiting_approval": awaiting_approval(tv),
+            "published_at": tv.published_at.isoformat() if tv.published_at else None}
+
+
 def publish_template(db: DBSession, template_version_id: UUID, *, actor_id: UUID,
                      request_id: str | None = None,
                      approval_reference: str | None = None) -> Published:
@@ -247,8 +315,15 @@ def publish_template(db: DBSession, template_version_id: UUID, *, actor_id: UUID
         raise PublishRefused(["NO_SNAPSHOT: nothing is published to check against"])
     findings = _findings(db, docx_bytes=docx_bytes, tv=tv, snapshot=snapshot,
                          actor_id=actor_id, request_id=request_id)
-    off = [f"NOT_MATCH: {code} is {cls}" for code, cls, _, ours, _legal in findings
-           if cls != E.FindingClassification.MATCH.value and not ours]
+    points = to_legal(findings)
+    declared = set(known_points(tv))
+    off = [f"NOT_DECLARED: {code} goes to Legal on every deal; list it in the template's "
+           "known points" for code in sorted(set(points) - declared)]
+    off += [f"STALE: {code} is listed but now meets our standard; remove it"
+            for code in sorted(declared - set(points))]
+    if declared and not approval_reference:
+        off.append("APPROVAL_REFERENCE: a template with known points needs the approval "
+                   "reference of who accepted publishing it with them")
     if off:
         raise PublishRefused(off)
     now = datetime.now(UTC)
@@ -266,5 +341,6 @@ def publish_template(db: DBSession, template_version_id: UUID, *, actor_id: UUID
                     "content_hash": tv.content_hash, "model_hash": digest,
                     "snapshot_id": str(snapshot.id), "findings": len(findings),
                     "pdf_checked": pdf_bytes is not None,
-                    "approval_reference": approval_reference or None})
+                    "approval_reference": approval_reference or None,
+                    "known_points": [{"code": c, **points[c]} for c in sorted(points)]})
     return Published(tv.id, snapshot.id, digest, len(findings), pdf_bytes is not None)

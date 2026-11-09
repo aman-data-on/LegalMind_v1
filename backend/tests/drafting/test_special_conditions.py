@@ -906,3 +906,35 @@ def test_an_entry_left_alone_keeps_its_decision_on_the_next_final_contract(
     carried = db.execute(select(M.LegalDecision).where(
         M.LegalDecision.finding_id == finding.id)).scalar_one()
     assert carried.justification.startswith(f"Carried from version {v3.version_number}")
+
+
+def test_a_template_without_annexure_a_offers_only_the_tracked_changes_reply(
+        db, api, user, seeded, placeholder, lawyer, tmp_path, monkeypatch):
+    """`AM-316` r7: a template kept without Special Conditions (the July 2025 MSA) never
+    offers an Annexure A route — the plan names the other way, and the reply works."""
+    from legalmind.api.storage import get_storage
+    from legalmind.ingestion.storage import LocalFilesystemStorage
+    monkeypatch.delenv("LEGALMIND_SOFFICE", raising=False)
+    storage = LocalFilesystemStorage(tmp_path / "objects")
+    api.app.dependency_overrides[get_storage] = lambda: storage
+    tv = _imported(db, user, placeholder)                     # no frame, no precedence
+    db.add(M.ConfigurationSnapshot(snapshot_hash=uuid.uuid4().hex, created_by=user.id,
+                                   created_at=datetime.now(UTC) - timedelta(days=1)))
+    db.flush()
+    sign_in(api, db, lawyer)
+    for pin in library.pins(tv):
+        api.post(f"{V1}/templates/{tv.id}/clauses/{pin['clause_key']}/approve")
+    assert api.post(f"{V1}/templates/{tv.id}/publish").status_code == 200
+    draft = api.post(f"{V1}/drafts", json={"template_version_id": str(tv.id),
+                                           "answers": dict(tv.layout["check_values"])})
+    made = api.post(f"{V1}/drafts/{draft.json()['data']['id']}/create",
+                    json={"expected_version": 0}).json()["data"]
+    contract = db.get(M.Contract, uuid.UUID(made["contract_id"]))
+    v1 = db.get(M.DocumentVersion, uuid.UUID(made["document_version_id"]))
+    _ingest(db, tmp_path, contract, _client_copy(storage.get(v1.storage_key)),
+            "CLIENT_MODIFIED")
+    plan = api.get(f"{V1}/contracts/{contract.id}/package").json()["data"]
+    assert [b["code"] for b in plan["blockers"]] == ["NO_ANNEXURE"]
+    rows = api.get(f"{V1}/contracts/{contract.id}/changes").json()["data"]["changes"]
+    assert rows and not any("in_package" in c for c in rows)    # no "final contract" line
+    api.app.dependency_overrides.pop(get_storage, None)

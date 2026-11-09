@@ -43,8 +43,9 @@ def blank_model(db: DBSession, tv: M.TemplateVersion) -> dict[str, Any]:
                           blank=True)
 
 
-#: the review copy's header — a DRAFT's full text for management (owner, 2026-11-04)
-REVIEW_HEADER = "DRAFT FOR MANAGEMENT APPROVAL — not for client use"
+#: the review copy's header — a DRAFT's full text, on every page of the download only
+#: (owner, 2026-11-04; worded by the owner 2026-11-09, `AM-316` r6)
+REVIEW_HEADER = "DRAFT — NOT FOR USE WITH A CLIENT. For management approval."
 BLANK, REVIEW = "blank", "review"
 
 

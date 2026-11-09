@@ -702,6 +702,9 @@ export const api = {
   publishTemplate: (id: string, approvalReference = "") =>
     request<TemplateSummary>(p`/templates/${id}/publish`, {
       method: "POST", body: { approval_reference: approvalReference } }),
+  /** `AM-316` r4: Legal's recommended template for its type and company (true), or none (false) */
+  recommendTemplate: (id: string, recommended: boolean) =>
+    request<TemplateSummary>(p`/templates/${id}/recommend`, { method: "POST", body: { recommended } }),
   // New contract (S5, `AM-282` r4 / `AM-295`) — a published template, a person's answers
   publishedTemplates: () => request<PublishedTemplate[]>("/templates/published"),
   createDraft: (templateVersionId: string, counterpartyId: string | null) =>

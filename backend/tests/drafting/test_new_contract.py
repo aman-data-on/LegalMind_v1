@@ -342,3 +342,95 @@ def test_create_records_the_libreoffice_pdf(db, api, published, staff, answers,
     got = api.get(f"{V1}{made.json()['data']['pdf']}")
     assert got.status_code == 200 and got.content.startswith(b"%PDF")
     assert __import__("hashlib").sha256(got.content).hexdigest() == rec["pdf_sha256"]
+
+
+# ---------------------------------------------------------------- AM-316
+@pytest.fixture
+def named(db, api, user, seeded, placeholder, monkeypatch):
+    """The placeholder published with a name and purpose in its catalogue."""
+    monkeypatch.delenv("LEGALMIND_SOFFICE", raising=False)
+    template, clauses = placeholder
+    template["source"]["catalogue"] = {"name": "Placeholder — Original", "purpose": "A test."}
+    template["source"]["known_points"] = []
+    template["content_hash"] = T.template_hash(template, clauses)
+    T.import_rows(db, template, clauses, actor_id=user.id)
+    tv = db.query(M.TemplateVersion).filter_by(template_key="PLACEHOLDER.STRUCTURAL").one()
+    db.add(M.ConfigurationSnapshot(snapshot_hash=uuid.uuid4().hex, created_by=user.id))
+    lawyer = make_user(db)
+    grant_role(db, lawyer, P.ROLE_LEGAL_DECISION_AUTHORITY)
+    db.flush()
+    sign_in(api, db, lawyer)
+    for pin in library.pins(tv):
+        api.post(f"{V1}/templates/{tv.id}/clauses/{pin['clause_key']}/approve")
+    assert api.post(f"{V1}/templates/{tv.id}/publish").status_code == 200
+    return tv, lawyer
+
+
+def test_a_template_names_itself_and_legal_alone_recommends_it(db, api, named, staff,
+                                                               answers):
+    tv, lawyer = named
+    sign_in(api, db, staff)
+    [card] = api.get(f"{V1}/templates/published",
+                     params={"template_key": tv.template_key}).json()["data"]
+    assert (card["name"], card["purpose"], card["known_points"], card["recommended"]) == (
+        "Placeholder — Original", "A test.", [], False)
+    assert card["published_at"]
+    assert api.get(f"{V1}/templates/published",
+                   params={"template_key": "NO.SUCH"}).json()["data"] == []
+    [summary] = api.get(f"{V1}/templates").json()["data"]
+    assert "source_file" not in summary and summary["name"] == card["name"]
+    # recommending is Legal's (a 403 for sales); audited; unset again
+    assert api.post(f"{V1}/templates/{tv.id}/recommend",
+                    json={"recommended": True}).status_code == 403
+    sign_in(api, db, lawyer)
+    done = api.post(f"{V1}/templates/{tv.id}/recommend", json={"recommended": True})
+    assert done.status_code == 200 and done.json()["data"]["recommended"] is True
+    assert db.query(M.AuditEvent).filter_by(action="template.recommended").count() == 1
+    sign_in(api, db, staff)
+    assert api.get(f"{V1}/templates/published").json()["data"][0]["recommended"] is True
+    # the contract carries the template it was made from, and is named by it
+    client = api.post(f"{V1}/counterparties", json={"name": "Synthetic Client"}).json()["data"]
+    draft = _start(api, tv, counterparty_id=client["id"], answers=answers).json()["data"]
+    made = api.post(f"{V1}/drafts/{draft['id']}/create", json={"expected_version": 0})
+    detail = api.get(f"{V1}/contracts/{made.json()['data']['contract_id']}").json()["data"]
+    assert detail["name"] == "Placeholder — Original — Synthetic Client"
+    assert detail["made_from"] == {"template_key": tv.template_key, "version": tv.version,
+                                   "doc_type": tv.doc_type, "brand": tv.brand,
+                                   "name": "Placeholder — Original"}
+    blank = api.get(f"{V1}/templates/{tv.template_key}/blank")
+    assert "Placeholder" in blank.headers["content-disposition"]
+    sign_in(api, db, lawyer)
+    api.post(f"{V1}/templates/{tv.id}/recommend", json={"recommended": False})
+    assert api.get(f"{V1}/templates").json()["data"][0]["recommended"] is False
+
+
+def test_a_withdrawn_template_offers_nothing_and_awaiting_one_is_seen_not_used(
+        db, api, named, staff, answers, user, placeholder):
+    tv, lawyer = named
+    sign_in(api, db, staff)
+    client = api.post(f"{V1}/counterparties", json={"name": "Synthetic Client"}).json()["data"]
+    made = api.post(f"{V1}/drafts/{_start(api, tv, counterparty_id=client['id'], answers=answers).json()['data']['id']}/create",
+                    json={"expected_version": 0}).json()["data"]
+    assert api.post(f"{V1}/templates/{tv.id}/withdraw", json={"reason": "x"}).status_code == 403
+    sign_in(api, db, lawyer)
+    out = api.post(f"{V1}/templates/{tv.id}/withdraw", json={"reason": "Not approved yet"})
+    assert out.status_code == 200 and out.json()["data"]["status"] == "RETIRED"
+    sign_in(api, db, staff)
+    assert api.get(f"{V1}/templates/published").json()["data"] == []
+    assert _start(api, tv).status_code == 404                # retired: never used again
+    # the contract made from it keeps it
+    detail = api.get(f"{V1}/contracts/{made['contract_id']}").json()["data"]
+    assert detail["made_from"]["version"] == tv.version
+    # a next version marked awaiting approval: listed and downloadable as a draft, not used
+    template, clauses = placeholder
+    template["version"] = 2
+    template["source"]["catalogue"] = {"name": "Placeholder", "awaiting_approval": True}
+    template["content_hash"] = T.template_hash(template, clauses)
+    T.import_rows(db, template, clauses, actor_id=user.id)
+    nxt = db.query(M.TemplateVersion).filter_by(template_key=tv.template_key, version=2).one()
+    [row] = [t for t in api.get(f"{V1}/templates").json()["data"] if t["version"] == 2]
+    assert row["awaiting_approval"] is True and row["status"] == "DRAFT"
+    assert api.get(f"{V1}/templates/{nxt.id}").status_code == 200
+    copy = api.get(f"{V1}/templates/{nxt.id}/review-copy")
+    assert copy.status_code == 200, copy.text
+    assert _start(api, nxt).status_code == 404

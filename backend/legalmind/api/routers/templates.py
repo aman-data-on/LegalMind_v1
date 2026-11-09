@@ -89,26 +89,29 @@ def _approver(guard: Guard) -> bool:
 def _visible(guard: Guard, template_id: UUID, *, lock: bool = False) -> M.TemplateVersion:
     stmt = select(M.TemplateVersion).where(M.TemplateVersion.id == template_id)
     tv = guard.db.execute(stmt.with_for_update() if lock else stmt).scalar_one_or_none()
-    if tv is None or (tv.status != "PUBLISHED" and not _approver(guard)):
+    if tv is None or (tv.status != "PUBLISHED" and not publish.awaiting_approval(tv)
+                      and not _approver(guard)):
         raise NotVisible("template not found")
     if not _approver(guard):
         guard.permission(P.CONTRACT_CREATE)
     return tv
 
 
-def _summary(guard: Guard, tv: M.TemplateVersion) -> dict[str, Any]:
+def _summary(guard: Guard, tv: M.TemplateVersion,
+             recommended: set[str] | None = None) -> dict[str, Any]:
     done, total = library.progress(guard.db, tv)
+    if recommended is None:
+        recommended = publish.recommended_keys(guard.db)
     return {"id": str(tv.id), "template_key": tv.template_key, "version": tv.version,
             "status": tv.status, "doc_type": tv.doc_type, "brand": tv.brand,
             "title": (tv.layout or {}).get("title"),
-            # the file it was imported from: tells two templates of one type apart
-            "source_file": (tv.source or {}).get("file"),
+            # AM-316: name, purpose, known points, recommended — never the file name
+            **publish.card(guard.db, tv, recommended),
             # a local demo copy published by hand says so ("DEMO — not approved by Legal")
             "label": (blank.demo_label(tv) if tv.status == "PUBLISHED"
                       else library.DRAFT_LABEL),
             "clauses_approved": done, "clauses_total": total,
             "progress": f"{done} of {total} clauses approved",
-            "published_at": tv.published_at.isoformat() if tv.published_at else None,
             # AM-307/AM-308: can this template carry Special Conditions — the list's
             # badge and the detail read the same check
             "special_conditions": special_conditions.readiness(guard.db, tv)}
@@ -120,8 +123,12 @@ def list_templates(guard: Guard = Depends(get_guard)) -> dict:
                                               M.TemplateVersion.version)
     if not _approver(guard):
         guard.permission(P.CONTRACT_CREATE)
-        stmt = stmt.where(M.TemplateVersion.status == "PUBLISHED")
-    return data([_summary(guard, tv) for tv in guard.db.execute(stmt).scalars()])
+    recommended = publish.recommended_keys(guard.db)
+    return data([_summary(guard, tv, recommended)
+                 for tv in guard.db.execute(stmt).scalars()
+                 # AM-316 r5: anyone else sees what is published and what awaits approval
+                 if _approver(guard) or tv.status == "PUBLISHED"
+                 or publish.awaiting_approval(tv)])
 
 
 @router.get("/templates/{template_id}")
@@ -291,6 +298,61 @@ def publish_template(template_id: UUID, body: PublishRequest | None = None,
                  "pdf_checked": done.pdf_checked})
 
 
+TEMPLATE_WITHDRAWN = "template.withdrawn"
+
+
+@router.post("/templates/{template_id}/withdraw")
+def withdraw_template(template_id: UUID, body: Reasoned,
+                      guard: Guard = Depends(get_guard)) -> dict:
+    """`AM-316` r5: Legal takes a published version out of use — PUBLISHED → RETIRED,
+    the status a newer publish gives it, so the key offers nothing for a new contract
+    until a version is published again. A contract already made from it keeps its pinned
+    version (rule 16). Audited with the reason."""
+    tv = _visible(guard, template_id, lock=True)
+    guard.additional_permission(P.LEGAL_APPROVE_CUSTOMIZATION,
+                                entity_type="template_version", entity_id=tv.id)
+    if tv.status != "PUBLISHED":
+        raise Conflict("only a published template can be taken out of use")
+    tv.status = "RETIRED"
+    guard.db.flush()
+    A.record(guard.db, action=TEMPLATE_WITHDRAWN, entity_type="template_version",
+             entity_id=tv.id, actor_id=guard.user_id, request_id=guard.request_id,
+             after={"template_key": tv.template_key, "version": tv.version,
+                    "reason": body.reason})
+    return data(_summary(guard, tv))
+
+
+class RecommendRequest(Body):
+    #: true: this template is the one Legal recommends for its type and company (any
+    #: earlier choice for that pair is replaced); false: no recommendation for the pair
+    recommended: bool
+
+
+@router.post("/templates/{template_id}/recommend")
+def recommend_template(template_id: UUID, body: RecommendRequest,
+                       guard: Guard = Depends(get_guard)) -> dict:
+    """`AM-316` r4: Legal (a holder of ``legal.approve_customization``) chooses which
+    published template of a type and company is recommended — at most one per pair,
+    audited; nothing is computed from the points. Unsetting is allowed only for the
+    template that is recommended now."""
+    tv = _visible(guard, template_id, lock=True)
+    guard.additional_permission(P.LEGAL_APPROVE_CUSTOMIZATION,
+                                entity_type="template_version", entity_id=tv.id)
+    if tv.status != "PUBLISHED":
+        raise Conflict("only a published template can be recommended")
+    current = tv.template_key in publish.recommended_keys(guard.db)
+    if body.recommended != current:
+        made = guard.db.query(M.AuditEvent).filter(
+            M.AuditEvent.action == publish.TEMPLATE_RECOMMENDED).count()
+        A.record(guard.db, action=publish.TEMPLATE_RECOMMENDED,
+                 entity_type="template_version", entity_id=tv.id,
+                 actor_id=guard.user_id, request_id=guard.request_id,
+                 after={"doc_type": tv.doc_type, "brand": tv.brand,
+                        "template_key": tv.template_key if body.recommended else None,
+                        "n": made + 1})
+    return data(_summary(guard, tv))
+
+
 def _norm(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", library.SLOT.sub(" ", text).lower()).strip()
 
@@ -351,9 +413,13 @@ def check_template(template_id: UUID, guard: Guard = Depends(get_guard)) -> dict
         if standards is None:
             problems.append("ANALYSIS: the engine could not analyse the file")
             standards = []
-        return data({"publishable": not problems and all(s["in_our_favour"]
-                                                          for s in standards),
+        # AM-316: what goes to Legal on every deal must equal the declared list
+        declared = set(publish.known_points(tv))
+        points = {s["code"] for s in standards if s["to_legal"] or not s["in_our_favour"]}
+        stale = sorted(declared - points)
+        return data({"publishable": not problems and points == declared,
                      "problems": problems, "standards": standards,
+                     "known_points": sorted(declared), "stale": stale,
                      # AM-307: read with every clause taken as approved, like the rest
                      "special_conditions": special_conditions.readiness(guard.db, tv)})
     finally:
@@ -432,7 +498,9 @@ def _engine_check(guard: Guard, tv: M.TemplateVersion, docx: bytes,
                 "topic": ((cs or {}).get("constitution") or {}).get("topic"),
                 "classification": f.classification.value, "clause_keys": clauses,
                 # AM-303: better for us than the standard — said, and not a block
-                "in_our_favour": publish.in_our_favour(db, f, code)}
+                "in_our_favour": publish.in_our_favour(db, f, code),
+                # the Review made from it sends this to Legal (AM-316: must be declared)
+                "to_legal": f.status is E.FindingStatus.DECISION_REQUIRED}
         if positions:
             item["position"] = (cs or {}).get("position_statement")
         out.append(item)
@@ -474,8 +542,9 @@ def _download(guard: Guard, storage: StorageBackend, tv: M.TemplateVersion, kind
              after={"template_key": tv.template_key, "version": tv.version,
                     "status": tv.status, "kind": kind, "format": fmt,
                     "template_id": blank.identifier(tv, model, kind)})
-    title = (tv.layout or {}).get("title") or tv.template_key
-    what = "blank template" if kind == blank.BLANK else "review copy"
+    title = (publish.card(guard.db, tv, set()).get("name")
+             or (tv.layout or {}).get("title") or tv.template_key)
+    what = "blank template" if kind == blank.BLANK else "DRAFT not for client use"
     return Response(content=content, media_type=media, headers=attachment_headers(
         f"{title} - {what} v{tv.version}.{fmt}", f"template.{fmt}"))
 
@@ -513,11 +582,13 @@ def download_review_copy(template_id: UUID, format: str = _FORMAT,
                          guard: Guard = Depends(get_guard),
                          storage: StorageBackend = Depends(get_storage)) -> Response:
     """A not-yet-published template's full text for management to approve, headed
-    "DRAFT FOR MANAGEMENT APPROVAL — not for client use", placeholders highlighted.
-    Only a Legal approver, a Legal Decision Authority or the Lead; anyone else (and an
-    unknown id) is the same 404. A published version is 409 — that is the blank."""
+    `blank.REVIEW_HEADER` on every page, placeholders highlighted. A Legal approver, a
+    Legal Decision Authority or the Lead; for a version awaiting approval (`AM-316` r5)
+    also anyone who may create a contract. Anyone else (and an unknown id) is the same
+    404. A published version is 409 — that is the blank."""
     tv = guard.db.get(M.TemplateVersion, template_id)
-    if tv is None or not (_REVIEWERS & guard.permissions):
+    if tv is None or not (_REVIEWERS & guard.permissions or (
+            publish.awaiting_approval(tv) and P.CONTRACT_CREATE in guard.permissions)):
         raise NotVisible("template not found")
     if tv.status not in ("DRAFT", "APPROVED"):
         raise Conflict("This template is no longer a draft; download the blank template "

@@ -6,7 +6,7 @@
  * meets our standard (rule 18).
  */
 
-import { brandLabel } from "./templates";
+import { brandLabel, type TemplateCardData } from "./templates";
 
 export type FieldClass = "M" | "O" | "C" | "AO";
 
@@ -27,12 +27,7 @@ export interface Question {
   profile_field?: string;
 }
 
-export interface PublishedTemplate {
-  id: string;
-  template_key: string;
-  version: number;
-  doc_type: string;
-  brand: string | null;
+export interface PublishedTemplate extends TemplateCardData {
   title: string | null;
   questions: Question[];
   annexures: { key: string; title: string | null; when?: unknown }[];
@@ -102,7 +97,7 @@ export const NO_CLOUDPE_MSA =
   "No CloudPe MSA; CloudPe services are governed by the published CloudPe Terms of Service.";
 
 /** Why a type and brand cannot be made here, in words — or null when a published template exists. */
-export function unavailable(docType: string, brand: string, published: PublishedTemplate[]): string | null {
+export function unavailable(docType: string, brand: string, published: Pick<PublishedTemplate, "doc_type" | "brand">[]): string | null {
   if (docType === "MSA" && brand === "CLOUDPE") return NO_CLOUDPE_MSA;
   if (published.some((t) => t.doc_type === docType && t.brand === brand)) return null;
   return `Our ${brandLabel(brand)} ${docType} template is being approved by Legal.`;
@@ -284,4 +279,12 @@ const SHAPES: Record<string, string> = {
 };
 export function clientFieldError(field: string): string {
   return SHAPES[field] ?? (field === "name" ? "Give the company's name." : "Check this field.");
+}
+
+/** Step 3 (`AM-316`): the early check's points split into what the template sends to Legal
+ *  on every deal and what the answers moved. Only what the check found is shown — a
+ *  declared point the check no longer finds is never listed. */
+export function splitPoints<T extends { code: string }>(points: T[], known: { code: string }[] | undefined) {
+  const codes = new Set((known ?? []).map((k) => k.code));
+  return { fromTemplate: points.filter((p) => codes.has(p.code)), fromDetails: points.filter((p) => !codes.has(p.code)) };
 }
