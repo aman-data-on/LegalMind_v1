@@ -92,6 +92,8 @@ export function UploadContract({ firstRun, onClose }: {
   const router = useRouter();
   const fileInput = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
+  const [paper, setPaper] = useState<"ours" | "client" | null>(null);
+  const [paperMissing, setPaperMissing] = useState(false);
   const [name, setName] = useState("");
   const [contractType, setContractType] = useState("");
   const [stage, setStage] = useState<Stage>("idle");
@@ -138,6 +140,7 @@ export function UploadContract({ firstRun, onClose }: {
    *  now started explicitly rather than the instant a file is picked. */
   async function startUpload() {
     if (!file) return;
+    if (!paper) { setPaperMissing(true); return; }
     setError(null);
     setStage("uploading");
 
@@ -148,6 +151,11 @@ export function UploadContract({ firstRun, onClose }: {
       contractIdRef.current = contract.id;
       const uploaded = await uploadFirstDocument(contract.id, file);
       uploadedVersionId = uploaded.document_version.id;
+      // verifier item 7: whose paper it is, said by the person — client paper is never
+      // read as our draft (the role and Step 6's source, both declared)
+      await api.declareVersion(uploadedVersionId, paper === "ours"
+        ? { version_role: "COMPANY_DRAFT", source: "ORGANIZATION" }
+        : { version_role: "CLIENT_MODIFIED", source: "COUNTERPARTY" });
       setVersionId(uploadedVersionId);
     } catch (cause) {
       setContractId(null);
@@ -250,6 +258,17 @@ export function UploadContract({ firstRun, onClose }: {
             <IconXCircle size={18} />
           </button>
         </div>
+        <fieldset className="ws-field ws-upload-paper" aria-describedby={paperMissing ? "ws-upload-paper-error" : undefined}>
+          <legend className="ws-field__label">Whose paper is it?</legend>
+          {(["ours", "client"] as const).map((which) => (
+            <label key={which} className="ws-upload-paper__opt">
+              <input type="radio" name="ws-upload-paper" value={which} checked={paper === which}
+                     onChange={() => { setPaper(which); setPaperMissing(false); }} />
+              <span>{which === "ours" ? "Our draft" : "The client's paper"}</span>
+            </label>
+          ))}
+          {paperMissing ? <p className="ws-field__error" id="ws-upload-paper-error">Choose whose paper it is</p> : null}
+        </fieldset>
         {error ? (
           <p className="ws-field__error" role="alert">
             {error instanceof ApiError ? describeError(error) : String(error)}

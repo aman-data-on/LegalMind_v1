@@ -167,3 +167,15 @@ def test_a_real_decision_on_the_intermediate_version_carries_from_there(build, d
     [event] = _carried(db, f3)
     assert f3.status is E.FindingStatus.RESOLVED
     assert event.after_state["from_version_number"] == 2
+
+
+# ------------------------------------------------- AM-323 r2: a carried acceptance stands
+def test_a_carried_acceptance_lets_the_clients_wording_stand(build, db, seeded):
+    """The holder's acceptance on version 1, carried to version 2 on the same words, is
+    what lets the client's wording stand there — and it stops the moment Legal's latest
+    word on version 2 is a rejection or the point is escalated."""
+    from legalmind.api.routers.negotiation import _carried_acceptance
+    contract, _, f2 = _carried_v2(build, db, seeded)
+    assert _carried_acceptance(db, f2.id)
+    _escalate(build, db, f2)
+    assert not _carried_acceptance(db, f2.id)

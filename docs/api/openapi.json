@@ -4639,7 +4639,7 @@
   },
   "/api/v1/contracts/{contract_id}/final-copy": {
    "get": {
-    "description": "The dry run of \"Prepare final contract\" where no Annexure package applies\n(`AM-318`): ``available``, ``blockers[{code, message}]``, ``mode`` (copy \u00b7 reply),\n``of_version`` and what was ``agreed`` (each change's place and answer).",
+    "description": "The dry run of \"Prepare final contract\" where no Annexure package applies\n(`AM-318`): ``available``, ``blockers[{code, message}]``, ``mode`` (copy),\n``of_version`` and what was ``agreed`` (each change's place and answer).",
     "operationId": "final_copy_preview_api_v1_contracts__contract_id__final_copy_get",
     "parameters": [
      {

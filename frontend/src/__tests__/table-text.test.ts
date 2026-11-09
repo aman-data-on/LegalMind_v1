@@ -2,7 +2,7 @@
  *  a nested table kept inside its cell, prose around a table left as prose. */
 import { describe, expect, it } from "vitest";
 
-import { hasTable, isFigure, textBlocks } from "@/components/workspace/tableText";
+import { hasTable, isFigure, tableCells, textBlocks } from "@/components/workspace/tableText";
 
 describe("textBlocks", () => {
   const content = [
@@ -48,5 +48,22 @@ describe("textBlocks", () => {
         }
       }
     }
+  });
+});
+
+describe("empty cells keep their column (verifier item 3)", () => {
+  it("splits a signature row with empty cells into four columns", () => {
+    const rows = textBlocks("| Name | Designation | Name | Designation |\n| Sign | | Sign | |\n| Asha | Director | Ravi | |");
+    const table = rows[0]!;
+    expect(table.kind).toBe("table");
+    if (table.kind !== "table") return;
+    expect(table.rows.map((r) => r.map((c) => c.text))).toEqual([
+      ["Name", "Designation", "Name", "Designation"],
+      ["Sign", "", "Sign", ""],
+      ["Asha", "Director", "Ravi", ""]]);
+    expect(table.rows[2]![3]!.text).toBe("");          // the client's Designation stays empty
+  });
+  it("keeps a nested table inside a cell", () => {
+    expect(tableCells("| a | [x | y; z | w] | |").map((c) => c.text)).toEqual(["a", "[x | y; z | w]", ""]);
   });
 });

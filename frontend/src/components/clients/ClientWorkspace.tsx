@@ -325,6 +325,7 @@ export function ClientWorkspace({ clientId }: { clientId: string }) {
   const location = clientLocation(client);
   const documents = client.documents ?? 0;
   const signed = client.signed_documents ?? 0;
+  const final = client.final_documents ?? 0;
 
   return (
     <div className="ws-cl ws-cl--work">
@@ -381,7 +382,7 @@ export function ClientWorkspace({ clientId }: { clientId: string }) {
               <div className="ws-cl__headcounts">
                 <span>{documentCountLabel(documents)}</span>
                 {documents > 0 ? (
-                  <span className="ws-cl__signed">{signed} final</span>
+                  <span className="ws-cl__signed">{final} final{signed ? `, ${signed} signed earlier` : ""}</span>
                 ) : null}
               </div>
               {can(P.CONTRACT_UPDATE) ? (

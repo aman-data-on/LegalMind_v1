@@ -155,9 +155,10 @@ export function documentSourceChip(value: string | null | undefined): string | n
  * inferred from the version number, the filename or the date.
  */
 export const VERSION_ROLES: ReadonlyArray<{ role: string; label: string; hint: string }> = [
-  { role: "COMPANY_DRAFT", label: "Company draft", hint: "What we sent" },
-  { role: "CLIENT_MODIFIED", label: "Client modified", hint: "What came back" },
-  { role: "FINAL_SIGNED", label: "Final signed", hint: "What was executed" },
+  // one set of words everywhere (verifier item 7): the contract page's ROLE_WORDS too
+  { role: "COMPANY_DRAFT", label: "Our draft", hint: "What we sent" },
+  { role: "CLIENT_MODIFIED", label: "Client's markup", hint: "What came back" },
+  { role: "FINAL_SIGNED", label: "Signed", hint: "Signed in LegalMind before Final" },
 ];
 
 /** The reader's word for a version role, or null when nobody declared one —

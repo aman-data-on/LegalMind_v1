@@ -42,7 +42,7 @@ export function NewContractChooser({ onUpload, onClose }: { onUpload: () => void
         <li>
           <button type="button" className="nc-item" onClick={onUpload}>
             <span className="nc-item__l1">Upload a contract</span>
-            <span className="nc-item__l2">The client&rsquo;s paper, or a contract signed elsewhere</span>
+            <span className="nc-item__l2">The client&rsquo;s paper, or a draft of ours</span>
           </button>
         </li>
       </ul>

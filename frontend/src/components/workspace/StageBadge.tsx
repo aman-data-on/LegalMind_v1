@@ -23,7 +23,9 @@ export const STAGE_ORDER: readonly NegotiationStageCode[] = [
 export const STAGE_LABEL = Object.fromEntries(
   STAGE_ORDER.map((code) => [code, stageWords(code)])) as Record<NegotiationStageCode, string>;
 
-export function StageBadge({ stage, counts, showDays = true, viewer = "owner", final = false }: {
+export function StageBadge({ stage, counts, showDays = true, viewer = "owner", final = false, unsent = false }: {
+  /** the points are not sent to Legal yet (the header offers "Send to Legal") — item 7 */
+  unsent?: boolean;
   stage: NegotiationStage | undefined | null;
   /** the server's `counts` (`AM-291`): the chip names the real next step from them */
   counts?: DealCounts | undefined;
@@ -38,7 +40,9 @@ export function StageBadge({ stage, counts, showDays = true, viewer = "owner", f
     // the end of the deal: "Final · 9 Nov 2026", a date rather than an age
     return <span className="ws-dealstage ws-dealstage--final">{`Final · ${shortDate(stage.since)}`}</span>;
   }
-  const label = stageLine(stage.stage, counts, viewer, final);
+  const label = unsent && stage.stage === "INTERNAL_REVIEW" && counts?.points_open
+    ? `${counts.points_open === 1 ? "1 open point" : `${counts.points_open} open points`}, not sent to Legal`
+    : stageLine(stage.stage, counts, viewer, final);
   const ourTurn = stage.stage === "CLIENT_RETURNED" || stage.stage === "READY_TO_SEND";
   return (
     <span

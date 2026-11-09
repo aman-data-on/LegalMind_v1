@@ -153,6 +153,8 @@ export interface Counterparty {
    *  people legitimately see different numbers for the same company. */
   documents?: number;
   signed_documents?: number;
+  /** `AM-318`: deals that reached Final (counted as the Contracts list's Final filter) */
+  final_documents?: number;
   last_activity?: string | null;
 }
 
@@ -270,6 +272,8 @@ export interface DealCounts {
   changes_total?: number;
   changes_left?: number;
   changes_left_for_me?: number;
+  /** answered changes our reply carries back to the client (anything but "accept theirs") */
+  changes_ours?: number;
   points_open?: number;
   points_for_me?: number;
 }
@@ -339,6 +343,8 @@ export interface DocumentVersion {
   package?: { of_version_id: string; special_conditions: number; form?: "changes_only" };
   /** `AM-318` — a final clean copy: the version it was made from, how, and the answers it
    *  carries (each change's place and answer). */
+  /** an amendment's first version: the agreed text, copied for reference, never reviewed */
+  reference_copy_of?: string;
   final_copy?: { of_version_id: string; mode: "copy" | "reply" | null; agreed: { where: string; answer: string }[] };
   /** `AM-260` — when this version of ours went to the client; absent until then. */
   sent_at?: string;

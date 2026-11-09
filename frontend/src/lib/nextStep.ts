@@ -60,7 +60,9 @@ export function nextStep(f: StepFacts): Step | null {
       if (c.changes_left_for_me) return step("answerChanges");
       if (c.changes_total === undefined || c.changes_left) return null;
       if (f.packageReady) return step("preparePackage", f.amendment ? ACTION.prepareAmendment : undefined);
-      return step("prepareFinal");                                // AM-318 A4: every route
+      // our answers go back to the client as our reply first; nothing to send back
+      // (every change accepted) — the client's version is agreed: its final copy
+      return c.changes_ours ? step("prepareReply") : step("prepareFinal");
     case "INTERNAL_REVIEW":
       // our reply (or draft) holds open points, or the final copy waits on Legal's
       // decision on the contract, and nobody in Legal has it yet
@@ -84,7 +86,7 @@ export function taskAction(item: Pick<TodoItem, "kind" | "count" | "counts">): s
     case "prepare_final": return ACTION.prepareFinal;
     case "client_returned":
       return item.counts?.changes_total !== undefined && !item.counts.changes_left
-        ? ACTION.prepareReply : ACTION.answerChanges;
+        ? (item.counts.changes_ours ? ACTION.prepareReply : ACTION.prepareFinal) : ACTION.answerChanges;
     default: return ACTION.answerChanges;
   }
 }

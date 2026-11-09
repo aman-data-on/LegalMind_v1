@@ -311,6 +311,9 @@ IMPLEMENTATION_ADDED_ENDPOINTS: Final[dict[tuple[str, str], str]] = {
     # the change list, the package is written like the reply; its trace a read
     ("GET", f"{API_PREFIX}/contracts/{{contract_id}}/package"): P.DOCUMENT_VIEW,
     ("POST", f"{API_PREFIX}/contracts/{{contract_id}}/package"): P.CONTRACT_UPDATE,
+    # AM-318: the final clean copy — its dry run a read, the copy written like the package
+    ("GET", f"{API_PREFIX}/contracts/{{contract_id}}/final-copy"): P.DOCUMENT_VIEW,
+    ("POST", f"{API_PREFIX}/contracts/{{contract_id}}/final-copy"): P.CONTRACT_UPDATE,
     ("GET", f"{API_PREFIX}/document-versions/{{document_version_id}}/special-conditions"):
         P.DOCUMENT_VIEW,
     # AM-309: an amendment of a signed contract is a new contract (its parent read);

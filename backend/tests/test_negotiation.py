@@ -549,3 +549,18 @@ def test_a_reworded_clause_still_pairs_by_its_number_when_nothing_says_otherwise
                    "9. Neither side owes more than a year's charges.")
     [row] = negotiation.changes(db, c, v1, v2, legal_position=True)["changes"]
     assert row["kind"] == "MODIFIED"
+
+
+def test_a_recitals_joining_word_is_never_a_change_of_its_own():
+    """Verifier item 7: "AND" / "WHEREAS" on their own heading line stay with the text
+    above them — they are not units, so they are never counted as changes."""
+    from legalmind.analysis.negotiation import _units
+    from legalmind.mapping.engine import Clause
+    rows = [Clause(uuid.uuid4(), "THIS AGREEMENT is made between A", is_heading=True),
+            Clause(uuid.uuid4(), "AND", is_heading=True),
+            Clause(uuid.uuid4(), "B, the second party", is_heading=False),
+            Clause(uuid.uuid4(), "WHEREAS", is_heading=True),
+            Clause(uuid.uuid4(), "Definitions", section_number="1", is_heading=True)]
+    units = _units(rows)
+    assert [u["number"] for u in units] == [None, "1"]
+    assert "AND" in units[0]["text"] and "WHEREAS" in units[0]["text"]

@@ -204,7 +204,8 @@ def _my_deals(guard: Guard) -> list[dict]:
             continue
         kind, sentence = ("client_returned",
                           "The client returned a new version — it is our turn.")
-        if "changes_total" in n and not n.get("changes_left"):
+        if "changes_total" in n and not n.get("changes_left") \
+                and not n.get("changes_ours"):
             kind, sentence = "prepare_final", PREPARE_FINAL       # AM-318 A3
         if left:
             verb = "is" if left == 1 else "are"

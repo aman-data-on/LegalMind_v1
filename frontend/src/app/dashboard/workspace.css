@@ -7551,3 +7551,26 @@ a.ws-askglobal[data-away]:not(:focus-visible) {
 /* a long blank ("____________") or address never pushes the sheet wider than the phone */
 .ws-row__text, .ws-row__plain, .ws-row__note { overflow-wrap: anywhere; }
 .ws-table td[data-figure] { white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* Verifier item 7 (2026-11-09): the Client Profiles list stacks as cards on a phone, as
+   the documents table does — one card per client, each fact under its column's name */
+@media (max-width: 760px) {
+  .ws-cl__table--list table, .ws-cl__table--list tbody,
+  .ws-cl__table--list tr, .ws-cl__table--list td { display: block; width: auto; }
+  .ws-cl__table--list thead {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);
+  }
+  .ws-cl__table--list tbody tr { border-bottom: 1px solid var(--ws-ink-100); padding: var(--ws-s2) 0; }
+  .ws-cl__table--list td { border-bottom: 0; padding: 4px var(--ws-s4); }
+  .ws-cl__table--list td[data-label] {
+    display: grid; grid-template-columns: 8.5rem minmax(0, 1fr); gap: var(--ws-s2); align-items: center;
+  }
+  .ws-cl__table--list td[data-label]::before {
+    content: attr(data-label); font-size: var(--ws-text-xs); color: var(--ws-ink-500);
+  }
+  .ws-cl__table--list td.ws-cl__rowact a { display: inline-flex; min-height: 44px; align-items: center; }
+}
+/* Verifier item 7: whose paper a new upload is — two plain choices, each a full target */
+.ws-upload-paper { border: 0; margin: var(--ws-s3) 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--ws-s2) var(--ws-s4); }
+.ws-upload-paper legend { flex-basis: 100%; margin-bottom: 4px; }
+.ws-upload-paper__opt { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; }

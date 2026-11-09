@@ -19,6 +19,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind.db import models as M
+from legalmind.domain.deal_stage import final_of
 from legalmind.domain.enums import ContractOutcome, DecisionType, ReviewStatus
 from legalmind.security import audit as A
 from legalmind.security import permissions as P
@@ -45,7 +46,6 @@ def suggest(decision_types: set[DecisionType]) -> ContractOutcome:
 
 def is_final_copy(db: DBSession, review: M.Review) -> bool:
     """The Review is of a final contract (`AM-318`): a package or a final copy."""
-    from legalmind.analysis.negotiation import final_of  # circular at import
     version = db.get(M.DocumentVersion, review.document_version_id)
     return version is not None and bool(final_of(version.doc_metadata))
 

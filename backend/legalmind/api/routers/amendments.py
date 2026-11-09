@@ -201,7 +201,6 @@ def create_amendment(contract_id: UUID, body: AmendmentCreate | None = Body(None
     out of the caller's read scope; 409 — with the reason — when it is not signed, is an
     amendment itself, is archived, or has no client linked."""
     from legalmind.api.routers.contracts import _require_linkable  # circular at import
-    from legalmind.api.routers.negotiation import _review_reply  # circular at import
 
     db = guard.db
     parent = guard.contract_readable(contract_id, P.CONTRACT_VIEW)
@@ -253,8 +252,8 @@ def create_amendment(contract_id: UUID, body: AmendmentCreate | None = Body(None
                         "counterparty_id": str(parent.counterparty_id),
                         "copied_from_version_id": str(base.id) if base else None,
                         "document_version_id": str(version.id) if version else None})
-    if version is not None:
-        _review_reply(guard, version)
+    # verifier item 5 (AM-323): the copy is the agreed text the amendment is measured
+    # against — reference only, never reviewed as the amendment (its own document is)
     return data({**serialize_contract(amendment), **relations(guard, amendment),
                  "document_version": (serialize_document_version(version)
                                       if version else None),

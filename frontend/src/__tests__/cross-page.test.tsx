@@ -36,6 +36,7 @@ describe("the stage line agrees with the counts", () => {
     expect(stageLine("INTERNAL_REVIEW", answered, "owner")).toBe("With Legal, 17 points");
     expect(stageLine("INTERNAL_REVIEW", answered, "legal")).toBe("Legal deciding 17 points");
     expect(stageLine("CLIENT_RETURNED", answered)).toBe("Ready for the final contract");   // N16
+    expect(stageLine("CLIENT_RETURNED", { ...answered, changes_ours: 5 })).toBe("Changes answered, reply next");
     expect(stageLine("CLIENT_RETURNED", round)).toBe("Client replied");
     expect(stageLine("INTERNAL_REVIEW", { points_open: 0 }, "legal")).toBe("Your review");
   });
@@ -53,7 +54,9 @@ describe("one primary step per person per stage", () => {
   it("gives each person one named act", () => {
     expect(nextStep({ ...owner, stage: "CLIENT_RETURNED", counts: round })?.label).toBe("Answer changes");
     expect(nextStep({ ...owner, stage: "CLIENT_RETURNED",
-      counts: { ...round, changes_left: 0, changes_left_for_me: 0 } })?.label).toBe("Prepare final contract");
+      counts: { ...round, changes_left: 0, changes_left_for_me: 0, changes_ours: 3 } })?.label).toBe("Prepare our reply");
+    expect(nextStep({ ...owner, stage: "CLIENT_RETURNED",
+      counts: { ...round, changes_left: 0, changes_left_for_me: 0, changes_ours: 0 } })?.label).toBe("Prepare final contract");
     expect(nextStep({ ...owner, stage: "CLIENT_RETURNED",
       counts: { ...round, changes_left_for_me: 0 } })).toBeNull();     // what is left is Legal's
     expect(nextStep({ ...owner, stage: "READY_TO_SEND", replyReady: true })?.label).toBe("Send our reply");
@@ -75,8 +78,11 @@ describe("one primary step per person per stage", () => {
       counts: { points_for_me: 17 } })?.label);
     expect(taskAction({ kind: "changes_to_answer" })).toBe(ACTION.answerChanges);
     expect(taskAction({ kind: "reply_ready" })).toBe(ACTION.sendReply);
-    expect(taskAction({ kind: "client_returned", counts: { changes_total: 4, changes_left: 0 } }))
+    // verifier item 1: our answers go back as the reply; all accepted — the final copy
+    expect(taskAction({ kind: "client_returned", counts: { changes_total: 4, changes_left: 0, changes_ours: 2 } }))
       .toBe(ACTION.prepareReply);
+    expect(taskAction({ kind: "client_returned", counts: { changes_total: 4, changes_left: 0, changes_ours: 0 } }))
+      .toBe(ACTION.prepareFinal);
   });
 });
 

@@ -375,8 +375,9 @@ export function stageLine(code: string, c: DealCounts | undefined, viewer: Stage
   if (code === "INTERNAL_REVIEW" && points) {
     return viewer === "legal" ? `Legal deciding ${plural(points, "point")}` : `With Legal, ${plural(points, "point")}`;
   }
-  if (code === "CLIENT_RETURNED" && c?.changes_total && !c.changes_left) {
-    return "Ready for the final contract";          // N16: the primary's own words
+  if (code === "CLIENT_RETURNED" && c?.changes_total !== undefined && !c.changes_left) {
+    // N16: the primary's own words
+    return c.changes_ours ? "Changes answered, reply next" : "Ready for the final contract";
   }
   if (code === "INTERNAL_REVIEW" && final) {
     // AM-318: the final copy waits on Legal's decision on the contract

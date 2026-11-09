@@ -137,10 +137,17 @@ export function StatusExplainer({ collapsible = false }: { collapsible?: boolean
   );
 }
 
+/** Verifier item 5: an amendment starts from the agreed text, kept for reference only. */
+export const REFERENCE_COPY_NOTE =
+  "This is the contract as agreed, copied for reference. It is not reviewed again: upload the amendment's "
+  + "own document, or prepare it, and that is what Legal reviews.";
 export const SIGNED_COPY_NOTE =
   "This is the signed copy, filed with the signing record. Its terms were reviewed on the agreed version before signing.";
 
-export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner", counts, signedCopy = false, isOwner = false }: {
+export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner", counts, signedCopy = false, isOwner = false,
+  referenceCopy = false }: {
+  /** an amendment's first version: the agreed text, reference only (verifier item 5) */
+  referenceCopy?: boolean;
   documentVersionId: string;
   /** the reader owns the contract — only they may start its analysis (presentation only) */
   isOwner?: boolean;
@@ -186,16 +193,17 @@ export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner
            scope ends when it is CLOSED; SEC-07 hides that it exists) — so never claim the
            version was not analysed */
         <>
-          <p className="ws-pane__note">{signedCopy ? SIGNED_COPY_NOTE : "No analysis of this version to show you."}</p>
+          <p className="ws-pane__note">{signedCopy ? SIGNED_COPY_NOTE : referenceCopy ? REFERENCE_COPY_NOTE
+            : "No analysis of this version to show you."}</p>
           {/* AM-317 r6: the owner can start it — a scan read while nobody watched */}
-          {isOwner && !signedCopy && can(P.REVIEW_CREATE)
+          {isOwner && !signedCopy && !referenceCopy && can(P.REVIEW_CREATE)
             ? <AnalyseNow versionId={documentVersionId} onDone={reload} /> : null}
         </>
       ) : state.kind === "not-started" ? (
-        /* A Review exists and analysis was never submitted — the Findings tab
+        /* A Review exists and analysis was never submitted — the Points tab
            carries the control that starts it (2026-09-04 state split). */
         <p className="ws-pane__note">
-          This version has not been analysed yet — start it from the Findings tab.
+          This version has not been analysed yet — start it from the Points tab.
         </p>
       ) : state.kind === "in-flight" ? (
         <p className="ws-pane__note" aria-busy="true" role="status">
@@ -203,7 +211,7 @@ export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner
         </p>
       ) : state.kind === "failed" ? (
         <p className="ws-pane__note">
-          The analysis could not be completed — the Findings tab has the details.
+          The analysis could not be completed — the Points tab has the details.
         </p>
       ) : state.kind === "error" ? (
         <p className="ws-pane__note">{describeError(state.error)}</p>
@@ -224,6 +232,7 @@ export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner
                               onRecorded={reload} readOnly={reference} />
             {/* AM-318: a Final deal has nothing open and nothing left to offer */}
             {reference || stage?.stage === "FINAL" ? null : <LegalAngle reviewId={state.review.id} refreshKey={refreshKey} withRecommendation={false}
+                        allDecided={counts?.points_open === 0}
                         decided={new Set(state.findings.filter((f) => !OPEN_STATES.has(pointState(f)))
                                                       .map((f) => f.id))}
                         onOpen={sideTabs ? (id) => sideTabs.openFindings({ findingId: id })

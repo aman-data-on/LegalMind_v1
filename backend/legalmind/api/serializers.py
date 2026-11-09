@@ -408,6 +408,9 @@ def serialize_document_version(dv: M.DocumentVersion) -> dict[str, Any]:
                            "mode": (dv.doc_metadata or {}).get("final_mode"),
                            "agreed": (dv.doc_metadata or {}).get("agreed") or []}}
            if (dv.doc_metadata or {}).get("final_copy_of") else {}),
+        # verifier item 5: an amendment's first version — the agreed text, reference only
+        **({"reference_copy_of": (dv.doc_metadata or {})["copy_of"]}
+           if (dv.doc_metadata or {}).get("copy_of") else {}),
         # QA-037: why a FAILED version could not be read, present only then
         **({"unreadable_reason": (dv.doc_metadata or {})["unreadable"]}
            if dv.processing_status is ProcessingStatus.FAILED

@@ -89,10 +89,11 @@ def test_the_client_accepted_our_draft_unchanged(api, db, owner, tmp_path):
     assert again.json()["error"]["code"] == "FINAL_COPY_NOT_READY"
 
 
-def test_client_changes_are_applied_and_the_copy_is_clean(api, db, owner, tmp_path,
-                                                          monkeypatch):
-    """B4: every answer applied as our reply would write it, then every tracked change
-    accepted — no revision mark is left in the file."""
+def test_a_counter_proposal_goes_to_the_client_before_the_final_copy(
+        api, db, owner, tmp_path, monkeypatch):
+    """Verifier item 1: answers that keep or propose our wording go back as our reply
+    first (REPLY_FIRST); once the client accepts that reply, its final copy is clean —
+    every tracked change accepted, no revision mark left."""
     monkeypatch.delenv("LEGALMIND_SOFFICE", raising=False)
     c, _, theirs = _negotiated(api, db, owner, tmp_path)
     assert api.get(FINAL.format(c.id)).json()["data"]["blockers"][0]["code"] == "CHANGES"
@@ -100,16 +101,30 @@ def test_client_changes_are_applied_and_the_copy_is_clean(api, db, owner, tmp_pa
         _answer(api, c, change, "accept_theirs" if change["clause"]["number"] == "4"
                 else "keep_ours")
     dry = api.get(FINAL.format(c.id)).json()["data"]
-    assert dry["available"] and dry["mode"] == "reply" and len(dry["agreed"]) == 5
-    r = api.post(FINAL.format(c.id))
+    assert [b["code"] for b in dry["blockers"]] == ["REPLY_FIRST"]
+    reply = api.post(f"{V1}/contracts/{c.id}/reply")
+    assert reply.status_code == 201, reply.text
+    after = api.get(FINAL.format(c.id)).json()["data"]
+    assert after["available"] and len(after["agreed"]) == 5       # the round's answers
+    r = api.post(FINAL.format(c.id))          # the client accepted our reply as it was
     assert r.status_code == 201, r.text
-    body = r.json()["data"]
-    v = db.get(M.DocumentVersion, uuid.UUID(body["document_version"]["id"]))
-    assert v.doc_metadata["final_copy_of"] == str(theirs.id)
+    v = db.get(M.DocumentVersion, uuid.UUID(r.json()["data"]["document_version"]["id"]))
+    assert v.doc_metadata["final_copy_of"] == reply.json()["data"]["document_version"]["id"]
     from legalmind.api.storage import get_storage
     data = api.app.dependency_overrides.get(get_storage, get_storage)().get(v.storage_key)
     assert clean.has_markup(data) == []
     assert _text(data) == [*OURS[:3], THEIRS[2]]
+
+
+def test_a_blank_left_to_fill_blocks_the_final_contract(api, db, owner, tmp_path):
+    """Verifier item 4: a final contract never keeps a blank — a plain list says where."""
+    c = _contract(db, owner)
+    _ingest(db, tmp_path, c, _docx("1. Business Day means a day banks at ___________ are "
+                                   "open.", *OURS[1:]), "ours.docx")
+    dry = api.get(FINAL.format(c.id)).json()["data"]
+    assert [b["code"] for b in dry["blockers"]] == ["BLANKS"]
+    assert "clause 1 (" in dry["blockers"][0]["message"]
+    assert api.post(FINAL.format(c.id)).status_code == 409
 
 
 def test_a_client_pdf_with_answers_to_write_is_refused(api, db, owner):
@@ -118,7 +133,8 @@ def test_a_client_pdf_with_answers_to_write_is_refused(api, db, owner):
     _pair(db, c, "9. Liability is capped.", "9. Liability is uncapped.")
     _answer(api, c, _changes(api, c)["changes"][0], "keep_ours")
     dry = api.get(FINAL.format(c.id)).json()["data"]
-    assert dry["blockers"][0]["code"] in {"NEEDS_WORD_FILE", "NOT_READ"}
+    # a counter-proposal on the client's PDF: our reply first (which needs their Word file)
+    assert dry["blockers"][0]["code"] in {"REPLY_FIRST", "NOT_READ"}
 
 
 # ------------------------------------------------------------------ the decision

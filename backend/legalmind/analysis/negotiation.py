@@ -69,6 +69,7 @@ from legalmind.analysis import document_comparison as dc
 from legalmind.analysis.version_comparison import ComparisonNotPossible
 from legalmind.analysis.version_comparison import _normalize as _spacing
 from legalmind.db import models as M
+from legalmind.domain.deal_stage import final_of
 from legalmind.domain.enums import FindingClassification, FindingStatus, ReviewStatus
 from legalmind.evaluation.constitution_boundaries import constitution_prohibition_for
 from legalmind.evaluation.user_status import ACCEPTABLE, by_finding
@@ -229,13 +230,6 @@ def answers(meta: dict | None) -> str | None:
     return meta.get("reply_to") or meta.get("package_of")
 
 
-def final_of(meta: dict | None) -> str | None:
-    """The version a final contract was made from (`AM-318`): the Annexure package's
-    ``package_of`` (`AM-307`) or a final copy's ``final_copy_of`` — else None."""
-    meta = meta or {}
-    return meta.get("package_of") or meta.get("final_copy_of")
-
-
 def is_ours(version: M.DocumentVersion) -> bool:
     """A version WE sent or drafted: declared Company draft, or undeclared and not the
     counterparty's paper (`source`) — never CLIENT_MODIFIED or FINAL_SIGNED."""
@@ -278,6 +272,12 @@ def _heading_case(before: str, after: str) -> bool:
             and re.findall(r"\d+", before) == re.findall(r"\d+", after))
 
 
+#: a recital's joining word on its own line ("AND", "WHEREAS") is not a clause: it stays
+#: with the text above it, so it is never a change row of its own (verifier item 7)
+_CONNECTOR = re.compile(
+    r"^(?:and|whereas|between|by and between|now,? therefore)[\s:,.]*$", re.IGNORECASE)
+
+
 def _units(clauses: list[Clause]) -> list[dict[str, Any]]:
     """The clauses as negotiated: a numbered row starts one (its own number again is a
     continuation), so does an unnumbered heading or a schedule's own heading line; any
@@ -287,7 +287,8 @@ def _units(clauses: list[Clause]) -> list[dict[str, Any]]:
     for row in clauses:
         first = (row.content or "").strip().split("\n", 1)[0]
         part = bool(_ANNEX.match(first)) and first.isupper()
-        starts = (not units or part or (row.is_heading and not row.section_number)
+        starts = (not units or part or (row.is_heading and not row.section_number
+                                        and not _CONNECTOR.match(first.strip()))
                   or (row.section_number and row.section_number != units[-1]["number"]))
         if starts:
             units.append({"number": row.section_number,

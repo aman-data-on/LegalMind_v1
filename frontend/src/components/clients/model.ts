@@ -159,6 +159,7 @@ export function mergeProfile(
   const merged: Counterparty = { ...saved };
   if (current.contracts !== undefined) merged.contracts = current.contracts;
   if (current.documents !== undefined) merged.documents = current.documents;
+  if (current.final_documents !== undefined) merged.final_documents = current.final_documents;
   if (current.signed_documents !== undefined) {
     merged.signed_documents = current.signed_documents;
   }

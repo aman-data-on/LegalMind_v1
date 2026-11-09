@@ -326,7 +326,7 @@ export function ClientDirectory() {
               </div>
             ) : (
               <>
-                <div className="ws-cl__table">
+                <div className="ws-cl__table ws-cl__table--list">
                   <table>
                     <thead><TableHead /></thead>
                     <tbody>
@@ -346,16 +346,17 @@ export function ClientDirectory() {
                                 </span>
                               </Link>
                             </td>
-                            <td>
+                            <td data-label="Industry">
                               {client.industry ?? (
                                 <span className="ws-cl__absent">Not recorded</span>
                               )}
                             </td>
-                            <td><ClientStatus status={client.status} /></td>
-                            <td className="ws-mono">{client.documents ?? 0}</td>
-                            <td className="ws-mono">{client.signed_documents ?? 0}</td>
-                            <td className="ws-mono">{relativeTime(client.last_activity)}</td>
-                            <td className="ws-mono">{shortDate(client.created_at) ?? "—"}</td>
+                            <td data-label="Status"><ClientStatus status={client.status} /></td>
+                            <td className="ws-mono" data-label="Documents">{client.documents ?? 0}</td>
+                            <td className="ws-mono" data-label="Final">{client.final_documents ?? 0}
+                              {client.signed_documents ? <span className="ws-cl__absent"> (+{client.signed_documents} signed earlier)</span> : null}</td>
+                            <td className="ws-mono" data-label="Last activity">{relativeTime(client.last_activity)}</td>
+                            <td className="ws-mono" data-label="Added">{shortDate(client.created_at) ?? "—"}</td>
                             <td className="ws-cl__rowact">
                               {/* A quiet link, not a bordered button. Eleven
                                   outlined buttons down the right edge drew more

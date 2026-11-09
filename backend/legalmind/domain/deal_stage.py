@@ -56,6 +56,13 @@ class NegotiationStage(StrEnum):
 
 NEGOTIATION_STAGES: tuple[str, ...] = tuple(s.value for s in NegotiationStage)
 
+
+def final_of(meta: dict | None) -> str | None:
+    """The version a final contract was made from (`AM-318`): the Annexure package's
+    ``package_of`` (`AM-307`) or a final copy's ``final_copy_of`` — else None."""
+    meta = meta or {}
+    return meta.get("package_of") or meta.get("final_copy_of")
+
 _READY = {"SIGN_AS_IS", "SIGN_WITH_CHANGES"}
 
 

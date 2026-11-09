@@ -215,9 +215,9 @@ describe("document versions", () => {
   });
 
   it("keeps the three roles distinct, in the reader's own words", () => {
-    expect(versionRoleLabel("COMPANY_DRAFT")).toBe("Company draft");
-    expect(versionRoleLabel("CLIENT_MODIFIED")).toBe("Client modified");
-    expect(versionRoleLabel("FINAL_SIGNED")).toBe("Final signed");
+    expect(versionRoleLabel("COMPANY_DRAFT")).toBe("Our draft");
+    expect(versionRoleLabel("CLIENT_MODIFIED")).toBe("Client's markup");
+    expect(versionRoleLabel("FINAL_SIGNED")).toBe("Signed");
   });
 
   it("never treats the client's redline as the signed copy", () => {

@@ -163,8 +163,10 @@ function Noticed({ observation }: { observation: Observation }) {
 /** The Legal angle (`AM-159`/`AM-160`): one recommendation line, the issues in the order
  *  a person acts on them, what the document says across clauses, and the additional
  *  points folded away. Every word is the server's; nothing here decides anything. */
-export function LegalAngle({ reviewId, onOpen, decided, refreshKey, words, withRecommendation }: {
+export function LegalAngle({ reviewId, onOpen, decided, refreshKey, words, withRecommendation, allDecided }: {
   reviewId: string | null | undefined;
+  /** every point Legal must decide is decided: what is left is not "open" (verifier item 7) */
+  allDecided?: boolean;
   withRecommendation?: boolean | undefined;
   refreshKey?: string;
   words?: ReadonlyMap<string, PointWords>;
@@ -172,11 +174,13 @@ export function LegalAngle({ reviewId, onOpen, decided, refreshKey, words, withR
   decided?: ReadonlySet<string>;
 }) {
   return <LegalAngleView angles={useReviewAngles(reviewId, refreshKey)} onOpen={onOpen}
-                         decided={decided} words={words} withRecommendation={withRecommendation} />;
+                         decided={decided} words={words} withRecommendation={withRecommendation}
+                         allDecided={allDecided ?? false} />;
 }
 
-export function LegalAngleView({ angles, onOpen, decided, words, withRecommendation = true }: {
+export function LegalAngleView({ angles, onOpen, decided, words, withRecommendation = true, allDecided = false }: {
   angles: ReviewAngles | null;
+  allDecided?: boolean;
   /** the Summary moves the recommendation and the marks count to Legal details and its
    *  own first lines (page 2); other callers keep them */
   withRecommendation?: boolean | undefined;
@@ -204,7 +208,7 @@ export function LegalAngleView({ angles, onOpen, decided, words, withRecommendat
           decide (the Summary's "N points need Legal") plus any the approved rule
           accepts in our favour, which the recommendation counts apart. */}
       <h3 id="ws-angle-legal" className="ws-angle__title">
-        Open points{items.length ? ` (${items.length})` : ""}
+        {allDecided ? "Where it differs from our standard" : "Open points"}{items.length ? ` (${items.length})` : ""}
       </h3>
       {withRecommendation && angles.recommendation ? (
         <p className="ws-angle__recommendation">{withoutSectionRefs(angles.recommendation)}</p>

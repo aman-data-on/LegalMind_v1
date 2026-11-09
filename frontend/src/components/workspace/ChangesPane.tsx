@@ -708,7 +708,10 @@ export function AnswerCard({ change, list, contractId, onAnswered, onReload, inP
         {/* AM-291 r1: two lines, never one status — the review's word, then who answers */}
         <p className="cx-line1">
           {changeBucket(change) ? <PointStatusIcon bucket={changeBucket(change)!} /> : null}
-          {word ? <strong>{word}</strong> : <span>No finding against our standard here</span>}
+          {/* one message (verifier item 7): a clause our standard covers is never also
+              "no finding" — the route line says Legal decides it */}
+          {word ? <strong>{word}</strong> : change.route_reason === "MEASURED_BY_A_STANDARD"
+            ? <span>Our standard covers this clause</span> : <span>No finding against our standard here</span>}
           {point ? <span> · {requirementTitle({ code: point.requirement_code })}</span> : null}
           {formattingOnly(change) ? <span className="cx-tag">Formatting only</span>
             : change.kind !== "MODIFIED" ? <span className="cx-tag">{KIND_LABEL[change.kind]}</span> : null}

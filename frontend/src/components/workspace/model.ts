@@ -521,11 +521,13 @@ export interface NavItem {
  *  2) — read from the declared role and the reply link, never from the number or date.
  *  Null when nobody said; the caller then falls back to whose paper it is. */
 export function versionRoleLabel(
-  v: { version_role?: string; reply?: { to_version_id: string }; final_copy?: unknown; package?: unknown },
+  v: { version_role?: string; reply?: { to_version_id: string }; final_copy?: unknown; package?: unknown;
+       reference_copy_of?: string },
   versions: { id: string; version_number: number }[],
 ): string | null {
   if (v.version_role === "FINAL_SIGNED") return "Signed";
   if (v.final_copy || v.package) return "Final contract";      // AM-318
+  if (v.reference_copy_of) return "Agreed text, for reference";   // AM-323
   if (v.reply) {
     const theirs = versions.find((x) => x.id === v.reply!.to_version_id);
     return theirs ? `Our reply to v${theirs.version_number}` : "Our reply";

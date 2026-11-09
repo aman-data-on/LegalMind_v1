@@ -88,6 +88,13 @@ const nextConfig: NextConfig = {
     return [{ source: "/api/v1/:path*", destination: `${apiOrigin}/api/v1/:path*` }];
   },
   /**
+   * The rewrite's proxy waits as long as production nginx does (300 s). Its 30 s default
+   * cut off a final copy (41 s), a reply (54 s) and an amendment (28 s) wherever the UI
+   * is served without nginx in front (:3399), showing "The request failed." although the
+   * request succeeded (verifier item 6, 2026-11-09).
+   */
+  experimental: { proxyTimeout: 300_000 },
+  /**
    * Deploys must be visible on an ORDINARY reload (2026-09-02). Next's static
    * prerender ships page HTML with `s-maxage=31536000` and no private-cache
    * directive, so a browser was free to keep yesterday's HTML — which

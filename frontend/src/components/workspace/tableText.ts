@@ -63,7 +63,9 @@ function cell(text: string, start: number, content: string): TableCell {
 }
 
 export function tableCells(line: string, content = line, lineStart = 0): TableCell[] {
-  const texts = splitTop(line.replace(/^\|\s?/, "").replace(/\s?\|$/, ""), " | ");
+  // every "|" outside a nested table is a cell edge, so an empty cell ("| Sign | | Sign | |")
+  // stays a cell and the columns keep their place (verifier item 3)
+  const texts = splitTop(line.trim().replace(/^\|/, "").replace(/\|$/, ""), "|");
   const starts = locate(content, texts, lineStart);
   return texts.map((text, i) => cell(text, starts[i]!, content));
 }

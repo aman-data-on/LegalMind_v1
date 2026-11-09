@@ -567,6 +567,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
               : <FindingsPane version={version} />}</PaneBoundary>}
             analysis={<PaneBoundary what="The summary"><AnalysisPanel documentVersionId={version.id}
                                      signedCopy={version.version_role === "FINAL_SIGNED"}
+                                     referenceCopy={!!version.reference_copy_of}
                                      stage={contract.negotiation_stage ?? null}
                                      viewer={stageViewer(can, contract.owner_id === identity?.user_id)}
                                      isOwner={contract.owner_id === identity?.user_id}
@@ -732,7 +733,8 @@ function RecordHeader({
     <PageHeader wide title={contractDisplayName(contract.name)} back={{ href: "/contracts", label: "Contracts" }}
       meta={<>
         {contract.negotiation_stage ? (
-          <StageBadge stage={contract.negotiation_stage} counts={contract.counts} viewer={viewer} final={finalLatest} />
+          <StageBadge stage={contract.negotiation_stage} counts={contract.counts} viewer={viewer} final={finalLatest}
+                      unsent={canSendToLegal} />
         ) : null}
         {/* P-1: the contract's own declared state (Draft / Active / Superseded), read back in
             words beside the deal stage (restored 2026-11-05). Once signed, the stage says it

@@ -366,7 +366,8 @@ function VersionRow({
   const { can } = useSession();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
-  const role = versionRoleLabel(version.version_role);
+  // a final contract reads "Final" here as on the contract page (verifier item 7)
+  const role = version.final_copy || version.package ? "Final" : versionRoleLabel(version.version_role);
 
   async function download() {
     setBusy(true);
@@ -698,9 +699,9 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
           <td colSpan={COLUMNS.length}>
             <div id={panelId} className="ws-cl__vers">
               <p className="ws-pane__note">
-                Newest first. A revision never replaces an earlier version. <strong>Company draft</strong> is
-                what we sent, <strong>Client modified</strong> is what came
-                back, and <strong>Final signed</strong> is what was executed.
+                Newest first. A revision never replaces an earlier version. <strong>Our draft</strong> is
+                what we sent, <strong>Client&rsquo;s markup</strong> is what came
+                back, and <strong>Final</strong> is the agreed final contract.
               </p>
               <ul className="ws-cl__verlist">
                 {versions.map((version) => (

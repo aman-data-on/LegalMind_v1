@@ -42,6 +42,7 @@ Three routes, each through `Guard` before anything is read (rule 18):
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -77,7 +78,7 @@ from legalmind.api.storage import get_storage
 from legalmind.db import models as M
 from legalmind.db.lookup import contract_signed, must_exist
 from legalmind.domain.client_profile import FINAL_SIGNED
-from legalmind.domain.enums import DecisionType, ProcessingStatus
+from legalmind.domain.enums import DecisionType, FindingStatus, ProcessingStatus
 from legalmind.domain.user_status import ACCEPTABLE
 from legalmind.drafting import (
     blank,
@@ -94,7 +95,9 @@ from legalmind.drafting import model as model_
 from legalmind.drafting.reply_docx import ReplyError, apply_reply, placeable, unplaceable
 from legalmind.drafting.reply_plan import Answer, clause_text, reply_rows, sha256
 from legalmind.evaluation.workflow import (
+    carried_forward,
     current_decision,
+    derive_finding_status,
     effective_decision,
     second_person_needed,
 )
@@ -315,9 +318,25 @@ def _holder_accepted(guard: Guard, change: dict, before: M.DocumentVersion | Non
         ev = db.get(M.Evaluation, UUID(e))
         d = None if ev is None else effective_decision(
             db, ev, escalated=is_escalated(db, ev.finding_id))
+        if d is None and ev is not None and _carried_acceptance(db, ev.finding_id):
+            continue
         if d is None or d.decision_type not in _ACCEPTING:
             return False
     return True
+
+
+def _carried_acceptance(db, finding_id: UUID) -> bool:
+    """`AM-323` r2: Legal's acceptance on an earlier version, carried to this one on the
+    same words (`AM-317` r7 as `AM-321` re-checks it), lets the client's wording stand as
+    the decision itself would — only while the Finding still derives RESOLVED by it."""
+    carried = carried_forward(db, finding_id)
+    finding = db.get(M.Finding, finding_id)
+    if carried is None or finding is None or carried.get("decision_type") not in {
+            t.value for t in _ACCEPTING}:
+        return False
+    escalated = is_escalated(db, finding_id)
+    return derive_finding_status(db, finding, escalated=escalated) \
+        is FindingStatus.RESOLVED
 
 
 def _reader(guard: Guard, contract: M.Contract,
@@ -397,6 +416,10 @@ def deal_counts(guard: Guard, contracts: list[M.Contract]) -> dict[UUID, dict]:
                 counts.update(
                     changes_total=len(rows),
                     changes_left=sum(c.get("answer") is None for c in rows),
+                    # answers our reply must carry back to the client (verifier item 1):
+                    # none — the client's version is the agreed text, final copy next
+                    changes_ours=sum(bool(c.get("answer")) and c["answer"]["answer"]
+                                     != "accept_theirs" for c in rows),
                     changes_left_for_me=sum(_mine(
                         c, can_decide=can_decide,
                         can_answer=writer and replied_in is None) for c in rows))
@@ -1250,6 +1273,8 @@ def _package_plan(guard: Guard, contract: M.Contract, form: str = CHANGES_ONLY) 
                              "approved": bool(row and row.status == "APPROVED")}
     if _replied_in(db, after) is not None:
         return stop("ROUND_CLOSED", "Our answer to this version is already prepared.")
+    if (gap := blanks(db, before)) is not None:
+        stop("BLANKS", gap)              # verifier item 4: never a final with a blank
     listed, _, _ = _changes(guard, contract, before.version_number, after.version_number)
     if listed.get("special_conditions_not_applied"):
         return stop("SPECIAL_CONDITIONS_NOT_APPLIED", "The Special Conditions of one "
@@ -1577,12 +1602,44 @@ _FINAL_COPY_ROUTES = {"NOTHING_TO_ANSWER", "NOT_OUR_TEMPLATE", "REDLINE_ROUND",
                       "NO_ANNEXURE", "AMENDMENT_ROUND", "NO_ENTRIES"}
 
 
+#: a blank left to fill: three or more underscores (verifier item 4, 2026-11-09) — unless
+#: filled in on the line itself, the answer written between underscores ("___Pune___",
+#: "__8___", "___1st_ day"); "___________are" and "___ months" are still blank
+_BLANK = re.compile(r"_{3,}")
+_FILLED = re.compile(r"_+[^\W_][^_\s]*_+")
+
+
+def _is_blank(text: str, m: re.Match) -> bool:
+    return not any(f.start() <= m.start() and m.end() <= f.end()
+                   for f in _FILLED.finditer(text))
+
+
+def blanks(db, version: M.DocumentVersion) -> str | None:
+    """Every place ``version`` still has a blank to fill, in plain words ("clause 1.4
+    (banks at ___ are open)", …) — or None. A final contract never keeps one: it is a
+    blocker before "Prepare final contract", whichever route makes it."""
+    places: list[str] = []
+    for c in load_clauses(db, version.id):
+        m = next((m for m in _BLANK.finditer(c.content) if _is_blank(c.content, m)), None)
+        if m is None:
+            continue
+        near = c.content[max(0, m.start() - 30):m.end() + 20].strip()
+        where = f"clause {c.section_number}" if c.section_number else "the opening text"
+        places.append(f"{where} (…{_BLANK.sub('___', near)}…)")
+    if not places:
+        return None
+    return (f"{len(places)} blank{'s are' if len(places) != 1 else ' is'} still to fill: "
+            + "; ".join(places[:8]) + ("; …" if len(places) > 8 else "")
+            + ". Fill them in the contract first.")
+
+
 def _final_plan(guard: Guard, contract: M.Contract) -> dict:
     """The dry run of the final copy (`AM-318`, owner 2026-11-06: the deal cycle ends at
     the final clean copy). Its source is the agreed text: our latest version as the
-    client accepted it (``copy``), or the client's latest version with every answer
-    applied as our reply would write it (``reply``) — then every tracked change accepted
-    and every comment removed (`drafting.clean`). Nothing written."""
+    client accepted it, or the client's latest version when every change is accepted —
+    any other answer goes back to the client as our reply first (REPLY_FIRST). Then every
+    tracked change accepted and every comment removed (`drafting.clean`). Nothing
+    written."""
     db = guard.db
     out: dict = {"available": False, "blockers": [], "mode": None, "agreed": []}
 
@@ -1608,6 +1665,20 @@ def _final_plan(guard: Guard, contract: M.Contract) -> dict:
     alone = negotiation.our_previous(versions, latest) is None
     if role == "COMPANY_DRAFT" or (role is None and alone
                                    and negotiation.is_ours(latest)):
+        if (gap := blanks(db, latest)) is not None:
+            return stop("BLANKS", gap)
+        theirs = next((v for v in versions
+                       if str(v.id) == (latest.doc_metadata or {}).get("reply_to")), None)
+        if theirs is not None:             # our reply the client accepted: its answers
+            prior = negotiation.our_previous(versions, theirs)
+            try:
+                round_, _, _ = _changes(guard, contract,
+                                        prior.version_number if prior else None,
+                                        theirs.version_number)
+                out["agreed"] = [{"where": _where(c), "answer": c["answer"]["answer"]}
+                                 for c in round_["changes"] if c.get("answer")]
+            except BusinessRuleRejected:
+                pass                       # the list is a courtesy; the copy stands
         out.update(mode="copy", available=True)
         out["_source"] = latest
         return out
@@ -1624,13 +1695,17 @@ def _final_plan(guard: Guard, contract: M.Contract) -> dict:
     if blocked:
         return stop("CHANGES", f"The final contract cannot be prepared yet: {blocked}")
     changes = listed["changes"]
-    rewrite = [c for c in changes if c["answer"]["answer"] != "accept_theirs"]
-    if rewrite and latest.mime_type != DOCX_MIME:
-        return stop("NEEDS_WORD_FILE", "Our answers are written into the client's Word "
-                    "file — their version is not a .docx. Ask them for the Word file.")
+    if any(c["answer"]["answer"] != "accept_theirs" for c in changes):
+        # a counter-proposal goes back to the client first; the final copy is made of
+        # the version the client accepts (verifier, 2026-11-09)
+        return stop("REPLY_FIRST", "Some answers keep or propose our wording — "
+                    "prepare our reply and send it to the client first. Prepare the "
+                    "final contract once they accept it.")
+    if (gap := blanks(db, latest)) is not None:
+        return stop("BLANKS", gap)
     out["agreed"] = [{"where": _where(c), "answer": c["answer"]["answer"]}
                      for c in changes]
-    out.update(mode="reply" if rewrite else "copy", available=True)
+    out.update(mode="copy", available=True)
     out["_source"] = latest
     return out
 
@@ -1638,7 +1713,7 @@ def _final_plan(guard: Guard, contract: M.Contract) -> dict:
 @router.get("/contracts/{contract_id}/final-copy")
 def final_copy_preview(contract_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
     """The dry run of "Prepare final contract" where no Annexure package applies
-    (`AM-318`): ``available``, ``blockers[{code, message}]``, ``mode`` (copy · reply),
+    (`AM-318`): ``available``, ``blockers[{code, message}]``, ``mode`` (copy),
     ``of_version`` and what was ``agreed`` (each change's place and answer)."""
     contract = guard.contract_readable(contract_id, P.DOCUMENT_VIEW)
     return data(_public_plan(_final_plan(guard, contract)))
@@ -1659,15 +1734,7 @@ def prepare_final_copy(contract_id: UUID, guard: Guard = Depends(get_guard),
         raise FinalCopyNotReady("The final contract cannot be prepared yet.",
                                 plan["blockers"])
     source: M.DocumentVersion = plan["_source"]
-    if plan["mode"] == "reply":
-        try:
-            raw, _ = _reply_document(guard, storage, contract, [])
-        except ReplyNotApplied as exc:      # never a final copy missing an answer
-            raise FinalCopyNotReady("The final contract cannot be prepared yet.", [{
-                "code": "NOT_APPLIED", "message": f"{exc} Prepare our reply instead and "
-                "restore those by hand."}]) from exc
-    else:
-        raw = storage.get(source.storage_key)
+    raw = storage.get(source.storage_key)
     docx = source.mime_type == DOCX_MIME
     made = clean.clean(raw) if docx else raw
     stem = (source.original_filename or "contract").rsplit(".", 1)[0]
@@ -1682,7 +1749,7 @@ def prepare_final_copy(contract_id: UUID, guard: Guard = Depends(get_guard),
            if k in ("source", "counterparty", "effective_date")},
         "version_role": "COMPANY_DRAFT", "final_copy_of": str(source.id),
         "final_mode": plan["mode"], "agreed": plan["agreed"]}
-    draft = _generated(guard.db, source) if plan["mode"] == "copy" else None
+    draft = _generated(guard.db, source)
     if draft is not None:        # our template contract, accepted as it was: still ours
         guard.db.add(M.ContractDraft(
             contract_id=contract.id, document_version_id=version.id,

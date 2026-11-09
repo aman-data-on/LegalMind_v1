@@ -82,7 +82,9 @@ describe("the step (nextStep)", () => {
   const base = { viewer: "owner" as const, canAnswer: true, counts };
   it("prepares the final contract: the Annexure package when its dry run is clear, else the final copy", () => {
     expect(nextStep({ ...base, stage: "CLIENT_RETURNED", packageReady: true })?.kind).toBe("preparePackage");
-    expect(nextStep({ ...base, stage: "CLIENT_RETURNED" })?.kind).toBe("prepareFinal");      // AM-318 A4
+    expect(nextStep({ ...base, stage: "CLIENT_RETURNED" })?.kind).toBe("prepareFinal");      // all accepted
+    expect(nextStep({ ...base, stage: "CLIENT_RETURNED", counts: { ...counts, changes_ours: 1 } })?.kind)
+      .toBe("prepareReply");                                                                 // item 1
   });
   it("ends at Final: download it, and nothing leads to signing (AM-318)", () => {
     expect(nextStep({ ...base, stage: "FINAL" })?.label).toBe("Download final contract");

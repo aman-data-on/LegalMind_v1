@@ -175,13 +175,14 @@ def _client_stats(guard: Guard, ids: list[UUID]) -> dict[UUID, dict[str, Any]]:
     each may only count what they may open. Deriving it from the scoped
     statement makes that structural rather than remembered.
 
-    Three page-bounded queries. `signed_documents` counts DOCUMENTS whose agreed text is
-    settled — Final (`AM-318`) or, legacy, with an executed version — not versions:
-    "how many of our agreements with this client are signed?" is the question a non-legal
-    reader is asking, and a contract with two signed versions is still one
-    signed agreement.
+    Three page-bounded queries. `signed_documents` counts DOCUMENTS (a contract with at
+    least one executed version, signed before `AM-318`), `final_documents` the Final ones
+    (`AM-318`), not versions: "how many of our agreements with this client are
+    settled?" is the question a non-legal reader is asking, and a contract with two
+    signed versions is still one signed agreement.
     """
-    empty = {"documents": 0, "signed_documents": 0, "last_activity": None}
+    empty = {"documents": 0, "signed_documents": 0, "final_documents": 0,
+             "last_activity": None}
     if not ids:
         return {}
     stats: dict[UUID, dict[str, Any]] = {i: dict(empty) for i in ids}
@@ -219,11 +220,14 @@ def _client_stats(guard: Guard, ids: list[UUID]) -> dict[UUID, dict[str, Any]]:
     for contract_id, newest, signed in version_rows:
         entry = stats[owner_of[contract_id]]
         entry["last_activity"] = _later(entry["last_activity"], newest)
-        # AM-318: "Final" — the agreed text is settled: a final copy, or signed (legacy).
-        # ponytail: one query pair per contract without a signed copy; a stored stage
-        # is the upgrade if a client holds hundreds of deals.
-        if signed or final_copy(guard.db, contract_id) is not None:
+        if signed:
             entry["signed_documents"] += 1
+        # AM-318: "Final" counted as the Contracts list's Final filter counts it; a deal
+        # signed before AB-171 stays in signed_documents only (verifier item 7).
+        # ponytail: one query pair per unsigned contract; a stored stage is the upgrade
+        # if a client holds hundreds of deals.
+        elif final_copy(guard.db, contract_id) is not None:
+            entry["final_documents"] += 1
     return stats
 
 
@@ -358,6 +362,7 @@ def list_counterparties(
             entry = tally.get(row.id, {})
             item["documents"] = entry.get("documents", 0)
             item["signed_documents"] = entry.get("signed_documents", 0)
+            item["final_documents"] = entry.get("final_documents", 0)
             item["last_activity"] = _iso(entry.get("last_activity"))
         payload.append(item)
     return paginated(payload, page=page.page, page_size=page.page_size, total=total)
@@ -493,6 +498,7 @@ def get_counterparty(counterparty_id: UUID,
     entry = _client_stats(guard, [counterparty_id]).get(counterparty_id, {})
     payload["documents"] = entry.get("documents", 0)
     payload["signed_documents"] = entry.get("signed_documents", 0)
+    payload["final_documents"] = entry.get("final_documents", 0)
     payload["last_activity"] = _iso(entry.get("last_activity"))
     return data(payload)
 
