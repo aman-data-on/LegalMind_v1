@@ -459,6 +459,13 @@ def serialize_evidence(e: M.DocumentEvidence) -> dict[str, Any]:
         **({"changes": meta["revision"]["changes"]}
            if (meta.get("revision") or {}).get("changes") else {}),
         **({"comments": meta["comments"]} if meta.get("comments") else {}),
+        # Where the row stands outside the clauses (34.10, N11): a page header or footer,
+        # a footnote or endnote (kept as a note on the passage that cites it), the table
+        # of contents — so the text view sets it apart, never in a clause.
+        **({"part": meta["part"]} if meta.get("part") else {}),
+        # An image the reading could not turn into text, next to this row: the reader is
+        # told text is missing there rather than left to miss it (N11 #3).
+        **({"unread_image": meta["unread_image"]} if meta.get("unread_image") else {}),
     }
 
 

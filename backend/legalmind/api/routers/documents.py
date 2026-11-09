@@ -239,8 +239,12 @@ def reprocess_document_version(
 
     previous_run = latest_completed_run_id(guard.db, version.id)
     standing = (version.processing_status, version.extraction_status)
+    meta = version.doc_metadata or {}
     run = process_document_version(guard.db, storage, version,
-                                   run_type=E.ProcessingRunType.REPROCESS, defer_ocr=True)
+                                   run_type=E.ProcessingRunType.REPROCESS, defer_ocr=True,
+                                   # a person's upload, never one LegalMind generated
+                                   render_pages=not meta.get("reply_to") and
+                                   meta.get("version_role") != "COMPANY_DRAFT")
     run.run_metadata = {**(run.run_metadata or {}),
                         "reprocess_of": str(previous_run) if previous_run else None}
     if run.status is E.ProcessingRunStatus.FAILED and previous_run is not None:

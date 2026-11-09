@@ -75,6 +75,11 @@ export interface EvidenceRow {
    *  Presentation only; a client's paper carries neither. */
   house_style?: string;
   emphasis?: [number, number, "b" | "u"][];
+  /** Where the row stands outside the clauses (34.10): a page header or footer, a footnote
+   *  or endnote, the table of contents. Absent on every clause row. */
+  part?: "header" | "footer" | "footnote" | "endnote" | "contents";
+  /** An image beside this row whose text could not be read — said, never silent. */
+  unread_image?: { page: number | null; number: string | null };
   content: string;
   source_type: string;
   start_offset: number | null;

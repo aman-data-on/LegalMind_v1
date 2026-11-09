@@ -27,8 +27,9 @@ import { useSession } from "@/lib/session";
 import type { DocumentVersion, EvidenceRow } from "@/lib/types";
 import { UNREADABLE_WHY } from "@/lib/labels";
 
-import { selectionInRow, useAnnotations, type Annotation } from "./annotations";
+import { segmentContent, selectionInRow, useAnnotations, type Annotation } from "./annotations";
 import { readingLayout, readingPieces, type ReadingLine } from "./reading";
+import { hasTable, isFigure, textBlocks, type TableCell } from "./tableText";
 
 /** A generated contract's house styles as the sheet's row kinds. */
 const HOUSE_KIND: Record<string, "title" | "heading"> = {
@@ -365,7 +366,10 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
     }
     return seen;
   }, [rows]);
-  const pageGroups = useMemo(() => groupByPage(rows ?? []), [rows]);
+  // A page header or footer is the page's furniture, never the text (34.10, N11 #8): kept
+  // out of the sheet and listed once, folded, after it.
+  const furniture = useMemo(() => (rows ?? []).filter(isFurniture), [rows]);
+  const pageGroups = useMemo(() => groupByPage((rows ?? []).filter((r) => !isFurniture(r))), [rows]);
 
   // Structural presentation per row (title / heading / item / paragraph) —
   // recognised from the text itself, never invented; see rowPresentation.
@@ -1013,7 +1017,8 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                     key={row.id}
                     className={`ws-row${target === row.id ? " ws-row--lit" : ""}`}
                     data-evidence-id={row.id}
-                    data-kind={rowKinds.get(row.id)}
+                    data-kind={row.part ? "para" : rowKinds.get(row.id)}
+                    data-part={row.part}
                     data-house={row.house_style ? row.house_style.slice(3).toLowerCase().replace(/\s+\d$/, "") : undefined}
                     data-shape={lines.get(row.id)?.shape ?? undefined}
                     data-changed={showMarks && (row.changes?.length ?? 0) > 0 ? "" : undefined}
@@ -1049,6 +1054,14 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                 ))}
               </div>
             ))}
+            {furniture.length ? (
+              <details className="ws-furniture">
+                <summary>Page header and footer</summary>
+                {furniture.map((row) => (
+                  <p key={row.id} data-evidence-id={row.id} tabIndex={-1}>{row.content}</p>
+                ))}
+              </details>
+            ) : null}
             {total !== null && rows.length < total ? (
               <p className="ws-pane__note" role="status" aria-live="polite">
                 Loading the rest of the document… {rows.length} of {total} passages
@@ -1119,13 +1132,36 @@ function RowText({ row, line, marks, annotations, onOpen }: {
   annotations: Annotation[];
   onOpen: (id: string, element: HTMLElement) => void;
 }) {
-  const { pieces, unplaced, lead } = readingPieces(row.content, {
-    lead: line?.lead ?? 0, changes: row.changes ?? [], annotations, marks,
-    ...(row.emphasis ? { emphasis: row.emphasis } : {}) });
+  // A row holding a table is set as prose blocks and tables (N11 #1); its changes are
+  // listed under it, and saved highlights are drawn in their cell (`Marked`).
+  // ponytail: a NEW highlight is made in paragraph text only — selecting in a table cell
+  // does not map to the row's offsets yet.
+  const tabled = hasTable(row.content);
+  const { pieces, unplaced, lead } = tabled
+    ? { pieces: [], unplaced: row.changes ?? [], lead: 0 }
+    : readingPieces(row.content, {
+      lead: line?.lead ?? 0, changes: row.changes ?? [], annotations, marks,
+      ...(row.emphasis ? { emphasis: row.emphasis } : {}) });
   const hung = !!line && (lead > 0 || !!line.num);
   const style = line ? ({ "--indent": `${line.indent}em`, "--hang": `${hung ? line.hang : 0}em` } as React.CSSProperties) : undefined;
   return (
     <>
+      {row.part === "footnote" || row.part === "endnote" ? (
+        <p className="ws-row__note">
+          <span className="ws-row__noteskind">{row.part === "footnote" ? "Footnote" : "Endnote"}</span>{" "}
+          {row.content}
+        </p>
+      ) : tabled ? (
+        textBlocks(row.content).map((block, index) => block.kind === "text" ? (
+          block.text.trim() ? (
+            <p key={index} className="ws-row__plain" style={style}>
+              <Marked text={block.text} start={block.start} annotations={annotations} onOpen={onOpen} />
+            </p>
+          ) : null
+        ) : (
+          <DocTable key={index} rows={block.rows} annotations={annotations} onOpen={onOpen} />
+        ))
+      ) : (
       <p className="ws-row__text" style={style} data-hang={hung ? "" : undefined}
          data-num={line?.num ?? undefined}>
         {pieces.map((piece, index) => {
@@ -1156,6 +1192,15 @@ function RowText({ row, line, marks, annotations, onOpen }: {
           return <Fragment key={index}>{node}</Fragment>;
         })}
       </p>
+      )}
+      {row.unread_image ? (
+        <p className="ws-row__unread" role="note">
+          {row.unread_image.number
+            ? `Clause ${row.unread_image.number} is an image in this file; its text could not be read.`
+            : `Part of page ${row.unread_image.page ?? "this page"} is an image; its text could not be read.`}
+          {" "}Check the original.
+        </p>
+      ) : null}
       {(marks && unplaced.length) || row.comments?.length ? (
         // what the text itself cannot show: a removal with no words left in its place,
         // and the notes made on this passage — one quiet line each, at the text's indent
@@ -1180,6 +1225,70 @@ function RowText({ row, line, marks, annotations, onOpen }: {
         </div>
       ) : null}
     </>
+  );
+}
+
+function isFurniture(row: EvidenceRow): boolean {
+  return row.part === "header" || row.part === "footer";
+}
+
+/** A table from the file, set as a table (N11 #1): it scrolls inside its own frame on a
+ *  narrow screen, never the page. The first row is the table's own heading row. */
+/** ``text`` (at ``start`` in its row's content) with the reader's highlights that fall in
+ *  it drawn as they are in a paragraph — a highlight saved on a table row still shows in
+ *  its cell (review 2026-11-09). */
+function Marked({ text, start, annotations, onOpen }: {
+  text: string; start: number; annotations: Annotation[];
+  onOpen: (id: string, element: HTMLElement) => void;
+}) {
+  if (start < 0 || annotations.length === 0) return <>{text}</>;
+  const own = annotations.map((a) => ({ ...a, start: a.start - start, end: a.end - start }));
+  return (
+    <>
+      {segmentContent(text, own).map((seg, i) => seg.annotation ? (
+        <mark key={i} className="ws-anno" tabIndex={0} role="button"
+              title={seg.annotation.note || "Your highlight — open to add a note"}
+              aria-label={`Your highlight${seg.annotation.note ? `: ${seg.annotation.note}` : ""} — press Enter to edit`}
+              onClick={(event) => onOpen(seg.annotation!.id, event.currentTarget)}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter" && event.key !== " ") return;
+                event.preventDefault();
+                onOpen(seg.annotation!.id, event.currentTarget);
+              }}>{seg.text}</mark>
+      ) : <Fragment key={i}>{seg.text}</Fragment>)}
+    </>
+  );
+}
+
+/** A table from the file, set as a table (N11 #1): it scrolls inside its own frame on a
+ *  narrow screen, never the page. The first row is the table's own heading row. */
+function DocTable({ rows, annotations, onOpen }: {
+  rows: TableCell[][]; annotations: Annotation[];
+  onOpen: (id: string, element: HTMLElement) => void;
+}) {
+  const [head, ...body] = rows;
+  const mark = (text: string, start: number) => (
+    <Marked text={text} start={start} annotations={annotations} onOpen={onOpen} />);
+  const cells = (row: TableCell[], heading: boolean) => row.map((c, i) => {
+    const content = c.nested ? (
+      <table className="ws-table ws-table--nested">
+        <tbody>{c.nested.map((r, j) => (
+          <tr key={j}>{r.map((t, k) => <td key={k}>{mark(t, c.nestedStart?.[j]?.[k] ?? -1)}</td>)}</tr>
+        ))}</tbody>
+      </table>
+    ) : mark(c.text, c.start);
+    return heading
+      ? <th key={i} scope="col" colSpan={c.span > 1 ? c.span : undefined}>{content}</th>
+      : <td key={i} colSpan={c.span > 1 ? c.span : undefined}
+            data-figure={isFigure(c.text) ? "" : undefined}>{content}</td>;
+  });
+  return (
+    <div className="ws-tablewrap" role="region" aria-label="Table" tabIndex={0}>
+      <table className="ws-table">
+        {head && rows.length > 1 ? <thead><tr>{cells(head, true)}</tr></thead> : null}
+        <tbody>{(rows.length > 1 ? body : rows).map((row, i) => <tr key={i}>{cells(row, false)}</tr>)}</tbody>
+      </table>
+    </div>
   );
 }
 

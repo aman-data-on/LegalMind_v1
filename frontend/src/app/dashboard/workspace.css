@@ -7500,3 +7500,54 @@ a.ws-askglobal[data-away]:not(:focus-visible) {
   .lm-ph__acts > .lm-sendlegal > .ws-btn { flex: 1 1 auto; justify-content: center; }
   .ws-record .lm-ph__acts .ws-btn { min-height: 44px; min-width: 44px; justify-content: center; }
 }
+
+/* --------------------------------------------------------------------------
+ * The file's own structure in the text view (CLM batch C, N11 #1/#3/#7/#8):
+ * tables as tables, notes as notes, the page furniture folded away.
+ * -------------------------------------------------------------------------- */
+/* A wide table scrolls inside its own frame; the sheet never scrolls sideways. */
+.ws-tablewrap {
+  max-width: 100%; overflow-x: auto; margin: var(--ws-s2) 0;
+  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-sm);
+}
+.ws-tablewrap:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+.ws-table {
+  border-collapse: collapse; width: 100%; font-family: var(--ws-sans);
+  font-size: var(--ws-text-sm); line-height: 1.45; color: var(--ws-ink-900);
+}
+.ws-table th, .ws-table td {
+  padding: 6px 10px; text-align: left; vertical-align: top;
+  border-bottom: 1px solid var(--ws-ink-100); min-width: 6ch;
+}
+.ws-table td + td, .ws-table th + th { border-left: 1px solid var(--ws-ink-100); }
+.ws-table thead th { font-weight: 600; background: var(--ws-surface); }
+.ws-table tbody tr:last-child td { border-bottom: 0; }
+.ws-table--nested { margin: 0; font-size: 1em; border: 1px solid var(--ws-ink-100); }
+.ws-row__plain {
+  margin: 0; font-family: var(--ws-serif); line-height: 1.55; white-space: pre-wrap;
+  margin-left: var(--indent, 0); max-width: 74ch;
+}
+/* A footnote or endnote: the note it is, under the passage that cites it. */
+.ws-row__note {
+  margin: 2px 0 0; padding-left: var(--ws-s3); border-left: 2px solid var(--ws-ink-100);
+  font-family: var(--ws-sans); font-size: var(--ws-text-xs); line-height: 1.5;
+  color: var(--ws-ink-700); max-width: 74ch;
+}
+.ws-row[data-part="contents"] .ws-row__text { color: var(--ws-ink-500); font-size: var(--ws-text-sm); }
+/* Missing text, said where it is missing. */
+.ws-row__unread {
+  margin: 4px 0 0; padding: 4px 8px; max-width: 74ch; border-radius: var(--ws-radius-sm);
+  background: var(--ws-tone-warn-soft); color: var(--ws-ink-900);
+  border-left: 3px solid var(--ws-tone-warn);
+  font-family: var(--ws-sans); font-size: var(--ws-text-xs); line-height: 1.5;
+}
+.ws-furniture {
+  margin: var(--ws-s5) 0 var(--ws-s3); padding-top: var(--ws-s3);
+  border-top: 1px solid var(--ws-ink-100);
+  font-family: var(--ws-sans); font-size: var(--ws-text-xs); color: var(--ws-ink-700);
+}
+.ws-furniture summary { cursor: pointer; font-weight: 600; min-height: 32px; display: flex; align-items: center; }
+.ws-furniture p { margin: 4px 0; white-space: pre-wrap; }
+/* a long blank ("____________") or address never pushes the sheet wider than the phone */
+.ws-row__text, .ws-row__plain, .ws-row__note { overflow-wrap: anywhere; }
+.ws-table td[data-figure] { white-space: nowrap; font-variant-numeric: tabular-nums; }
