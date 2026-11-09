@@ -20,8 +20,8 @@ owner in production. `deploy-frontend.sh` now refuses when `src`, `public`,
 deploy ships a commit, not a desk. `LEGALMIND_ALLOW_DIRTY_TREE=1` overrides it, and
 wanting CI to go green is not a reason to use it.
 
-Do feature work in your own worktree (`git worktree add`, see CLAUDE.md § *Working
-alongside other sessions*) so the deploy tree stays clean and deployable.
+Do feature work in your own worktree (`git worktree add`, see [AGENTS.md](../AGENTS.md) § *Shared working tree,
+worktrees and the deploy tree*) so the deploy tree stays clean and deployable.
 
 ### Deploying without an administrator — `sudo legalmind-deploy`
 
