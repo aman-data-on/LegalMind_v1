@@ -138,6 +138,7 @@ def ingest_document(
     filename: str,
     declared_mime: str,
     defer_ocr: bool = False,
+    render_pages: bool = False,
 ) -> IngestResult:
     """Ingest one uploaded document. Raises only on validation rejection.
 
@@ -175,7 +176,10 @@ def ingest_document(
     db.add(version)
     db.flush()
 
-    run = process_document_version(db, storage, version, defer_ocr=defer_ocr)
+    # ``render_pages``: an uploaded client/contract file — pages laid out by LibreOffice
+    # when Word left no record (`parsing.parse_docx`); never a generated file.
+    run = process_document_version(db, storage, version, defer_ocr=defer_ocr,
+                                   render_pages=render_pages)
 
     return IngestResult(
         document_version=version,
@@ -219,6 +223,7 @@ def process_document_version(
     run_type: E.ProcessingRunType = E.ProcessingRunType.PARSE,
     defer_ocr: bool = False,
     run: M.DocumentProcessingRun | None = None,
+    render_pages: bool = False,
 ) -> M.DocumentProcessingRun:
     """Parse a stored document version into evidence.
 
@@ -248,7 +253,7 @@ def process_document_version(
 
     try:
         result = parsing.parse(storage.get(version.storage_key), version.mime_type,
-                               defer_ocr=defer_ocr)
+                               defer_ocr=defer_ocr, render_pages=render_pages)
     except parsing.ParseError as exc:
         # 34.9 / 34.4 — a document we cannot read yields no text, not invented
         # text. The affected Finding may later become UNABLE_TO_EVALUATE (34.17).

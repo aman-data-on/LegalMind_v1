@@ -107,3 +107,23 @@ describe("outlineTree on a client's paper (N11 #9, 2026-11-09)", () => {
       .toEqual(["1 DEFINITIONS", "SCHEDULE 1 – PRICING"]);
   });
 });
+
+describe("outlineTree scopes a schedule's own numbering", () => {
+  const tree = outlineTree([
+    row("1. DEFINITIONS", { number: "1", title: "DEFINITIONS", heading: true }),
+    row("2. SCOPE", { number: "2", title: "SCOPE", heading: true }),
+    { ...row("SCHEDULE 2 – SERVICE LEVELS", { title: "SCHEDULE 2 – SERVICE LEVELS", heading: true }), annexure: "SCHEDULE 2 – SERVICE LEVELS" },
+    row("1 The Customer may access support via the portal.", { number: "1" }),
+    row("2 Response times follow the SLA.", { number: "2" }),
+    row("1 Suspension due to LeapSwitch limitations.", { number: "1" }),
+    { ...row("ANNEXURE A – SPECIAL CONDITIONS", { title: "ANNEXURE A – SPECIAL CONDITIONS", heading: true }), annexure: "ANNEXURE A – SPECIAL CONDITIONS" },
+    row("1 KYC Compliance for Resold Services.", { number: "1" }),
+  ]);
+  it("keeps the schedule's and the annexure's items under them, never at the top", () => {
+    expect(tree.map((n) => n.number ?? n.title)).toEqual(
+      ["1", "2", "SCHEDULE 2 – SERVICE LEVELS", "ANNEXURE A – SPECIAL CONDITIONS"]);
+    expect(tree[2]!.children.map((n) => n.number)).toEqual(["1", "2", "1"]);
+    expect(tree[3]!.children.map((n) => n.number)).toEqual(["1"]);
+    expect(tree[0]!.children).toHaveLength(0);
+  });
+});

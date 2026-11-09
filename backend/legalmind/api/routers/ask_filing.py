@@ -109,7 +109,9 @@ async def file_attachment(conversation_id: UUID, attachment_id: UUID, request: R
 
 def _file(guard: Guard, storage: StorageBackend, contract_id: UUID, attachment_id: UUID,
           payload: bytes, filename: str, mime: str) -> dict:
-    result = _ingest_upload(guard, storage, contract_id, payload, filename, mime)
+    # an Ask attachment filed as a contract: no LibreOffice print in this request
+    result = _ingest_upload(guard, storage, contract_id, payload, filename, mime,
+                            render_pages=False)
     version = guard.db.get(M.DocumentVersion,
                            UUID(result["data"]["document_version"]["id"]))
     assert version is not None

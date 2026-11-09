@@ -25,6 +25,7 @@ import shutil
 import threading
 from collections import Counter
 from dataclasses import dataclass, field, replace
+from itertools import pairwise
 from pathlib import Path
 
 from legalmind import config
@@ -995,9 +996,19 @@ def _styled_text(page) -> dict:
                     rules = [d["rect"] for d in page.get_cdrawings() if d.get("rect")
                              and d["rect"][3] - d["rect"][1] <= 2 and d.get("color")
                              and max(d["color"]) - min(d["color"]) >= 0.1]
+                if len(rules) * len(chars) > SPLIT_MAX_WORK:
+                    # bounded work: the span is kept whole and the page said (fail safe)
+                    styled["unsplit"] = True
+                    spans.append(span)
+                    continue
                 spans += _split_by_rules(span, chars, rules)
             line["spans"] = spans
     return styled
+
+
+#: Letters x coloured rules one span may be judged against (`_styled_text`): a page of
+#: thousands of rules is no redline line, and judging it would be quadratic.
+SPLIT_MAX_WORK = 200_000
 
 
 def _split_by_rules(span: dict, chars: list[dict], rules: list) -> list[dict]:
@@ -1426,40 +1437,76 @@ def _strip_furniture(text: str, furniture: dict[str, tuple[int, str]],
 
 
 #: A contents line: a title, then its page number — after dot leaders, or a space.
-_CONTENTS_LINE = re.compile(r"(?:\d{1,3}(?:\.\d{1,3})*\.?\s+)?[A-Za-z][^\n]{1,100}?"
-                            r"(?:\s*(?:\.{3,}|…+)\s*|\s+)\d{1,3}")
-_LEADERS = re.compile(r"(?:\.{3,}|…+)\s*\d{1,3}$")
+_CONTENTS_LINE = re.compile(r"(?:\d{1,3}(?:\.\d{1,3})*\.?\s+)?"
+                            r"(?P<title>[A-Za-z][^\n]{1,100}?)(?:\s*(?:\.{3,}|…+)\s*|\s+)(?P<page>\d{1,3})")
+_LEADERS = re.compile(r"(?:\.{3,}|…+|\t)\s*\d{1,3}\s*$")
 _CONTENTS_TITLE = re.compile(r"(?:table\s+of\s+)?contents|index", re.I)
+
+
+def _key(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", text.lower())
+
+
+def _is_contents(entries: list[str], titled: bool, later: list[str]) -> bool:
+    """Whether ``entries`` ("title  page" lines) are a table of contents: each written
+    with a leader (dots or Word's tab) or under a "Contents" title, page numbers that
+    never go back, and at least half of the titles found again as a later heading.
+    An order form's "Initial Term in months 12 / Notice in days 90 / Payment within
+    days 30" has none of the three, and is read as the terms it is (review, rule 15)."""
+    found = [m for line in entries if (m := _CONTENTS_LINE.fullmatch(line.strip()))]
+    if len(found) < 3 or len(found) < len(entries):
+        return False
+    if not titled and not all(_LEADERS.search(line) for line in entries):
+        return False
+    pages = [int(m.group("page")) for m in found]
+    if any(b < a for a, b in pairwise(pages)):
+        return False
+    heads = {_key(re.sub(r"^\d{1,3}(?:\.\d{1,3})*\.?\s*", "", h))[:40] for h in later}
+    hits = sum(_key(m.group("title").rstrip(" .…"))[:40] in heads for m in found)
+    return hits * 2 >= len(found)
 
 
 def _mark_contents(segments: list[Segment]) -> None:
     """The document's table of contents is no clause (N11 #9): a segment of three or
-    more dot-leader lines, or a run of three or more one-line "title  page" segments
-    (Word's TOC field), and the "CONTENTS" title above it, lose their number, title and
-    heading marks and are kept as ``part`` contents — shown, never mapped (BR-4)."""
+    more leader lines, or a run of three or more one-line "title  page" segments
+    (Word's TOC field), that `_is_contents` confirms — and the "CONTENTS" title above
+    it — lose their number, title and heading marks and are kept as ``part`` contents:
+    shown, never mapped (BR-4)."""
     def mark(segment: Segment) -> None:
         segment.section_number = segment.section_title = None
         segment.metadata = {k: v for k, v in segment.metadata.items()
                             if k not in ("heading", "annexure")} | {"part": "contents"}
 
-    def toc_line(segment: Segment) -> bool:
-        return "\n" not in segment.content and bool(_CONTENTS_LINE.fullmatch(
-            segment.content.strip())) and segment.source_type is not \
-            EvidenceSourceType.TABLE
-    run: list[Segment] = []
-    for segment in [*segments, None]:
-        if segment is not None and sum(bool(_LEADERS.search(line)) for line in
-                                       segment.content.split("\n")) >= 3:
+    def later(at: int) -> list[str]:
+        # a heading's first line with letters: a PDF prints "1." above its title
+        return [next((line for line in g.content.split("\n") if re.search(
+            "[A-Za-z]", line)), "") for g in segments[at:]]
+
+    def line_of(segment: Segment) -> str:
+        """One-line text with Word's tab kept (normalisation turns it into a space)."""
+        raw = segment.original_content.strip()
+        return raw if "\n" not in raw else segment.content
+    for at, segment in enumerate(segments):
+        leader = [line for line in segment.original_content.split("\n")
+                  if _LEADERS.search(line)]
+        if len(leader) >= 3 and _is_contents(leader, True, later(at + 1)):
             mark(segment)
-        if segment is not None and toc_line(segment):
-            run.append(segment)
+    run: list[int] = []
+    for at, one in enumerate([*segments, None]):
+        if one is not None and "\n" not in one.content.strip() and \
+                one.source_type is not EvidenceSourceType.TABLE and \
+                _CONTENTS_LINE.fullmatch(one.content.strip()):
+            run.append(at)
             continue
         if len(run) >= 3:
-            for found in run:
-                mark(found)
-            at = segments.index(run[0])
-            if at and _CONTENTS_TITLE.fullmatch(segments[at - 1].content.strip()):
-                mark(segments[at - 1])
+            titled = bool(run[0]) and bool(_CONTENTS_TITLE.fullmatch(
+                segments[run[0] - 1].content.strip()))
+            if _is_contents([line_of(segments[i]) for i in run], titled,
+                            later(run[-1] + 1)):
+                for i in run:
+                    mark(segments[i])
+                if titled:
+                    mark(segments[run[0] - 1])
         run = []
 
 
@@ -1677,6 +1724,9 @@ def parse_pdf(data: bytes, *, defer_ocr: bool = False, ocr: bool = True,
             revision = None
             if colours:
                 styled = _styled_text(page)
+                if styled.get("unsplit"):
+                    diagnostics.append(f"page {index}: tracked changes too dense to tell "
+                                       "letter by letter; check this page's changes")
                 bold[index] = _bold_lines(styled, colours)
                 if any(s["color"] in colours for b in styled["blocks"]
                        for line in b.get("lines", ()) for s in line["spans"]):
@@ -2401,7 +2451,8 @@ def _tesseract_pixmap(pix) -> tuple[str, float | None]:  # pragma: no cover
     text, rows = _tesseract(pix)
     marks = _revision_rules(pix)
     if marks is None and (mean := _mean_confidence(rows)) is not None and \
-            mean < OCR_WARN_CONFIDENCE:
+            mean < OCR_WARN_CONFIDENCE and \
+            pix.width * pix.height <= MEDIAN_MAX_PIXELS:
         # A speckled scan read again with its specks smoothed away (3x3 median): the
         # specimen scan's pages read 0.83-0.92 like their text, 0.97-0.98 smoothed, and
         # its "15.2"/"16.3" numbers came back. Kept only when tesseract is surer.
@@ -2424,6 +2475,13 @@ def _tesseract_pixmap(pix) -> tuple[str, float | None]:  # pragma: no cover
     return text, _mean_confidence(rows)
 
 
+#: Lines on one page beyond which numbers are not rejoined (`_hang_numbers` compares
+#: each lone number with every line): a page of contract text holds ~60.
+HANG_MAX_LINES = 2_000
+#: Pixels beyond which a page is not smoothed for a second read (`_median` stacks nine
+#: copies): an A4 page at 300 dpi is 8.7 million.
+MEDIAN_MAX_PIXELS = 20_000_000
+
 #: A line holding only a clause number or list label: "5.4", "12.", "(a)", "(iv)".
 _NUMBER_ONLY = re.compile(r"\(?(?:\d{1,3}(?:\.\d{1,3})*|[a-z]|[ivx]{1,5})[.)]?")
 
@@ -2439,6 +2497,8 @@ def _hang_numbers(rows: list[list[str]]) -> str | None:
     for r in rows:
         if len(r) > 11 and r[0] == "5" and r[11].strip():
             lines.setdefault((int(r[2]), int(r[3]), int(r[4])), []).append(r)
+    if len(lines) > HANG_MAX_LINES:
+        return None             # bounded: tesseract's own reading stands, nothing lost
 
     def box(words):
         x0 = min(int(w[6]) for w in words)
@@ -2554,7 +2614,12 @@ def _rgb(pix):
 
 
 #: Grey revision ink per black ink above which a page with no colour is a blurred scan,
-#: not a mono-printed redline (`_revision_rules`).
+#: not a mono-printed redline (`_revision_rules`). Measured at 300 dpi, 2026-11-09:
+#: crisp pages printed grey — the specimen redline's pages 3/8/9/15/20 (its gold changes
+#: grey) and pages 1/3 of MSA, NDA, SLA-leapswitch, TOS-leapswitch, AUP-cloudpe — read
+#: 0.24-0.55 (15 pages); the blurred, speckled specimen scan 1.33-3.17 (12 pages). 1.0
+#: sits about twice from either side. ponytail: one blurred scan specimen; re-measure
+#: on the first real mono-scanned redline before moving it.
 GREY_BLUR_RATIO = 1.0
 
 
@@ -2943,25 +3008,86 @@ def _alnum(text: str) -> str:
     return "".join(c for c in unicodedata.normalize("NFKC", text).lower() if c.isalnum())
 
 
-def _docx_rendered_pages(data: bytes, paragraphs) -> tuple[list[int], int] | None:
-    """The page each paragraph starts on in the file as LibreOffice lays it out — for a
-    DOCX that carries no record of Word's own pagination (N10, 2026-11-09: a 23-page
-    file written without ``w:lastRenderedPageBreak`` read "of 4", its six hard breaks,
-    and nearly every finding said "page 3"). The operator's LibreOffice (``LEGALMIND_
-    SOFFICE``, the renderer the client PDF already uses) prints the accepted text; each
-    paragraph's opening words are then found, in order, in the printed pages. None when
-    no renderer is configured or it fails — the file's own breaks are used as before.
+#: One LibreOffice print of an uploaded DOCX, at most (it runs inside the upload request,
+#: under the contract's lock): past it the whole process group is killed and the file's
+#: own breaks stand.
+RENDER_TIMEOUT_S = 20
+
+
+def _bounded(argv: list[str], timeout: float) -> bytes | None:
+    """``argv``'s stdout, or None on failure or after ``timeout`` — when the WHOLE process
+    group is killed: soffice forks soffice.bin, and killing the parent alone left the
+    child running (review 2026-11-09)."""
+    import signal
+    import subprocess
+    try:
+        proc = subprocess.Popen(argv, stdout=subprocess.PIPE,  # argv list, no shell
+                                stderr=subprocess.DEVNULL, start_new_session=True)
+    except OSError:
+        return None
+    try:
+        out, _ = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:              # pragma: no cover - already gone
+            pass
+        proc.communicate()
+        return None
+    finally:
+        # a child the group leader left behind (it exited, its child did not)
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            pass
+    return out if proc.returncode == 0 else None
+
+
+def _render_docx(data: bytes) -> tuple[bytes, str] | None:
+    """The PDF LibreOffice prints of ``data``'s accepted text, and the LibreOffice
+    version that printed it — or None (no ``LEGALMIND_SOFFICE``, a failure, the time
+    limit)."""
+    import tempfile
+    binary = os.environ.get("LEGALMIND_SOFFICE")
+    if not binary:
+        return None
+    from legalmind.drafting import clean
+    with tempfile.TemporaryDirectory() as tmp:
+        source = Path(tmp, "contract.docx")
+        try:
+            source.write_bytes(clean.clean(data))
+        except Exception:                   # a file clean cannot read: not printed
+            return None
+        profile = f"-env:UserInstallation=file://{tmp}/profile"
+        if _bounded([binary, profile, "--headless", "--norestore", "--convert-to",
+                     "pdf", "--outdir", tmp, str(source)], RENDER_TIMEOUT_S) is None:
+            return None
+        printed = Path(tmp, "contract.pdf")
+        if not printed.is_file():
+            return None
+        version = _bounded([binary, profile, "--version"], RENDER_TIMEOUT_S)
+        return printed.read_bytes(), (version or b"").decode(errors="replace").strip()
+
+
+def _docx_rendered_pages(data: bytes, paragraphs) -> tuple[list[int], int, str] | None:
+    """The page each paragraph starts on in the file as LibreOffice lays it out — for an
+    UPLOADED DOCX that carries no record of Word's own pagination (N10, 2026-11-09: a
+    23-page file written without ``w:lastRenderedPageBreak`` read "of 4", its six hard
+    breaks, and nearly every finding said "page 3"). The operator's LibreOffice prints
+    the accepted text (`_render_docx`); each paragraph's opening words are then found,
+    in order, in the printed pages. Also returns the LibreOffice version, recorded with
+    the run. None when no renderer is configured or it fails — the file's own breaks
+    are used as before.
 
     Found, not computed: a paragraph whose words are not in the print (a field LibreOffice
     renders differently) takes the page of the paragraph before it."""
-    if not os.environ.get("LEGALMIND_SOFFICE"):
+    rendered = _render_docx(data)
+    if rendered is None:
         return None
     try:
         import pymupdf
-
-        from legalmind.drafting import pdf as renderer
-        printed = pymupdf.open(stream=renderer.convert(data).pdf, filetype="pdf")
-    except Exception:                       # no renderer, a failed render: as before
+        printed = pymupdf.open(stream=rendered[0], filetype="pdf")
+    except Exception:                       # pragma: no cover - a damaged print
         return None
     stream, page_at = "", []
     for number, page in enumerate(printed, start=1):  # type: ignore[arg-type,var-annotated]
@@ -2978,7 +3104,7 @@ def _docx_rendered_pages(data: bytes, paragraphs) -> tuple[list[int], int] | Non
         if at >= 0:
             last, cursor = page_at[at], at + len(key)
         pages.append(last)
-    return pages, total
+    return pages, total, rendered[1]
 
 
 #: A run the accepted, visible document shows: not moved away, not deleted in a tracked
@@ -3235,7 +3361,7 @@ def _docx_furniture(document) -> list[tuple[str, str]]:
     return out
 
 
-def parse_docx(data: bytes) -> ParseResult:
+def parse_docx(data: bytes, *, render_pages: bool = False) -> ParseResult:
     """DOCX extraction preserving paragraphs and tables (34.11), in document order.
 
     The body is read block by block as Word lays it out (F2e): paragraphs and
@@ -3284,12 +3410,16 @@ def parse_docx(data: bytes) -> ParseResult:
     every = body.xpath(".//w:p[not(ancestor::w:txbxContent)]")
     paragraph_pages, total_pages, pagination_source = _docx_paragraph_pages(
         every, _docx_row_breaks_once(body))
-    if pagination_source != DOCX_RENDERED_PAGE_BREAKS and (
+    renderer: str | None = None
+    # ``render_pages``: an uploaded client or contract file on the ingestion path only —
+    # never a DOCX LegalMind generated (it never carries Word's record) nor an Ask
+    # attachment, which would each pay for a print they do not need (review 2026-11-09).
+    if render_pages and pagination_source != DOCX_RENDERED_PAGE_BREAKS and (
             rendered := _docx_rendered_pages(data, every)):
         # Word's own record is the author's pagination and wins; without it, the hard
         # breaks alone undercount every page that simply filled up (N10).
-        (paragraph_pages, total_pages), pagination_source = rendered, \
-            DOCX_LIBREOFFICE_RENDER
+        paragraph_pages, total_pages, renderer = rendered
+        pagination_source = DOCX_LIBREOFFICE_RENDER
     page_of = dict(zip(every, paragraph_pages, strict=True)) if paragraph_pages else {}
     try:                                                     # N-AUTONUM, AM-185
         list_numbers = _docx_list_numbers(document, every)
@@ -3530,7 +3660,9 @@ def parse_docx(data: bytes) -> ParseResult:
                        pages_total=total_pages if pagination_source else 0,
                        pages_extracted=pages_extracted,
                        diagnostics=diagnostics,
-                       pagination_source=pagination_source if segments else None)
+                       pagination_source=pagination_source if segments else None,
+                       # the LibreOffice that laid the pages out, recorded with the run
+                       reader={"libreoffice_version": renderer} if renderer else {})
 
 
 _MARKDOWN_HEADING = re.compile(r"^[ \t]{0,3}#{1,6}[ \t]+", re.MULTILINE)
@@ -3568,12 +3700,14 @@ def parse_text(data: bytes) -> ParseResult:
 
 
 def parse(data: bytes, mime_type: str, *, defer_ocr: bool = False,
-          ocr: bool = True, docling: bool | None = None) -> ParseResult:
+          ocr: bool = True, docling: bool | None = None,
+          render_pages: bool = False) -> ParseResult:
     try:
         if mime_type == PDF_MIME:
             return parse_pdf(data, defer_ocr=defer_ocr, ocr=ocr, docling=docling)
         if mime_type == DOCX_MIME:
-            return parse_docx(data)  # a DOCX is text-native; OCR never applies
+            # a DOCX is text-native; OCR never applies
+            return parse_docx(data, render_pages=render_pages)
         if mime_type in TEXT_MIME_TYPES:
             return parse_text(data)  # no pages, no OCR, no embedded objects
     except ParseError:

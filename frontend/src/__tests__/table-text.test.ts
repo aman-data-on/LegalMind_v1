@@ -31,4 +31,22 @@ describe("textBlocks", () => {
     expect(isFigure("₹ 25,23,430.00")).toBe(true);
     expect(isFigure("Grand total")).toBe(false);
   });
+
+  it("knows where each cell and inner cell starts in the row, so a saved highlight is drawn there", () => {
+    for (const block of blocks) {
+      if (block.kind === "text") {
+        expect(content.slice(block.start, block.start + block.text.length)).toBe(block.text);
+        continue;
+      }
+      for (const row of block.rows) {
+        for (const c of row) {
+          expect(content.slice(c.start, c.start + c.text.length)).toBe(c.text);
+          c.nested?.forEach((r, j) => r.forEach((t, k) => {
+            const at = c.nestedStart![j]![k]!;
+            expect(content.slice(at, at + t.length)).toBe(t);
+          }));
+        }
+      }
+    }
+  });
 });

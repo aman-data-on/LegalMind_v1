@@ -391,6 +391,9 @@ export function outlineTree(all: EvidenceRow[]): OutlineNode[] {
   const roots: OutlineNode[] = [];
   const byNumber = new Map<string, OutlineNode>();
   let lastRoot: OutlineNode | null = null;
+  // A schedule or annexure numbers its own items ("1", "2" again): they belong to it,
+  // and a number seen in the body is never their parent (review 2026-11-09).
+  let part: OutlineNode | null = null;
   for (const row of rows) {
     const clause = clauseOf(row);
     // a part the file declares is an entry even when its title row runs on into a table
@@ -412,8 +415,11 @@ export function outlineTree(all: EvidenceRow[]): OutlineNode[] {
       for (let i = parts.length - 1; i > 0 && !parent; i -= 1) {
         parent = byNumber.get(parts.slice(0, i).join(".")) ?? null;
       }
-      if (!parent && parts.length > 1) parent = lastRoot;
+      if (!parent) parent = part ?? (parts.length > 1 ? lastRoot : null);
       byNumber.set(clause.number, node);
+    } else if (row.annexure) {
+      byNumber.clear();
+      part = node;
     }
     if (parent) {
       node.depth = parent.depth + 1;

@@ -18,6 +18,7 @@ documents out of the repository), with the case that must NOT change beside it:
 from __future__ import annotations
 
 import io
+from pathlib import Path
 
 import pytest
 
@@ -85,16 +86,51 @@ def test_a_line_on_only_two_pages_and_a_clause_on_every_page_stay_text():
 
 
 # --- table of contents -----------------------------------------------------------------
+HEADED = [["1. DEFINITIONS", "1.1 The Customer shall pay the fees stated in the order."],
+          ["2. SCOPE OF SERVICES", "2.1 LeapSwitch shall provide the Services."],
+          ["3. TERM AND TERMINATION", "3.1 Either Party may terminate on notice."]]
+
+
 def test_a_table_of_contents_is_kept_as_contents_never_as_clauses():
     toc = ["CONTENTS", "1. DEFINITIONS ........................ 3",
            "2. SCOPE OF SERVICES .................. 5",
            "3. TERM AND TERMINATION ............... 8"]
-    result = _read(_pdf([toc, *BODY]))
+    result = _read(_pdf([toc, *HEADED]))
     contents = [s for s in result.segments if s.metadata.get("part") == "contents"]
     assert contents and all(s.section_number is None for s in contents)
     assert not any(s.metadata.get("heading") for s in contents)
     assert [s.section_number for s in result.segments if s.section_number][:2] == [
-        "1.1", "1.2"]
+        "1", "1.1"]
+
+
+def _segment(text: str) -> parsing.Segment:
+    return parsing.Segment(content=normalize_text(text), original_content=text,
+                           source_type=EvidenceSourceType.NATIVE_TEXT, page_number=1,
+                           section_number=None, section_title=None, start_offset=0,
+                           end_offset=len(text), metadata={})
+
+
+def test_an_order_forms_terms_ending_in_numbers_are_never_contents():
+    terms = ["Initial Term in months 12", "Notice of non-renewal in days 90",
+             "Payment due within days 30", "Liability cap in months of fees 3"]
+    segments = [_segment(t) for t in ["ORDER FORM", *terms, "Signed for the Customer"]]
+    parsing._mark_contents(segments)
+    assert not any(s.metadata.get("part") for s in segments)
+    # the same lines as typed contents with dots, under a title, are still not contents
+    # when no heading of the document carries those titles
+    dotted = [_segment("CONTENTS"), *(_segment(f"{t} .... {n}") for t, n in
+                                      (("Initial Term", 2), ("Notice", 3), ("Payment", 4)))]
+    parsing._mark_contents(dotted)
+    assert not any(s.metadata.get("part") for s in dotted)
+
+
+def test_a_word_contents_with_tab_leaders_is_caught():
+    segments = [_segment(t) for t in [
+        "CONTENTS", "1. DEFINITIONS\t3", "2. SCOPE OF SERVICES\t5",
+        "3. TERM AND TERMINATION\t8", "1. DEFINITIONS", "2. SCOPE OF SERVICES",
+        "3. TERM AND TERMINATION"]]
+    parsing._mark_contents(segments)
+    assert [bool(s.metadata.get("part")) for s in segments] == [True] * 4 + [False] * 3
 
 
 def test_three_one_line_headings_in_a_row_are_not_a_contents():
@@ -126,26 +162,31 @@ def test_a_bare_number_above_prose_is_not_a_heading():
 
 
 # --- tracked changes printed in a PDF --------------------------------------------------
-def _redline(*runs: tuple[str, str]) -> bytes:
-    """One line; ``del`` runs struck, ``ins`` runs underlined, both in one colour and
-    with NO space between them — the shape that put a letter in the wrong version."""
+def _redline(before: str, deleted: str, inserted: str, after: str) -> bytes:
+    """The N7 shape exactly: the deletion and the insertion printed as ONE coloured run,
+    the strike reaching a hair past the deletion's last letter and the underline
+    starting a hair before the insertion's first — so PyMuPDF flags ")s" both struck
+    and underlined, and the parent read "ixty (60)"."""
     doc = pymupdf.open()
     page = doc.new_page()
-    x = 72.0
-    for text, mark in runs:
-        colour = ORANGE if mark else (0, 0, 0)
-        page.insert_text((x, 100), text, fontsize=10, color=colour)
-        end = x + pymupdf.get_text_length(text, fontsize=10)
-        y = {"del": 96.5, "ins": 102}.get(mark)
-        if y is not None:
-            page.draw_line((x + .05, y), (end - .05, y), color=colour, width=0.5)
-        x = end
+    page.insert_text((72, 100), before, fontsize=10)
+    x = 72 + pymupdf.get_text_length(before, fontsize=10)
+    page.insert_text((x, 100), deleted + inserted, fontsize=10, color=ORANGE)
+    cut = x + pymupdf.get_text_length(deleted, fontsize=10)
+    end = cut + pymupdf.get_text_length(inserted, fontsize=10)
+    page.draw_line((x, 96.5), (cut + 0.6, 96.5), color=ORANGE, width=0.5)
+    page.draw_line((cut - 0.6, 102), (end, 102), color=ORANGE, width=0.5)
+    page.insert_text((end, 100), after, fontsize=10)
     return doc.tobytes()
 
 
 def test_a_struck_figure_and_the_inserted_one_beside_it_keep_their_own_letters():
-    segment = _read(_redline(("5.4 Cured within ", ""), ("thirty (30)", "del"),
-                             ("sixty (60)", "ins"), (" days.", ""))).segments[0]
+    data = _redline("5.4 Cured within ", "thirty (30)", "sixty (60)", " days.")
+    spans = [s for b in pymupdf.open(stream=data)[0].get_text(
+        "dict", flags=pymupdf.TEXTFLAGS_TEXT | pymupdf.TEXT_COLLECT_STYLES)["blocks"]
+        for line in b["lines"] for s in line["spans"]]
+    assert any(s["char_flags"] & 3 == 3 for s in spans)      # the shape is reproduced
+    segment = _read(data).segments[0]
     assert "Cured within sixty (60) days." in segment.content
     assert segment.metadata["revision"]["changes"] == [
         {"deleted": "thirty (30)", "inserted": "sixty (60)"}]
@@ -277,11 +318,39 @@ def _docx_with_hard_break() -> bytes:
 
 def test_a_docx_without_words_record_takes_the_renderers_pages(monkeypatch):
     monkeypatch.setattr(parsing, "_docx_rendered_pages",
-                        lambda data, paragraphs: ([1, 1, 3], 3))
-    result = parse_docx(_docx_with_hard_break())
+                        lambda data, paragraphs: ([1, 1, 3], 3, "LibreOffice 26.2"))
+    result = parse_docx(_docx_with_hard_break(), render_pages=True)
     assert result.pagination_source == parsing.DOCX_LIBREOFFICE_RENDER
     assert result.pages_total == 3
     assert [s.page_number for s in result.segments] == [1, 3]
+    assert result.reader == {"libreoffice_version": "LibreOffice 26.2"}
+
+
+def test_a_docx_is_never_printed_unless_it_is_an_upload(monkeypatch):
+    calls = []
+    monkeypatch.setattr(parsing, "_docx_rendered_pages",
+                        lambda data, paragraphs: calls.append(1))
+    parse_docx(_docx_with_hard_break())                  # generated, preflight, Ask …
+    parsing.parse(_docx_with_hard_break(), parsing.DOCX_MIME)
+    assert calls == []
+
+
+def test_a_hanging_renderer_is_killed_with_its_children(monkeypatch, tmp_path):
+    import time
+    marker = tmp_path / "child.pid"
+    fake = tmp_path / "soffice"
+    fake.write_text(f"#!/bin/sh\nsleep 300 &\necho $! > {marker}\nwait\n")
+    fake.chmod(0o755)
+    monkeypatch.setenv("LEGALMIND_SOFFICE", str(fake))
+    monkeypatch.setattr(parsing, "RENDER_TIMEOUT_S", 1)
+    started = time.monotonic()
+    assert parsing._render_docx(_docx_with_hard_break()) is None
+    assert time.monotonic() - started < 10
+    child = int(marker.read_text())
+    time.sleep(0.2)
+    stat = Path(f"/proc/{child}/stat")
+    # gone, or a zombie waiting for init to reap it: either way no longer running
+    assert not stat.exists() or stat.read_text().split()[2] == "Z"
 
 
 def test_without_a_renderer_a_docx_keeps_its_own_breaks(monkeypatch):
@@ -352,3 +421,18 @@ def test_a_superscript_note_mark_after_a_word_leaves_the_clause_text():
 def test_a_line_opening_with_a_cross_reference_is_not_that_clause():
     assert parsing.detect_clause_number("Clause 16 of this Agreement.") == (None, None)
     assert parsing.detect_clause_number("Clause 16 Force Majeure")[0] == "16"
+
+
+# --- bounded work: past the limit the page is said, its text never dropped ----------------
+def test_past_the_split_limit_the_page_is_flagged_and_keeps_its_text(monkeypatch):
+    monkeypatch.setattr(parsing, "SPLIT_MAX_WORK", 0)
+    result = _read(_redline("5.4 Cured within ", "thirty (30)", "sixty (60)", " days."))
+    assert any("too dense" in d for d in result.diagnostics)
+    assert "(60) days." in result.segments[0].content
+
+
+def test_past_the_line_limit_gutter_numbers_are_left_as_read(monkeypatch):
+    monkeypatch.setattr(parsing, "HANG_MAX_LINES", 1)
+    rows = [["5", "1", "1", "1", "1", "1", "100", "300", "40", "20", "90", "5.4"],
+            ["5", "1", "2", "1", "1", "1", "200", "298", "40", "20", "90", "Text"]]
+    assert parsing._hang_numbers(rows) is None

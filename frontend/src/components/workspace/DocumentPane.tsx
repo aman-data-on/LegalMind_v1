@@ -27,7 +27,7 @@ import { useSession } from "@/lib/session";
 import type { DocumentVersion, EvidenceRow } from "@/lib/types";
 import { UNREADABLE_WHY } from "@/lib/labels";
 
-import { selectionInRow, useAnnotations, type Annotation } from "./annotations";
+import { segmentContent, selectionInRow, useAnnotations, type Annotation } from "./annotations";
 import { readingLayout, readingPieces, type ReadingLine } from "./reading";
 import { hasTable, isFigure, textBlocks, type TableCell } from "./tableText";
 
@@ -1133,8 +1133,9 @@ function RowText({ row, line, marks, annotations, onOpen }: {
   onOpen: (id: string, element: HTMLElement) => void;
 }) {
   // A row holding a table is set as prose blocks and tables (N11 #1); its changes are
-  // listed under it and reader highlights are not drawn inside it.
-  // ponytail: a highlight inside a table row is not shown — draw it per cell if asked.
+  // listed under it, and saved highlights are drawn in their cell (`Marked`).
+  // ponytail: a NEW highlight is made in paragraph text only — selecting in a table cell
+  // does not map to the row's offsets yet.
   const tabled = hasTable(row.content);
   const { pieces, unplaced, lead } = tabled
     ? { pieces: [], unplaced: row.changes ?? [], lead: 0 }
@@ -1152,9 +1153,13 @@ function RowText({ row, line, marks, annotations, onOpen }: {
         </p>
       ) : tabled ? (
         textBlocks(row.content).map((block, index) => block.kind === "text" ? (
-          block.text.trim() ? <p key={index} className="ws-row__plain" style={style}>{block.text}</p> : null
+          block.text.trim() ? (
+            <p key={index} className="ws-row__plain" style={style}>
+              <Marked text={block.text} start={block.start} annotations={annotations} onOpen={onOpen} />
+            </p>
+          ) : null
         ) : (
-          <DocTable key={index} rows={block.rows} />
+          <DocTable key={index} rows={block.rows} annotations={annotations} onOpen={onOpen} />
         ))
       ) : (
       <p className="ws-row__text" style={style} data-hang={hung ? "" : undefined}
@@ -1229,14 +1234,49 @@ function isFurniture(row: EvidenceRow): boolean {
 
 /** A table from the file, set as a table (N11 #1): it scrolls inside its own frame on a
  *  narrow screen, never the page. The first row is the table's own heading row. */
-function DocTable({ rows }: { rows: TableCell[][] }) {
+/** ``text`` (at ``start`` in its row's content) with the reader's highlights that fall in
+ *  it drawn as they are in a paragraph — a highlight saved on a table row still shows in
+ *  its cell (review 2026-11-09). */
+function Marked({ text, start, annotations, onOpen }: {
+  text: string; start: number; annotations: Annotation[];
+  onOpen: (id: string, element: HTMLElement) => void;
+}) {
+  if (start < 0 || annotations.length === 0) return <>{text}</>;
+  const own = annotations.map((a) => ({ ...a, start: a.start - start, end: a.end - start }));
+  return (
+    <>
+      {segmentContent(text, own).map((seg, i) => seg.annotation ? (
+        <mark key={i} className="ws-anno" tabIndex={0} role="button"
+              title={seg.annotation.note || "Your highlight — open to add a note"}
+              aria-label={`Your highlight${seg.annotation.note ? `: ${seg.annotation.note}` : ""} — press Enter to edit`}
+              onClick={(event) => onOpen(seg.annotation!.id, event.currentTarget)}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter" && event.key !== " ") return;
+                event.preventDefault();
+                onOpen(seg.annotation!.id, event.currentTarget);
+              }}>{seg.text}</mark>
+      ) : <Fragment key={i}>{seg.text}</Fragment>)}
+    </>
+  );
+}
+
+/** A table from the file, set as a table (N11 #1): it scrolls inside its own frame on a
+ *  narrow screen, never the page. The first row is the table's own heading row. */
+function DocTable({ rows, annotations, onOpen }: {
+  rows: TableCell[][]; annotations: Annotation[];
+  onOpen: (id: string, element: HTMLElement) => void;
+}) {
   const [head, ...body] = rows;
+  const mark = (text: string, start: number) => (
+    <Marked text={text} start={start} annotations={annotations} onOpen={onOpen} />);
   const cells = (row: TableCell[], heading: boolean) => row.map((c, i) => {
     const content = c.nested ? (
       <table className="ws-table ws-table--nested">
-        <tbody>{c.nested.map((r, j) => <tr key={j}>{r.map((t, k) => <td key={k}>{t}</td>)}</tr>)}</tbody>
+        <tbody>{c.nested.map((r, j) => (
+          <tr key={j}>{r.map((t, k) => <td key={k}>{mark(t, c.nestedStart?.[j]?.[k] ?? -1)}</td>)}</tr>
+        ))}</tbody>
       </table>
-    ) : c.text;
+    ) : mark(c.text, c.start);
     return heading
       ? <th key={i} scope="col" colSpan={c.span > 1 ? c.span : undefined}>{content}</th>
       : <td key={i} colSpan={c.span > 1 ? c.span : undefined}

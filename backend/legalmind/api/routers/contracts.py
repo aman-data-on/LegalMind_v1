@@ -893,7 +893,8 @@ async def upload_document_version(
 
 
 def _ingest_upload(guard: Guard, storage: StorageBackend, contract_id: UUID,
-                   payload: bytes, original_filename: str, declared_mime: str) -> dict:
+                   payload: bytes, original_filename: str, declared_mime: str,
+                   render_pages: bool = True) -> dict:
     # `defer_ocr` — the ~63s-upload fix (2026-09-03). A document that needs OCR
     # returns from ingest as PROCESSING with no evidence, the request finishes in
     # native-parse time, and the OCR runs as its own background ProcessingRun
@@ -908,6 +909,8 @@ def _ingest_upload(guard: Guard, storage: StorageBackend, contract_id: UUID,
         filename=original_filename,
         declared_mime=declared_mime,
         defer_ocr=True,
+        # a person's upload: a DOCX without Word's page record is laid out by LibreOffice
+        render_pages=render_pages,
     )
 
     dv = result.document_version
