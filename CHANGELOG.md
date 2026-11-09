@@ -10,6 +10,10 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-11-09 — Batch 0 safety (AB-182: AM-340, PROPOSED) — branch `feat/clm-p1-negotiate`, not deployed
+
+- The point decision form preselects nothing (LA-1); a version nobody declared is never counted as ours — comparing, replying or the final contract stops and asks whose paper it is, and a reviewed legacy version may be declared once (`AM-340`, proposed) (Changes P1); readers see "(our approved wording)" in place of the wording hash, which the record keeps (LA-4).
+
 ### 2026-11-09 — Last corrections before the owner's test (AB-179: AM-326) — branch `feat/clm-p1-negotiate`, not deployed
 
 - A carried point whose chain falls is Legal's again (status, queue, To-do); more placeholder shapes; no prefilled effective date. `origin/main` merged into the CLM branch with the records branch's L1.16 (superseded) / L1.17 (current).

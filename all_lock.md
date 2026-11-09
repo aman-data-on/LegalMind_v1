@@ -29794,3 +29794,41 @@ r4  LEFT FOR THE OWNER (not amended here): a decision made on the very version s
     after its decider loses the right; only carried decisions are re-checked.
 r5  NOT AMENDED: everything AM-323 r8 names. Nothing deployed; production untouched.
 ```
+
+## AB-182 — `AM-340` (2026-11-09, PROPOSED): a reviewed version nobody declared may be declared ours or the client's once
+
+**Status: PROPOSED — awaiting the owner's yes.** Built on branch `feat/clm-p1-negotiate`
+(not pushed, not deployed) under the owner's "product over locks" delegation (2026-11-02) and
+the owner's Batch 0 approval (2026-11-09, "go with your recommendation"). Raised by the
+independent verifier of Batch 0 (Changes P1). `AM-340` and `AB-182` were scanned on `main`,
+every worktree and every remote branch before being taken (range scanned: AM-327–AM-345,
+AB-178–AB-190; AM-330–AM-335 are held on main by AB-175, so this record takes headroom
+past them). Extends locked 33.7 and the owner ruling of 2026-09-06 that AB-13 r7 cites
+("declared metadata is immutable once a Review exists"). Their text above is unchanged and
+read with this one.
+
+**Why.** P1 (Batch 0) made a version with no `version_role` and no `source` no one's paper:
+it is never counted as ours, and comparing, replying or preparing the final contract on it
+stops and asks whose paper it is (rule 15). A version uploaded before `AM-324` r4 that already
+has a Review could not be declared (409 under 33.7 / 2026-09-06), so its deal would stay
+blocked for good.
+
+`AM-340` — First declaration of whose paper a reviewed version is
+
+```text
+r1  WHAT IS ALLOWED. On a version that has a Review and is undeclared (no version_role and
+    no source), PATCH /document-versions/{id} may set version_role from nothing to
+    COMPANY_DRAFT (ours) or CLIENT_MODIFIED (the client's), and nothing else in the same
+    request. It records a fact nobody wrote down; it never changes one.
+r2  WHAT STAYS REFUSED (409, as 33.7 / 2026-09-06). Changing or clearing a role once one is
+    set; FINAL_SIGNED; source, counterparty or effective date; any declaration on a
+    reviewed version that already has a role or a source.
+r3  AUDIT. Its own event, document.role_declared_after_review (actor, role before = none,
+    role after, changed keys), append-only like every audit row. No "client returned"
+    notification: an old version is not a new return.
+r4  WHAT IT DOES NOT TOUCH. The version's file, evidence, Review, Findings, snapshot and
+    Legal Decisions are unchanged; version_role is filing (Client Profiles, 2026-09-10),
+    not an input to the evaluator, so every historical Review stays reproducible (rule 17).
+r5  NOT AMENDED: 33.7 for the document itself; AB-13 r7; AM-324 r4 (every upload declares
+    its role). Nothing deployed; production untouched.
+```
