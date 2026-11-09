@@ -154,6 +154,10 @@ def _pair(guard: Guard, contract: M.Contract, from_version: int | None,
         return before, after
     if from_version not in by_number:
         raise BusinessRuleRejected("This contract has no such version.")
+    # P1: a named pair is compared only when a person said whose paper each side is
+    for side in (by_number[from_version], after):
+        if not negotiation.is_declared(side):
+            raise negotiation.VersionRoleUndeclared(side)
     return by_number[from_version], after
 
 

@@ -35,7 +35,7 @@ import type { Contract, Counterparty, DocumentVersion, ReviewAssignments } from 
 import { ACTION, contractDisplayName, contractStatusLabel, type StageViewer } from "@/lib/labels";
 import { nextStep, runStep, useStep, type StepKind } from "@/lib/nextStep";
 import { PageHeader } from "@/components/page/PageHeader";
-import { documentSourceChip } from "@/lib/documentTypes";
+import { documentSourceChip, isOurs } from "@/lib/documentTypes";
 
 import { Dialog } from "@/components/Dialog";
 
@@ -349,7 +349,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
   // N5: our own version downloads from ⋯ at any stage — said to be a draft while a point
   // is open; the server still gates a reply or final contract with an open point (AM-293)
   if (version && can(P.DOCUMENT_DOWNLOAD) && !version.reply && !version.package && !version.final_copy) {
-    const draft = (contract.counts?.points_open ?? 0) > 0 && version.version_role !== "CLIENT_MODIFIED";
+    const draft = (contract.counts?.points_open ?? 0) > 0 && isOurs(version);
     overflow.push(<a key="dl" role="menuitem" className="ws-menu__item"
                      href={`/api/v1/document-versions/${encodeURIComponent(version.id)}/content`} download>
       Download version {version.version_number}{draft ? " (draft — not yet cleared by Legal)" : ""}</a>);
@@ -701,7 +701,7 @@ function RecordHeader({
   const canSendToLegal = !signedAt && stageNow !== "WITH_CLIENT" && stageNow !== "FINAL"
     && ((contract.counts?.points_open ?? 0) > 0 || (finalLatest && stageNow === "INTERNAL_REVIEW"))
     && !!assign?.can_send && !holder && assign.eligible.length > 0;
-  const ours = !!latest && latest.version_role !== "CLIENT_MODIFIED" && latest.version_role !== "FINAL_SIGNED";
+  const ours = isOurs(latest);
   const step = findings?.reference ? null : nextStep({
     stage: contract.negotiation_stage?.stage, counts: contract.counts, viewer, canAnswer, canSendToLegal,
     replyReady: !!latest?.reply && !latest.sent_at,

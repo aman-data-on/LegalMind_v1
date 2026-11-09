@@ -145,6 +145,9 @@ DOCUMENT_REPROCESSED = "document.reprocessed"
 # keys and the execution status (`version_role`) only — a counterparty name is the
 # caller's text and stays out of the trail.
 DOCUMENT_DECLARED = "document.declared"
+# `AM-340` (proposed, P1 2026-11-09): whose paper a reviewed version is, declared for the
+# first time — null -> COMPANY_DRAFT / CLIENT_MODIFIED only; never a change of a role
+DOCUMENT_ROLE_DECLARED_AFTER_REVIEW = "document.role_declared_after_review"
 # Ownership transfer (AB-12 r5). before_state/after_state carry the previous and
 # the new owner; the reason travels in after_state. The actor is the Lead.
 CONTRACT_OWNERSHIP_TRANSFERRED = "contract.ownership_transferred"

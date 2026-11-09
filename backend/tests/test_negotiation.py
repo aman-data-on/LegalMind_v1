@@ -329,6 +329,49 @@ def test_a_version_nobody_declared_is_never_ours(api, db, owner):
     assert len(listed["changes"]) == 1
 
 
+def test_a_reviewed_version_nobody_declared_is_declared_once_then_compared(api, db, owner):
+    """P1 / `AM-340` (proposed): a legacy v2 with a Review and no role is declared the
+    client's after review — audited as its own event, no "client returned" notice — and
+    the Changes tab works. A role once declared on a reviewed version never changes."""
+    c = _contract(db, owner)
+    v1 = _version(db, c, 1, [(*LIAB, "9. Liability is capped at 12 months.")])
+    v2 = _version(db, c, 2, [(*LIAB, "9. Liability is capped at 3 months.")])
+    v1.doc_metadata = {"version_role": "COMPANY_DRAFT"}
+    _review(db, v2, [(0, E.FindingClassification.DEVIATION, E.RuleOutcome.UNACCEPTABLE)])
+    db.flush()
+    assert api.get(_url(c)).json()["error"]["code"] == "VERSION_ROLE_UNDECLARED"
+    url = f"{V1}/document-versions/{v2.id}"
+    assert api.patch(url, json={"version_role": "FINAL_SIGNED"}).status_code == 409
+    assert api.patch(url, json={"version_role": "CLIENT_MODIFIED",
+                                "counterparty": "X"}).status_code == 409   # role only
+    assert api.patch(url, json={"version_role": "CLIENT_MODIFIED"}).status_code == 200
+    listed = _changes(api, c)
+    assert (listed["from"]["version_number"], listed["to"]["version_number"]) == (1, 2)
+    [event] = db.execute(select(M.AuditEvent).where(
+        M.AuditEvent.action == audit.DOCUMENT_ROLE_DECLARED_AFTER_REVIEW)).scalars().all()
+    assert (event.before_state["version_role"], event.after_state["version_role"]) == (
+        None, "CLIENT_MODIFIED") and event.actor_id == owner.id
+    assert db.scalar(select(func.count()).select_from(M.Notification)) == 0
+    # declared now: changing it on a reviewed version stays refused (locked 33.7)
+    assert api.patch(url, json={"version_role": "COMPANY_DRAFT"}).status_code == 409
+    assert api.patch(url, json={"version_role": None}).status_code == 409
+
+
+def test_an_answer_naming_an_undeclared_side_is_refused(api, db, owner):
+    """P1: a pair named by from_version / to_version is never compared on a version
+    nobody declared — the answer is refused, nothing written."""
+    c = _contract(db, owner)
+    v1, v2 = _pair(db, c, "9. Liability is capped.", "9. Liability is uncapped.")
+    key = _changes(api, c)["changes"][0]["row_key"]
+    v1.doc_metadata = None
+    db.flush()
+    r = api.post(_url(c, key), params={"from_version": 1, "to_version": 2},
+                 json=_first("keep_ours"))
+    assert r.status_code == 422 and r.json()["error"]["code"] == "VERSION_ROLE_UNDECLARED"
+    assert r.json()["error"]["version_number"] == 1
+    assert db.scalar(select(func.count()).select_from(M.ComparisonChoice)) == 0
+
+
 def test_the_owner_cannot_accept_a_change_a_holder_decides(api, db, owner):
     c = _contract(db, owner)
     _pair(db, c, "9. Liability is capped.", "9. Liability is uncapped.")
@@ -461,8 +504,7 @@ def test_an_answer_to_a_superseded_client_version_is_refused(api, db, owner):
     c = _contract(db, owner)
     for n, cap in enumerate(("12", "9", "6"), start=1):
         v = _version(db, c, n, [(*LIAB, f"9. Liability is capped at {cap} months of fees.")])
-        if n > 1:
-            v.doc_metadata = {"version_role": "CLIENT_MODIFIED"}
+        v.doc_metadata = {"version_role": "CLIENT_MODIFIED" if n > 1 else "COMPANY_DRAFT"}
     db.flush()
     key = _changes(api, c, to_version=2, from_version=1)["changes"][0]["row_key"]
     r = api.post(_url(c, key), params={"to_version": 2, "from_version": 1},

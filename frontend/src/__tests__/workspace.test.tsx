@@ -8,7 +8,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { EscalateControl } from "@/components/workspace/EscalateControl";
-import { DOCUMENT_TYPES, documentSourceChip, documentSourceLabel, documentTypeLabel, nameFromFilename, typeHintFromFilename } from "@/lib/documentTypes";
+import { DOCUMENT_TYPES, documentSourceChip, documentSourceLabel, documentTypeLabel, isOurs, nameFromFilename, typeHintFromFilename } from "@/lib/documentTypes";
 import { contractStatusLabel } from "@/lib/labels";
 import {
   activeNavHref,
@@ -431,5 +431,18 @@ describe("Avatar", () => {
     expect(photo).toContain("googleusercontent.com");
     expect(renderToStaticMarkup(<Avatar name="Aman Singh" />)).toContain(">A<");
     expect(renderToStaticMarkup(<Avatar name="Aman Singh" picture={null} />)).not.toContain("<img");
+  });
+});
+
+describe("isOurs — the server's rule (P1, owner 2026-11-09)", () => {
+  it("counts only a declared draft or our paper by source; an undeclared version is no one's", () => {
+    expect(isOurs({ version_role: "COMPANY_DRAFT" })).toBe(true);
+    expect(isOurs({ source: "ORGANIZATION" })).toBe(true);
+    expect(isOurs({})).toBe(false);
+    expect(isOurs({ version_role: null, source: null })).toBe(false);
+    expect(isOurs({ version_role: "CLIENT_MODIFIED", source: "ORGANIZATION" })).toBe(false);
+    expect(isOurs({ version_role: "FINAL_SIGNED" })).toBe(false);
+    expect(isOurs({ source: "COUNTERPARTY" })).toBe(false);
+    expect(isOurs(null)).toBe(false);
   });
 });

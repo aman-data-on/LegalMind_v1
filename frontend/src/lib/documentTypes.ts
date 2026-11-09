@@ -168,6 +168,13 @@ export function versionRoleLabel(role: string | null | undefined): string | null
   return VERSION_ROLES.find((r) => r.role === role)?.label ?? null;
 }
 
+/** Ours as the server reads it (`negotiation.is_ours`, P1 2026-11-09): declared our draft,
+ *  or our paper by `source` with no role. A version nobody declared is no one's — never
+ *  ours, so it never offers "Send to client". */
+export function isOurs(v: { version_role?: string | null; source?: string | null } | null | undefined): boolean {
+  return !!v && (v.version_role === "COMPANY_DRAFT" || (!v.version_role && v.source === "ORGANIZATION"));
+}
+
 /** Which of the three status tones a version role wears. Green for the executed
  *  copy is the one place a role carries colour, and it is earned: "is this
  *  signed?" is the question the owner named first. The other two are neutral —

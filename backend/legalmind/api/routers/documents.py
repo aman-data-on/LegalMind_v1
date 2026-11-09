@@ -101,6 +101,8 @@ def declare_document_version(document_version_id: UUID, body: DocumentVersionDec
     once a Review exists, and the owner ruled (2026-09-06) that declared metadata
     follows the same line: it may be corrected only while no Review exists. So
     the check is on Reviews, not on analysis outcome — a DRAFT Review freezes it.
+    One exception (`AM-340`, proposed): a version nobody declared may be declared
+    ours or the client's once, after review — a missing fact, never a change.
 
     Declared, never inferred: nothing here reads the document. The upload
     endpoint's body is the file itself (38.24), which is why the declaration is
@@ -112,7 +114,13 @@ def declare_document_version(document_version_id: UUID, body: DocumentVersionDec
     reviewed = guard.db.execute(
         select(M.Review.id).where(M.Review.document_version_id == version.id).limit(1)
     ).first()
-    if reviewed is not None:
+    # `AM-340` (proposed): on a reviewed version only the FIRST declaration of whose paper
+    # it is (null -> ours / the client's) — a legacy version nobody declared would
+    # otherwise block its deal for good (P1). It records a missing fact, never changes one
+    late = (reviewed is not None and body.model_fields_set == {"version_role"}
+            and not negotiation.is_declared(version)
+            and body.version_role in ("COMPANY_DRAFT", "CLIENT_MODIFIED"))
+    if reviewed is not None and not late:
         # locked 33.7: declared metadata is fixed once a Review exists
         raise Conflict("This version has been reviewed, so what it is can no longer be "
                        "changed. Upload a new version to change it.")
@@ -133,11 +141,12 @@ def declare_document_version(document_version_id: UUID, body: DocumentVersionDec
                      if meta.get(k) != before.get(k))
     if changed:
         audit.record(
-            guard.db, action=audit.DOCUMENT_DECLARED, entity_type="document_version",
+            guard.db, action=audit.DOCUMENT_ROLE_DECLARED_AFTER_REVIEW if late
+            else audit.DOCUMENT_DECLARED, entity_type="document_version",
             entity_id=version.id, actor_id=guard.user_id, request_id=guard.request_id,
             before={"version_role": before.get("version_role")},
             after={"version_role": meta.get("version_role"), "changed": changed})
-        if ("version_role" in changed
+        if ("version_role" in changed and not late    # an old version, not a new return
                 and meta.get("version_role") == "CLIENT_MODIFIED"):     # AM-273 m3
             contract = guard.db.get(M.Contract, version.contract_id)
             if contract is not None:
