@@ -252,7 +252,8 @@ def test_a_deals_own_figure_is_never_carried_from_another_deal():
     afresh on every deal — never filled from the client's previous contract."""
     from legalmind.api.routers.drafts import prefill_keys
     assert prefill_keys([{"key": "client_name"}, {"key": "our_name", "locked_value": "X"},
-                         {"key": "liability_months", "prefill": False}]) == {"client_name"}
+                         {"key": "liability_months", "prefill": False},
+                         {"key": "effective_date", "type": "date"}]) == {"client_name"}
 
 
 def test_client_profile_fields_prefill_the_importers_client_questions(db, published):

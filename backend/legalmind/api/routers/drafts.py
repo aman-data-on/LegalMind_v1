@@ -158,9 +158,10 @@ def _published(guard: Guard, template_version_id: UUID) -> M.TemplateVersion:
 # ---------------------------------------------------------------- drafts
 def prefill_keys(variables: list[dict[str, Any]]) -> set[str]:
     """The variables a returning client's answers may fill: not locked, not marked
-    ``"prefill": false``."""
+    ``"prefill": false``, and never the deal's own effective date (`AM-326` r3)."""
     return {v["key"] for v in variables
-            if "locked_value" not in v and v.get("prefill", True)}
+            if "locked_value" not in v and v.get("prefill", True)
+            and model_.role(v) != "effective_date"}
 
 
 def prefill(guard: Guard, tv: M.TemplateVersion,

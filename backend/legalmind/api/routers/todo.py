@@ -47,6 +47,7 @@ from legalmind.domain import enums as E
 from legalmind.evaluation.workflow import current_decision, second_person_needed
 from legalmind.security import permissions as P
 from legalmind.security.authorization import can_read_contract
+from legalmind.workflow.decisions import refresh_carried
 from legalmind.workflow.review_lifecycle import is_superseded
 from legalmind.workflow.review_progress import review_progress
 
@@ -265,6 +266,7 @@ def todo(guard: Guard = Depends(get_guard)) -> dict:
     """Everything waiting on the caller, oldest first (`AM-264`). Each kind needs what
     its source already needs; a caller holding none of it gets an empty list."""
     items: list[dict] = []
+    refresh_carried(guard.db)       # AM-326 r1: a carried point whose chain fell: Legal's
     if P.REVIEW_VIEW in guard.permissions:
         if P.LEGAL_DECISION in guard.permissions:
             items += _decisions(guard)

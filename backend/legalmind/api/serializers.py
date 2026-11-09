@@ -211,6 +211,11 @@ def _carried(db: DBSession, finding_id: UUID) -> dict[str, Any] | None:
     record = carried_forward(db, finding_id)
     if record is None:
         return None
+    from legalmind.evaluation import workflow as W
+    finding = db.get(M.Finding, finding_id)
+    if W.CARRY_STANDS is not None and finding is not None \
+            and not W.CARRY_STANDS(db, finding):
+        return None       # AM-326 r1: never "Decided on vN by <name>" once it fell
     by = db.get(M.User, UUID(record["decided_by"]))
     return {"version_number": record.get("from_version_number"),
             "decision_type": record.get("decision_type"),

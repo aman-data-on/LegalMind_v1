@@ -1604,10 +1604,13 @@ _FINAL_COPY_ROUTES = {"NOTHING_TO_ANSWER", "NOT_OUR_TEMPLATE", "REDLINE_ROUND",
 #: filled in on the line itself, the answer written between underscores ("___Pune___",
 #: "__8___", "___1st_ day"); "___________are" and "___ months" are still blank
 _BLANK = re.compile(r"_{3,}")
-#: the other placeholder shapes (`AM-324` r3): "[●]", "[•]", "[ ]", and a run of dots or
-#: ellipses — but not a contents page's dot leader before its page number
-_PLACEHOLDER = re.compile(r"\[\s*[●•]?\s*\]|(?<![.…])(?:\.{4,}|…(?: ?…)+|(?:\. ){3,}\.)"
-                          r"(?![.…])(?!\s*\d+\s*$)")
+#: the other placeholder shapes (`AM-324` r3, `AM-326` r2): "[●]", "[•]", "[ ]", "[*]",
+#: "[X]", "[insert …]", "[TBD]", "<<…>>", and a run of dots or ellipses — but not a
+#: contents page's dot leader before its page number
+_PLACEHOLDER = re.compile(
+    r"\[\s*[●•*xX]?\s*\]|\[\s*(?:insert\b[^\]]*|tb[dc])\s*\]|<<[^<>]+>>"
+    r"|(?<![.…])(?:\.{4,}|…(?: ?…)+|(?:\. ){3,}\.)(?![.…])(?!\s*\d+\s*$)",
+    re.IGNORECASE)
 _FILLED = re.compile(r"_+[^\W_][^_\s]*_+")
 
 

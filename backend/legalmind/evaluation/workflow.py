@@ -6,6 +6,7 @@ produces no decision, no status and no resolution (36.15, 45A r18, 45B.14).
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from uuid import UUID
 
 from sqlalchemy import select
@@ -249,6 +250,12 @@ def owner_accepted(db: DBSession, finding_id: UUID) -> bool:
         M.AuditEvent.entity_id == finding_id).limit(1)).first() is not None
 
 
+#: `AM-326` r1: whether a carried decision's chain still stands NOW — set by
+#: `workflow.decisions` (this layer imports no workflow code); unset, the carry record
+#: alone is read, as before.
+CARRY_STANDS: Callable[[DBSession, M.Finding], bool] | None = None
+
+
 def derive_finding_status(db: DBSession, finding: M.Finding, *,
                          requirement_required: bool = True,
                          escalated: bool = False) -> FindingStatus:
@@ -279,8 +286,11 @@ def derive_finding_status(db: DBSession, finding: M.Finding, *,
 
     if outstanding_clarification:
         return FindingStatus.AWAITING_CLARIFICATION
-    if needs_decision and not owner_accepted(db, finding.id) \
-            and (escalated or carried_forward(db, finding.id) is None):  # AM-317 r7
+    carried = needs_decision and not escalated \
+        and carried_forward(db, finding.id) is not None                  # AM-317 r7
+    if carried and CARRY_STANDS is not None and not CARRY_STANDS(db, finding):
+        carried = False            # AM-326 r1: the chain no longer stands — Legal decides
+    if needs_decision and not owner_accepted(db, finding.id) and not carried:
         return FindingStatus.DECISION_REQUIRED
     if any(evaluation_requires_decision(
             classification=ev.classification, rule_outcome=ev.rule_outcome,

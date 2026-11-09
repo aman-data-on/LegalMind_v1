@@ -29,7 +29,9 @@ from legalmind import notifications
 from legalmind.db import models as M
 from legalmind.db.lookup import must_exist
 from legalmind.domain.enums import DecisionType, FindingStatus
+from legalmind.evaluation import workflow as _workflow
 from legalmind.evaluation.workflow import (
+    DECISION_CARRIED_FORWARD,
     carried_forward,
     derive_finding_status,
     effective_decision,
@@ -543,6 +545,44 @@ def _decided(db: DBSession, finding: M.Finding) -> dict | None:
             "decided_at": decisions[-1].created_at.isoformat(),
             "from_version_number": version.version_number if version else None,
             "from_finding_id": str(finding.id)}
+
+
+def _carry_stands(db: DBSession, finding: M.Finding) -> bool:
+    """`AM-326` r1: a carried point is decided only while its ORIGINAL decision stands now
+    (`_decided` on the Finding it was carried from — every earlier hop re-checked)."""
+    carried = carried_forward(db, finding.id)
+    origin = db.get(M.Finding, UUID(carried["from_finding_id"])) \
+        if carried and carried.get("from_finding_id") else None
+    return origin is not None and origin.id != finding.id \
+        and _decided(db, origin) is not None
+
+
+_workflow.CARRY_STANDS = _carry_stands        # derive_finding_status reads it (AM-326 r1)
+
+
+def refresh_carried(db: DBSession) -> int:
+    """`AM-326` r1: the stored status of every carried point, derived again — a chain
+    that no longer stands (the decider lost `legal.decision`, a later REJECT or escalation
+    on an earlier version) puts the point back in Legal's queue and To-do, and a chain
+    that stands again takes it out. Run after a role or permission change and when a
+    To-do is read. Returns how many changed.
+
+    ponytail: one pass over every carried Finding; scope it to the changed user's
+    decisions if the carried set grows into the tens of thousands."""
+    changed = 0
+    ids = db.execute(select(M.AuditEvent.entity_id).where(
+        M.AuditEvent.action == DECISION_CARRIED_FORWARD,
+        M.AuditEvent.entity_type == "finding")).scalars().all()
+    for finding in db.execute(select(M.Finding).where(
+            M.Finding.id.in_(set(ids)))).scalars():
+        status = derive_finding_status(db, finding,
+                                       escalated=is_escalated(db, finding.id))
+        if status is not finding.status:
+            finding.status = status
+            changed += 1
+    if changed:
+        db.flush()
+    return changed
 
 
 def standing_decision(db: DBSession, finding: M.Finding) -> dict | None:

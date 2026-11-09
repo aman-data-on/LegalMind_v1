@@ -220,3 +220,30 @@ def test_an_escalation_on_the_carried_version_breaks_the_acceptance(build, db, s
     _, _, f2 = _carried_v2(build, db, seeded)
     _escalate(build, db, f2)
     assert not _accepted(db, f2)
+
+
+# ------------------------------------------------- AM-326 r1: one source of truth
+def test_a_carried_point_whose_chain_falls_is_legals_again(build, db, seeded):
+    """The decider loses legal.decision: the carried point derives DECISION_REQUIRED, the
+    stored status follows (back in Legal's queue and To-do), "Decided on vN by <name>" is
+    no longer said — and all of it comes back when the right is restored."""
+    from sqlalchemy import delete
+
+    from legalmind.api.serializers import serialize_finding
+    from legalmind.evaluation.workflow import derive_finding_status
+    from legalmind.workflow.decisions import refresh_carried
+    _, decision, f2 = _carried_v2(build, db, seeded)
+    kept = db.scalars(select(M.UserRole).where(
+        M.UserRole.user_id == decision.decided_by)).all()
+    saved = [(r.user_id, r.role_id) for r in kept]
+    db.execute(delete(M.UserRole).where(M.UserRole.user_id == decision.decided_by))
+    db.flush()
+    assert derive_finding_status(db, f2) is E.FindingStatus.DECISION_REQUIRED
+    assert refresh_carried(db) >= 1 and f2.status is E.FindingStatus.DECISION_REQUIRED
+    assert serialize_finding(db, f2, legal_position=False)["carried_decision"] is None
+    for user_id, role_id in saved:
+        db.add(M.UserRole(user_id=user_id, role_id=role_id))
+    db.flush()
+    refresh_carried(db)
+    assert f2.status is E.FindingStatus.RESOLVED
+    assert serialize_finding(db, f2, legal_position=False)["carried_decision"] is not None

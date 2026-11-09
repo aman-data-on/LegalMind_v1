@@ -161,7 +161,10 @@ def test_a_final_copy_is_never_signed_after_our_changes(api, db, owner, tmp_path
     ("effective as of ___1st_ day", False), ("the fee is [●] per month", True),
     ("within [ ] days", True), ("dated [•]", True), ("at .......... (the city)", True),
     ("Notice … … …", True), ("Definitions ........ 3", False), ("See clause [12]", False),
-    ("as stated (i.e. ... and so on)", False)])
+    ("as stated (i.e. ... and so on)", False), ("the fee is [*] per month", True),
+    ("tick [X] if it applies", True), ("payable to [insert bank name]", True),
+    ("the term is [TBD]", True), ("between <<Client Name>> and us", True),
+    ("as in clause 4(b) [12] above", False), ("a << b and c >> d", True)])
 def test_what_counts_as_a_blank(text, blank):
     """AM-323 r3 / AM-324 r3: a blank to fill, not a filled-in one or a dot leader."""
     from legalmind.api.routers.negotiation import blank_in
