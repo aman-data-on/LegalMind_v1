@@ -2356,3 +2356,21 @@ Built in `/root/legalmind-worktrees/clm-p1` (uncommitted).
   Tests: carry 9 passed (carried, changed text stays undecided, worse keeps the gate);
   affected suites incl. legal regression and golden corpus 776 passed; ruff + mypy clean.
 
+
+## 2026-11-09 — AB-169: Templates and New contract — known points, Legal's recommendation, the July 2025 MSA in use (`AM-316`)
+
+- **Built** (branch `feat/clm-p1-negotiate`). The publish gate verifies a template's declared
+  known points by exact equality (NOT_DECLARED / STALE / APPROVAL_REFERENCE) and records them
+  with the publish; templates carry a name and purpose; Legal marks one template per type and
+  company as Recommended (audited); a version can await approval — everyone sees it, reads it
+  and downloads it as a marked draft, nobody creates from it; Legal can withdraw a published
+  version; a template without Annexure A answers by tracked changes (NO_ANNEXURE). Templates
+  page for everyone ("Ready to use", "Awaiting approval", Legal's "Being prepared", "What we
+  can offer"); New contract asks "Which MSA?" only with two usable, `?template=` deep link,
+  step 3 splits "From this template" / "From your details"; the contract says what it was
+  made from. OpenAPI regenerated.
+- **Applied on the local scratch DB `legalmind_clm_tpl_build` only.** The July 2025 MSA
+  imported word for word (no logo, no Annexure A), published with 11 measured points and
+  recommended; 2026 MSA v5 withdrawn, v6 (same text, 1 point) awaiting approval.
+- **Locks.** `AM-283` amended, `AM-303` clarified, `AM-302` r4 amended (draft download for a
+  version awaiting approval). Nothing deployed.

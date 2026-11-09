@@ -29345,3 +29345,63 @@ r3  THE TEMPLATE IN THE APP. MSA.LEAPSWITCH.APPROVED v4 on local legalmind_clm_e
 r4  NOT AMENDED: zero tolerance; rules 7/18/21; the append-only audit trail; the
     Constitution (L1.16 stands). Nothing deployed; production untouched.
 ```
+
+## AB-169 — `AM-316` (2026-11-09): templates that say what goes to Legal; the July 2025 MSA in use, the 2026 MSA awaiting approval
+
+**Who decided:** the owner, 2026-11-09 (keep Sayan's July 2025 MSA word for word as the MSA in
+use; "Recommended" is Legal's choice, not a count; the 2026 MSA is not approved by management
+yet and is shown, never used). `AM-316` and `AB-169` were scanned on `main`, every worktree
+(code comments included) and every remote branch before being taken. Research spec:
+`TEMPLATES-NEWCONTRACT-SPEC.md` (outside the repository). Amends `AM-283` (the publish gate's
+"every Finding must MATCH"), clarifies `AM-303`, amends `AM-302` r4 for a version awaiting
+approval; `AM-282` r4 (one PUBLISHED per key) unamended.
+
+`AM-316` — Known points, Legal's recommendation, a template awaiting approval
+
+```text
+r1  KNOWN POINTS (amends AM-283). A template version may declare, while DRAFT, the points it
+    sends to Legal on every deal: source.known_points = [requirement codes], frozen and
+    hashed with the version. The publish gate refuses unless the declared set EQUALS, both
+    ways, the set of the gate's own Findings that the Review sends to Legal
+    (DECISION_REQUIRED) or that are neither MATCH nor in our favour: an undeclared one is
+    NOT_DECLARED, a declared one the engine no longer finds is STALE. A non-empty list needs
+    an approval reference (APPROVAL_REFERENCE), recorded in template.published with the
+    points (code, name, classification). The gate only ALLOWS publishing with the list
+    declared; it never accepts a point — every Review made from the template still runs the
+    engine and the zero-tolerance Legal Rule sends each point to Legal.
+r2  AM-303 CLARIFIED, NOT WIDENED. A reading in our favour still passes; when the Review
+    sends it to Legal (the 2026 MSA's liability cap, UNABLE_TO_EVALUATE) it must be declared.
+r3  A TEMPLATE SAYS WHAT IT IS. source.catalogue = {name, purpose} (written while DRAFT);
+    the API returns name, purpose, known_points, recommended, awaiting_approval and
+    published_at, and no longer the imported file's name. The blank's file name and a
+    generated contract's default name use the template's name; the contract detail says
+    which template version it was made from (made_from). New contract offers every usable
+    template of a type and company (the one-per-type choice was code, not a lock).
+r4  RECOMMENDED IS LEGAL'S CHOICE. A holder of legal.approve_customization marks one
+    PUBLISHED template per (document type, company) as recommended, or clears it; stored as
+    the audit event template.recommended (no table, no column), the latest per pair wins.
+    Nothing is computed from the number of points; with none set, nothing is recommended
+    and nothing is preselected.
+r5  AWAITING APPROVAL. A not-yet-published version may be marked
+    source.catalogue.awaiting_approval (frozen with it): anyone who may create a contract
+    sees it, reads its text and downloads its draft, and can never create a contract from
+    it (drafts and Create still need PUBLISHED). Legal takes a published version out of use
+    with template.withdrawn (PUBLISHED → RETIRED, reason audited); a contract already made
+    from it keeps its pinned version (rule 16).
+r6  THE DRAFT DOWNLOAD (amends AM-302 r4 for r5's versions only). The review copy of a
+    version awaiting approval may be downloaded by anyone who may create a contract; every
+    review copy is headed on every page "DRAFT — NOT FOR USE WITH A CLIENT. For management
+    approval." (the file's header only — the clause text is never changed).
+r7  A TEMPLATE WITHOUT ANNEXURE A. A contract made from a template with no Special
+    Conditions set up is answered with tracked changes in the body: the final-contract
+    (Annexure A) plan says NO_ANNEXURE and offers no Annexure route; the change rows carry
+    no "final contract" line. Amendments unaffected.
+r8  APPLIED (local scratch DB only). MSA.LEAPSWITCH.ORIGINAL_2025 v1 — the July 2025 MSA
+    (owner-supplied file, sha256 32b461a2…508a) imported word for word through the JSON
+    route, v5's front matter and fields, no logo, no Annexure A — published with 11 measured
+    known points and set as recommended. MSA.LEAPSWITCH.APPROVED v5 withdrawn; v6 (v5's text
+    unchanged, 1 known point: liability) awaits management approval.
+r9  NOT AMENDED: zero tolerance; rules 7/13/16/18/21; 54.6 (no clause text in the
+    repository); the append-only audit trail; AM-282 r4. Nothing deployed; production
+    untouched.
+```
