@@ -29606,3 +29606,67 @@ r11 NOT AMENDED: zero tolerance; rules 7/13/14/15/18/21; the five state axes; th
     append-only audit trail; AM-293's gate; AM-317/AM-321's carry; the execution tables and
     their data. Nothing deployed; production untouched.
 ```
+
+## AB-176 — `AM-323` (2026-11-09): corrections to `AM-318` after the independent verification of the combined branch
+
+**Who decided:** the independent verifier of `feat/clm-p1-negotiate` at `58aa527e` (batch B
+with the AM-321 carry fix and batch C reading), via the coordinator's brief of 2026-11-09;
+the choices below are the builder's under the owner's CLM delegation and each fails closed
+(rule 15). `AM-323` and `AB-176` were scanned on `main`, every worktree (code comments
+included) and every remote branch before being taken — `AM-322`/`AB-174` (constitution
+standards) and `AM-330`–`AM-335`/`AB-175` (Ask) are in use elsewhere. Corrects `AM-318`
+r3 and r7, extends `AM-317` r7 as `AM-321` re-checks it, and amends `AM-309`'s first
+version of an amendment; the earlier records are unchanged and read with this one.
+
+`AM-323` — Our reply before the final copy; a final contract has no blank; an amendment is
+its own document
+
+```text
+r1  OUR REPLY GOES FIRST (corrects AM-318 r3). The final copy of the client's version is
+    made only when every answered change accepts their wording — nothing goes back. Any
+    answer that keeps or proposes our wording is our counter-proposal: "Prepare our reply"
+    (tracked changes, AM-251) is the next step, refused as a final copy (409, REPLY_FIRST).
+    When the client accepts our reply as it is, its final copy is the reply with every
+    tracked change accepted, listing that round's answers. The deal's counts carry
+    changes_ours (answered changes our reply carries back); the header, the stage word,
+    the To-do and the Contracts list read it: "Prepare our reply" / "Changes answered,
+    reply next" while it is above zero, "Prepare final contract" / "Ready for the final
+    contract" at zero.
+r2  A CARRIED ACCEPTANCE LETS THE CLIENT'S WORDING STAND (extends AM-317 r7 as AM-321 r1
+    re-checks it). Where Legal accepted a point on an earlier version and the decision is
+    carried to this version on byte-identical text, the holder's acceptance that "accept
+    theirs" requires (AM-281 r3) is that carried decision — only while the Finding still
+    derives RESOLVED by it (an escalation or a later decision on this version breaks it).
+    No Legal Decision is copied.
+r3  A FINAL CONTRACT HAS NO BLANK. "Prepare final contract" — the final copy (AM-318 r3)
+    and the Annexure package (AM-307) alike — is refused while the agreed text holds a
+    blank (three or more underscores not filled in on the line itself; "___Pune___" and
+    "__8___" are filled), with every place listed in plain words (409, BLANKS). Nothing is
+    written into a blank by code; the person fills it (an answer, or the client's next
+    version).
+r4  A TEMPLATE'S BLANK IS ITS OWN SLOT. A template version may turn a blank in its text into
+    the template's own slot — a {variable} the person answers (a required answer when it
+    has no default), or {xref:CLAUSE} for a clause number — with no other wording changed,
+    as a new template version through the publish gate (AM-302/AM-316). Done on scratch
+    data for MSA.LEAPSWITCH.ORIGINAL_2025 v2 (1.4 business-day city, 1.8/1.9 clause
+    numbers, 17 the liability months); nothing published in production.
+r5  AN AMENDMENT IS ITS OWN SHORT DOCUMENT (amends AM-309's first version). The agreed text
+    copied into a new amendment is the baseline the amendment is measured against —
+    reference only, never reviewed as the amendment and never re-raising the parent's
+    points; the screen says so and offers no "Analyse now" on it. The amendment's own
+    document (uploaded, or prepared from an approved AMENDMENT template, AM-310) is what is
+    reviewed.
+r6  COUNTED THE SAME WAY. The Client Profile's "Final" column counts what the Contracts
+    list's Final filter counts; a deal signed before AB-171 is counted apart ("signed
+    earlier").
+r7  SMALLER CORRECTIONS. A recital's joining word on its own line ("AND", "WHEREAS") is never
+    a change row; a new upload says whose paper it is (our draft / the client's paper,
+    declared as role and source); one set of version words everywhere (Our draft · Client's
+    markup · Final; "Signed" only for a deal signed before AB-171); the stage reads "N open
+    points, not sent to Legal" while "Send to Legal" is offered; the Summary heads
+    undecided-free differences "Where it differs from our standard"; the local UI proxy
+    waits as long as production nginx (300 s).
+r8  NOT AMENDED: zero tolerance; rules 7/13/14/15/18/21; the five state axes; the
+    append-only audit trail; AM-293's gate; the execution tables. Nothing deployed;
+    production untouched.
+```

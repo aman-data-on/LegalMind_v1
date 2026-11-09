@@ -10,6 +10,10 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-11-09 — Corrections after the combined-branch verification (AB-176: AM-323) — branch `feat/clm-p1-negotiate`, not deployed
+
+- Our reply goes to the client before a final copy; a carried acceptance lets the client's wording stand; no final contract with a blank (places listed); the 2025 MSA's blanks as its own slots in a v2 (scratch data only); an amendment's copied text is reference only; Client Profile "Final" counted like the Final filter; permission map + layer boundary fixed (CI); empty table cells keep their column; a 300 s UI proxy; small wording fixes. `all_lock.md` 29608 → 29672 lines, prefix byte-identical.
+
 ### 2026-11-09 — The deal cycle ends at "Final" (AB-171: AM-318) — branch `feat/clm-p1-negotiate`, not deployed
 
 - Owner ruling 2026-11-06: the deal ends at the final clean copy; signing happens in another tool. New stage FINAL; "Prepare final contract" for every route (Annexure package, or the new final clean copy: client paper, a client who accepted our version, a 2025-template deal, a tracked-changes round); Legal records Sign as is on it; "Download final contract" replaces "Send for signature"; nothing leads to the signing sheet; amendments and Terms in force start from the final copy (migration `c7e2a9f4d1b6` replaces the governed-by trigger); To-do closing tasks; Legal queue = what is with the reader now; Ask calls a final copy the final agreed contract. Also N5, N13, N15, N16, N17, the tabs' hidden panel and five template nits. `all_lock.md` 29517 → 29608 lines, prefix byte-identical.

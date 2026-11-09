@@ -2423,3 +2423,9 @@ Built in `/root/legalmind-worktrees/clm-p1` (uncommitted).
 - **Walked** on `:8389/:3389`, DB `legalmind_clm_batchb`: a 2025-template deal with a client round, a client-paper deal (synthetic specimen — the Drive client files were not on the server), and a client who accepted our draft unchanged — each to Final as Sales and as Legal at 1440 and 390; final DOCX carry no revision or comment; amendment started from a Final deal; Terms in force "From the final copy". Screenshots `/root/legalmind-clm-local/audit/shots-batchB/`.
 - **Locks.** `AM-260` r2/r3, `AM-267` r1/`AM-309`, `AM-292`, `AM-298`, `AM-307` amended by an appended record; nothing edited. Nothing deployed.
 
+## 2026-11-09 — AB-176: corrections after the combined-branch verification (`AM-323`)
+
+- **Fixed** (branch `feat/clm-p1-negotiate`): reply before final copy (REPLY_FIRST, `changes_ours` in counts and every next step); `_carried_acceptance` for "accept theirs" on a carried point; BLANKS gate on the final copy and the package; template 2025 v2 on the scratch DB (blanks → `{business_day_city}`, `{xref:…}`, `{liability_months}`); amendment copy not reviewed; final-copy routes in the permission map; `final_of` moved to `domain.deal_stage` (layer boundary); empty table cells; `experimental.proxyTimeout` 300 s; Client Profile cards at 390 and Final/signed counts; upload asks whose paper; version words; connector lines; stage and Summary wording.
+- **Walked** on `:8389/:3389` (DB `legalmind_clm_batchb`): the verifier's journey 1 (2025 template v2, client C markup → our reply → client accepts → final copy → Sign as is → Final) and client A as client paper (blank in 17.7 blocked the final copy until the client's next version filled it → Final; signature table columns correct); amendment from a Final deal opens no review.
+- **Locks.** `AM-318` r3/r7 corrected, `AM-317` r7 extended, `AM-309` amended by an appended record. Nothing deployed.
+
