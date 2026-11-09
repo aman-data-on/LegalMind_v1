@@ -10,6 +10,10 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-11-09 — Answer check V-1 evaluation set and V-2a structural layer, dormant behind a flag — branch `feat/structural-check-v2a`
+
+`tools/eval_claims.py` (V-1: typed claims from real source text, perturbed, split dev / held-out / unseen by document, zero Gemini) and `assist/verification/structural.py` (V-2a: limb coverage, scope widening, unsupported conclusion, ABSTAIN), wired into `verify.judge` only on a claim already judged SUPPORTED, behind `LEGALMIND_STRUCTURAL_CHECK` — `off` by default, so stage 9's behaviour is unchanged; `shadow` logs, `on` can only refuse more. No lock touched. Ported from an uncommitted agent worktree.
+
 ### 2026-11-09 — Agent instruction files restructured to the official Claude Code guidance — branch `docs/agent-instructions-20261109`, NOT committed
 
 No lock, rule or decision changed; guidance reorganised. `CLAUDE.md` 665 → 141 lines (all 23 rules and their IDs kept; history removed; the old file verbatim at `docs/00-project/archive/CLAUDE_MD_2026-11-09.md`). Path-scoped `.claude/rules/` (ui-ux, ask-rag, legal-engine-config, records-and-locks, testing), skills `local-stack`, `team-delivery`, `lock-amendment`, read-only agent `independent-verifier`. Contradictions fixed: MSA cap 6 vs 12 months, "two" standards/evaluators, Ask stage 6 "never built", commit-to-main git text, the `AM-239` favour form missing, DESIGN.md as binding; AGENTS.md §7/§8/§20 no longer advise stash, `add -A`, checkpoint commits or pushing without the owner, and it now carries the shared-working-tree section. Hooks proposed, not enabled: `docs/00-project/PROPOSED_HOOKS_2026-11-09.md`. Audit: `docs/00-project/AGENT_INSTRUCTIONS_AUDIT_2026-11-09.md`.
