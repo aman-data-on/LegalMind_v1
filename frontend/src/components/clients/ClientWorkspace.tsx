@@ -27,6 +27,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 
 import { api, describeError } from "@/lib/api";
 import { clientLocation } from "@/lib/documentTypes";
+import { closedWords } from "@/lib/labels";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { Counterparty, DepartmentMembers } from "@/lib/types";
@@ -382,7 +383,7 @@ export function ClientWorkspace({ clientId }: { clientId: string }) {
               <div className="ws-cl__headcounts">
                 <span>{documentCountLabel(documents)}</span>
                 {documents > 0 ? (
-                  <span className="ws-cl__signed">{final} final{signed ? `, ${signed} signed earlier` : ""}</span>
+                  <span className={final || signed ? "ws-cl__signed" : "ws-cl__absent"}>{closedWords(client)}</span>
                 ) : null}
               </div>
               {can(P.CONTRACT_UPDATE) ? (

@@ -108,11 +108,14 @@ export function TaskList({ tasks, contracts, companies = [] }: {
 }
 
 /** The home's queue: the same tasks as the To-do, under the person's own heading —
- *  "For my review" is the lawyer's page title already, so it is not said twice. */
-export function HomeQueue({ companies }: { companies: Counterparty[] }) {
+ *  "For my review" is the lawyer's page title already, so it is not said twice. The page
+ *  loads the tasks once (`useTasks`) and shares them with the list's turn marker. */
+export function HomeQueue({ companies, todo }: {
+  companies: Counterparty[]; todo: ReturnType<typeof useTasks>;
+}) {
   const { can } = useSession();
   const legal = personaFor(can) === "legal";
-  const { tasks, contracts } = useTasks();
+  const { tasks, contracts } = todo;
   if (tasks === null) return null;
   return (
     <>

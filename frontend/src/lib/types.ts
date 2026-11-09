@@ -427,6 +427,9 @@ export interface Review {
   document_accessible: boolean;
   /** AB-100 — the owner sent this Review to the caller (their queue first). */
   sent_to_you?: boolean;
+  /** Batch 1 (e) — this caller HOLDS the Review (assigned to them, or with Legal and
+   *  assigned to nobody): its points are theirs to decide. */
+  yours?: boolean;
   /** AM-174 — the current decision on the whole contract, if one was recorded */
   contract_outcome?: ContractOutcome | null;
 }

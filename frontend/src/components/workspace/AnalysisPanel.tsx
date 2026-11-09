@@ -402,7 +402,8 @@ export function AttentionLine({ progress, stage, viewer, canDecide, counts }: {
       {counted && points ? (
         <>
           <p className="ws-attn__count">
-            {summaryCount({ points, open, canDecide, notSent: progress.stage === "NOT_SENT",
+            {summaryCount({ points, open, canDecide, mine: (counts?.points_for_me ?? 0) > 0,
+                            notSent: progress.stage === "NOT_SENT",
                             assignee: progress.assignee?.name, waiting, decided, required: progress.required })}
           </p>
           {/* a meter only once something is decided: an empty bar reads as a divider */}
@@ -419,16 +420,19 @@ export function AttentionLine({ progress, stage, viewer, canDecide, counts }: {
 }
 
 /** The Summary's count as sentences: "1 open point needs Legal. Not sent yet." /
- *  "3 open points are with Legal. 1 of 4 decided." The verb agrees with the count. */
-export function summaryCount({ points, open, canDecide, notSent, assignee, waiting, decided, required }: {
-  points: string; open: number; canDecide: boolean; notSent: boolean; assignee?: string | undefined;
-  waiting: number; decided: number; required: number;
+ *  "3 open points are with Legal. 1 of 4 decided." The verb agrees with the count.
+ *  Batch 1 (e): "yours" (`mine`, the server's `points_for_me`) only for the lawyer who
+ *  holds the review; another lawyer reads who has them, and that they may decide too. */
+export function summaryCount({ points, open, canDecide, mine = false, notSent, assignee, waiting, decided, required }: {
+  points: string; open: number; canDecide: boolean; mine?: boolean; notSent: boolean;
+  assignee?: string | undefined; waiting: number; decided: number; required: number;
 }): string {
   const one = open === 1;
   const lead = !open ? (decided === required ? "Every point is decided" : points)
-    : canDecide ? points
+    : canDecide && mine ? points
     : notSent ? `${points} ${one ? "needs" : "need"} Legal. Not sent yet`
-    : `${points} ${one ? "is" : "are"} with ${assignee ?? "Legal"}`;
+    : `${points} ${one ? "is" : "are"} with ${assignee ?? "Legal"}`
+      + (canDecide ? `. You can also decide ${one ? "it" : "them"}` : "");
   return [lead,
           waiting ? `${waiting} waiting for the client` : null,
           decided && open ? `${decided} of ${required} decided` : null,

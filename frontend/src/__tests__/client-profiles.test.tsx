@@ -277,22 +277,14 @@ describe("review status carries no numbers in the main row", () => {
     expect(html).not.toContain("ws-findings-cell");
   });
 
-  it("says \"Needs decision\" with no number, only when one is actually needed", () => {
-    const withDecision = renderToStaticMarkup(
+  it("words the open points as the Contracts list does (Batch 1 (c)), never a review-status pill", () => {
+    const html = renderToStaticMarkup(
       <ClientDocuments
-        client={client({ contracts: [analysed({ ACCEPTABLE: 0, REQUIRES_MODIFICATION: 0, NEEDS_DECISION: 2 })] })}
+        client={client({ contracts: [{ ...analysed({ NEEDS_DECISION: 2 }), counts: { points_open: 2 } }] })}
         onChanged={() => {}} />,
     );
-    expect(withDecision).toContain("Needs decision");
-    // The word appears; the count driving it (2) never does, anywhere near it.
-    expect(withDecision).not.toMatch(/Needs decision.{0,20}2/);
-
-    const withoutDecision = renderToStaticMarkup(
-      <ClientDocuments
-        client={client({ contracts: [analysed({ ACCEPTABLE: 0, REQUIRES_MODIFICATION: 3, NEEDS_DECISION: 0 })] })}
-        onChanged={() => {}} />,
-    );
-    expect(withoutDecision).not.toContain("Needs decision");
+    expect(html).toContain("2 open points");
+    expect(html).not.toContain("Needs decision");
   });
 });
 

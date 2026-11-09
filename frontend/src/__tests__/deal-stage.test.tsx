@@ -1,6 +1,7 @@
 /**
  * CLM R7 (`AM-260`/`AM-261`): the deal stage is its own badge in its own words — never a
- * legal-state pill — and "Client returned" is marked as our turn without colour alone.
+ * legal-state pill — and a deal the reader must act on is marked as our turn without colour
+ * alone (Batch 1 (c): the caller says so, from the To-do or the header's step).
  */
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
@@ -19,7 +20,7 @@ describe("StageBadge", () => {
   it("shows the stage and its days, and says our turn in words", () => {
     const html = renderToStaticMarkup(
       <StageBadge stage={{ stage: "CLIENT_RETURNED",
-        since: new Date(Date.now() - 9.2 * 86400e3).toISOString(), days: 9 }} />);
+        since: new Date(Date.now() - 9.2 * 86400e3).toISOString(), days: 9 }} ourTurn />);
     expect(html).toContain("Client replied");
     expect(html).toContain("9 days ago");          // the one relative-time format
     expect(html).toContain(", our turn");

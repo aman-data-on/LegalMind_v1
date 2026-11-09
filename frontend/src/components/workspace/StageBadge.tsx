@@ -3,8 +3,10 @@
  * by the server (`legalmind/domain/deal_stage.py`); this only renders it.
  *
  * Its OWN vocabulary and its own look: never `StatePill`/`AXIS_CLASS` (the five legal state
- * axes), never the review-stage line, never a verdict tone. Only "Client returned" and
- * "Ready to send" are marked, by weight and a rule: the two stages that mean "our turn".
+ * axes), never the review-stage line, never a verdict tone. A deal is marked "our turn", by
+ * weight and a rule, only when the caller says so (`ourTurn`): the list passes "this contract
+ * is in my To-do", the contract header "I have a next step" — one source per screen
+ * (Batch 1 (c)), never a guess from the stage.
  */
 
 import { changesWords, pointsWords, reviewStatusLabel, stageLine, stageWords, type StageViewer } from "@/lib/labels";
@@ -23,7 +25,10 @@ export const STAGE_ORDER: readonly NegotiationStageCode[] = [
 export const STAGE_LABEL = Object.fromEntries(
   STAGE_ORDER.map((code) => [code, stageWords(code)])) as Record<NegotiationStageCode, string>;
 
-export function StageBadge({ stage, counts, showDays = true, viewer = "owner", final = false, unsent = false }: {
+export function StageBadge({ stage, counts, showDays = true, viewer = "owner", final = false, unsent = false,
+                             ourTurn = false }: {
+  /** this reader has something to do on the deal now (the To-do / the header's step) */
+  ourTurn?: boolean;
   /** the points are not sent to Legal yet (the header offers "Send to Legal") — item 7 */
   unsent?: boolean;
   stage: NegotiationStage | undefined | null;
@@ -43,7 +48,6 @@ export function StageBadge({ stage, counts, showDays = true, viewer = "owner", f
   const label = unsent && stage.stage === "INTERNAL_REVIEW" && counts?.points_open
     ? `${counts.points_open === 1 ? "1 open point" : `${counts.points_open} open points`}, not sent to Legal`
     : stageLine(stage.stage, counts, viewer, final);
-  const ourTurn = stage.stage === "CLIENT_RETURNED" || stage.stage === "READY_TO_SEND";
   return (
     <span
       className={`ws-dealstage${ourTurn ? " ws-dealstage--turn" : ""}`}

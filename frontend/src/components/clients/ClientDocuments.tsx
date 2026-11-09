@@ -32,7 +32,7 @@ import { createPortal } from "react-dom";
 
 import { api, describeError } from "@/lib/api";
 import { chainAnalysis } from "@/lib/analysisChain";
-import { CONTRACT_STATUSES, contractDisplayName, stageWords } from "@/lib/labels";
+import { CONTRACT_STATUSES, contractDisplayName } from "@/lib/labels";
 import {
   VERSION_ROLES,
   documentTypeChip,
@@ -48,15 +48,10 @@ import { Dialog } from "@/components/Dialog";
 import {
   documentStatusBucket,
   relativeTime,
-  STATUS_BUCKET_LABEL,
-  type DocumentStatusBucket,
+  stageViewer,
 } from "@/components/workspace/model";
-import {
-  IconAlertCircle,
-  IconCheckCircle,
-  IconChevronRight,
-  IconClock,
-} from "@/components/workspace/icons";
+import { CountsCell, StageBadge } from "@/components/workspace/StageBadge";
+import { IconChevronRight } from "@/components/workspace/icons";
 
 import { currentVersion, typesPresent, shortDate } from "./model";
 import { LinkExistingDocuments } from "./LinkExistingDocuments";
@@ -314,43 +309,18 @@ function DeleteDocumentDialog({
   );
 }
 
-const STATUS_ICON: Record<DocumentStatusBucket, React.ReactNode> = {
-  draft: <IconClock size={13} />,
-  analyzing: <span className="ws-spin" aria-hidden="true" />,
-  needs_attention: <IconAlertCircle size={13} />,
-  analyzed: <IconCheckCircle size={13} />,
-};
-
 /** The columns, in one place — the header renders them and so does the
  *  empty row's colspan, which must match or the table's footer detaches.
  *
- *  "Agreement stage" and "Review status" are deliberately separate columns
- *  (owner, 2026-09-18): the first is what the negotiation reached — a fact
- *  about the FILE (`version_role`, declared per version) — and the second is
- *  what LegalMind's review found — a judgement about the CONTENT (`AM-56`'s
- *  three reader words). A document can be `Final signed` and still `Needs
- *  attention`; stacking those in one "Status" cell answered the wrong
- *  question half the time. */
+ *  "Agreement stage" and "Changes and points" are deliberately separate columns
+ *  (owner, 2026-09-18): where the negotiation stands, and what is still open in
+ *  it — the client's changes and the points against our standard. Since Batch 1
+ *  (c) both cells are the Contracts list's own (`StageBadge`, `CountsCell`), so
+ *  a client's page and the list never word one deal two ways. */
 const COLUMNS = [
-  "Document", "Type", "Agreement stage", "Review status", "Versions",
+  "Document", "Type", "Agreement stage", "Changes and points", "Versions",
   "Last updated", "",
 ] as const;
-
-/**
- * Whether any Finding under this document specifically needs a human
- * decision — the sharpest of the three AM-56 reader statuses, and the one
- * "Needs attention" alone does not distinguish from an ordinary deviation.
- *
- * Deliberately no number here (owner, 2026-09-19): the main row states a
- * fact ("this needs a decision"), not a count to skim-read as a severity
- * score — the detailed breakdown, with its counts, is one click away in the
- * Review itself. Reads `user_status_counts` — already computed and sent by
- * the server (`AM-56`) — rather than deriving anything new.
- */
-function needsDecision(contract: ClientContract): boolean {
-  const counts = contract.latest_analysis?.user_status_counts;
-  return Boolean(counts && (counts.NEEDS_DECISION ?? 0) > 0);
-}
 
 /** One version, under its document. The role is the reader's own words
  *  ("Company draft" / "Client modified" / "Final signed") and simply absent
@@ -569,10 +539,10 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
               carries colour, the rest read by their text alone. */}
           {/* the deal stage the contract page shows (Drafting · With Legal · …), so the two
               screens never disagree; the declared role is what a version row says */}
+          {/* Batch 1 (c): the /contracts row's own badge and counts, byte for byte */}
           {contract.negotiation_stage ? (
-            <span className={`ws-cl__role ws-cl__role--${contract.negotiation_stage.stage === "SIGNED" ? "ok" : "neutral"}`}>
-              {stageWords(contract.negotiation_stage.stage)}
-            </span>
+            <StageBadge stage={contract.negotiation_stage} counts={contract.counts}
+                        viewer={stageViewer(can, isMine)} showDays={false} />
           ) : current && currentRole ? (
             <span className={`ws-cl__role ws-cl__role--${versionRoleTone(current.version_role)}`}>
               {currentRole}
@@ -581,24 +551,8 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
             <span className="ws-cl__absent">Not classified</span>
           )}
         </td>
-        <td data-label="Review status" className="ws-cl__reviewcell">
-          {/* "Needs decision" is a refinement WITHIN the "Needs attention"
-              bucket (`documentStatusBucket` sets that bucket for ANY non-
-              ACCEPTABLE finding, `NEEDS_DECISION` included), never a
-              different or independent condition — so showing both read as
-              the same fact said twice (owner, 2026-09-22). The sharper word
-              replaces the generic one only in that one case; a document
-              whose only issue is REQUIRES_MODIFICATION still reads "Needs
-              attention" exactly as before, since that bucket has no sharper
-              word of its own to offer. Every other bucket (Draft, Analyzing,
-              No issues) is untouched. */}
-          {bucket === "needs_attention" && needsDecision(contract) ? (
-            <span className="ws-cl__decision">Needs decision</span>
-          ) : (
-            <span className={`ws-status-pill ws-status-pill--${bucket}`}>
-              {STATUS_ICON[bucket]} {STATUS_BUCKET_LABEL[bucket]}
-            </span>
-          )}
+        <td data-label="Changes and points">
+          <CountsCell contract={contract} viewer={stageViewer(can, isMine)} />
         </td>
         <td data-label="Versions">
           {versions.length > 0 ? (

@@ -348,7 +348,7 @@ export const ACTION = {
   open: "Open",
 } as const;
 
-/** "19 of 82 changes yours" · "62 of 82 changes with Legal" · "All 82 changes answered";
+/** "19 of 82 changes yours" · "62 of 82 changes need Legal" · "All 82 changes answered";
  *  null when there is no round (the key is absent). `viewer` names who has the rest. */
 export function changesWords(c: DealCounts | undefined, viewer: StageViewer = "owner"): string | null {
   if (c?.changes_total === undefined) return null;
@@ -356,7 +356,21 @@ export function changesWords(c: DealCounts | undefined, viewer: StageViewer = "o
   if (!total) return "No changes from the client";
   if (!left) return total === 1 ? "The 1 change answered" : `All ${total} changes answered`;
   if (mine) return `${mine} of ${plural(total, "change")} yours`;
-  return `${left} of ${plural(total, "change")} ${viewer === "legal" ? "with the deal owner" : "with Legal"}`;
+  return `${left} of ${plural(total, "change")} ${viewer === "legal" ? "with the deal owner"
+    : left === 1 ? "needs Legal" : "need Legal"}`;
+}
+
+/** Batch 1 (c): the ONE rule for "Ready for the final contract" — every change answered,
+ *  none of ours to carry back, and no point left open. Absent counts fail closed. */
+export function finalReady(c: DealCounts | undefined): boolean {
+  return c?.changes_total !== undefined && !c.changes_left && !c.changes_ours && c.points_open === 0;
+}
+
+/** A client's closed deals, said once for both client pages: "1 final · 2 signed". */
+export function closedWords(client: { final_documents?: number; signed_documents?: number }): string {
+  const parts = [client.final_documents ? `${client.final_documents} final` : null,
+                 client.signed_documents ? `${client.signed_documents} signed` : null].filter(Boolean);
+  return parts.length ? parts.join(" · ") : "None yet";
 }
 
 /** "15 points to decide" (a holder) · "15 open points" (anyone else) · "No open points". */
@@ -376,8 +390,9 @@ export function stageLine(code: string, c: DealCounts | undefined, viewer: Stage
     return viewer === "legal" ? `Legal deciding ${plural(points, "point")}` : `With Legal, ${plural(points, "point")}`;
   }
   if (code === "CLIENT_RETURNED" && c?.changes_total !== undefined && !c.changes_left) {
-    // N16: the primary's own words
-    return c.changes_ours ? "Changes answered, reply next" : "Ready for the final contract";
+    // N16: the primary's own words; the final contract waits on open points too
+    if (c.changes_ours) return "Changes answered, reply next";
+    if (finalReady(c)) return "Ready for the final contract";
   }
   if (code === "INTERNAL_REVIEW" && final) {
     // AM-318: the final copy waits on Legal's decision on the contract

@@ -10,7 +10,7 @@
 
 import { useEffect } from "react";
 
-import { ACTION, type StageViewer } from "./labels";
+import { ACTION, finalReady, type StageViewer } from "./labels";
 import type { DealCounts, NegotiationStageCode, TodoItem } from "./types";
 
 export type StepKind =
@@ -40,6 +40,9 @@ export interface StepFacts {
   amendment?: boolean;
   /** `AM-318`: the latest version is the final contract (a package or a final copy) */
   finalLatest?: boolean;
+  /** LA-18: this reader answers the client's changes (owner or collaborator — whoever the
+   *  To-do gives them to); someone who only MAY answer gets no "Answer changes" primary */
+  answersChanges?: boolean;
 }
 
 export function nextStep(f: StepFacts): Step | null {
@@ -57,8 +60,10 @@ export function nextStep(f: StepFacts): Step | null {
       // our reply, or our own draft once Legal decided every point of it
       return f.replyReady ? step("sendReply") : f.draftUnsent ? step("sendToClient") : null;
     case "CLIENT_RETURNED":
-      if (c.changes_left_for_me) return step("answerChanges");
+      if (c.changes_left_for_me && f.answersChanges !== false) return step("answerChanges");
       if (c.changes_total === undefined || c.changes_left) return null;
+      // Batch 1 (c): open points go to Legal before the final contract
+      if (!c.changes_ours && !finalReady(c)) return f.canSendToLegal ? step("sendToLegal") : null;
       if (f.packageReady) return step("preparePackage", f.amendment ? ACTION.prepareAmendment : undefined);
       // our answers go back to the client as our reply first; nothing to send back
       // (every change accepted) — the client's version is agreed: its final copy
@@ -86,7 +91,9 @@ export function taskAction(item: Pick<TodoItem, "kind" | "count" | "counts">): s
     case "prepare_final": return ACTION.prepareFinal;
     case "client_returned":
       return item.counts?.changes_total !== undefined && !item.counts.changes_left
-        ? (item.counts.changes_ours ? ACTION.prepareReply : ACTION.prepareFinal) : ACTION.answerChanges;
+        ? (item.counts.changes_ours ? ACTION.prepareReply
+          : finalReady(item.counts) ? ACTION.prepareFinal : ACTION.sendToLegal)
+        : ACTION.answerChanges;
     default: return ACTION.answerChanges;
   }
 }

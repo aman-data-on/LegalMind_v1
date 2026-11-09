@@ -24,6 +24,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { api, describeError } from "@/lib/api";
 import { CLIENT_STATUSES, clientLocation } from "@/lib/documentTypes";
+import { closedWords } from "@/lib/labels";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { Counterparty, DepartmentMembers, Pagination } from "@/lib/types";
@@ -39,7 +40,7 @@ import { clientCountLabel, shortDate } from "./model";
 const PAGE_SIZE = 25;
 
 const COLUMNS = [
-  "Company", "Industry", "Status", "Documents", "Final", "Last activity",
+  "Company", "Industry", "Status", "Documents", "Closed", "Last activity",
   "Added", "",
 ] as const;
 
@@ -353,8 +354,11 @@ export function ClientDirectory() {
                             </td>
                             <td data-label="Status"><ClientStatus status={client.status} /></td>
                             <td className="ws-mono" data-label="Documents">{client.documents ?? 0}</td>
-                            <td className="ws-mono" data-label="Final">{client.final_documents ?? 0}
-                              {client.signed_documents ? <span className="ws-cl__absent"> (+{client.signed_documents} signed earlier)</span> : null}</td>
+                            <td data-label="Closed">
+                              <span className={client.final_documents || client.signed_documents ? "ws-cl__signed" : "ws-cl__absent"}>
+                                {closedWords(client)}
+                              </span>
+                            </td>
                             <td className="ws-mono" data-label="Last activity">{relativeTime(client.last_activity)}</td>
                             <td className="ws-mono" data-label="Added">{shortDate(client.created_at) ?? "—"}</td>
                             <td className="ws-cl__rowact">

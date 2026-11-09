@@ -36,15 +36,17 @@ import {
 import { Dialog } from "@/components/Dialog";
 import { UploadContractDialog } from "@/components/workspace/UploadContractDialog";
 import { NewContractChooser } from "@/components/newcontract/NewContractChooser";
-import { HomeQueue } from "@/components/workspace/TodoViews";
+import { HomeQueue, useTasks } from "@/components/workspace/TodoViews";
 import { PageHeader } from "@/components/page/PageHeader";
-import { nextStep } from "@/lib/nextStep";
 import { IconPlus, IconSearch } from "@/components/workspace/icons";
 
 const PAGE_SIZE = 25;
 
 function DocumentsListView() {
   const { can, identity } = useSession();
+  // the person's To-do, loaded once: "Your turn" and the list's turn marker read the same set
+  const todo = useTasks();
+  const turnIds = new Set((todo.tasks ?? []).map((task) => task.contract_id));
   const [contracts, setContracts] = useState<Contract[] | null>(null);
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const [summary, setSummary] = useState<ContractsSummary | null>(null);
@@ -409,10 +411,8 @@ function DocumentsListView() {
             </thead>
             <tbody>
               {contracts.map((contract) => {
-                // the tint marks a row with a step for THIS reader — the header's own resolver
-                const turn = !!contract.negotiation_stage && !!nextStep({
-                  stage: contract.negotiation_stage.stage, counts: contract.counts,
-                  viewer: stageViewer(can, isMine(contract)), canAnswer: isMine(contract) });
+                // Batch 1 (c): the tint and ", our turn" mark exactly the rows in "Your turn"
+                const turn = turnIds.has(contract.id);
                 const facts = contractFacts(contract, clientOf(contract));
                 return (
                   <tr key={contract.id} className={turn ? "ws-hometable__turn" : undefined}>
@@ -429,7 +429,7 @@ function DocumentsListView() {
                     </td>
                     <td data-label="Stage">
                       <StageBadge stage={contract.negotiation_stage} counts={contract.counts}
-                                  viewer={stageViewer(can, isMine(contract))} />
+                                  viewer={stageViewer(can, isMine(contract))} ourTurn={turn} />
                     </td>
                     <td data-label="Changes and points">
                       <CountsCell contract={contract} viewer={stageViewer(can, isMine(contract))} />
@@ -591,7 +591,7 @@ function DocumentsListView() {
                         <IconPlus size={15} /> New contract
                       </button>
                     ) : null} />
-        <HomeQueue companies={companies} />
+        <HomeQueue companies={companies} todo={todo} />
         {persona === "legal" ? (
           <details className="ws-home__all">
             <summary className="ws-home__qtitle">
