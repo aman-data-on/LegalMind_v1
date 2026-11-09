@@ -2402,3 +2402,17 @@ Built in `/root/legalmind-worktrees/clm-p1` (uncommitted).
   one-word change on v4 reopens it.
 - **Locks.** Step 26 r10/r12 amended (r7); `AM-299` r1/r2 and `AM-306` narrowed; `AM-305`'s
   opening amended. Nothing deployed.
+
+## 2026-11-09 — AB-173: corrections to AB-170 after the independent verification (`AM-321`)
+
+- **Fixed** (branch `fix/clm-carry-safety`, from `02046b1e`). HIGH: a chained carry no longer
+  trusts an intermediate version's carry record — every hop is re-checked (RESOLVED, not
+  escalated, Legal's latest effective decision of a carried type, decider still holding the
+  right); a REJECT or escalation on v2 now leaves v3 open. MEDIUM: `same_words` sets aside only
+  the clause's own recorded number, so a leading figure ("| 99.9 |", "30 days") or a changed
+  separator ("1,000"/"1.000") is a change. LOW: the scan's Review commits with the OCR result
+  and the workspace chain skips a version that already has one.
+- **Tested.** Six new chain tests (escalate, reject, both, decider lost the right, original
+  superseded, a real decision on v2 referenced from v3) — all six fail on `02046b1e`; four new
+  figure cases; the OCR test now checks one Review per version.
+- **Locks.** `AM-317` r1/r6/r7 corrected by an appended record; nothing edited. Nothing deployed.

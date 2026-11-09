@@ -29479,3 +29479,39 @@ r8  NOT AMENDED: zero tolerance; rules 7/13/14/15/18/21; the append-only audit t
     evaluators; AM-284/AM-293's reply carry; AM-239; 54.6. Nothing deployed; production
     untouched.
 ```
+
+## AB-173 — `AM-321` (2026-11-09): corrections to `AM-317` after the independent verification — a carry stands only on Legal's latest word, and every figure counts
+
+**Who decided:** corrections found by the independent verifier of batch A (2026-11-09) and
+requested by the coordinator; each narrows `AM-317` toward failing closed (rule 15) and none
+widens what code accepts. `AM-321` and `AB-173` were scanned on `main`, every worktree (code
+comments included) and every remote branch before being taken; `AM-318` is in use by another
+session's work and `AM-319`/`AM-320`, `AB-171`/`AB-172` are left free as headroom for it.
+Corrects `AM-317` r1 and r7 (AB-170) and refines r6; `AM-317`'s text above is unchanged and
+is read with this record.
+
+`AM-321` — Corrections to AM-317 r1, r6 and r7
+
+```text
+r1  A CARRY STANDS ONLY ON LEGAL'S LATEST WORD, RE-CHECKED AT EVERY HOP (corrects AM-317 r7).
+    The earlier Finding a point would carry from is checked NOW: it must derive RESOLVED and
+    not be escalated. If it holds Legal Decisions of its own, its latest effective decision
+    is what stands — a later REJECT, a clarification request or an escalation on that
+    version replaces or breaks everything before it. Only a Finding with no decision of its
+    own may stand on a carry, and then the ORIGINAL decided Finding is checked again the same
+    way: still effective (not superseded, not before an active escalation, co-signed where a
+    second person is needed), of a carried type, its decider still holding legal.decision.
+    Any hop failing any check carries nothing; the point is open. A real decision on a later
+    version is what a still later version references.
+r2  EVERY FIGURE COUNTS (corrects AM-317 r1). `same_words` sets aside only each side's OWN
+    recorded clause number when the text opens with it; any other leading figure — the
+    first cell of a table row ("| 99.9 |" vs "| 95.0 |"), an unnumbered row ("30 days" vs
+    "90 days") — is a word like the rest, and a figure keeps its separators ("Rs. 1,000"
+    is not "Rs. 1.000"). Case, punctuation, quote marks, dashes, ligatures and spacing
+    stay aside.
+r3  ONE REVIEW PER SCAN (refines AM-317 r6). The owner's Review of a finished scan is opened
+    in the SAME transaction that records the OCR result, so no reader sees the version
+    COMPLETED without it; its analysis is dispatched once that commits. The workspace's chain
+    opens no Review for a version that already has one.
+r4  NOT AMENDED: everything AM-317 r8 names. Nothing deployed; production untouched.
+```
