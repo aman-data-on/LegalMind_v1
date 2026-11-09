@@ -29767,3 +29767,30 @@ r2  L1.16 STAYS AS HISTORY. LEGAL_CONSTITUTION_L1.16.md is main's AM-300 text wi
 r3  NOT AMENDED: AM-300's redaction; AM-313's position and its words; every ratified
     standard (none cites L1.16 §9); zero tolerance; rules 7/21. Nothing deployed.
 ```
+
+## AB-179 — `AM-326` (2026-11-09): the last corrections before the owner's test — a fallen carry is Legal's again
+
+**Who decided:** the independent verifier of `4ffc414c` (ready for the owner) and the
+coordinator, 2026-11-09; each correction fails closed (rule 15). `AM-326` and `AB-179` were
+scanned on `main`, every worktree and every remote branch before being taken. Refines
+`AM-324` r1–r3; the earlier records are unchanged and read with this one.
+
+`AM-326` — One source of truth for a carried point; more placeholders; no carried dates
+
+```text
+r1  A CARRIED POINT WHOSE CHAIN FALLS IS LEGAL'S AGAIN (refines AM-324 r1). The Finding's
+    derived status reads the same chain check as a carried acceptance: once the decider
+    loses legal.decision (or is erased), or a later REJECT, clarification or escalation
+    sits on an earlier hop, the carried point derives DECISION_REQUIRED — back in Legal's
+    queue, To-do and counts — and "Decided on version N by <name>" is no longer shown. The
+    stored status is derived again after a role is revoked, after an erasure and whenever
+    a To-do is read; a chain that stands again resolves the point again. No Legal Decision
+    is written or removed.
+r2  MORE PLACEHOLDERS (extends AM-324 r3): "[*]", "[X]", "[insert …]", "[TBD]"/"[TBC]" and
+    "<<…>>" are blanks too; a bracketed number ("[12]") is not.
+r3  THE EFFECTIVE DATE IS THE DEAL'S OWN (extends AM-324 r2): a returning client's previous
+    contract never prefills it.
+r4  LEFT FOR THE OWNER (not amended here): a decision made on the very version still counts
+    after its decider loses the right; only carried decisions are re-checked.
+r5  NOT AMENDED: everything AM-323 r8 names. Nothing deployed; production untouched.
+```

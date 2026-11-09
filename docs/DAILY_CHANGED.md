@@ -2440,3 +2440,7 @@ Built in `/root/legalmind-worktrees/clm-p1` (uncommitted).
 - **Merged** `origin/main` into `records/clm-amendments-20261102` (owner "ok" on the order). `LEGAL_CONSTITUTION_L1.16.md` = main's (`AM-300`) + a SUPERSEDED banner; `LEGAL_CONSTITUTION_L1.17.md` = main's L1.16 + `AM-313`'s §9 addition (checked byte-identical), three `[NDA Counterparty]` markers, the counterparty's name nowhere. `constitution.py` CURRENT = L1.17, L1.16 superseded (2026-11-04), L1.17 effective 2026-11-09; knowledge tests updated (chain, statuses, breadcrumbs, AM-300 redaction held in L1.17, AM-313 §9 in L1.17). `all_lock.md` main prefix byte-identical.
 - **Re-ingest needed** wherever Ask's knowledge tables are loaded (the source row is L1.17 now): run the Constitution ingest after this lands.
 
+## 2026-11-09 — AB-179: last corrections before the owner's test (`AM-326`)
+
+- **Fixed** (branch `feat/clm-p1-negotiate`): `evaluation.workflow.CARRY_STANDS` hook set by `workflow.decisions` (`_carry_stands` → `_decided` on the origin) so `derive_finding_status` and `_carried_acceptance` share one chain check; `refresh_carried` on role revoke, erasure and To-do reads; `_carried` display hidden once fallen; `_PLACEHOLDER` adds `[*]`/`[X]`/`[insert …]`/`[TBD]`/`<<…>>`; `prefill_keys` excludes the effective date. `origin/main` merged into the branch; L1.16 (superseded) + L1.17 (current) taken from the records branch.
+

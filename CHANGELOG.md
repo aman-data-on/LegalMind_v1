@@ -10,6 +10,10 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-11-09 — Last corrections before the owner's test (AB-179: AM-326) — branch `feat/clm-p1-negotiate`, not deployed
+
+- A carried point whose chain falls is Legal's again (status, queue, To-do); more placeholder shapes; no prefilled effective date. `origin/main` merged into the CLM branch with the records branch's L1.16 (superseded) / L1.17 (current).
+
 ### 2026-11-09 — Constitution L1.17 carries both L1.16s (AB-178: AM-325)
 
 - `origin/main` merged into the records branch. Main's L1.16 (`AM-300`, the NDA counterparty redaction) kept as history under a SUPERSEDED banner; `LEGAL_CONSTITUTION_L1.17.md` = that text + `AM-313`'s §9 addition byte for byte (payment obligations outside the cap). Ask reads L1.17. `all_lock.md`: main's 27,710 lines byte-identical, then this branch's records, then AB-178 (29,769 lines).
