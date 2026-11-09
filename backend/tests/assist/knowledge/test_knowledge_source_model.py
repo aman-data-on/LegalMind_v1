@@ -86,7 +86,7 @@ def test_ingest_writes_the_version_chain_and_is_idempotent(db):
     rows = dict(db.execute(text(
         f'SELECT s.version, o.version FROM "{schema}".knowledge_sources s '
         f'LEFT JOIN "{schema}".knowledge_sources o ON o.id = s.supersedes_id')).all())
-    assert rows == {"L1.15": "L1.14", "L1.14": "L1.13", "L1.13": "L1.12", "L1.12": "L1.11", "L1.11": "L1.10", "L1.10": "L1.5",
+    assert rows == {"L1.16": "L1.15", "L1.15": "L1.14", "L1.14": "L1.13", "L1.13": "L1.12", "L1.12": "L1.11", "L1.11": "L1.10", "L1.10": "L1.5",
                     "L1.5": None}
     found = constitution.item_for_section(
         db, "14", permissions=frozenset({"assist.ask", "legal_position.view"}))
@@ -103,7 +103,7 @@ def test_every_child_carries_a_breadcrumb_naming_its_place_and_nature():
                     if p.content.startswith("Established Company Position"))
     history = next(p for p in _items("31.2", "PARAGRAPH")
                    if p.content.startswith("Historical exceptions"))
-    assert position.breadcrumb.startswith("Legal Constitution L1.15 · 31.")
+    assert position.breadcrumb.startswith("Legal Constitution L1.16 · 31.")
     assert "31.2 Early Termination" in position.breadcrumb
     assert history.breadcrumb.endswith("historical evidence, not current policy")
     assert all(i.breadcrumb for i in ITEMS if i.kind == "PARAGRAPH")
@@ -205,7 +205,7 @@ def test_l1_10_is_kept_as_history_and_superseded_after_ingest(db):
     constitution.ingest(db)
     rows = dict(db.execute(text(
         f'SELECT version, status FROM "{schema}".knowledge_sources')).all())
-    assert rows == {"L1.15": "CURRENT", "L1.14": "SUPERSEDED", "L1.13": "SUPERSEDED", "L1.12": "SUPERSEDED", "L1.11": "SUPERSEDED",
+    assert rows == {"L1.16": "CURRENT", "L1.15": "SUPERSEDED", "L1.14": "SUPERSEDED", "L1.13": "SUPERSEDED", "L1.12": "SUPERSEDED", "L1.11": "SUPERSEDED",
                     "L1.10": "SUPERSEDED",
                     "L1.5": "SUPERSEDED"}
     assert constitution.SUPERSEDED_FILES["L1.10"].read_text().count("₹1 lakh") >= 1
@@ -345,3 +345,16 @@ def test_l1_15_takes_the_leapswitch_sla_uptime_from_the_live_site():
     old = constitution.SUPERSEDED_FILES["L1.14"].read_text()
     assert "SUPERSEDED 2026-11-02 by [LEGAL_CONSTITUTION_L1.15.md]" in old
     assert "and 99.95% (Power (Dual Power Servers), Private Network)" in old
+
+
+def test_l1_16_names_no_counterparty_and_supersedes_l1_15():
+    """AM-300: the redaction recorded since L1.10 holds in every line of the current text;
+    L1.15 stays as history under its banner."""
+    current = constitution.CURRENT_FILE.read_text()
+    old = constitution.SUPERSEDED_FILES["L1.15"].read_text()
+    assert "SUPERSEDED 2026-11-04 by [LEGAL_CONSTITUTION_L1.16.md]" in old
+    assert "| Reference NDA ([NDA Counterparty]) | NDA |" in current
+    assert "| Reference NDA ([NDA Counterparty]) | NDA |" not in old
+    # the same positions: every numbered section heading is unchanged
+    heads = [x for x in current.splitlines() if x.startswith("#")]
+    assert heads == [x for x in old.splitlines() if x.startswith("#")]

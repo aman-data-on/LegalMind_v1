@@ -14,6 +14,11 @@ No version has been released. The V1 specification is complete and implementatio
 
 No lock, rule or decision changed; guidance reorganised. `CLAUDE.md` 665 → 141 lines (all 23 rules and their IDs kept; history removed; the old file verbatim at `docs/00-project/archive/CLAUDE_MD_2026-11-09.md`). Path-scoped `.claude/rules/` (ui-ux, ask-rag, legal-engine-config, records-and-locks, testing), skills `local-stack`, `team-delivery`, `lock-amendment`, read-only agent `independent-verifier`. Contradictions fixed: MSA cap 6 vs 12 months, "two" standards/evaluators, Ask stage 6 "never built", commit-to-main git text, the `AM-239` favour form missing, DESIGN.md as binding; AGENTS.md §7/§8/§20 no longer advise stash, `add -A`, checkpoint commits or pushing without the owner, and it now carries the shared-working-tree section. Hooks proposed, not enabled: `docs/00-project/PROPOSED_HOOKS_2026-11-09.md`. Audit: `docs/00-project/AGENT_INSTRUCTIONS_AUDIT_2026-11-09.md`.
 
+### 2026-11-04 — Constitution L1.16, statute rerank without editorial marks (AB-147: AM-300); records of the 2026-11-03 deploy
+
+- **AM-300** L1.16 redacts the NDA counterparty's name that one reference-table row of L1.15 still carried (L1.15 kept as history under a banner); the statute cross-encoder reads the text without India Code's editorial marks — IT Act s.43A back to rank 1 for the data-leak compensation question; golden hit@1 0.857 → 0.929; no benchmark metric fell. After deploy: `tools.ingest_constitution`, then the statute swap (17 Acts, section-7, staged 2026-11-03) checked by the hard benchmark with rollback kept.
+- **Records:** batches AB-143/144/145/146 DEPLOYED 2026-11-03 as `d2a5243` (PRs #280–#283); a merge gap on #282 (job 13 failed, merged on the required check only) fixed by #283 before any deploy — merge rule now: read every check first.
+
 ### 2026-11-03 — CloudPe Gemma as an Ask model; no-credit models switched off (AB-146: AM-249) — branch `feat/cloudpe-gemma-20261103`, NOT committed
 
 - `cloudpe-gemma` (gemma-4-26b-a4b on CloudPe's own vLLM endpoint, 32k window → lean profile) added to the model registry; offered in the picker once deployed, Gemini stays default. Measured: 5 cases 3/5 (long multi-point emails answered in part), C26 41/50 — equal to Gemini — p50 25 s, no cost.

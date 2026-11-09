@@ -396,9 +396,11 @@ def rerank(pool: Pool, plan: query_plan.QueryPlan, *, depth: int = RERANK_DEPTH)
     reranked: dict[str, list[Candidate]] = {}
     for domain, cands in pool.by_domain.items():
         head, tail = cands[:depth], cands[depth:]
+        texts = [f"{c.note}. {c.text}" if c.note else c.text for c in head]
+        if domain == routing.Domain.STATUTES.value:
+            texts = [statute_corpus.without_editorial_marks(t) for t in texts]
         scores = (cross_encoder.scores(statute_corpus.with_agency_names(plan.question),
-                                       [f"{c.note}. {c.text}" if c.note
-                                                        else c.text for c in head],
+                                       texts,
                                        public=domain in cache.PUBLIC_DOMAINS)
                   if domain in RERANK_DOMAINS else None)
         if scores is None:
