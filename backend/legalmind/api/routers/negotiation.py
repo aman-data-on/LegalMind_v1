@@ -65,7 +65,7 @@ from legalmind.api.errors import (
 )
 from legalmind.api.routers.decisions import _advance_if_resolved
 from legalmind.api.routers.documents import CHANGED_BY_A_COLLEAGUE, download_name
-from legalmind.api.routers.reviews import held_by, open_review
+from legalmind.api.routers.reviews import held_by, open_review, sent_to_legal
 from legalmind.api.schemas import (
     AcceptByEffect,
     FormattingKeepOurs,
@@ -393,7 +393,7 @@ def deal_counts(guard: Guard, contracts: list[M.Contract]) -> dict[UUID, dict]:
     db, out = guard.db, {}
     can_decide = P.LEGAL_DECISION in guard.permissions
     for contract in contracts:
-        counts: dict[str, int] = {}
+        counts: dict[str, int | bool] = {}
         holds = False           # Batch 1 (e): yours = held by me, never "may decide"
         versions = list(db.execute(select(M.DocumentVersion).where(
             M.DocumentVersion.contract_id == contract.id)).scalars())
@@ -401,11 +401,18 @@ def deal_counts(guard: Guard, contracts: list[M.Contract]) -> dict[UUID, dict]:
         if latest is not None and P.REVIEW_VIEW in guard.permissions:
             review = negotiation._latest_review(db, latest)
             if review is not None and review.status in negotiation._ANALYSED:
-                n = review_progress(db, review,
-                                    legal_position=guard.sees_legal_position)["to_decide"]
+                progress = review_progress(db, review,
+                                           legal_position=guard.sees_legal_position)
+                n = progress["to_decide"]
                 holds = can_decide and db.execute(select(M.Review.id).where(
                     M.Review.id == review.id, held_by(guard.user_id))).first() is not None
-                counts.update(points_open=n, points_for_me=n if holds else 0)   # B11
+                sent = db.execute(select(M.Review.id).where(
+                    M.Review.id == review.id, sent_to_legal())).first() is not None
+                # B11; Batch 1: the points waiting on the client, and whether the review
+                # is with Legal now (any stage) — one fact for the header and the To-do
+                counts.update(points_open=n, points_for_me=n if holds else 0,
+                              points_waiting=progress["clarification"],
+                              sent_to_legal=sent)
         theirs = (client_version(versions)
                   if P.DOCUMENT_VIEW in guard.permissions else None)
         if theirs is not None:

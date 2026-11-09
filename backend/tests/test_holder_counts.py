@@ -74,10 +74,54 @@ def test_prepare_final_waits_on_open_points(api, db, seeded, monkeypatch):
     monkeypatch.setattr(todo, "negotiation_stages", lambda g, cs: {x.id: stage for x in cs})
     answered = {"changes_total": 4, "changes_left": 0, "changes_left_for_me": 0,
                 "changes_ours": 0}
-    for counts, sent, kinds in (({**answered, "points_open": 0}, False, ["prepare_final"]),
-                                ({**answered, "points_open": 3}, False, ["client_returned"]),
-                                ({**answered, "points_open": 3}, True, []),
-                                (answered, False, ["client_returned"])):   # absent: closed
+    done = {"points_open": 0, "points_waiting": 0, "sent_to_legal": False}
+    for counts, kinds in (({**answered, **done}, ["prepare_final"]),
+                          ({**answered, **done, "points_open": 3}, ["client_returned"]),
+                          ({**answered, **done, "points_open": 3, "sent_to_legal": True}, []),
+                          # D3: a point waiting on the client keeps the final contract back
+                          ({**answered, **done, "points_waiting": 1}, ["client_returned"]),
+                          (answered, ["client_returned"])):          # absent: closed
         monkeypatch.setattr(todo, "deal_counts", lambda g, cs, n=counts: {x.id: n for x in cs})
-        monkeypatch.setattr(todo, "_points_with_legal", lambda db, contract, s=sent: s)
         assert [i["kind"] for i in _todo(api, db, owner)] == kinds
+
+
+def test_counts_say_whether_the_review_is_with_legal(api, db, world):
+    deal = world["review"].contract_id
+    n = _counts(api, db, world["owner"], deal)
+    assert n["sent_to_legal"] is True and n["points_waiting"] == 0
+    world["sent"].revoked_at = datetime.now(UTC)          # withdrawn: not with Legal
+    db.flush()
+    assert _counts(api, db, world["owner"], deal)["sent_to_legal"] is False
+
+
+def _orphan_check(api, db, world):
+    deal = world["review"].contract_id
+    for lawyer in (world["b"],):                         # never assigned: now holds it
+        n = _counts(api, db, lawyer, deal)
+        assert n["points_for_me"] == n["points_open"] >= 1
+        assert len(_decide(api, db, lawyer)) == 1
+
+
+def test_a_suspended_assignee_leaves_the_review_with_every_lawyer(api, db, world):
+    world["a"].status = E.UserStatus.SUSPENDED
+    db.flush()
+    _orphan_check(api, db, world)
+
+
+def test_an_assignee_who_lost_legal_decision_leaves_it_with_every_lawyer(api, db, world):
+    roles = db.query(M.UserRole).join(
+        M.RolePermission, M.RolePermission.role_id == M.UserRole.role_id).join(
+        M.Permission, M.Permission.id == M.RolePermission.permission_id).filter(
+        M.UserRole.user_id == world["a"].id, M.Permission.name == P.LEGAL_DECISION).all()
+    assert roles
+    for row in roles:
+        db.delete(row)
+    db.flush()
+    _orphan_check(api, db, world)
+
+
+def test_the_contract_decision_is_the_holders(api, db, world):
+    world["review"].status = E.ReviewStatus.RESOLVED
+    db.flush()
+    assert any(i["kind"] == "contract_decision" for i in _todo(api, db, world["a"]))
+    assert all(i["kind"] != "contract_decision" for i in _todo(api, db, world["b"]))

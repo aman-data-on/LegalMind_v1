@@ -16,7 +16,7 @@ changes_to_answer  changes left to me        the same deal, in its place (`AM-29
 reply_ready        our reply is ready to     the same deals at READY_TO_SEND (`AM-293`:
                    send                      nothing undecided in it)
 contract_decision  every point is decided —  `legal.decision`; the latest version's
-                   record the decision on    Review is with me, RESOLVED, and holds no
+                   record the decision on    Review I hold, RESOLVED, and holding no
                    the contract              current contract decision (`AM-318`)
 prepare_final      every change is answered  my deals at CLIENT_RETURNED with nothing
                    — prepare the final       left and no open point (Batch 1 (c)), or
@@ -42,12 +42,7 @@ from legalmind.api.envelope import data
 from legalmind.api.routers.amendments import final_copy
 from legalmind.api.routers.contracts import negotiation_stages
 from legalmind.api.routers.negotiation import deal_counts
-from legalmind.api.routers.reviews import (
-    _visible_reviews,
-    held_by,
-    sent_to_legal,
-    with_legal,
-)
+from legalmind.api.routers.reviews import _visible_reviews, held_by, with_legal
 from legalmind.db import models as M
 from legalmind.db.lookup import contract_signed
 from legalmind.domain import enums as E
@@ -155,8 +150,8 @@ def _decisions(guard: Guard) -> list[dict]:
 
 
 def _contract_decisions(guard: Guard) -> list[dict]:
-    """`AM-318` A3: a Review with me whose points are all decided and whose contract
-    decision is due — on the latest version of a deal that is not Final or signed."""
+    """`AM-318` A3: a Review I hold (`held_by`) whose points are all decided and whose
+    contract decision is due — on the latest version of a deal not Final or signed."""
     db, me = guard.db, guard.user_id
     Rec = M.ContractOutcomeRecord
     out: list[dict] = []
@@ -164,7 +159,7 @@ def _contract_decisions(guard: Guard) -> list[dict]:
             _visible_reviews(guard)
             .join(M.Contract, M.Contract.id == M.Review.contract_id)
             .where(M.Review.status == E.ReviewStatus.RESOLVED,
-                   M.Contract.archived_at.is_(None), with_legal(me))).scalars():
+                   M.Contract.archived_at.is_(None), held_by(me))).scalars():
         if is_superseded(db, review) or contract_signed(db, review.contract_id):
             continue
         latest = db.execute(select(Rec).where(Rec.review_id == review.id)
@@ -179,15 +174,6 @@ def _contract_decisions(guard: Guard) -> list[dict]:
                          review.reopened_at or review.completed_at or review.created_at,
                          review_id=str(review.id)))
     return out
-
-
-def _points_with_legal(db, contract: M.Contract) -> bool:
-    """The latest version's Review is sent to Legal (B11): its open points wait there."""
-    latest = db.execute(select(M.DocumentVersion.id).where(
-        M.DocumentVersion.contract_id == contract.id)
-        .order_by(M.DocumentVersion.version_number.desc()).limit(1)).scalar()
-    return latest is not None and db.execute(select(M.Review.id).where(
-        M.Review.document_version_id == latest, sent_to_legal())).first() is not None
 
 
 def _my_deals(guard: Guard) -> list[dict]:
@@ -227,9 +213,9 @@ def _my_deals(guard: Guard) -> list[dict]:
                           "The client returned a new version — it is our turn.")
         if "changes_total" in n and not n.get("changes_left") \
                 and not n.get("changes_ours"):
-            if n.get("points_open") == 0:     # Batch 1 (c): and no point left open
-                kind, sentence = "prepare_final", PREPARE_FINAL   # AM-318 A3
-            elif _points_with_legal(db, contract):
+            if n.get("points_open") == 0 and n.get("points_waiting") == 0:
+                kind, sentence = "prepare_final", PREPARE_FINAL   # AM-318 A3; Batch 1 (c)
+            elif n.get("sent_to_legal"):
                 continue                      # Legal has the points: their "decide"
         if left:
             verb = "is" if left == 1 else "are"

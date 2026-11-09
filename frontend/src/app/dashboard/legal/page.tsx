@@ -32,7 +32,7 @@ import {
 } from "@/components/workspace/findingLanguage";
 
 import { api, describeError } from "@/lib/api";
-import { classificationLabel, contractOutcomeLabel, reviewStatusLabel } from "@/lib/labels";
+import { classificationLabel, contractOutcomeLabel, pointCount, reviewStatusLabel } from "@/lib/labels";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import { TodoViews } from "@/components/workspace/TodoViews";
@@ -133,7 +133,7 @@ export default function LegalQueuePage() {
         <h1>Legal</h1>
         {state.kind === "ready" ? (
           <span className="ws-context__meta ws-mono">
-            {!mine ? `${rows.length} awaiting a decision`
+            {!mine ? `${plural(pointCount(rows), "point")} awaiting a decision`
               : !mine.points && !mine.changes ? "Nothing awaits your decision"
               : `${plural(mine.points, "point")}${mine.changes ? ` and ${plural(mine.changes, "change")}` : ""} await your decision`}
           </span>
@@ -144,10 +144,10 @@ export default function LegalQueuePage() {
         {state.kind === "ready" && rows.length > 0 ? (
           <div className="ws-filter" role="group" aria-label="Whose reviews">
             <button type="button" aria-pressed={view === "yours"} onClick={() => setPick("yours")}>
-              Yours <span className="ws-filter__n">{yours.length}</span>
+              Yours <span className="ws-filter__n">{pointCount(yours)}</span>
             </button>
             <button type="button" aria-pressed={view === "all"} onClick={() => setPick("all")}>
-              All with Legal <span className="ws-filter__n">{rows.length}</span>
+              All with Legal <span className="ws-filter__n">{pointCount(rows)}</span>
             </button>
           </div>
         ) : null}

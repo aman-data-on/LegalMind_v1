@@ -152,14 +152,28 @@ def sent_to_legal():
     return or_(M.Review.id.in_(_assigned()), M.Review.id.in_(escalated))
 
 
+def _live_assigned():
+    """Active assignments whose assignee can still decide: ACTIVE, and still granted
+    `legal.decision` (the tables `effective_permissions` reads)."""
+    deciders = (select(M.UserRole.user_id)
+                .join(M.RolePermission, M.RolePermission.role_id == M.UserRole.role_id)
+                .join(M.Permission, M.Permission.id == M.RolePermission.permission_id)
+                .join(M.User, M.User.id == M.UserRole.user_id)
+                .where(M.Permission.name == P.LEGAL_DECISION,
+                       M.User.status == E.UserStatus.ACTIVE))
+    return _assigned().where(M.ReviewAssignment.user_id.in_(deciders))
+
+
 def held_by(user_id: UUID):
     """A Review this person HOLDS — whose points are theirs to decide (`AM-291`: counted
     by who answers, never by who may; AM-170: one designated reviewer): assigned to them,
-    or with Legal (`with_legal`) and assigned to nobody. A colleague's assignment is the
-    team's to see (`with_legal`), never "yours". Scope is unchanged: this only narrows."""
+    or with Legal (`with_legal`) and assigned to nobody who can still decide — a
+    suspended assignee, or one who lost `legal.decision`, leaves it with every lawyer,
+    never orphaned. A colleague's assignment is the team's to see (`with_legal`), never
+    "yours". Scope is unchanged: this only narrows."""
     return or_(
-        M.Review.id.in_(_assigned().where(M.ReviewAssignment.user_id == user_id)),
-        with_legal(user_id) & M.Review.id.not_in(_assigned()))
+        M.Review.id.in_(_live_assigned().where(M.ReviewAssignment.user_id == user_id)),
+        with_legal(user_id) & M.Review.id.not_in(_live_assigned()))
 
 
 def _with_document(guard: Guard, reviews: list[M.Review]) -> list[dict]:

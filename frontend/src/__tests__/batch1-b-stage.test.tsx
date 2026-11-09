@@ -16,7 +16,7 @@ const owner = { viewer: "owner" as const, canAnswer: true, stage: "CLIENT_RETURN
 describe("the final contract waits on open points", () => {
   it("says Ready only with no point open, and fails closed when points are unknown", () => {
     expect(stageLine("CLIENT_RETURNED", { ...answered, points_open: 3 })).not.toContain("Ready");
-    expect(stageLine("CLIENT_RETURNED", { ...answered, points_open: 0 })).toContain("Ready");
+    expect(stageLine("CLIENT_RETURNED", { ...answered, points_open: 0, points_waiting: 0 })).toContain("Ready");
     expect(finalReady(answered)).toBe(false);                       // absent: closed
     // keep-ours answers still lead to our reply, whatever the points
     expect(stageLine("CLIENT_RETURNED", { ...answered, changes_ours: 1, points_open: 3 }))
@@ -26,7 +26,7 @@ describe("the final contract waits on open points", () => {
     const counts = { ...answered, points_open: 3 };
     expect(nextStep({ ...owner, counts, canSendToLegal: true })?.kind).toBe("sendToLegal");
     expect(nextStep({ ...owner, counts, packageReady: true })).toBeNull();   // with Legal already
-    expect(nextStep({ ...owner, counts: { ...answered, points_open: 0 } })?.kind).toBe("prepareFinal");
+    expect(nextStep({ ...owner, counts: { ...answered, points_open: 0, points_waiting: 0 } })?.kind).toBe("prepareFinal");
     expect(taskAction({ kind: "client_returned", counts })).not.toBe("Prepare final contract");
   });
 });

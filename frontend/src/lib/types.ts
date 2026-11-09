@@ -276,6 +276,10 @@ export interface DealCounts {
   changes_ours?: number;
   points_open?: number;
   points_for_me?: number;
+  /** points waiting on the client's clarification (sent with `points_open`) */
+  points_waiting?: number;
+  /** the latest version's review is with Legal now — assigned or escalated, at any stage */
+  sent_to_legal?: boolean;
 }
 
 /** `AM-264` — one thing waiting on the caller: a fixed sentence and a link. */

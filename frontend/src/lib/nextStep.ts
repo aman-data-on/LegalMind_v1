@@ -11,7 +11,7 @@
 import { useEffect } from "react";
 
 import { ACTION, finalReady, type StageViewer } from "./labels";
-import type { DealCounts, NegotiationStageCode, TodoItem } from "./types";
+import type { DealCounts, NegotiationStageCode, ReviewAssignments, TodoItem } from "./types";
 
 export type StepKind =
   | "decide" | "answerChanges" | "prepareReply" | "sendReply" | "sendToLegal" | "sendToClient"
@@ -78,6 +78,20 @@ export function nextStep(f: StepFacts): Step | null {
     default:
       return null;
   }
+}
+
+/** Whether the contract header offers "Send to Legal": there is something for Legal to
+ *  decide, the paper is not with the client or done, this reader may send, and the review
+ *  is NOT already with Legal — at any stage (the server's `sent_to_legal`, or a reviewer
+ *  just picked here). Presentation only; the send checks again. */
+export function canSendToLegalFor({ stage, counts, finalLatest, assign }: {
+  stage?: NegotiationStageCode | undefined; counts?: DealCounts | undefined;
+  finalLatest: boolean; assign: ReviewAssignments | null;
+}): boolean {
+  return stage !== "SIGNED" && stage !== "WITH_CLIENT" && stage !== "FINAL"
+    && ((counts?.points_open ?? 0) > 0 || (finalLatest && stage === "INTERNAL_REVIEW"))
+    && !counts?.sent_to_legal && !!assign?.can_send && !assign.assigned.length
+    && assign.eligible.length > 0;
 }
 
 /** A To-do item's action, in the same words as the header's step. */

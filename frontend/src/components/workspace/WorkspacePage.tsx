@@ -33,7 +33,7 @@ import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { Contract, Counterparty, DocumentVersion, ReviewAssignments } from "@/lib/types";
 import { ACTION, contractDisplayName, contractStatusLabel, type StageViewer } from "@/lib/labels";
-import { nextStep, runStep, useStep, type StepKind } from "@/lib/nextStep";
+import { canSendToLegalFor, nextStep, runStep, useStep, type StepKind } from "@/lib/nextStep";
 import { PageHeader } from "@/components/page/PageHeader";
 import { documentSourceChip, isOurs } from "@/lib/documentTypes";
 
@@ -698,9 +698,8 @@ function RecordHeader({
   // AM-318: the final contract waits on Legal's decision on the contract
   const finalLatest = !!latest && !!(latest.package || latest.final_copy);
   // only with something for Legal to decide, and never while the paper is with the client
-  const canSendToLegal = !signedAt && stageNow !== "WITH_CLIENT" && stageNow !== "FINAL"
-    && ((contract.counts?.points_open ?? 0) > 0 || (finalLatest && stageNow === "INTERNAL_REVIEW"))
-    && !!assign?.can_send && !holder && assign.eligible.length > 0;
+  // D1: "already with Legal" holds at every stage, from the server's one fact
+  const canSendToLegal = canSendToLegalFor({ stage: stageNow, counts: contract.counts, finalLatest, assign });
   const ours = isOurs(latest);
   const owned = contract.owner_id === identity?.user_id;
   const changesForMe = contract.counts?.changes_left_for_me ?? 0;

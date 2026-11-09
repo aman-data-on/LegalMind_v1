@@ -37,7 +37,7 @@ describe("the stage line agrees with the counts", () => {
     expect(stageLine("INTERNAL_REVIEW", answered, "legal")).toBe("Legal deciding 17 points");
     // Batch 1 (c): open points keep the final contract waiting
     expect(stageLine("CLIENT_RETURNED", answered)).toBe("Client replied");
-    expect(stageLine("CLIENT_RETURNED", { ...answered, points_open: 0 })).toBe("Ready for the final contract"); // N16
+    expect(stageLine("CLIENT_RETURNED", { ...answered, points_open: 0, points_waiting: 0 })).toBe("Ready for the final contract"); // N16
     expect(stageLine("CLIENT_RETURNED", { ...answered, changes_ours: 5 })).toBe("Changes answered, reply next");
     expect(stageLine("CLIENT_RETURNED", round)).toBe("Client replied");
     expect(stageLine("INTERNAL_REVIEW", { points_open: 0 }, "legal")).toBe("Your review");
@@ -58,7 +58,7 @@ describe("one primary step per person per stage", () => {
     expect(nextStep({ ...owner, stage: "CLIENT_RETURNED",
       counts: { ...round, changes_left: 0, changes_left_for_me: 0, changes_ours: 3 } })?.label).toBe("Prepare our reply");
     expect(nextStep({ ...owner, stage: "CLIENT_RETURNED",
-      counts: { ...round, changes_left: 0, changes_left_for_me: 0, changes_ours: 0, points_open: 0 } })?.label)
+      counts: { ...round, changes_left: 0, changes_left_for_me: 0, changes_ours: 0, points_open: 0, points_waiting: 0 } })?.label)
       .toBe("Prepare final contract");
     expect(nextStep({ ...owner, stage: "CLIENT_RETURNED",
       counts: { ...round, changes_left_for_me: 0 } })).toBeNull();     // what is left is Legal's
@@ -85,7 +85,7 @@ describe("one primary step per person per stage", () => {
     expect(taskAction({ kind: "client_returned", counts: { changes_total: 4, changes_left: 0, changes_ours: 2 } }))
       .toBe(ACTION.prepareReply);
     expect(taskAction({ kind: "client_returned",
-      counts: { changes_total: 4, changes_left: 0, changes_ours: 0, points_open: 0 } })).toBe(ACTION.prepareFinal);
+      counts: { changes_total: 4, changes_left: 0, changes_ours: 0, points_open: 0, points_waiting: 0 } })).toBe(ACTION.prepareFinal);
   });
 });
 

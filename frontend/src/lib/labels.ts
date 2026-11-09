@@ -22,7 +22,7 @@
  * and the glossary that renders it.
  */
 
-import type { DealCounts } from "./types";
+import type { DealCounts, Finding, Review } from "./types";
 
 /** Review lifecycle — locked Step 30's nine states, in a reviewer's words. */
 const REVIEW_STATUS_LABELS: Record<string, string> = {
@@ -361,9 +361,17 @@ export function changesWords(c: DealCounts | undefined, viewer: StageViewer = "o
 }
 
 /** Batch 1 (c): the ONE rule for "Ready for the final contract" — every change answered,
- *  none of ours to carry back, and no point left open. Absent counts fail closed. */
+ *  none of ours to carry back, no point left open and none waiting on the client.
+ *  Absent counts fail closed. */
 export function finalReady(c: DealCounts | undefined): boolean {
-  return c?.changes_total !== undefined && !c.changes_left && !c.changes_ours && c.points_open === 0;
+  return c?.changes_total !== undefined && !c.changes_left && !c.changes_ours
+    && c.points_open === 0 && c.points_waiting === 0;
+}
+
+/** Points, not finding rows (AM-179): findings that share the server's `group_id` are one
+ *  point, decided together — the unit the To-do and the Legal queue's header count. */
+export function pointCount(rows: { finding: Pick<Finding, "id" | "group_id">; review: Pick<Review, "id"> }[]): number {
+  return new Set(rows.map(({ finding, review }) => `${review.id}:${finding.group_id ?? finding.id}`)).size;
 }
 
 /** A client's closed deals, said once for both client pages: "1 final · 2 signed". */

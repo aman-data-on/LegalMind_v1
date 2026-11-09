@@ -42,7 +42,7 @@ describe("the amendment bar", () => {
     expect(html).not.toMatch(/confiden|likely|probab/i);
   });
   it("names the step and the change rows for an amendment", () => {
-    expect(nextStep({ stage: "CLIENT_RETURNED", counts: { changes_total: 1, changes_left: 0, points_open: 0 }, viewer: "owner",
+    expect(nextStep({ stage: "CLIENT_RETURNED", counts: { changes_total: 1, changes_left: 0, points_open: 0, points_waiting: 0 }, viewer: "owner",
                       canAnswer: true, packageReady: true, amendment: true })?.label).toBe("Prepare amendment");
     expect(finalLine({ answer: null, target: { key: "k", number: "8.5", heading: null }, in_package: "replace" },
                      AMENDMENT_PLACE)).toBe("Goes into the amendment, replacing clause 8.5");
