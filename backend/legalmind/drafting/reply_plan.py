@@ -263,6 +263,15 @@ def reply_rows(db: DBSession, before: M.DocumentVersion | None, after: M.Documen
                     "there is no wording of ours to keep on the client's paper",
                     "UNSUPPORTED"), None))
                 continue
+            held = row.get("clauses") or []
+            if len(held) > 1 and answers[row["row_key"]].kind in _WRITES:
+                # one wording over several clauses would rewrite the first and delete
+                # the rest of the client's text — a person places it (rule 15)
+                named = " and ".join(c["number"] or c["heading"] or "?" for c in held)
+                out.append(RowPlan(row["row_key"], label, [], ReplyError(
+                    f"this point covers clauses {named}; write it in by hand",
+                    "UNSUPPORTED"), spot(n, None, label)))
+                continue
             out.append(plan(row["row_key"], THEIRS, None, None, n, label))
         return out
     for i, j, moved in rows:

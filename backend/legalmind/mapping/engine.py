@@ -235,6 +235,29 @@ def under_headings(clauses: list[Clause]) -> dict[UUID, str | None]:
     return out
 
 
+def restart_headings(clauses: list[Clause]) -> dict[UUID, str]:
+    """The heading a clause sits under, ONLY where the paper restarts its numbering
+    under headings ("ARTICLE 3 - PAYMENT" then 1, 2 …, "ARTICLE 4 - TERM" then 1, 2 …):
+    a top-level number met on body rows under two or more different nearest-preceding
+    heading rows. Every body row with that top-level number gets its heading; a number
+    met under one heading only (its sub-clauses, its continuation rows) gets none, and a
+    heading row names itself. Presentation only — "Clause 2 (Payment)" names one clause
+    where "Clause 2" names five; never read by the mapper or an evaluator."""
+    heading: str | None = None
+    under: dict[UUID, tuple[str, str | None]] = {}
+    seen: dict[str, set[str | None]] = {}
+    for c in clauses:
+        if c.is_heading:
+            heading = (c.section_title
+                       or (c.content or "").strip().split("\n", 1)[0] or None)
+            continue
+        top = (c.section_number or "").rstrip(".").split(".")[0]
+        if top:
+            under[c.evidence_id] = (top, heading)
+            seen.setdefault(top, set()).add(heading)
+    return {e: h for e, (top, h) in under.items() if h and len(seen[top]) > 1}
+
+
 def map_document(
     requirement_rules: dict[UUID, MappingRules],
     clauses: list[Clause],

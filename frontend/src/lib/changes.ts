@@ -48,11 +48,22 @@ export interface AnswerEntry {
   internal_note?: string | null;
 }
 
+/** A clause as the server names it; ``under``: the heading a restarted number sits
+ *  under ("2" under "Invoicing and Payment"), else null. */
+export interface ClauseName { number: string | null; heading: string | null; under?: string | null }
+
+/** Why a NEGATIVE row goes to Legal — only on NEGATIVE rows (proposed AM-299 r1 split). */
+export type Measured = "WORSE" | "ABSENT" | "NOT_MEASURED";
+
 export interface ClientChange {
   row_key: string;
   kind: ChangeKind;
   moved: boolean;
-  clause: { number: string | null; heading: string | null };
+  clause: ClauseName;
+  /** client paper first: every clause the point was CONFIRMED in */
+  clauses?: ClauseName[];
+  /** client paper first, nothing confirmed: the clauses that MAY hold it — unranked */
+  candidates?: ClauseName[];
   page: number | null;
   before: { evidence_ids: string[]; text: string } | null;
   after: { evidence_ids: string[]; text: string } | null;
@@ -70,6 +81,7 @@ export interface ClientChange {
   route: ChangeRoute;
   route_reason: string;
   effect_for_us: EffectForUs;
+  measured?: Measured;
   favour_reason?: string;
   /** holder route only: an EFFECTIVE Legal Decision accepts every Evaluation — or, where
    *  none exists, a holder recorded "accept theirs" as their answer (`AM-281`) */
@@ -189,6 +201,25 @@ export const EFFECT_LABEL: Record<EffectForUs, string> = {
   FALLBACK: "Fallback",
   NEGATIVE: "Worse for us",
 };
+/** A NEGATIVE row's words by why it goes to Legal. Without ``measured`` (a caller that
+ *  does not carry it) the effect's own word stands. */
+const MEASURED_LABEL: Record<Measured, string> = {
+  WORSE: "Worse for us",
+  NOT_MEASURED: "Not measured — Legal checks",
+  ABSENT: "Not in their paper",
+};
+const MEASURED_SENTENCE: Record<Measured, string> = {
+  WORSE: "Legal reviews it.",
+  NOT_MEASURED: "Our standards could not measure this, so Legal reviews it.",
+  ABSENT: "Their paper does not have this point, so Legal reviews it.",
+};
+export function effectLabel(effect: EffectForUs, measured?: Measured): string {
+  return effect === "NEGATIVE" && measured ? MEASURED_LABEL[measured] : EFFECT_LABEL[effect];
+}
+export function effectSentence(effect: EffectForUs, measured?: Measured): string {
+  return effect === "NEGATIVE" && measured ? MEASURED_SENTENCE[measured] : EFFECT_SENTENCE[effect];
+}
+
 export const EFFECT_SENTENCE: Record<EffectForUs, string> = {
   POSITIVE: "The deal owner can accept it without Legal.",
   NEUTRAL: "The deal owner can accept it without Legal.",
@@ -212,9 +243,15 @@ export const ROUTE_LABEL: Record<ChangeRoute, string> = {
   favour: "In our favour",
 };
 
-export function where(change: ClientChange): string {
-  const { number, heading } = change.clause;
+/** "2 Fees (Invoicing and Payment)" — the heading a restarted number sits under
+ *  said after it; "" when the clause has neither number nor heading. */
+export function clauseName({ number, heading, under }: ClauseName): string {
   const head = [sectionRef(number), heading].filter(Boolean).join(" ");
+  return head && under ? `${head} (${under})` : head;
+}
+
+export function where(change: ClientChange): string {
+  const head = clauseName(change.clause);
   if (head) return head;
   // a point on the client's paper the review found nowhere in the text (MISSING)
   const point = change.kind === "THEIRS" ? change.review.after[0]?.requirement_code : undefined;
@@ -320,10 +357,12 @@ export function matches(change: ClientChange, filter: Filter, list: Pick<ChangeL
         && (change.route !== "holder" || !!change.holder_accepted);
     case "answered":
       return change.answer !== null;
+    case "NEGATIVE":
+      // "Worse for us" only where the server says worse — never an unmeasured row
+      return change.effect_for_us === "NEGATIVE" && change.measured === "WORSE";
     case "POSITIVE":
     case "NEUTRAL":
     case "FALLBACK":
-    case "NEGATIVE":
       return change.effect_for_us === filter;
     default:
       return true;
