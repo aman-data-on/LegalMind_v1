@@ -72,6 +72,7 @@ here.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from uuid import UUID
 
@@ -235,21 +236,39 @@ def under_headings(clauses: list[Clause]) -> dict[UUID, str | None]:
     return out
 
 
+#: a row that can head a restarted numbering: never one opening with a digit (a sibling
+#: of the run, even when read as a heading — "5. Immediate Termination Rights"); a
+#: heading row, or one short line opening with a part word ("ARTICLE 7 - TERMINATION")
+_MARKUP = " \t*#\\_"
+_PART = re.compile(r"(?:ARTICLE|PART|SECTION|CHAPTER|SCHEDULE|ANNEXURE|ANNEX|APPENDIX|"
+                   r"EXHIBIT)\b", re.IGNORECASE)
+_PART_WORDS = 12
+
+
+def _parent(c: Clause) -> str | None:
+    """The row's own name when it can head a restarted run, else None."""
+    line = (c.content or "").strip().split("\n", 1)[0].strip(_MARKUP)
+    if not line or line[0].isdigit():
+        return None
+    if c.is_heading or (_PART.match(line) and len(line.split()) <= _PART_WORDS):
+        return (c.section_title or line).strip(_MARKUP) or None
+    return None
+
+
 def restart_headings(clauses: list[Clause]) -> dict[UUID, str]:
-    """The heading a clause sits under, ONLY where the paper restarts its numbering
-    under headings ("ARTICLE 3 - PAYMENT" then 1, 2 …, "ARTICLE 4 - TERM" then 1, 2 …):
-    a top-level number met on body rows under two or more different nearest-preceding
-    heading rows. Every body row with that top-level number gets its heading; a number
-    met under one heading only (its sub-clauses, its continuation rows) gets none, and a
-    heading row names itself. Presentation only — "Clause 2 (Payment)" names one clause
-    where "Clause 2" names five; never read by the mapper or an evaluator."""
+    """The part a clause sits under, ONLY where the paper restarts its numbering under
+    parts ("ARTICLE 3 - PAYMENT" then 1, 2 …, "ARTICLE 4 - TERM" then 1, 2 …): a
+    top-level number met on rows under two or more different nearest-preceding parts
+    (`_parent`). Every such row gets its part; a number met under one part only gets
+    none, and a row before any part gets none — fail closed: a bare "2" beats a wrong
+    article. Presentation only — "Clause 2 (Payment)" names one clause where "Clause 2"
+    names five; never read by the mapper or an evaluator."""
     heading: str | None = None
     under: dict[UUID, tuple[str, str | None]] = {}
     seen: dict[str, set[str | None]] = {}
     for c in clauses:
-        if c.is_heading:
-            heading = (c.section_title
-                       or (c.content or "").strip().split("\n", 1)[0] or None)
+        if (name := _parent(c)) is not None:
+            heading = name
             continue
         top = (c.section_number or "").rstrip(".").split(".")[0]
         if top:

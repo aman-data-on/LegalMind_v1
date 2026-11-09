@@ -136,6 +136,11 @@ def test_why_a_negative_row_goes_to_legal():
     assert N._measured("NEUTRAL", "MODIFIED", [], [dev], None) == {}
     assert N._measured("NEGATIVE", "MODIFIED", [], [dev], None)["measured"] == "WORSE"
     assert N._measured("NEGATIVE", "MODIFIED", [], [favoured], None)["measured"] \
+        == "REVIEW"
+    match = {"classification": "MATCH", "user_status": "ACCEPTABLE"}
+    assert N._measured("NEGATIVE", "MODIFIED", [match], [match], None)["measured"] \
+        == "REVIEW"                          # AM-317 r1: words changed, still matches
+    assert N._measured("NEGATIVE", "MODIFIED", [], [unable], None)["measured"] \
         == "NOT_MEASURED"
     assert N._measured("NEGATIVE", "MODIFIED", [], [unable],
                        {"reasons": [{"reason": "r", "quote": "q"}]})["measured"] == "WORSE"
@@ -189,4 +194,41 @@ def test_a_paper_numbered_once_names_no_heading():
     cs = _clauses([("1. DEFINITIONS", "1", "DEFINITIONS", True),
                    ("1.1 A row.", "1.1", None, False), ("1.2 A row.", "1.2", None, False),
                    ("2. SERVICES", "2", "SERVICES", True), ("2.1 A row.", "2.1", None, False)])
+    assert restart_headings(cs) == {}
+
+
+# verify 2026-11-09: a numbered sub-clause read as a heading never heads the run
+STORED_V1 = [  # ingest-v10 reading of a Word->Markdown export: marks left in
+    ("**ARTICLE 7 \u2013 TERMINATION**", None, None, False),
+    ("1. Either party may end this.", "1", None, False),
+    ("5. ## **Immediate Termination Rights**", "5", "Immediate Termination Rights", True),
+    ("6. After notice the services stop.", "6", None, False),
+    ("**ARTICLE 20 \u2013 GENERAL**", None, None, False),
+    ("1. ## **Compliance with Laws**", "1", "Compliance with Laws", True),
+    ("2. Each party complies.", "2", None, False),
+    ("**ARTICLE 21 \u2013 FORCE MAJEURE**", None, None, False),
+    ("1. Neither party is liable.", "1", None, False),
+    ("2. Notice is given.", "2", None, False)]
+
+
+def test_a_numbered_sub_clause_read_as_a_heading_never_names_the_article():
+    v11 = parse_text("\n\n".join(
+        r[0].replace("**", "## **", 1) if r[0].startswith("**") else r[0]
+        for r in STORED_V1).encode(), markdown=True).segments
+    read = [(s.content, s.section_number, s.section_title, bool(s.metadata.get("heading")))
+            for s in v11]
+    for rows in (STORED_V1, read):
+        cs = _clauses(rows)
+        under = restart_headings(cs)
+        named = set(under.values())
+        assert not named & {"Immediate Termination Rights", "Compliance with Laws"}
+        by_text = {c.content: under.get(c.evidence_id) for c in cs}
+        assert by_text["1. Neither party is liable."] == "ARTICLE 21 \u2013 FORCE MAJEURE"
+        assert by_text["6. After notice the services stop."] is None   # number met once
+        assert by_text["1. Either party may end this."] == "ARTICLE 7 \u2013 TERMINATION"
+
+
+def test_no_article_known_means_no_heading():
+    cs = _clauses([("1. A row.", "1", None, False), ("2. A row.", "2", None, False),
+                   ("1. Again.", "1", "Again", True), ("2. Again.", "2", None, False)])
     assert restart_headings(cs) == {}

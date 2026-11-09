@@ -12,7 +12,7 @@ vi.mock("@/lib/session", () => ({
 }));
 vi.mock("@/components/Dialog", () => ({ Dialog: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }));
 
-import { AnswerCard, ForUs, changesEnabled } from "@/components/workspace/ChangesPane";
+import { AnswerCard, ForUs, changesEnabled, groupHead } from "@/components/workspace/ChangesPane";
 import { matches, where, type ChangeList, type ClientChange } from "@/lib/changes";
 import { offerFor, type PlaybookPoint } from "@/lib/playbook";
 import type { DocumentVersion } from "@/lib/types";
@@ -45,6 +45,19 @@ describe("why a NEGATIVE row goes to Legal", () => {
     expect(html).toContain("Not measured — Legal checks");
     expect(matches(c, "NEGATIVE", list)).toBe(false);
     expect(offerFor(c, [POINT])).toBeNull();
+  });
+
+  it("says a measured, not-worse change only goes to Legal", () => {
+    const html = renderToStaticMarkup(<ForUs effect="NEGATIVE" measured="REVIEW" />);
+    expect(html).toContain("Legal checks");
+    expect(html).not.toContain("Not measured");
+    expect(card(theirs({ measured: "REVIEW" }))).toContain("Legal reviews this change.");
+  });
+
+  it("groups a point placed in no clause apart from the opening text", () => {
+    expect(groupHead(theirs())).toBe("Not placed in a clause");
+    expect(groupHead(theirs({ after: { evidence_ids: ["e"], text: "t" }, clause: { number: "7.2", heading: null } }))).toBe("7");
+    expect(groupHead(theirs({ kind: "MODIFIED", after: { evidence_ids: ["e"], text: "t" } }))).toBe("Opening text");
   });
 
   it("says a missing point is not in their paper", () => {
@@ -83,5 +96,6 @@ describe("the Changes tab on one version", () => {
     expect(changesEnabled([v({ version_role: "COMPANY_DRAFT",
                                  made_from_template: { template_key: "t", version: 1, older: false, message: null } })])).toBe(true);
     expect(changesEnabled([])).toBe(false);
+    expect(changesEnabled([v({ version_role: "FINAL_SIGNED" })])).toBe(false);
   });
 });

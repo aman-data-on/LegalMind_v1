@@ -53,7 +53,7 @@ export interface AnswerEntry {
 export interface ClauseName { number: string | null; heading: string | null; under?: string | null }
 
 /** Why a NEGATIVE row goes to Legal — only on NEGATIVE rows (proposed AM-299 r1 split). */
-export type Measured = "WORSE" | "ABSENT" | "NOT_MEASURED";
+export type Measured = "WORSE" | "ABSENT" | "REVIEW" | "NOT_MEASURED";
 
 export interface ClientChange {
   row_key: string;
@@ -207,11 +207,14 @@ const MEASURED_LABEL: Record<Measured, string> = {
   WORSE: "Worse for us",
   NOT_MEASURED: "Not measured — Legal checks",
   ABSENT: "Not in their paper",
+  // a standard measured it and nothing says worse (a settled deviation, changed words)
+  REVIEW: "Legal checks",
 };
 const MEASURED_SENTENCE: Record<Measured, string> = {
   WORSE: "Legal reviews it.",
   NOT_MEASURED: "Our standards could not measure this, so Legal reviews it.",
   ABSENT: "Their paper does not have this point, so Legal reviews it.",
+  REVIEW: "Legal reviews this change.",
 };
 export function effectLabel(effect: EffectForUs, measured?: Measured): string {
   return effect === "NEGATIVE" && measured ? MEASURED_LABEL[measured] : EFFECT_LABEL[effect];

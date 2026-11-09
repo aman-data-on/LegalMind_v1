@@ -75,7 +75,9 @@ export function clientVersion(versions: DocumentVersion[]): number | undefined {
  *  from our blank template (`AM-290`, `AM-302`). */
 export function changesEnabled(versions: DocumentVersion[]): boolean {
   const only = versions.length === 1 ? versions[0] : undefined;
-  return versions.length > 1 || (!!only && (!isOurs(only) || !!only.made_from_template));
+  // a signed copy alone has nothing to answer
+  return versions.length > 1 || (!!only && only.version_role !== "FINAL_SIGNED"
+    && (!isOurs(only) || !!only.made_from_template));
 }
 
 /** One fetch for the tab label and the pane, owned by the workspace page. */
@@ -109,7 +111,7 @@ export const EFFECT_FILTERS: FilterDef[] = [
 
 const EFFECT_ICON: Record<EffectForUs, typeof IconBetter> = { POSITIVE: IconBetter, NEUTRAL: IconSame, FALLBACK: IconFallback, NEGATIVE: IconWorse };
 /** a NEGATIVE row not measured worse never wears the "worse" arrow */
-const MEASURED_ICON: Record<Measured, typeof IconBetter> = { WORSE: IconWorse, NOT_MEASURED: IconAlertCircle, ABSENT: IconFileMinus };
+const MEASURED_ICON: Record<Measured, typeof IconBetter> = { WORSE: IconWorse, NOT_MEASURED: IconAlertCircle, ABSENT: IconFileMinus, REVIEW: IconAlertCircle };
 
 /** "For us": an icon AND the words — the shape tells the three apart without colour, the
  *  words say it (WCAG 1.4.1). Its own slot, never merged with the review's word. */
@@ -542,6 +544,13 @@ function RowWho({ change, reader }: { change: ClientChange; reader: ChangeList }
   return who === "Yours to answer" ? null : <span className="cx-row__tag">{who}</span>;
 }
 
+/** A row's clause group: its top-level number; a point on the client's paper no clause
+ *  was confirmed for (MISSING included) is not placed, never "opening text". */
+export function groupHead(c: ClientChange): string {
+  return sectionRef(c.clause.number?.split(".")[0])
+    ?? (c.kind === "THEIRS" && !c.after ? "Not placed in a clause" : "Opening text");
+}
+
 function ChangeIndex({ rows, current, onPick, allUntracked, reader, formatting, onKeepAllFormatting, place, packageLine }: {
   rows: ClientChange[]; current: ClientChange | null; onPick: (key: string) => void;
   allUntracked: boolean; reader: ChangeList; place?: string | undefined;
@@ -562,7 +571,7 @@ function ChangeIndex({ rows, current, onPick, allUntracked, reader, formatting, 
   for (const c of rows) {
     if (formattingOnly(c)) continue;
     const top = c.clause.number?.split(".")[0];
-    const head = sectionRef(top) ?? "Opening text";
+    const head = groupHead(c);
     // a restarted number is a different clause under each heading (`under`)
     const under = c.clause.under ?? null;
     if (groups.at(-1)?.head !== head || (groups.at(-1)?.under ?? null) !== under || groups.at(-1)?.fmt) {

@@ -610,9 +610,10 @@ def _clause(unit: dict) -> dict:
 
 #: `AM-299` r1 split (Batch 1, proposed): why a NEGATIVE row goes to Legal, in three
 #: words — never a routing input; `effect_for_us` and the route stay as they are
-WORSE, ABSENT, NOT_MEASURED = "WORSE", "ABSENT", "NOT_MEASURED"
+WORSE, ABSENT, REVIEW, NOT_MEASURED = "WORSE", "ABSENT", "REVIEW", "NOT_MEASURED"
 _MEASURED_AGAINST = (FindingClassification.DEVIATION.value,
                      FindingClassification.CONFLICT.value)
+_COMPARED = (FindingClassification.MATCH.value, *_MEASURED_AGAINST)
 
 
 def _measured(effect: str, kind: str, before: list[dict], after: list[dict],
@@ -621,8 +622,9 @@ def _measured(effect: str, kind: str, before: list[dict], after: list[dict],
     WORSE only where something says so: a DEVIATION or CONFLICT not accepted in our
     favour on the returned clause, an `AM-224` reason it moves risk onto us, or our
     measured clause deleted. ABSENT: the client's paper lacks the point (MISSING).
-    Anything else — unable to evaluate, nothing measures it, a move — is NOT_MEASURED,
-    never "worse" (rule 15)."""
+    REVIEW: a standard did measure the clause and nothing says worse (a settled deviation,
+    `AM-317` r1's changed words still matching). Anything else — unable to evaluate,
+    nothing measures it — is NOT_MEASURED; neither is ever "worse" (rule 15)."""
     if effect != NEGATIVE:
         return {}
     if (any(f["classification"] in _MEASURED_AGAINST and not _settled(f) for f in after)
@@ -631,6 +633,8 @@ def _measured(effect: str, kind: str, before: list[dict], after: list[dict],
     if kind == THEIRS_KIND and any(
             f["classification"] == FindingClassification.MISSING.value for f in after):
         return {"measured": ABSENT}
+    if any(f["classification"] in _COMPARED for f in (*before, *after)):
+        return {"measured": REVIEW}
     return {"measured": NOT_MEASURED}
 
 
