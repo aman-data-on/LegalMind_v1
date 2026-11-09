@@ -29832,3 +29832,21 @@ r4  WHAT IT DOES NOT TOUCH. The version's file, evidence, Review, Findings, snap
 r5  NOT AMENDED: 33.7 for the document itself; AB-13 r7; AM-324 r4 (every upload declares
     its role). Nothing deployed; production untouched.
 ```
+
+## AB-182 (continued) — `AM-340` r6 and a correction to r1 (2026-11-09, PROPOSED)
+
+**Status: PROPOSED — awaiting the owner's yes**, with `AM-340` above. Raised by the round-2
+re-verification of Batch 0 (P1). Adds r6 and corrects r1's wording. The text above is
+unchanged and read with this one.
+
+```text
+r1' CORRECTION TO r1. "Undeclared" means no version_role and no source LegalMind knows:
+    a source outside {ORGANIZATION, COUNTERPARTY}, or none, counts as undeclared (as the
+    code reads it, negotiation.is_declared). r1 is otherwise unchanged.
+r6  ALREADY USED AS OURS. A reviewed, undeclared version that LegalMind already treated as
+    ours — recorded as sent to the client (sent_at), or the left ("ours") side of any
+    recorded answer (comparison choice) — may be late-declared COMPANY_DRAFT only.
+    CLIENT_MODIFIED is refused (409, "This version was already used as ours (sent to the
+    client, or compared as our side), so it can only be declared ours."): declaring it the
+    client's would recast answers and sends already on record.
+```
