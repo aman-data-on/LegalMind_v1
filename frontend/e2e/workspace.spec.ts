@@ -357,6 +357,8 @@ test.describe("the Findings pane, slice 2", () => {
     expect(first.status()).toBe(201);
 
     await evaluation.getByRole("button", { name: "Decide" }).click();
+    // LA-1: nothing is preselected — the decider picks the type
+    await evaluation.locator(".ws-decision__form select").selectOption("ACCEPT_DEVIATION");
     await evaluation.getByLabel("Justification (required)").fill("STRUCTURAL — not a legal position (rule 21).");
     await evaluation.getByRole("button", { name: "Record decision" }).click();
 

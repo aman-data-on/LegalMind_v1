@@ -118,6 +118,8 @@ test.describe("the review workflow (AB-103)", () => {
     await openFindingsTab(reviewer);
     const card = reviewer.locator("article[data-finding-id]").first();
     await card.locator(".ws-decision__open").click();
+    // LA-1: nothing is preselected — the decider picks the type
+    await card.locator(".ws-decision__form select").selectOption("ACCEPT_DEVIATION");
     await card.getByLabel("Justification (required)").fill("STRUCTURAL browser-suite decision.");
     await card.getByRole("button", { name: "Record decision" }).click();
     await expect(card.locator(".ws-decision__conflict")).toContainText("Not recorded");
@@ -143,6 +145,8 @@ test.describe("the review workflow (AB-103)", () => {
     await openFindingsTab(reviewer);
     const card = reviewer.locator("article[data-finding-id]").first();
     await card.locator(".ws-decision__open").click();
+    // LA-1: nothing is preselected — the decider picks the type
+    await card.locator(".ws-decision__form select").selectOption("ACCEPT_DEVIATION");
     await card.getByLabel("Justification (required)").fill("STRUCTURAL browser-suite decision.");
     await card.getByRole("button", { name: "Record decision" }).click();
     await expect(card.locator('.ws-decision [role="alert"]')).toContainText(why);
