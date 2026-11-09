@@ -21,9 +21,9 @@ Read in this order. Stop at the first that answers the question.
 |---|---|---|
 | 1 | [`all_lock.md`](../../all_lock.md) | Every locked decision, verbatim. **Append-only** — see rule 22. If this and `docs/` disagree, this wins **and you report the discrepancy** |
 | 2 | [LOCKED_DECISIONS.md](LOCKED_DECISIONS.md) | The index into it, by decision ID. Search by prefix rather than reading `all_lock.md` end to end |
-| 3 | [CLAUDE.md](../../CLAUDE.md) | The twenty-three working rules, the three repository traps, and the current configuration state |
+| 3 | [CLAUDE.md](../../CLAUDE.md) | The twenty-three working rules and the traps; path-scoped detail in `.claude/rules/` (configuration state: `legal-engine-config.md`) and procedures in `.claude/skills/` |
 | 4 | [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) | **The only document that may assert build state.** Not this one, not `LEGALMIND_PROJECT_STATE.md`, not `README.md` |
-| 5 | [CONFLICTS.md](CONFLICTS.md) | Registered contradictions. Nine are open. Resolving one needs owner approval |
+| 5 | [CONFLICTS.md](CONFLICTS.md) | Registered contradictions — the register's table is the current open list. Resolving one needs owner approval |
 | 6 | [CONTRIBUTING.md](../../CONTRIBUTING.md) | The six kinds of change, and the procedure for amending a lock |
 | 7 | [AUTO_MODE_DECISIONS.md](AUTO_MODE_DECISIONS.md) | Technical decisions taken autonomously — `what · why · what it does NOT decide` |
 | 8 | [AGENTS.md](../../AGENTS.md) § Multi-Agent and Multi-User Development Rules | **Every git and GitHub operation** — task branches, one branch per worktree, commit/push/PR discipline, conflict and CI procedure, stop conditions (owner, 2026-09-18) |
@@ -33,8 +33,8 @@ same level conflict, **stop and register it** (rule 5) rather than choosing:
 
 ```
 1  Locked decisions and amendment batches            all_lock.md
-2  Ratified Company Standards                        backend/config/company_standards/  (32 files)
-3  The approved Legal Rule                           zero tolerance - see CLAUDE.md
+2  Ratified Company Standards                        backend/config/company_standards/  (count them; never quote)
+3  The approved Legal Rule                           zero tolerance + AM-239 favour form - .claude/rules/legal-engine-config.md
 4  Authoritative statute / legal source              background law ONLY; never configuration
 5  Recorded product decisions                        this docs/ tree
 6  Technical implementation choices                  AUTO_MODE_DECISIONS.md
@@ -43,7 +43,7 @@ same level conflict, **stop and register it** (rule 5) rather than choosing:
 
 ⚠️ **Level 4 is not level 2.** A statute is background law: cite it in an explanation, never load it
 as configuration, and derive no Requirement, threshold or acceptance position from one. See
-[CLAUDE.md](../../CLAUDE.md) § Source material.
+`.claude/rules/legal-engine-config.md` § Source material (rule 21 in [CLAUDE.md](../../CLAUDE.md)).
 
 ---
 

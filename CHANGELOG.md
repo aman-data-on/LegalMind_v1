@@ -10,6 +10,10 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-11-09 — Constitution L1.17 carries both L1.16s (AB-178: AM-325)
+
+- `origin/main` merged into the records branch. Main's L1.16 (`AM-300`, the NDA counterparty redaction) kept as history under a SUPERSEDED banner; `LEGAL_CONSTITUTION_L1.17.md` = that text + `AM-313`'s §9 addition byte for byte (payment obligations outside the cap). Ask reads L1.17. `all_lock.md`: main's 27,710 lines byte-identical, then this branch's records, then AB-178 (29,769 lines).
+
 ### 2026-11-09 — Corrections after the re-verification (AB-177: AM-324) — branch `feat/clm-p1-negotiate`, not deployed
 
 - A carried acceptance is re-checked when used (decider lost the right, REJECT or escalation on any hop → not accepted); liability months 1–60 and never prefilled; `[●]`/`[•]`/`[ ]`/dot runs are blanks; the upload requires and stores whose paper it is. `all_lock.md` 29672 → 29709 lines.
@@ -30,6 +34,15 @@ No version has been released. The V1 specification is complete and implementatio
 - Owner confirmed the CLM R&D report's §17.1 (A-1 … A-30, "yes do", product first); appended to `all_lock.md` as **AB-150**, one AM per item in order (A-1 → `AM-250` … A-30 → `AM-279`), each naming the lock it amends with its current text and line. Effective forward, not retroactive. `all_lock.md` 27410 → 27856 lines; `origin/main` prefix byte-identical.
 - `LOCKED_DECISIONS.md`: 30 rows added; amended rows annotated (PROD-07, IMPL-01, ARCH-06, FE-01, TEST-10/54.6, AM-25, AM-30, AM-34, AM-38, AM-39/AB-12, AM-42, AM-49 (referenced, not amended), AM-55, AM-57, AM-133, AM-136, AM-156, AM-179, AM-224).
 - §17.2's A-31 … A-39 recorded as proposed, owner choice pending, default off — nothing amended for them. The issuing-entity column waits on C-19.
+
+### 2026-11-09 — Agent instruction files restructured to the official Claude Code guidance — branch `docs/agent-instructions-20261109`, NOT committed
+
+No lock, rule or decision changed; guidance reorganised. `CLAUDE.md` 665 → 141 lines (all 23 rules and their IDs kept; history removed; the old file verbatim at `docs/00-project/archive/CLAUDE_MD_2026-11-09.md`). Path-scoped `.claude/rules/` (ui-ux, ask-rag, legal-engine-config, records-and-locks, testing), skills `local-stack`, `team-delivery`, `lock-amendment`, read-only agent `independent-verifier`. Contradictions fixed: MSA cap 6 vs 12 months, "two" standards/evaluators, Ask stage 6 "never built", commit-to-main git text, the `AM-239` favour form missing, DESIGN.md as binding; AGENTS.md §7/§8/§20 no longer advise stash, `add -A`, checkpoint commits or pushing without the owner, and it now carries the shared-working-tree section. Hooks proposed, not enabled: `docs/00-project/PROPOSED_HOOKS_2026-11-09.md`. Audit: `docs/00-project/AGENT_INSTRUCTIONS_AUDIT_2026-11-09.md`.
+
+### 2026-11-04 — Constitution L1.16, statute rerank without editorial marks (AB-147: AM-300); records of the 2026-11-03 deploy
+
+- **AM-300** L1.16 redacts the NDA counterparty's name that one reference-table row of L1.15 still carried (L1.15 kept as history under a banner); the statute cross-encoder reads the text without India Code's editorial marks — IT Act s.43A back to rank 1 for the data-leak compensation question; golden hit@1 0.857 → 0.929; no benchmark metric fell. After deploy: `tools.ingest_constitution`, then the statute swap (17 Acts, section-7, staged 2026-11-03) checked by the hard benchmark with rollback kept.
+- **Records:** batches AB-143/144/145/146 DEPLOYED 2026-11-03 as `d2a5243` (PRs #280–#283); a merge gap on #282 (job 13 failed, merged on the required check only) fixed by #283 before any deploy — merge rule now: read every check first.
 
 ### 2026-11-03 — CloudPe Gemma as an Ask model; no-credit models switched off (AB-146: AM-249) — branch `feat/cloudpe-gemma-20261103`, NOT committed
 

@@ -27679,6 +27679,38 @@ r4  NOTHING ELSE CHANGES: the same retrieval, permissions, answer check and audi
 
 ---
 
+AMENDMENT BATCH AB-147 — `AM-300` (2026-11-04): the Constitution names no counterparty, and a
+statute is reranked without India Code's editorial marks
+
+**Owner decisions:** 2026-11-03, "go with your recommendation" on redacting the NDA counterparty's
+name that one row of Constitution L1.15 still carried (rule 5 report, tracker O-11); 2026-11-04,
+"commit" for the statute fix and the swap. `AM-300` is numbered clear of AM-250–AM-299, which the
+CLM programme's uncommitted records hold.
+
+`AM-300` — Constitution L1.16; editorial marks out of the statute rerank text (amends `AM-243`
+r1's version and canonical path; extends `AM-87`'s statute rerank and `AM-247` r3)
+
+```text
+r1  L1.16 IS L1.15 WITH ONE CHANGE: the NDA counterparty's name in one row of the reference
+    table is replaced by "[NDA Counterparty]", the marker the Constitution already uses for
+    that party, so the redaction recorded since L1.10 holds in every line. No position,
+    figure or section changes. L1.15 stays as history under a superseded banner (rule 22:
+    locked text is never edited); its knowledge source becomes SUPERSEDED on ingest, so Ask
+    never searches it.
+r2  THE RERANKER READS THE LAW, NOT THE PRINTER'S MARKS. India Code's editorial marks
+    ("3[", "]", "1***") are removed from the text the cross-encoder scores for a statute.
+    Stored, embedded and cited text is unchanged. Found 2026-11-03: the section-7 re-ingest
+    cut the amendment footnotes, the dangling marks then read as noise, and IT Act s.43A fell
+    from rank 1 to 2 below DPDP s.17 (exemptions) for a data-leak compensation question;
+    1,603 of 5,002 chunks carry the marks.
+r3  MEASURED (zero Gemini): the hard benchmark at baseline on both statute generations (MRR
+    0.9116, S01 back to rank 1); rag_benchmark golden hit@1 0.857 → 0.929, reranked-pool MRR
+    0.8824 → 0.8882 (live) and 0.8941 → 0.9000 (staged); no metric fell. Then the staged
+    section-7 generation is swapped in (blue-green, rollback kept).
+```
+
+---
+
 ## AB-150 — `AM-250` … `AM-279` (2026-11-02): product first — a lock in the way of a better product is amended (the CLM programme)
 
 **Origin.** The CLM R&D report (`docs/architecture/clm-rnd/00-CLM_RND_REPORT.md` §17, branch
@@ -29706,4 +29738,32 @@ r4  WHOSE PAPER IT IS TRAVELS WITH THE FILE (refines AM-323 r7). The upload take
 r5  NOT YET COVERED: client wording that goes into an Annexure A entry is not checked for
     blanks (noted by the re-verifier; later).
 r6  NOT AMENDED: everything AM-323 r8 names. Nothing deployed; production untouched.
+```
+
+## AB-178 — `AM-325` (2026-11-09): Constitution L1.17 — main's L1.16 (`AM-300`) and this branch's L1.16 (`AM-313`), both kept
+
+**Who decided:** the owner, 2026-11-09 — "ok" on the order the coordinator proposed: main's
+L1.16 (`AM-300`, AB-147) lands first, then this branch's Constitution becomes L1.17 carrying
+both. Two records had each named its own change "L1.16": `AM-300` (the NDA counterparty's name
+redacted in one reference-table row) and `AM-313` (AB-166: Section 9 takes a Party's obligation
+to pay fees and charges due outside the liability cap). Neither change replaces the other.
+`AM-325` and `AB-178` were scanned on `main`, every worktree and every remote branch before
+being taken. Amends `AM-313` as to its version number only; `AM-313`'s text above, `AM-300`'s
+and every earlier record are unchanged.
+
+`AM-325` — Constitution L1.17 = L1.16 (AM-300) + AM-313's Section 9 addition
+
+```text
+r1  THE VERSION. The Constitution AM-313 adopts is L1.17, not L1.16: main's L1.16 (AM-300,
+    the NDA counterparty redaction — "[NDA Counterparty]" in the reference row, three
+    markers in all) with AM-313's Section 9 addition inserted byte for byte after the
+    data-loss validation ("Payment Obligations Outside the Cap": a Party's obligation to
+    pay fees and charges due under the agreement is not limited by the cap; indemnification
+    obligations remain within it). The header and the Document Version row say L1.17,
+    previously L1.16. Nothing else differs from main's L1.16.
+r2  L1.16 STAYS AS HISTORY. LEGAL_CONSTITUTION_L1.16.md is main's AM-300 text with a
+    SUPERSEDED banner only. Ask reads L1.17 (constitution.CURRENT_VERSION); L1.16 joins the
+    superseded chain (effective 2026-11-04); L1.17 takes effect 2026-11-09.
+r3  NOT AMENDED: AM-300's redaction; AM-313's position and its words; every ratified
+    standard (none cites L1.16 §9); zero tolerance; rules 7/21. Nothing deployed.
 ```

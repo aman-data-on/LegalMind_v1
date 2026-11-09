@@ -2435,3 +2435,8 @@ Built in `/root/legalmind-worktrees/clm-p1` (uncommitted).
 - **Proved**: six carry probes as tests; live on `:8389` a carried acceptance went 2 → 0 when the lawyer's roles were removed and Sales' accept returned 403, then 2 again when restored; liability months 0/−1/1000 refused, 12 accepted, nothing prefilled.
 - **Not merged**: `origin/main` into this records branch conflicts on `LEGAL_CONSTITUTION_L1.16.md` and the Constitution code/tests — two different L1.16s (AB-147 on main, AB-166 here). Raised, not resolved (rule 5).
 
+## 2026-11-09 — AB-178: Constitution L1.17 carries both L1.16s (`AM-325`)
+
+- **Merged** `origin/main` into `records/clm-amendments-20261102` (owner "ok" on the order). `LEGAL_CONSTITUTION_L1.16.md` = main's (`AM-300`) + a SUPERSEDED banner; `LEGAL_CONSTITUTION_L1.17.md` = main's L1.16 + `AM-313`'s §9 addition (checked byte-identical), three `[NDA Counterparty]` markers, the counterparty's name nowhere. `constitution.py` CURRENT = L1.17, L1.16 superseded (2026-11-04), L1.17 effective 2026-11-09; knowledge tests updated (chain, statuses, breadcrumbs, AM-300 redaction held in L1.17, AM-313 §9 in L1.17). `all_lock.md` main prefix byte-identical.
+- **Re-ingest needed** wherever Ask's knowledge tables are loaded (the source row is L1.17 now): run the Constitution ingest after this lands.
+

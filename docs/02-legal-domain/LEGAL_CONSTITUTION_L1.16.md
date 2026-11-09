@@ -1,11 +1,10 @@
 <!-- Canonical repository copy of the Legal Constitution, Lawyer Review Version L1.16.
-     Adopted as the governing source for company positions by AM-313 (AB-166, 2026-11-05),
-     superseding L1.15 (AM-243, 2026-11-02), which stays in the repository unchanged as
-     history. L1.16 is L1.15 with ONE addition, an owner decision of 2026-11-05 on Claude's
-     drafting recommendation (no advocate has reviewed it): Section 9 states that a Party's
-     obligation to pay fees and charges due under the agreement is not limited by the
-     liability cap. Nothing else changes; no other class of claims leaves the cap.
-     (L1.15 itself:
+     Adopted as the governing source for company positions by AM-300 (AB-147, 2026-11-04),
+     superseding L1.15 (AM-243, 2026-11-02), which stays in the repository marked superseded
+     by a banner only. L1.16 is L1.15 with ONE change: the NDA counterparty's name, left in
+     one row of the reference table, is replaced by "[NDA Counterparty]" — the marker the
+     Constitution already uses for that party — so the redaction recorded since L1.10 holds
+     everywhere. No position, figure or section changes. (L1.15 itself:
      Adopted as the governing source for company positions by AM-243 (AB-141, 2026-11-02),
      superseding L1.14 (AM-163, 2026-10-19), which stays in the repository unchanged as
      history (marked superseded by a banner only). L1.15 is L1.14 with ONE change, on the owner's standing ruling of 2026-10-09,
@@ -28,6 +27,10 @@
      the current corporate law in L1.12. The counterparty redaction of L1.10 is carried over
      unchanged.))) -->
 
+> **📁 SUPERSEDED 2026-11-09 by [LEGAL_CONSTITUTION_L1.17.md](LEGAL_CONSTITUTION_L1.17.md) (`AM-313` as `AM-325` records it, AB-178).**
+> Retained unchanged as history. L1.17 adds to Section 9 that a Party's obligation to pay fees
+> and charges due is outside the liability cap; nothing else differs. Ask searches only the current version.
+
 **LEGAL MIND**
 
 **LEGAL CONSTITUTION**
@@ -40,7 +43,7 @@ FINAL LAWYER REVIEW VERSION — Consolidated Legal, Regulatory, and Company-Posi
 
 **COMPANY / STAKEHOLDER POSITION: CONFIRMED  —  LEGAL STATUS: FOR COUNSEL REVIEW AND APPROVAL**
 
-| Document Version | L1.16 — Final Lawyer Review Version, Section 9 states that payment obligations are outside the cap (L1.16, 2026-11-05, owner decision on Claude's drafting recommendation: payment obligations outside the cap); previously L1.15, Section 11 states the Leapswitch SLA's uptime as published at www.leapswitch.com (2026-11-02); previously L1.14, Section 9 states the data-loss exclusion and its relationship to the liability cap (2026-10-19); previously L1.13, the incorporating statute taken from the published website (2026-10-09); previously L1.12, brought to the published Privacy Policy, Terms of Service, SLA and Acceptable Usage Policy of both brands as read on 2026-10-09 (owner ruling 2026-10-09: the published website text is authoritative); previously L1.11, with statutory references maintained (2026-10-06): the Section 28.3 IT Act penalty entries (ss. 70B(7) and 72A) are brought to the Act as amended by the Jan Vishwas (Amendment of Provisions) Act, 2023, a note on s. 43A and DPDP Act s. 44(2)(a) is added for Counsel, and Appendix E records the 2023 amendment; otherwise identical to L1.10. Consolidates the company/stakeholder-approved Legal Mind — Legal Constitution (v1.3), the Legal Conflicts Register (22 resolved conflicts), applicable Indian law, approved company documents, and Partner/Vendor/Distribution/PO/Amendment-specific provisions (Section 31\) into a single, complete reference for Legal Counsel, with all resolvable Counsel-decision items converted into established company positions requiring only legal validation. This is a companion document to, not a replacement for, the stakeholder version — see Section 1.2. |
+| Document Version | L1.16 — Final Lawyer Review Version, the NDA counterparty's name redacted in the reference table (2026-11-04); previously L1.15, Section 11 states the Leapswitch SLA's uptime as published at www.leapswitch.com (2026-11-02); previously L1.14, Section 9 states the data-loss exclusion and its relationship to the liability cap (2026-10-19); previously L1.13, the incorporating statute taken from the published website (2026-10-09); previously L1.12, brought to the published Privacy Policy, Terms of Service, SLA and Acceptable Usage Policy of both brands as read on 2026-10-09 (owner ruling 2026-10-09: the published website text is authoritative); previously L1.11, with statutory references maintained (2026-10-06): the Section 28.3 IT Act penalty entries (ss. 70B(7) and 72A) are brought to the Act as amended by the Jan Vishwas (Amendment of Provisions) Act, 2023, a note on s. 43A and DPDP Act s. 44(2)(a) is added for Counsel, and Appendix E records the 2023 amendment; otherwise identical to L1.10. Consolidates the company/stakeholder-approved Legal Mind — Legal Constitution (v1.3), the Legal Conflicts Register (22 resolved conflicts), applicable Indian law, approved company documents, and Partner/Vendor/Distribution/PO/Amendment-specific provisions (Section 31\) into a single, complete reference for Legal Counsel, with all resolvable Counsel-decision items converted into established company positions requiring only legal validation. This is a companion document to, not a replacement for, the stakeholder version — see Section 1.2. |
 | :---- | :---- |
 | **Document Status** | FINAL — COMPLETE FOR COUNSEL SUBMISSION |
 | **Company / Stakeholder Position** | CONFIRMED (see Section 1.2 and Appendix H for traceability to the stakeholder version) |
@@ -356,12 +359,6 @@ The 12-month aggregate liability cap applies only to liabilities that remain rec
 Any separately contracted backup, restoration or managed-data service must expressly define its responsibilities, remedies and applicable liability limits.
 
 Legal Validation (data loss): this position is subject to applicable law and legal review. Counsel must reconcile it with confidentiality, personal-data protection and other liability exceptions; it must not be treated as excluding liabilities that cannot lawfully be excluded.
-
-### **Payment Obligations Outside the Cap**
-
-*Added in L1.16 (`AM-313`, 2026-11-05), an owner decision on Claude's drafting recommendation, from LeapSwitch's side as the provider. Recorded as given; nothing in it is inferred or extended.*
-
-Company Position (payment obligations): the liability cap does not limit a Party's obligation to pay fees and charges due under the agreement. Carve-out language: *“a Party's obligation to pay fees and charges due under this Agreement”*. No other class of claims is taken out of the cap by this addition; in particular, indemnification obligations remain within the cap.
 
 ### **Drafting Notes for Counsel — Illustrative Clause Language (not yet in any signed contract)**
 
@@ -1994,7 +1991,7 @@ This register reflects the Source-of-Truth hierarchy in Section 7 and the docume
 | Leapswitch Privacy Policy | Privacy Policy | Leapswitch | Leapswitch | General | AUTHORITATIVE | N/A | Current | Leapswitch services | Data-handling disclosure | Counsel Validation Point |
 | CloudPe Privacy Policy | Privacy Policy | Leapswitch | CloudPe | General/GPU/Gaming | AUTHORITATIVE | N/A | Current | CloudPe services | Data-handling disclosure | Counsel Validation Point |
 | Reference MSA | MSA | Leapswitch | Leapswitch | General | REFERENCE | N/A | Not formally adopted | Structure/pattern reference only (§7.1) | Understand market MSA structure | REFERENCE ONLY — not yet adopted as Source of Truth |
-| Reference NDA (PSM SoftTech) | NDA | Leapswitch | Entity-wide | N/A | REFERENCE | N/A | Adaptable per engagement | Confidentiality drafting base only | Adapt per engagement | REFERENCE ONLY — adapt per engagement, not yet a standing template |
+| Reference NDA ([NDA Counterparty]) | NDA | Leapswitch | Entity-wide | N/A | REFERENCE | N/A | Adaptable per engagement | Confidentiality drafting base only | Adapt per engagement | REFERENCE ONLY — adapt per engagement, not yet a standing template |
 | DPA | DPA | Leapswitch | Entity-wide | N/A | No standalone form exists | N/A | LegalMind rules apply per §12.2/§28.2 regardless | N/A | N/A — not a dependency for LegalMind | NOT A DEPENDENCY |
 | Order Form / Purchase Order | Order Form | Leapswitch | Entity-wide | N/A | No standalone form exists | N/A | LegalMind rules apply per §20/§31.11 regardless | N/A | N/A — not a dependency for LegalMind | NOT A DEPENDENCY |
 | Amendment / Addendum | Amendment | Leapswitch | Entity-wide | N/A | No standalone form exists | N/A | LegalMind rules apply per §21/§31.12 regardless | N/A | N/A — not a dependency for LegalMind | NOT A DEPENDENCY |
