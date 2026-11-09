@@ -564,7 +564,7 @@ function ChangeIndex({ rows, current, onPick, allUntracked, reader, formatting, 
   // the formatting-only rows are one group, first and closed (a heading's capitals or
   // colon, 19 of them on a returned MSA, are not 19 things to read)
   const [closed, setClosed] = useState<ReadonlySet<string>>(new Set([`${FMT}-fmt`]));
-  const groups: { key: string; head: string; title: string | null; under?: string | null; rows: ClientChange[]; fmt?: boolean }[] = [];
+  const groups: { key: string; head: string; title: string | null; name?: string | null; rows: ClientChange[]; fmt?: boolean }[] = [];
   const fmtRows = rows.filter(formattingOnly);
   if (fmtRows.length) groups.push({ key: `${FMT}-fmt`, head: FMT, title: null, rows: fmtRows, fmt: true });
   // grouped by top-level clause: "9", "9.1", "9.2" sit under 9 (the document's own number)
@@ -572,10 +572,10 @@ function ChangeIndex({ rows, current, onPick, allUntracked, reader, formatting, 
     if (formattingOnly(c)) continue;
     const top = c.clause.number?.split(".")[0];
     const head = groupHead(c);
-    // a restarted number is a different clause under each heading (`under`)
-    const under = c.clause.under ?? null;
-    if (groups.at(-1)?.head !== head || (groups.at(-1)?.under ?? null) !== under || groups.at(-1)?.fmt) {
-      groups.push({ key: `${head}-${groups.length}`, head, title: null, under, rows: [] });
+    // a number the paper uses twice is two clauses, told apart by their own words
+    const name = c.clause.number === top ? c.clause.name ?? null : null;
+    if (groups.at(-1)?.head !== head || (name && groups.at(-1)?.name !== name) || groups.at(-1)?.fmt) {
+      groups.push({ key: `${head}-${groups.length}`, head, title: null, name, rows: [] });
     }
     const g = groups.at(-1)!;
     g.rows.push(c);
@@ -597,7 +597,7 @@ function ChangeIndex({ rows, current, onPick, allUntracked, reader, formatting, 
                     aria-controls={`cx-group-${gi}`} onClick={() => toggle(g.key)}>
               <span className="cx-index__chev"><IconChevronRight size={12} /></span>
               <span className="cx-index__title">
-                {g.head}{g.title ? <span> {g.title}</span> : null}{g.under ? <span> ({g.under})</span> : null}
+                {g.head}{g.name ? <span> — {g.name}</span> : g.title ? <span> {g.title}</span> : null}
               </span>
               <span className="cx-index__n">
                 {open ? `${open} open` : "done"}<span className="ws-visually-hidden"> of {g.rows.length}</span>
@@ -620,7 +620,7 @@ function ChangeIndex({ rows, current, onPick, allUntracked, reader, formatting, 
                             onClick={() => onPick(c.row_key)}>
                       {/* the group already says the clause: a row that would only repeat
                           it, or say a bare number, says its own first words */}
-                      <span className="cx-row__where">{rowLabel(c, [g.head, g.title].filter(Boolean).join(" ") + (g.under ? ` (${g.under})` : ""))}</span>
+                      <span className="cx-row__where">{rowLabel(c, g.name ? `${g.head} — ${g.name}` : [g.head, g.title].filter(Boolean).join(" "))}</span>
                       <span className="cx-row__meta">
                         {/* S1 — ONE status on line 1: the review's word against our standard
                             when it asks for a person, else what the change does for us. The

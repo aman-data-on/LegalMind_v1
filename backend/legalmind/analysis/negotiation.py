@@ -57,6 +57,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from collections import Counter
 from collections.abc import Callable
 from typing import Any
 from uuid import UUID
@@ -81,7 +82,7 @@ from legalmind.evaluation.constitution_boundaries import constitution_prohibitio
 from legalmind.evaluation.user_status import ACCEPTABLE, by_finding
 from legalmind.evaluation.workflow import derive_finding_status
 from legalmind.extraction.parties import PROVIDER_TYPES
-from legalmind.mapping.engine import Clause, restart_headings
+from legalmind.mapping.engine import Clause
 from legalmind.mapping.service import load_clauses
 from legalmind.security import audit
 from legalmind.security.errors import SecurityError
@@ -320,9 +321,9 @@ def _units(clauses: list[Clause]) -> list[dict[str, Any]]:
     """The clauses as negotiated: a numbered row starts one (its own number again is a
     continuation), so does an unnumbered heading or a schedule's own heading line; any
     other unnumbered row belongs to the clause above it. Text before the first is the
-    opening. ``under``: the heading a restarted number sits under (`restart_headings`),
-    else None."""
-    restarts = restart_headings(clauses)
+    opening. ``name``: only where one number belongs to two or more units (a paper that
+    restarts its numbering), each such unit's OWN heading or first words (`_own_name`)
+    — never a heading inferred from another row; else None."""
     units: list[dict[str, Any]] = []
     for row in clauses:
         first = (row.content or "").strip().split("\n", 1)[0]
@@ -333,8 +334,7 @@ def _units(clauses: list[Clause]) -> list[dict[str, Any]]:
         if starts:
             units.append({"number": row.section_number,
                           "heading": row.section_title or (first[:120] if part else None),
-                          "page": row.page_number, "part": part,
-                          "under": restarts.get(row.evidence_id), "rows": []})
+                          "page": row.page_number, "part": part, "rows": []})
         units[-1]["rows"].append(row)
     for unit in units:
         rows = unit.pop("rows")
@@ -346,7 +346,31 @@ def _units(clauses: list[Clause]) -> list[dict[str, Any]]:
         unit["original"] = "\n".join(r.content or "" if (r.marks or {}).get("original")
                                      is None else r.marks["original"] for r in rows)
         unit["changes"] = [c for r in rows for c in (r.marks or {}).get("changes") or ()]
+    numbers = Counter(u["number"] for u in units if u["number"])
+    for unit in units:
+        unit["name"] = _own_name(unit) if numbers[unit["number"]] > 1 else None
     return units
+
+
+#: how many of a unit's own first words name it when it has no heading
+_NAME_WORDS = 8
+_NAME_MARKUP = " \t*#\\_:.-\u2013\u2014"
+_ZERO_WIDTH = dict.fromkeys(map(ord, "\u200b\u200c\u200d\u2060\ufeff"))
+
+
+def _own_name(unit: dict) -> str | None:
+    """A unit's own heading, else its first words with its number and markup left out —
+    only ever this unit's text (two "2"s told apart, never a guessed parent)."""
+    if (unit["heading"] or "").translate(_ZERO_WIDTH).strip():
+        return unit["heading"].strip()
+    first = (unit["texts"][0] if unit["texts"] else "").strip().split("\n", 1)[0]
+    number = unit["number"] or ""
+    if number and first.startswith(number):
+        first = first[len(number):]
+    words = first.translate(_ZERO_WIDTH).strip(_NAME_MARKUP).replace("**", "").split()
+    if not words:
+        return None
+    return " ".join(words[:_NAME_WORDS]) + ("…" if len(words) > _NAME_WORDS else "")
 
 
 #: `AM-317` r3: a definition's own term — "Business Day" shall mean / means / has the
@@ -605,7 +629,7 @@ def _tracked(kind: str, old: dict | None, new: dict | None,
 
 
 def _clause(unit: dict) -> dict:
-    return {"number": unit["number"], "heading": unit["heading"], "under": unit["under"]}
+    return {"number": unit["number"], "heading": unit["heading"], "name": unit["name"]}
 
 
 #: `AM-299` r1 split (Batch 1, proposed): why a NEGATIVE row goes to Legal, in three
@@ -978,7 +1002,7 @@ def paper_first(db: DBSession, contract: M.Contract, after: M.DocumentVersion, *
         out.append({
             "row_key": key, "kind": THEIRS_KIND, "moved": False,
             "clause": _clause(here[0]) if here else
-            {"number": None, "heading": None, "under": None},
+            {"number": None, "heading": None, "name": None},
             # every clause the point was read in; none confirmed — the clauses that
             # may hold it, unranked and without a passage (nothing chose among them)
             "clauses": [_clause(u) for u in here],

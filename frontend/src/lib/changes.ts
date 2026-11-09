@@ -48,9 +48,9 @@ export interface AnswerEntry {
   internal_note?: string | null;
 }
 
-/** A clause as the server names it; ``under``: the heading a restarted number sits
- *  under ("2" under "Invoicing and Payment"), else null. */
-export interface ClauseName { number: string | null; heading: string | null; under?: string | null }
+/** A clause as the server names it; ``name``: only where the paper uses this number for
+ *  two or more clauses — the clause's OWN heading or first words, never a parent's. */
+export interface ClauseName { number: string | null; heading: string | null; name?: string | null }
 
 /** Why a NEGATIVE row goes to Legal — only on NEGATIVE rows (proposed AM-299 r1 split). */
 export type Measured = "WORSE" | "ABSENT" | "REVIEW" | "NOT_MEASURED";
@@ -246,11 +246,11 @@ export const ROUTE_LABEL: Record<ChangeRoute, string> = {
   favour: "In our favour",
 };
 
-/** "2 Fees (Invoicing and Payment)" — the heading a restarted number sits under
- *  said after it; "" when the clause has neither number nor heading. */
-export function clauseName({ number, heading, under }: ClauseName): string {
-  const head = [sectionRef(number), heading].filter(Boolean).join(" ");
-  return head && under ? `${head} (${under})` : head;
+/** "2 Fees", or — a number the paper uses twice — "2 — Invoicing and Payment" by the
+ *  clause's own words; "" when the clause has neither number nor heading. */
+export function clauseName({ number, heading, name }: ClauseName): string {
+  const ref = sectionRef(number);
+  return ref && name ? `${ref} — ${name}` : [ref, heading].filter(Boolean).join(" ");
 }
 
 export function where(change: ClientChange): string {

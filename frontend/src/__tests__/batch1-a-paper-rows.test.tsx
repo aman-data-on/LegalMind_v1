@@ -19,7 +19,7 @@ import type { DocumentVersion } from "@/lib/types";
 
 const theirs = (over: Partial<ClientChange> = {}): ClientChange => ({
   row_key: "N|THEIRS|PT-1|e1", kind: "THEIRS", moved: false,
-  clause: { number: null, heading: null, under: null }, clauses: [],
+  clause: { number: null, heading: null, name: null }, clauses: [],
   candidates: [{ number: "7", heading: "Assignment" }, { number: "12", heading: "Taxes" }],
   page: null, before: null, after: null, tracked: false, untracked: false,
   review: { before: [], after: [{ finding_id: "f1", requirement_code: "PT-1",
@@ -78,9 +78,13 @@ describe("a point nothing confirmed in one clause", () => {
     expect(html).toContain("We could not tell which clause covers this. Clauses that may: 7 Assignment; 12 Taxes.");
   });
 
-  it("names a restarted number by the heading it sits under", () => {
-    expect(where(theirs({ clause: { number: "2", heading: null, under: "INVOICING AND PAYMENT" } })))
-      .toBe("2 (INVOICING AND PAYMENT)");
+  it("tells two clauses with one number apart by their own words", () => {
+    expect(where(theirs({ clause: { number: "2", heading: null, name: "Invoicing and Payment" } })))
+      .toBe("2 — Invoicing and Payment");
+    expect(where(theirs({ clause: { number: "2", heading: "Restriction on Early Termination",
+                                    name: "Restriction on Early Termination" } })))
+      .toBe("2 — Restriction on Early Termination");
+    expect(where(theirs({ clause: { number: "5", heading: "Fees", name: null } }))).toBe("5 Fees");
   });
 });
 

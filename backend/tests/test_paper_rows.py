@@ -4,7 +4,7 @@
 an unresolved mapping lists the clauses that may hold it, unranked, with no passage; a
 NEGATIVE row says why (WORSE / ABSENT / NOT_MEASURED) with its route unchanged; one
 wording is never written over two clauses. (b) A Word->Markdown export's marks are
-read away (ingest-v11); a numbering that restarts under headings names its heading.
+read away (ingest-v11); a number the paper uses for two clauses names each by its own words.
 Every text here is synthetic structure — no legal conclusion is asserted (rule 21).
 """
 
@@ -19,7 +19,7 @@ from legalmind.db import models as M
 from legalmind.domain import enums as E
 from legalmind.drafting.reply_plan import Answer, reply_rows, sha256
 from legalmind.ingestion.parsing import parse_text
-from legalmind.mapping.engine import Clause, restart_headings
+from legalmind.mapping.engine import Clause
 from tests.conftest import make_evaluation, make_finding
 from tests.test_negotiation import _contract, _docx, _ingest, owner  # noqa: F401
 
@@ -174,61 +174,42 @@ def _clauses(rows):
             for text, number, title, heading in rows]
 
 
-def test_a_restarted_number_names_the_heading_it_sits_under():
-    cs = _clauses([
-        ("ARTICLE 3 - INVOICING", "3", "INVOICING", True),
-        ("1. First row.", "1", None, False), ("2. Second row.", "2", None, False),
-        ("ARTICLE 4 - TERM", "4", "TERM", True),
-        ("1. Third row.", "1", None, False), ("2. Fourth row.", "2", None, False),
-        ("5. Only once.", "5", None, False)])
-    under = restart_headings(cs)
-    assert [under.get(c.evidence_id) for c in cs] == [
-        None, "INVOICING", "INVOICING", None, "TERM", "TERM", None]
-    units = N._units(cs)
-    twos = [u for u in units if u["number"] == "2"]
-    assert [u["under"] for u in twos] == ["INVOICING", "TERM"]
-    assert next(u for u in units if u["number"] == "5")["under"] is None
+def _names(rows):
+    return [(u["number"], u["name"]) for u in N._units(_clauses(rows))]
 
 
-def test_a_paper_numbered_once_names_no_heading():
-    cs = _clauses([("1. DEFINITIONS", "1", "DEFINITIONS", True),
-                   ("1.1 A row.", "1.1", None, False), ("1.2 A row.", "1.2", None, False),
-                   ("2. SERVICES", "2", "SERVICES", True), ("2.1 A row.", "2.1", None, False)])
-    assert restart_headings(cs) == {}
-
-
-# verify 2026-11-09: a numbered sub-clause read as a heading never heads the run
+# re-verify 2026-11-09: a repeated number is named by each clause's OWN words only
 STORED_V1 = [  # ingest-v10 reading of a Word->Markdown export: marks left in
     ("**ARTICLE 7 \u2013 TERMINATION**", None, None, False),
-    ("1. Either party may end this.", "1", None, False),
+    ("2. ## **Restriction on Early Termination**", "2", "Restriction on Early Termination",
+     True),
     ("5. ## **Immediate Termination Rights**", "5", "Immediate Termination Rights", True),
     ("6. After notice the services stop.", "6", None, False),
-    ("**ARTICLE 20 \u2013 GENERAL**", None, None, False),
-    ("1. ## **Compliance with Laws**", "1", "Compliance with Laws", True),
-    ("2. Each party complies.", "2", None, False),
+    ("**ARTICLE 8 \u2013 INVOICING**", None, None, False),
+    ("2. **Invoicing and Payment**", "2", None, False),
     ("**ARTICLE 21 \u2013 FORCE MAJEURE**", None, None, False),
-    ("1. Neither party is liable.", "1", None, False),
-    ("2. Notice is given.", "2", None, False)]
+    ("1. Neither party is liable for events beyond control.", "1", None, False)]
 
 
-def test_a_numbered_sub_clause_read_as_a_heading_never_names_the_article():
-    v11 = parse_text("\n\n".join(
-        r[0].replace("**", "## **", 1) if r[0].startswith("**") else r[0]
-        for r in STORED_V1).encode(), markdown=True).segments
-    read = [(s.content, s.section_number, s.section_title, bool(s.metadata.get("heading")))
-            for s in v11]
-    for rows in (STORED_V1, read):
-        cs = _clauses(rows)
-        under = restart_headings(cs)
-        named = set(under.values())
-        assert not named & {"Immediate Termination Rights", "Compliance with Laws"}
-        by_text = {c.content: under.get(c.evidence_id) for c in cs}
-        assert by_text["1. Neither party is liable."] == "ARTICLE 21 \u2013 FORCE MAJEURE"
-        assert by_text["6. After notice the services stop."] is None   # number met once
-        assert by_text["1. Either party may end this."] == "ARTICLE 7 \u2013 TERMINATION"
+def test_two_clauses_with_one_number_are_named_by_their_own_words():
+    got = _names(STORED_V1)
+    assert [x for x in got if x[1]] == [("2", "Restriction on Early Termination"),
+                                         ("2", "Invoicing and Payment")]
+    # a number used once (5, 6, 1, the articles) is not named at all
+    assert all(name is None for number, name in got if number != "2")
 
 
-def test_no_article_known_means_no_heading():
-    cs = _clauses([("1. A row.", "1", None, False), ("2. A row.", "2", None, False),
-                   ("1. Again.", "1", "Again", True), ("2. Again.", "2", None, False)])
-    assert restart_headings(cs) == {}
+def test_continuation_rows_are_one_clause_not_a_repeat():
+    rows = [("3. Fees.", "3", None, False), ("3. are due monthly.", "3", None, False),
+            ("4. Term.", "4", None, False)]
+    assert _names(rows) == [("3", None), ("4", None)]
+
+
+def test_a_clause_with_no_heading_is_named_by_its_first_words():
+    rows = [("1. \u200b", "1", "\u200b", False), ("9. Other.", "9", None, False),
+            ("1. Each party keeps the other party's information secret at all times here.",
+             "1", None, False)]
+    got = _names(rows)
+    assert got[0] == ("1", None)                    # nothing of its own to say: unnamed
+    assert got[1] == ("9", None)
+    assert got[2] == ("1", "Each party keeps the other party's information secret…")
