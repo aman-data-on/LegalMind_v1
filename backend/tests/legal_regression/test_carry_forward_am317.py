@@ -91,3 +91,79 @@ def test_an_undecided_earlier_point_carries_nothing(build, db, seeded):
     _version(build, db, contract, CAPPED)
     _, review = _version(build, db, contract, CAPPED)
     assert _cap_finding(db, review).status is E.FindingStatus.DECISION_REQUIRED
+
+
+# ------------------------------------------------- AM-321 r1: every hop re-checked
+def _carried_v2(build, db, seeded):
+    contract, decision = _deal(build, db, seeded)
+    _, r2 = _version(build, db, contract, CAPPED)
+    f2 = _cap_finding(db, r2)
+    assert f2.status is E.FindingStatus.RESOLVED and _carried(db, f2)
+    return contract, decision, f2
+
+
+def _escalate(build, db, finding):
+    db.add(M.Escalation(finding_id=finding.id, raised_by=build.owner.id, reason="look again"))
+    db.flush()
+
+
+def _decide(db, finding, kind, n=1):
+    [ev] = db.scalars(select(M.Evaluation).where(M.Evaluation.finding_id == finding.id)).all()
+    db.add(M.LegalDecision(finding_id=finding.id, evaluation_id=ev.id, decision_type=kind,
+                           justification="Legal's latest word", decided_by=_lawyer(db).id,
+                           version_number=n))
+    db.flush()
+
+
+def _v3_open(build, db, contract):
+    _, r3 = _version(build, db, contract, CAPPED)
+    f3 = _cap_finding(db, r3)
+    return f3.status is E.FindingStatus.DECISION_REQUIRED and not _carried(db, f3)
+
+
+def test_an_escalated_intermediate_version_breaks_the_chain(build, db, seeded):
+    contract, _, f2 = _carried_v2(build, db, seeded)
+    _escalate(build, db, f2)
+    assert _v3_open(build, db, contract)
+
+
+def test_legals_later_reject_on_an_intermediate_version_is_what_stands(build, db, seeded):
+    contract, _, f2 = _carried_v2(build, db, seeded)
+    _decide(db, f2, E.DecisionType.REJECT)
+    assert _v3_open(build, db, contract)
+
+
+def test_escalated_then_rejected_on_an_intermediate_version_carries_nothing(
+        build, db, seeded):
+    contract, _, f2 = _carried_v2(build, db, seeded)
+    _escalate(build, db, f2)
+    _decide(db, f2, E.DecisionType.REJECT)
+    assert _v3_open(build, db, contract)
+
+
+def test_a_decider_who_lost_the_right_carries_nothing_down_the_chain(build, db, seeded):
+    contract, decision, _ = _carried_v2(build, db, seeded)
+    db.execute(M.UserRole.__table__.delete().where(
+        M.UserRole.user_id == decision.decided_by))
+    db.flush()
+    assert _v3_open(build, db, contract)
+
+
+def test_an_original_decision_superseded_since_carries_nothing(build, db, seeded):
+    """v1's acceptance is replaced by Legal's REJECT (version 2 of its chain) after v2
+    carried it: v3 carries nothing — the latest human word on the chain stands."""
+    contract, decision, _ = _carried_v2(build, db, seeded)
+    f1 = db.get(M.Finding, decision.finding_id)
+    _decide(db, f1, E.DecisionType.REJECT, n=2)
+    assert _v3_open(build, db, contract)
+
+
+def test_a_real_decision_on_the_intermediate_version_carries_from_there(build, db, seeded):
+    """Legal re-decided on v2 (ACCEPT again): v3 references v2's decision, not v1's."""
+    contract, _, f2 = _carried_v2(build, db, seeded)
+    _decide(db, f2, E.DecisionType.ACCEPT_DEVIATION)
+    _, r3 = _version(build, db, contract, CAPPED)
+    f3 = _cap_finding(db, r3)
+    [event] = _carried(db, f3)
+    assert f3.status is E.FindingStatus.RESOLVED
+    assert event.after_state["from_version_number"] == 2

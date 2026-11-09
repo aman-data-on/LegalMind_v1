@@ -500,12 +500,26 @@ def _signatures(db: DBSession, review: M.Review
 
 
 def _decided(db: DBSession, finding: M.Finding) -> dict | None:
-    """What stands on an earlier Finding: its own effective decisions (every Evaluation
-    that needs one holds an ACCEPT_DEVIATION / NOT_APPLICABLE_TO_CONTRACT /
-    APPROVE_CUSTOMIZATION, its decider still holding the right), or the carry it took
-    itself — then the ORIGINAL decision is what is referenced."""
-    if (carried := carried_forward(db, finding.id)) is not None:
-        return carried
+    """What stands on an earlier Finding, re-checked NOW at every hop (`AM-321` r1):
+    the Finding must derive RESOLVED and not be escalated; if it holds Legal Decisions of
+    its own, they are what stands — its latest effective decision on every Evaluation
+    that needs one must be an ACCEPT_DEVIATION / NOT_APPLICABLE_TO_CONTRACT /
+    APPROVE_CUSTOMIZATION by a decider still holding the right (a later REJECT, a
+    clarification or an escalation on this version replaces or breaks what came before);
+    only a Finding with no decision of its own may stand on a carry, and then the
+    ORIGINAL Finding is checked again the same way, so a decision since withdrawn,
+    superseded, escalated or by a decider who lost the right carries nothing."""
+    if is_escalated(db, finding.id) \
+            or derive_finding_status(db, finding) is not FindingStatus.RESOLVED:
+        return None
+    own = db.execute(select(M.LegalDecision.id).where(
+        M.LegalDecision.finding_id == finding.id).limit(1)).first() is not None
+    if not own:
+        carried = carried_forward(db, finding.id)
+        origin = db.get(M.Finding, UUID(carried["from_finding_id"])) \
+            if carried and carried.get("from_finding_id") else None
+        return _decided(db, origin) if origin is not None and origin.id != finding.id \
+            else None
     escalated = is_escalated(db, finding.id)
     decisions = []
     for ev in db.execute(select(M.Evaluation).where(
