@@ -210,7 +210,9 @@ export interface Contract {
   /** `AM-309`, detail only: the signed contract this amends — absent unless readable */
   governed_by?: { id: string; name: string; contract_type: string | null };
   /** `AM-316`, detail only: the template it was made from — absent for an upload */
-  made_from?: { template_key: string; version: number; doc_type: string; brand: string | null; name: string | null };
+  made_from?: { template_key: string; version: number; doc_type: string; brand: string | null; name: string | null;
+    /** the template version has since been withdrawn — information only */
+    withdrawn?: boolean };
   /** `AM-309`, detail only: this contract's amendments the reader may open */
   amendments?: { id: string; name: string; status: string; signed: boolean; archived: boolean }[];
 }
@@ -249,7 +251,7 @@ export interface ContractsSummary {
  *  five legal state axes, `review_stage`, ContractStatus or ConfigStatus. */
 export type NegotiationStageCode =
   | "DRAFTING" | "INTERNAL_REVIEW" | "WITH_CLIENT" | "CLIENT_RETURNED"
-  | "READY_TO_SEND" | "READY_TO_SIGN" | "SIGNED" | "ON_HOLD";
+  | "READY_TO_SEND" | "READY_TO_SIGN" | "SIGNED" | "FINAL" | "ON_HOLD";
 
 export interface NegotiationStage {
   stage: NegotiationStageCode;
@@ -269,7 +271,8 @@ export interface DealCounts {
 
 /** `AM-264` — one thing waiting on the caller: a fixed sentence and a link. */
 export interface TodoItem {
-  kind: "decide" | "second_approval" | "client_returned" | "changes_to_answer" | "reply_ready" | "answered";
+  kind: "decide" | "second_approval" | "client_returned" | "changes_to_answer" | "reply_ready" | "answered"
+    | "contract_decision" | "prepare_final";
   contract_id: string;
   contract_name: string;
   sentence: string;
@@ -279,6 +282,8 @@ export interface TodoItem {
   count?: number;
   days?: number;
   counts?: DealCounts;
+  /** N13: the client's changes waiting on the same person, beside the points */
+  changes?: number;
 }
 
 export interface TodoList {
@@ -327,6 +332,9 @@ export interface DocumentVersion {
   /** `AM-307` — present only on our final contract: the client's version it answers and
    *  how many Special Conditions (Annexure A) it carries. */
   package?: { of_version_id: string; special_conditions: number; form?: "changes_only" };
+  /** `AM-318` — a final clean copy: the version it was made from, how, and the answers it
+   *  carries (each change's place and answer). */
+  final_copy?: { of_version_id: string; mode: "copy" | "reply" | null; agreed: { where: string; answer: string }[] };
   /** `AM-260` — when this version of ours went to the client; absent until then. */
   sent_at?: string;
   /** Counts, deliberately not a state vocabulary (`AM-29` r1): the client derives
@@ -431,6 +439,8 @@ export interface ContractOutcomeState {
   ready: boolean;
   /** why no decision can be recorded here (archived, or a newer version analysed) */
   read_only?: string | null;
+  /** `AM-318`: the Review is of a final contract — never "Sign after our changes" */
+  final?: boolean;
   /** oldest first; the last is current */
   history: ContractOutcomeVersion[];
   review_status?: string;
@@ -1465,4 +1475,13 @@ export interface ReportBlock {
   text: string;
   label: string;
   rows: string[][];
+}
+
+/** `AM-318` — the dry run of the final clean copy: every reason it cannot be made yet. */
+export interface FinalCopyPlan {
+  available: boolean;
+  blockers: { code: string; message: string }[];
+  mode: "copy" | "reply" | null;
+  of_version?: number;
+  agreed: { where: string; answer: string }[];
 }

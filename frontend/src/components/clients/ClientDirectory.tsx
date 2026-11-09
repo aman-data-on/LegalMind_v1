@@ -39,7 +39,7 @@ import { clientCountLabel, shortDate } from "./model";
 const PAGE_SIZE = 25;
 
 const COLUMNS = [
-  "Company", "Industry", "Status", "Documents", "Signed", "Last activity",
+  "Company", "Industry", "Status", "Documents", "Final", "Last activity",
   "Added", "",
 ] as const;
 

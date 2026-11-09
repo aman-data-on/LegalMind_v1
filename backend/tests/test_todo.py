@@ -208,8 +208,9 @@ def test_a_return_whose_open_changes_are_all_legals_is_not_the_owners_task(
     monkeypatch.setattr(todo, "negotiation_stages", lambda g, cs: {x.id: stage for x in cs})
     for counts, kinds in (({"changes_total": 3, "changes_left": 2, "changes_left_for_me": 0},
                            []),
+                          # AM-318 A3: every change answered — the final contract is next
                           ({"changes_total": 3, "changes_left": 0, "changes_left_for_me": 0},
-                           ["client_returned"]),
+                           ["prepare_final"]),
                           ({}, ["client_returned"])):
         monkeypatch.setattr(todo, "deal_counts", lambda g, cs, n=counts: {x.id: n for x in cs})
         assert [i["kind"] for i in _todo(api, db, owner)] == kinds
@@ -256,3 +257,39 @@ def test_a_signed_contract_waits_on_nobody(api, db, world):
         "version_role": "FINAL_SIGNED"}
     db.flush()
     assert ("answered", deal) not in _kinds(api, db, world["owner"])
+
+
+def test_am318_the_closing_tasks_have_their_one_sentence(api, db, seeded, monkeypatch):
+    """B3: the owner's "Every change is answered. Prepare the final contract." at Ready
+    for the final contract; it clears once the deal is Final."""
+    from legalmind.api.routers import todo
+
+    owner = _user(db, P.ROLE_USER)
+    c = M.Contract(owner_id=owner.id, name="Deal", status=E.ContractStatus.ACTIVE)
+    db.add(c)
+    db.flush()
+    monkeypatch.setattr(todo, "deal_counts", lambda g, cs: {x.id: {} for x in cs})
+    for code, kinds in (("READY_TO_SIGN", ["prepare_final"]), ("FINAL", [])):
+        stage = {"stage": code, "since": datetime.now(UTC).isoformat(), "days": 0}
+        monkeypatch.setattr(todo, "negotiation_stages",
+                            lambda g, cs, s=stage: {x.id: s for x in cs})
+        items = _todo(api, db, owner)
+        assert [i["kind"] for i in items] == kinds
+        if kinds:
+            assert items[0]["sentence"] == todo.PREPARE_FINAL
+
+
+def test_am318_legal_records_the_decision_on_the_contract(api, db, world):
+    """B3: every point decided, the Review with this lawyer — "Every point is decided.
+    Record the decision on the contract."; gone once the decision is recorded."""
+    from legalmind.api.routers import todo
+    review = world["review"]
+    review.status = E.ReviewStatus.RESOLVED
+    db.flush()
+    item = next(i for i in _todo(api, db, world["a"]) if i["kind"] == "contract_decision")
+    assert item["sentence"] == todo.DECIDE_CONTRACT
+    db.add(M.ContractOutcomeRecord(review_id=review.id, outcome=E.ContractOutcome.SIGN_AS_IS,
+                                   suggested=E.ContractOutcome.SIGN_AS_IS, justification="ok",
+                                   decided_by=world["a"].id, version_number=1))
+    db.flush()
+    assert all(i["kind"] != "contract_decision" for i in _todo(api, db, world["a"]))

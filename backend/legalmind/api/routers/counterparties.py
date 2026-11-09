@@ -175,9 +175,9 @@ def _client_stats(guard: Guard, ids: list[UUID]) -> dict[UUID, dict[str, Any]]:
     each may only count what they may open. Deriving it from the scoped
     statement makes that structural rather than remembered.
 
-    Three page-bounded queries, no N+1. `signed_documents` counts DOCUMENTS (a
-    contract with at least one executed version), not versions — "how many of
-    our agreements with this client are signed?" is the question a non-legal
+    Three page-bounded queries. `signed_documents` counts DOCUMENTS whose agreed text is
+    settled — Final (`AM-318`) or, legacy, with an executed version — not versions:
+    "how many of our agreements with this client are signed?" is the question a non-legal
     reader is asking, and a contract with two signed versions is still one
     signed agreement.
     """
@@ -215,10 +215,14 @@ def _client_stats(guard: Guard, ids: list[UUID]) -> dict[UUID, dict[str, Any]]:
         .where(M.DocumentVersion.contract_id.in_(list(owner_of)))
         .group_by(M.DocumentVersion.contract_id)
     ).all()
+    from legalmind.api.routers.amendments import final_copy  # circular at import
     for contract_id, newest, signed in version_rows:
         entry = stats[owner_of[contract_id]]
         entry["last_activity"] = _later(entry["last_activity"], newest)
-        if signed:
+        # AM-318: "Final" — the agreed text is settled: a final copy, or signed (legacy).
+        # ponytail: one query pair per contract without a signed copy; a stored stage
+        # is the upgrade if a client holds hundreds of deals.
+        if signed or final_copy(guard.db, contract_id) is not None:
             entry["signed_documents"] += 1
     return stats
 
@@ -480,6 +484,9 @@ def get_counterparty(counterparty_id: UUID,
             item["version_count"] = len(versions)
             item["signed"] = any(v.get("version_role") == FINAL_SIGNED
                                  for v in versions)
+            # AM-318: Final — the deal cycle's end (a final copy Legal signed off)
+            item["final"] = item["signed"] or stages.get(
+                contract.id, {}).get("stage") == "FINAL"
         items.append(item)
     payload["contracts"] = items
 

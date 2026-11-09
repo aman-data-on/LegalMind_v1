@@ -53,12 +53,16 @@ export function ContractDecision({ reviewId, reviewStatus, refreshKey, onRecorde
   if (readOnly && state.history.length === 0) return null;
   const current = state.history.at(-1) ?? null;
   const closed = reviewStatus === "CLOSED";
-  const options = closed ? ORDER.filter((o) => o !== "ON_HOLD") : ORDER;
+  // AM-318: a final contract is signed as it is, or not — never "after our changes"
+  const options = ORDER.filter((o) => !(closed && o === "ON_HOLD") && !(state.final && o === "SIGN_WITH_CHANGES"));
   const showForm = canDecide && state.ready && (editing || current === null);
-  const selected = choice ?? (current?.outcome !== "ON_HOLD" && current ? current.outcome : state.suggested);
+  const preset = current?.outcome !== "ON_HOLD" && current ? current.outcome : state.suggested;
+  // a suggestion the final contract cannot take is no default: the reviewer chooses
+  const selected: ContractOutcome | null = choice ?? (options.includes(preset) ? preset : null);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
+    if (!selected) { setError("Choose what to do with the contract."); return; }
     if (!reason.trim()) { setError("Give the reason for this decision."); return; }
     setBusy(true);
     setError(null);
@@ -121,7 +125,7 @@ export function ContractDecision({ reviewId, reviewStatus, refreshKey, onRecorde
                 <input type="radio" name={`${id}-outcome`} value={o}
                        checked={selected === o} onChange={() => setChoice(o)} />
                 <span>{CONTRACT_OUTCOME_LABELS[o]}</span>
-                {o === state.suggested ? (
+                {o === state.suggested && options.includes(state.suggested) ? (
                   <span className="ws-contract__hint">Suggested from the point decisions</span>
                 ) : null}
               </label>

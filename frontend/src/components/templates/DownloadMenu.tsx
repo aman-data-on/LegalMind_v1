@@ -93,13 +93,17 @@ export function DownloadMenu({ path, label, variant = "icon", text, align = "end
     }
     // a menu that would drift from its trigger closes instead (scroll, resize, window blur)
     const shut = () => setOpen(false);
+    // template re-check #2: a scroll still settling from the click that opened it (trackpad
+    // or touch momentum) is not the reader moving away — ignored for the first 300 ms
+    const opened = performance.now();
+    const scrolled = () => { if (performance.now() - opened > 300) setOpen(false); };
     document.addEventListener("pointerdown", away);
-    window.addEventListener("scroll", shut, true);
+    window.addEventListener("scroll", scrolled, true);
     window.addEventListener("resize", shut);
     window.addEventListener("blur", shut);
     return () => {
       document.removeEventListener("pointerdown", away);
-      window.removeEventListener("scroll", shut, true);
+      window.removeEventListener("scroll", scrolled, true);
       window.removeEventListener("resize", shut);
       window.removeEventListener("blur", shut);
     };

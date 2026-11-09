@@ -304,8 +304,11 @@ const STAGE_WORDS: Record<string, string> = {
   WITH_CLIENT: "With client",
   CLIENT_RETURNED: "Client replied",
   READY_TO_SEND: "Ready to send",
-  READY_TO_SIGN: "Ready to sign",
+  // AM-318: the deal cycle ends at the final copy; a decision on a version that is not
+  // final means the final contract is next
+  READY_TO_SIGN: "Ready for the final contract",
   SIGNED: "Signed",
+  FINAL: "Final",
   ON_HOLD: "On hold",
 };
 export function stageWords(code: string, viewer: StageViewer = "owner"): string {
@@ -328,7 +331,11 @@ export const ACTION = {
   prepareReply: "Prepare our reply",
   preparePackage: "Prepare final contract",
   prepareAmendment: "Prepare amendment",
-  sendForSignature: "Send for signature",
+  sendForSignature: "Download final contract",   // AM-318 (was "Send for signature")
+  prepareFinal: "Prepare final contract",
+  downloadFinal: "Download final contract",
+  recordContractDecision: "Record the decision",
+  startAmendment: "Start an amendment",
   sendReply: "Send our reply",
   sendToLegal: "Send to Legal",
   sendToClient: "Send to client",
@@ -362,13 +369,18 @@ export function pointsWords(c: DealCounts | undefined, viewer: StageViewer = "ow
 
 /** The stage chip, from the stage AND the counts the Summary shows — never contradicting
  *  them. Once every change is answered the stage names what really happens next. */
-export function stageLine(code: string, c: DealCounts | undefined, viewer: StageViewer = "owner"): string {
+export function stageLine(code: string, c: DealCounts | undefined, viewer: StageViewer = "owner",
+                          final = false): string {
   const points = c?.points_open ?? 0;
   if (code === "INTERNAL_REVIEW" && points) {
     return viewer === "legal" ? `Legal deciding ${plural(points, "point")}` : `With Legal, ${plural(points, "point")}`;
   }
   if (code === "CLIENT_RETURNED" && c?.changes_total && !c.changes_left) {
-    return "Changes answered, reply next";
+    return "Ready for the final contract";          // N16: the primary's own words
+  }
+  if (code === "INTERNAL_REVIEW" && final) {
+    // AM-318: the final copy waits on Legal's decision on the contract
+    return viewer === "legal" ? "Record the decision" : "Final contract, with Legal";
   }
   return stageWords(code, viewer);
 }

@@ -8,8 +8,8 @@ import { cleaned, partyRows, signatoriesRecorded, stampRecorded, toFields, type 
 import { nextStep } from "@/lib/nextStep";
 
 describe("Record signing", () => {
-  it("is the one primary step at Ready to sign, for whoever may answer", () => {
-    expect(nextStep({ viewer: "owner", canAnswer: true, stage: "READY_TO_SIGN" })?.label).toBe("Record signing");
+  it("is never a step any more: Ready for the final contract prepares it (AM-318)", () => {
+    expect(nextStep({ viewer: "owner", canAnswer: true, stage: "READY_TO_SIGN" })?.label).toBe("Prepare final contract");
     expect(nextStep({ viewer: "owner", canAnswer: false, stage: "READY_TO_SIGN" })).toBeNull();
     expect(nextStep({ viewer: "owner", canAnswer: true, stage: "SIGNED" })).toBeNull();
   });

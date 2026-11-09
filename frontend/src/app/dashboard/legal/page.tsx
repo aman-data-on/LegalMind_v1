@@ -62,7 +62,7 @@ export default function LegalQueuePage() {
     setState({ kind: "loading" });
     try {
       const pages = await Promise.all(
-        ACTIVE_STATUSES.map((status) => api.reviews({ page: 1, page_size: REVIEW_WINDOW, status })),
+        ACTIVE_STATUSES.map((status) => api.reviews({ page: 1, page_size: REVIEW_WINDOW, status, with_me: "true" })),
       );
       const reviews = pages.flatMap((page) => page.items);
       const truncated = pages.some((page) => page.pagination.total > page.pagination.page_size);

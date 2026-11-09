@@ -24,7 +24,7 @@ describe("Terms in force", () => {
       clauses: [{ number: "8.4", heading: null, text: "Unchanged clause." },
                 { number: "8.5", heading: null, text: "Pay within thirty (30) days.",
                   original: "Pay within fifteen (15) days.", by: "a1" }] })} />);
-    expect(html).toContain("Changed by <a href=\"/contracts/a1\">Amendment No. 1</a>, signed 4 Nov 2026");
+    expect(html).toContain("Changed by <a href=\"/contracts/a1\">Amendment No. 1</a>, agreed 4 Nov 2026");
     expect(html).toContain("Wording before");
     expect(html).toContain("fifteen (15) days");
     expect(html.match(/Changed by/g)).toHaveLength(1);           // only the changed clause

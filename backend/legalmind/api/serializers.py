@@ -402,6 +402,12 @@ def serialize_document_version(dv: M.DocumentVersion) -> dict[str, Any]:
                         **({"supersedes": (dv.doc_metadata or {})["supersedes"]}
                            if (dv.doc_metadata or {}).get("supersedes") else {})}}
            if (dv.doc_metadata or {}).get("package_of") else {}),
+        # AM-318: a final clean copy — the version it was made from, how (copy · reply)
+        # and the answers it carries (each change's place and answer); present only then
+        **({"final_copy": {"of_version_id": (dv.doc_metadata or {})["final_copy_of"],
+                           "mode": (dv.doc_metadata or {}).get("final_mode"),
+                           "agreed": (dv.doc_metadata or {}).get("agreed") or []}}
+           if (dv.doc_metadata or {}).get("final_copy_of") else {}),
         # QA-037: why a FAILED version could not be read, present only then
         **({"unreadable_reason": (dv.doc_metadata or {})["unreadable"]}
            if dv.processing_status is ProcessingStatus.FAILED

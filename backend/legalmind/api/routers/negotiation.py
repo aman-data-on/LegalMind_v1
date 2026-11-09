@@ -77,10 +77,11 @@ from legalmind.api.storage import get_storage
 from legalmind.db import models as M
 from legalmind.db.lookup import contract_signed, must_exist
 from legalmind.domain.client_profile import FINAL_SIGNED
-from legalmind.domain.enums import DecisionType
+from legalmind.domain.enums import DecisionType, ProcessingStatus
 from legalmind.domain.user_status import ACCEPTABLE
 from legalmind.drafting import (
     blank,
+    clean,
     effective,
     instrument,
     pdf,
@@ -99,7 +100,7 @@ from legalmind.evaluation.workflow import (
 )
 from legalmind.ingestion.service import ingest_document
 from legalmind.ingestion.storage import StorageBackend
-from legalmind.ingestion.validation import DOCX_MIME
+from legalmind.ingestion.validation import DOCX_MIME, PDF_MIME
 from legalmind.mapping.service import load_clauses
 from legalmind.security import audit
 from legalmind.security import permissions as P
@@ -755,11 +756,25 @@ class ReplyNotApplied(Conflict):
 
 
 def _where(change: dict) -> str:
+    """Where a change is, in a reader's words (N17): its clause number; a real heading
+    (mixed case, more than one word); else "the opening text" — never a raw first line
+    ("AND", "WHEREAS", a title in capitals)."""
     clause = change["clause"]
     if clause["number"]:
         return f"clause {clause['number']}"
-    page = f"page {change['page']}" if change["page"] else "a clause"
-    return clause["heading"] or page
+    heading = (clause["heading"] or "").strip()
+    if len(heading.split()) > 1 and not heading.isupper():
+        return heading
+    return "the opening text"
+
+
+def _places(changes: list[dict], limit: int = 8) -> str:
+    """The places of these changes, each said once, in order (N17)."""
+    seen: list[str] = []
+    for c in changes:
+        if (where := _where(c)) not in seen:
+            seen.append(where)
+    return ", ".join(seen[:limit]) + (", …" if len(seen) > limit else "")
 
 
 def _require_decided(guard: Guard, version: M.DocumentVersion) -> None:
@@ -780,16 +795,15 @@ def _reply_blockers(changes: list[dict]) -> str | None:
     parts = []
     if open_:
         parts.append(f"{len(open_)} change{'s' if len(open_) != 1 else ''} not answered "
-                     f"yet ({', '.join(_where(c) for c in open_[:8])}"
-                     f"{', …' if len(open_) > 8 else ''})")
+                     f"yet ({_places(open_)})")
     if undecided:
         parts.append(f"{len(undecided)} accepted change"
                      f"{'s need' if len(undecided) != 1 else ' needs'} a Legal Decision "
-                     f"({', '.join(_where(c) for c in undecided[:8])})")
+                     f"({_places(undecided)})")
     if waiting:
         parts.append(f"{len(waiting)} answer{'s' if len(waiting) != 1 else ''} with our "
                      f"wording {'wait' if len(waiting) != 1 else 'waits'} for approval "
-                     f"({', '.join(_where(c) for c in waiting[:8])})")
+                     f"({_places(waiting)})")
     return "; ".join(parts) + "." if parts else None
 
 
@@ -827,25 +841,11 @@ def _review_reply(guard: Guard, version: M.DocumentVersion) -> M.Review | None:
     return review
 
 
-@router.post("/contracts/{contract_id}/reply", status_code=201)
-def prepare_reply(contract_id: UUID, body: ReplyRequest | None = Body(None),
-                  guard: Guard = Depends(get_guard),
-                  storage: StorageBackend = Depends(get_storage)) -> dict:
-    """Our reply to the client's latest version (R6, `AM-251` r2): their own DOCX with
-    our recorded answers as tracked changes by "LeapSwitch Legal", ingested as the next
-    version — declared Company draft — and reviewed like any upload (`AM-251` r4),
-    against OUR latest version before theirs.
-
-    Refused (409) while a change is unanswered or an accepted change routed to a
-    holder is not accepted (`AM-281`); a client PDF cannot carry tracked changes, so it
-    is refused too. Where answers cannot be written exactly, 409 REPLY_NOT_APPLIED lists
-    every one (`manual_rows`); naming exactly that list in ``manual_rows`` prepares the
-    reply with every other answer written and a Word comment at each of those places —
-    listed in the response and the audit event, never silently dropped (AB-151). The
-    contract row is locked for the request, so two replies never race: the second
-    finds the latest version already ours (409)."""
-    contract = guard.contract_negotiable(contract_id, P.CONTRACT_UPDATE)
-    _lock(guard, contract)
+def _reply_document(guard: Guard, storage: StorageBackend, contract: M.Contract,
+                    named_rows: list[str]) -> tuple[bytes, dict]:
+    """Our reply's file (R6, `AM-251` r2) and what it was built from — shared by "Prepare
+    our reply" and the final copy that applies the same answers (`AM-318`). Every 409 of
+    the reply is raised here."""
     versions = list(guard.db.execute(
         select(M.DocumentVersion).where(M.DocumentVersion.contract_id == contract.id)
         .order_by(M.DocumentVersion.version_number)).scalars())
@@ -889,7 +889,7 @@ def prepare_reply(contract_id: UUID, body: ReplyRequest | None = Body(None),
         {"row_key": r.row_key, "clause": r.clause,
          "reason": f"{failed[r.row_key]} ({failed[r.row_key].code})"}
         for r in planned if r.row_key in failed]
-    named = sorted((body or ReplyRequest()).manual_rows)
+    named = sorted(named_rows)
     if manual and named != sorted(m["row_key"] for m in manual):
         raise ReplyNotApplied(
             f"{len(manual)} answer{'s' if len(manual) != 1 else ''} cannot be written "
@@ -912,6 +912,33 @@ def prepare_reply(contract_id: UUID, body: ReplyRequest | None = Body(None),
     except ReplyError as exc:                    # pragma: no cover — dry-run above
         raise ReplyNotApplied(f"An answer could not be written into the client's file "
                               f"({exc.code}): {exc}", manual) from exc
+    return reply, {"listed": listed, "before": before, "after": after,
+                   "answers": answers, "failed": failed, "manual": manual}
+
+
+@router.post("/contracts/{contract_id}/reply", status_code=201)
+def prepare_reply(contract_id: UUID, body: ReplyRequest | None = Body(None),
+                  guard: Guard = Depends(get_guard),
+                  storage: StorageBackend = Depends(get_storage)) -> dict:
+    """Our reply to the client's latest version (R6, `AM-251` r2): their own DOCX with
+    our recorded answers as tracked changes by "LeapSwitch Legal", ingested as the next
+    version — declared Company draft — and reviewed like any upload (`AM-251` r4),
+    against OUR latest version before theirs.
+
+    Refused (409) while a change is unanswered or an accepted change routed to a
+    holder is not accepted (`AM-281`); a client PDF cannot carry tracked changes, so it
+    is refused too. Where answers cannot be written exactly, 409 REPLY_NOT_APPLIED lists
+    every one (`manual_rows`); naming exactly that list in ``manual_rows`` prepares the
+    reply with every other answer written and a Word comment at each of those places —
+    listed in the response and the audit event, never silently dropped (AB-151). The
+    contract row is locked for the request, so two replies never race: the second
+    finds the latest version already ours (409)."""
+    contract = guard.contract_negotiable(contract_id, P.CONTRACT_UPDATE)
+    _lock(guard, contract)
+    reply, built = _reply_document(guard, storage, contract,
+                                   (body or ReplyRequest()).manual_rows)
+    before, after = built["before"], built["after"]
+    answers, failed, manual = built["answers"], built["failed"], built["manual"]
     stem = (after.original_filename or "contract").rsplit(".", 1)[0]
     result = ingest_document(guard.db, storage, contract_id=contract.id,
                              uploaded_by=guard.user_id, data=reply,
@@ -979,12 +1006,19 @@ def download_pdf(document_version_id: UUID, guard: Guard = Depends(get_guard),
     render older than `pdf.STALE_S` is dispatched again); 503 PDF_NOT_MADE when it
     could not be. Gated like ``…/content`` (r1)."""
     version = guard.document_version_readable(document_version_id, P.DOCUMENT_DOWNLOAD)
-    kind = "reply" if (version.doc_metadata or {}).get("reply_to") else (
+    meta = version.doc_metadata or {}
+    kind = "reply" if meta.get("reply_to") else (
         "contract" if guard.db.execute(select(M.ContractDraft.id).where(
-            M.ContractDraft.document_version_id == version.id)).first() else None)
+            M.ContractDraft.document_version_id == version.id)).first()
+        else "final" if meta.get("final_copy_of") else None)     # AM-318
     if kind is None or not storage.exists(version.storage_key):
         raise NotVisible("document content not available")
     _require_decided(guard, version)
+    if version.mime_type == PDF_MIME:          # a final copy of the client's own PDF
+        name = download_name(guard.db, version, "pdf")
+        return Response(content=storage.get(version.storage_key),
+                        media_type="application/pdf",
+                        headers=attachment_headers(name, "final.pdf"))
     if pdf.stale(pdf.record(version)):
         dispatch_pdf(guard.db, version, kind, request_id=guard.request_id)
     rec = must_exist(pdf.record(version), "the PDF record")
@@ -1524,6 +1558,156 @@ def prepare_package(contract_id: UUID, body: PackageRequest,
         "downloads": {"docx": f"/document-versions/{version.id}/content",
                       "pdf": f"/document-versions/{version.id}/pdf"},
         "open_points": negotiation.reply_open_points(guard.db, version)})
+
+
+# ------------------------------------------------- AM-318: the final clean copy
+class FinalCopyNotReady(Conflict):
+    """409 — the final copy cannot be prepared yet; ``blockers`` names every reason."""
+
+    code = "FINAL_COPY_NOT_READY"
+
+    def __init__(self, message: str, blockers: list[dict]) -> None:
+        super().__init__(message)
+        self.extra = {"blockers": blockers}
+
+
+#: the package routes the final copy serves (`AM-318`): everything the Annexure route
+#: (`AM-307`) refuses because of what the deal IS, never because something is open
+_FINAL_COPY_ROUTES = {"NOTHING_TO_ANSWER", "NOT_OUR_TEMPLATE", "REDLINE_ROUND",
+                      "NO_ANNEXURE", "AMENDMENT_ROUND", "NO_ENTRIES"}
+
+
+def _final_plan(guard: Guard, contract: M.Contract) -> dict:
+    """The dry run of the final copy (`AM-318`, owner 2026-11-06: the deal cycle ends at
+    the final clean copy). Its source is the agreed text: our latest version as the
+    client accepted it (``copy``), or the client's latest version with every answer
+    applied as our reply would write it (``reply``) — then every tracked change accepted
+    and every comment removed (`drafting.clean`). Nothing written."""
+    db = guard.db
+    out: dict = {"available": False, "blockers": [], "mode": None, "agreed": []}
+
+    def stop(code: str, message: str) -> dict:
+        out["blockers"].append({"code": code, "message": message})
+        return out
+
+    versions = list(db.execute(
+        select(M.DocumentVersion).where(M.DocumentVersion.contract_id == contract.id)
+        .order_by(M.DocumentVersion.version_number)).scalars())
+    if not versions:
+        return stop("NO_VERSION", "Upload the contract first.")
+    latest = versions[-1]
+    n = latest.version_number
+    if negotiation.final_of(latest.doc_metadata):
+        return stop("ALREADY_FINAL", f"Version {n} is already the final contract.")
+    if latest.processing_status is not ProcessingStatus.COMPLETED:
+        return stop("NOT_READ", f"Version {n} is still being read.")
+    out["of_version"] = n
+    role = (latest.doc_metadata or {}).get("version_role")
+    # ours as prepare_reply reads it: declared Company draft — or the deal's only version
+    # of ours, undeclared; anything after a version of ours is the client's round
+    alone = negotiation.our_previous(versions, latest) is None
+    if role == "COMPANY_DRAFT" or (role is None and alone
+                                   and negotiation.is_ours(latest)):
+        out.update(mode="copy", available=True)
+        out["_source"] = latest
+        return out
+    package = _package_plan(guard, contract)
+    if not {b["code"] for b in package["blockers"]} & _FINAL_COPY_ROUTES:
+        return stop("USE_PACKAGE", "This contract's final copy is made with Annexure A — "
+                    "prepare the final contract from the Changes tab.")
+    ours = negotiation.our_previous(versions, latest)
+    try:
+        listed, _, _ = _changes(guard, contract, ours.version_number if ours else None, n)
+    except BusinessRuleRejected as exc:
+        return stop("NOT_READ", str(exc))
+    blocked = _reply_blockers(listed["changes"])
+    if blocked:
+        return stop("CHANGES", f"The final contract cannot be prepared yet: {blocked}")
+    changes = listed["changes"]
+    rewrite = [c for c in changes if c["answer"]["answer"] != "accept_theirs"]
+    if rewrite and latest.mime_type != DOCX_MIME:
+        return stop("NEEDS_WORD_FILE", "Our answers are written into the client's Word "
+                    "file — their version is not a .docx. Ask them for the Word file.")
+    out["agreed"] = [{"where": _where(c), "answer": c["answer"]["answer"]}
+                     for c in changes]
+    out.update(mode="reply" if rewrite else "copy", available=True)
+    out["_source"] = latest
+    return out
+
+
+@router.get("/contracts/{contract_id}/final-copy")
+def final_copy_preview(contract_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
+    """The dry run of "Prepare final contract" where no Annexure package applies
+    (`AM-318`): ``available``, ``blockers[{code, message}]``, ``mode`` (copy · reply),
+    ``of_version`` and what was ``agreed`` (each change's place and answer)."""
+    contract = guard.contract_readable(contract_id, P.DOCUMENT_VIEW)
+    return data(_public_plan(_final_plan(guard, contract)))
+
+
+@router.post("/contracts/{contract_id}/final-copy", status_code=201)
+def prepare_final_copy(contract_id: UUID, guard: Guard = Depends(get_guard),
+                       storage: StorageBackend = Depends(get_storage)) -> dict:
+    """Prepare the final clean copy (`AM-318`): the agreed text with every tracked change
+    accepted and every comment removed, ingested as our next version (Company draft,
+    ``final_copy_of`` its source), reviewed like any upload, audited
+    `contract.final_copy_prepared`. Legal then records the decision on the contract on
+    it; Sign as is makes the deal Final. 409 FINAL_COPY_NOT_READY with ``blockers``."""
+    contract = guard.contract_negotiable(contract_id, P.CONTRACT_UPDATE)
+    _lock(guard, contract)
+    plan = _final_plan(guard, contract)
+    if plan["blockers"]:
+        raise FinalCopyNotReady("The final contract cannot be prepared yet.",
+                                plan["blockers"])
+    source: M.DocumentVersion = plan["_source"]
+    if plan["mode"] == "reply":
+        try:
+            raw, _ = _reply_document(guard, storage, contract, [])
+        except ReplyNotApplied as exc:      # never a final copy missing an answer
+            raise FinalCopyNotReady("The final contract cannot be prepared yet.", [{
+                "code": "NOT_APPLIED", "message": f"{exc} Prepare our reply instead and "
+                "restore those by hand."}]) from exc
+    else:
+        raw = storage.get(source.storage_key)
+    docx = source.mime_type == DOCX_MIME
+    made = clean.clean(raw) if docx else raw
+    stem = (source.original_filename or "contract").rsplit(".", 1)[0]
+    version = ingest_document(guard.db, storage, contract_id=contract.id,
+                              uploaded_by=guard.user_id, data=made,
+                              filename=f"{stem} - final.{'docx' if docx else 'pdf'}",
+                              declared_mime=DOCX_MIME if docx else PDF_MIME
+                              ).document_version
+    version.doc_metadata = {
+        **(version.doc_metadata or {}),
+        **{k: v for k, v in (source.doc_metadata or {}).items()
+           if k in ("source", "counterparty", "effective_date")},
+        "version_role": "COMPANY_DRAFT", "final_copy_of": str(source.id),
+        "final_mode": plan["mode"], "agreed": plan["agreed"]}
+    draft = _generated(guard.db, source) if plan["mode"] == "copy" else None
+    if draft is not None:        # our template contract, accepted as it was: still ours
+        guard.db.add(M.ContractDraft(
+            contract_id=contract.id, document_version_id=version.id,
+            template_version_id=draft.template_version_id, values=draft.values,
+            model_hash=draft.model_hash, renderer_version=draft.renderer_version,
+            clean_storage_key=version.storage_key, created_by=guard.user_id))
+    guard.db.flush()
+    audit.record(guard.db, action=audit.CONTRACT_FINAL_COPY_PREPARED,
+                 entity_type="contract", entity_id=contract.id, actor_id=guard.user_id,
+                 request_id=guard.request_id,
+                 after={"document_version_id": str(version.id),
+                        "version_number": version.version_number,
+                        "final_copy_of": str(source.id), "mode": plan["mode"],
+                        "file_hash": version.file_hash, "agreed": len(plan["agreed"])})
+    dispatch_indexing(guard.db, version.id, request_id=guard.request_id)
+    if docx:
+        dispatch_pdf(guard.db, version, "final", request_id=guard.request_id)
+    review = _review_reply(guard, version)
+    return data({"document_version": serialize_document_version(version),
+                 "review_id": str(review.id) if review else None,
+                 "downloads": {"docx" if docx else "pdf":
+                               f"/document-versions/{version.id}/content",
+                               **({"pdf": f"/document-versions/{version.id}/pdf"}
+                                  if docx else {})},
+                 "open_points": negotiation.reply_open_points(guard.db, version)})
 
 
 @router.get("/document-versions/{document_version_id}/special-conditions")

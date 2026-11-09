@@ -15,7 +15,7 @@ import type { DealCounts, NegotiationStageCode, TodoItem } from "./types";
 
 export type StepKind =
   | "decide" | "answerChanges" | "prepareReply" | "sendReply" | "sendToLegal" | "sendToClient"
-  | "recordSigning" | "preparePackage" | "sendForSignature";
+  | "preparePackage" | "prepareFinal" | "downloadFinal" | "startAmendment";
 
 export interface Step { kind: StepKind; label: string }
 
@@ -38,6 +38,8 @@ export interface StepFacts {
   packageUnsent?: boolean;
   /** `AM-310`: the deal is an amendment — its package is the amendment itself */
   amendment?: boolean;
+  /** `AM-318`: the latest version is the final contract (a package or a final copy) */
+  finalLatest?: boolean;
 }
 
 export function nextStep(f: StepFacts): Step | null {
@@ -46,21 +48,23 @@ export function nextStep(f: StepFacts): Step | null {
   if (f.viewer === "legal" && c.points_for_me) return step("decide", ACTION.decide(c.points_for_me));
   if (!f.canAnswer) return null;
   switch (f.stage) {
+    case "FINAL":
+      return step("downloadFinal");                              // AM-318: the end
     case "READY_TO_SIGN":
-      // AM-307: the final contract goes out for signature first
-      return step(f.packageUnsent ? "sendForSignature" : "recordSigning");  // AM-292
+      // AM-318: Legal's decision is on a version that is not final — make the final copy
+      return f.finalLatest ? null : step("prepareFinal");
     case "READY_TO_SEND":
-      if (f.packageUnsent) return step("sendForSignature");
       // our reply, or our own draft once Legal decided every point of it
       return f.replyReady ? step("sendReply") : f.draftUnsent ? step("sendToClient") : null;
     case "CLIENT_RETURNED":
       if (c.changes_left_for_me) return step("answerChanges");
       if (c.changes_total === undefined || c.changes_left) return null;
       if (f.packageReady) return step("preparePackage", f.amendment ? ACTION.prepareAmendment : undefined);
-      return step("prepareReply");
+      return step("prepareFinal");                                // AM-318 A4: every route
     case "INTERNAL_REVIEW":
-      // our reply (or draft) holds open points and nobody in Legal has it yet
-      return c.points_open && f.canSendToLegal ? step("sendToLegal") : null;
+      // our reply (or draft) holds open points, or the final copy waits on Legal's
+      // decision on the contract, and nobody in Legal has it yet
+      return (c.points_open || f.finalLatest) && f.canSendToLegal ? step("sendToLegal") : null;
     case "DRAFTING":
       if (c.points_open && f.canSendToLegal) return step("sendToLegal");
       return c.points_open === 0 && f.draftUnsent ? step("sendToClient") : null;
@@ -76,6 +80,8 @@ export function taskAction(item: Pick<TodoItem, "kind" | "count" | "counts">): s
     case "second_approval": return ACTION.reviewDecision;
     case "answered": return ACTION.seeAnswer;
     case "reply_ready": return ACTION.sendReply;
+    case "contract_decision": return ACTION.recordContractDecision;
+    case "prepare_final": return ACTION.prepareFinal;
     case "client_returned":
       return item.counts?.changes_total !== undefined && !item.counts.changes_left
         ? ACTION.prepareReply : ACTION.answerChanges;

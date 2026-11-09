@@ -15,10 +15,11 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 
 import { api, ApiError, describeError } from "@/lib/api";
 import { contractDisplayName } from "@/lib/labels";
+import { useStep } from "@/lib/nextStep";
 import type { Contract } from "@/lib/types";
 
 export function GovernedByLink({ contract }: { contract: Pick<Contract, "governed_by"> }) {
@@ -44,7 +45,8 @@ export function amendmentError(cause: unknown): string {
 
 export function AmendmentsPanel({ contract, canStart }: {
   contract: Pick<Contract, "id" | "amendments">;
-  /** presentation only: signed, not itself an amendment, and the reader may create */
+  /** presentation only: Final (or signed, legacy), not itself an amendment, and the reader
+   *  may create. "Start an amendment" lives under ⋯ (`AM-318`); this panel confirms it. */
   canStart: boolean;
 }) {
   const router = useRouter();
@@ -53,7 +55,8 @@ export function AmendmentsPanel({ contract, canStart }: {
   const [empty, setEmpty] = useState<{ id: string; why: string } | null>(null);
   const [confirming, setConfirming] = useState(false);
   const list = contract.amendments ?? [];
-  if (!list.length && !canStart) return null;
+  useStep("startAmendment", useCallback(() => { if (canStart) setConfirming(true); }, [canStart]));
+  if (!list.length && !confirming && !empty && !error) return null;
   // one amendment at a time: an open one is signed or archived before the next (M5 —
   // the server refuses a second with 409; this only stops offering it)
   const open = list.find((a) => !a.signed && !a.archived);
@@ -82,19 +85,19 @@ export function AmendmentsPanel({ contract, canStart }: {
             {list.map((a) => (
               <li key={a.id}>
                 <Link href={`/contracts/${a.id}`}>{contractDisplayName(a.name)}</Link>
-                <span>{a.signed ? "Signed" : a.archived ? "Archived" : "Being prepared"}</span>
+                <span>{a.signed ? "Final" : a.archived ? "Archived" : "Being prepared"}</span>
               </li>
             ))}
           </ul>
         ) : empty ? null : (
           <p className="ws-replynote__sub">
-            None yet. To change this signed contract, start an amendment: it begins from the contract as it stands.
+            None yet. To change this contract, start an amendment: it begins from the final copy.
           </p>
         )}
         {list.some((a) => a.signed) ? (
           <p className="ws-replynote__sub">
             <Link href={`/contracts/${contract.id}/terms`}>Read the terms in force</Link>: the contract
-            with its signed amendments applied, each changed clause marked.
+            with its final amendments applied, each changed clause marked.
           </p>
         ) : null}
         {empty ? (
@@ -105,13 +108,13 @@ export function AmendmentsPanel({ contract, canStart }: {
         ) : null}
         {open && canStart && !empty ? (
           <p className="ws-replynote__sub">
-            One amendment at a time: sign or archive the one being prepared before starting another.
+            One amendment at a time: finish or archive the one being prepared before starting another.
           </p>
         ) : null}
         {confirming ? (
           <p className="ws-replynote__sub" id="lm-amend-confirm">
-            Start an amendment? It is a new contract that begins from this one as it stands,
-            and stays a draft until it is signed.
+            Start an amendment? It is a new contract that begins from the final copy of this one,
+            and stays a draft until its own final copy is agreed.
           </p>
         ) : null}
         {/* a refusal is the server's reason, said in ink — a way forward, not an alarm */}
@@ -127,11 +130,7 @@ export function AmendmentsPanel({ contract, canStart }: {
                 Start the amendment
               </button>
             </>
-          ) : (
-            <button type="button" className="ws-btn" disabled={busy} onClick={() => setConfirming(true)}>
-              {busy ? "Starting the amendment…" : "Start an amendment"}
-            </button>
-          )}
+          ) : busy ? <span className="ws-pane__note" role="status">Starting the amendment…</span> : null}
         </div>
       ) : null}
     </section>

@@ -10,8 +10,14 @@ the Review lifecycle, `review_stage` (`AM-179`), ContractStatus or ConfigStatus 
 The first match wins:
 
 ```text
-SIGNED           a FINAL_SIGNED version exists
-READY_TO_SIGN    the latest version's contract decision is Sign as is / after our changes
+SIGNED           a FINAL_SIGNED version exists (legacy; signing is done elsewhere)
+FINAL            the latest version is our final contract (``package_of``) or a final
+                 copy (``final_copy_of``) and its contract decision is Sign as is —
+                 the deal cycle's end (owner, 2026-11-06; `AM-318`). Checked before
+                 ``sent_at``: recording that it was sent never moves it
+INTERNAL_REVIEW  ... a final contract with no contract decision yet (Legal records it)
+READY_TO_SIGN    the latest (not final) version's contract decision is Sign as is / after
+                 our changes — "Ready for the final contract"
 ON_HOLD          ... or On hold
 CLIENT_RETURNED  the latest version is the client's (CLIENT_MODIFIED) — our turn
 WITH_CLIENT      the latest version was sent to the client
@@ -44,6 +50,7 @@ class NegotiationStage(StrEnum):
     READY_TO_SEND = "READY_TO_SEND"
     READY_TO_SIGN = "READY_TO_SIGN"
     SIGNED = "SIGNED"
+    FINAL = "FINAL"
     ON_HOLD = "ON_HOLD"
 
 
@@ -59,6 +66,7 @@ class VersionFacts:
     role: str | None = None            # metadata.version_role
     sent_at: datetime | None = None
     reply_to: bool = False             # metadata.reply_to: our prepared reply (AM-251)
+    final: bool = False                # package_of / final_copy_of: the final contract
 
 
 @dataclass(frozen=True)
@@ -83,6 +91,14 @@ def derive_stage(created_at: datetime, versions: list[VersionFacts],
         return NegotiationStage.DRAFTING, created_at
     latest = max(versions, key=lambda v: v.version_number)
     review = review or ReviewFacts()
+    if latest.final:                  # AM-318: the end of the deal cycle
+        if review.outcome == "SIGN_AS_IS" and review.outcome_at:
+            return NegotiationStage.FINAL, review.outcome_at
+        if review.outcome == "ON_HOLD" and review.outcome_at:
+            return NegotiationStage.ON_HOLD, review.outcome_at
+        if review.outcome is None:    # Legal records the decision on the final copy
+            return NegotiationStage.INTERNAL_REVIEW, (review.in_review_since
+                                                      or latest.created_at)
     if review.outcome in _READY and review.outcome_at:
         return NegotiationStage.READY_TO_SIGN, review.outcome_at
     if review.outcome == "ON_HOLD" and review.outcome_at:

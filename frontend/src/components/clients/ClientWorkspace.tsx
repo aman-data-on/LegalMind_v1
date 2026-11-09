@@ -381,7 +381,7 @@ export function ClientWorkspace({ clientId }: { clientId: string }) {
               <div className="ws-cl__headcounts">
                 <span>{documentCountLabel(documents)}</span>
                 {documents > 0 ? (
-                  <span className="ws-cl__signed">{signed} signed</span>
+                  <span className="ws-cl__signed">{signed} final</span>
                 ) : null}
               </div>
               {can(P.CONTRACT_UPDATE) ? (

@@ -35,7 +35,7 @@ describe("the stage line agrees with the counts", () => {
   it("names the real next step once every change is answered", () => {
     expect(stageLine("INTERNAL_REVIEW", answered, "owner")).toBe("With Legal, 17 points");
     expect(stageLine("INTERNAL_REVIEW", answered, "legal")).toBe("Legal deciding 17 points");
-    expect(stageLine("CLIENT_RETURNED", answered)).toBe("Changes answered, reply next");
+    expect(stageLine("CLIENT_RETURNED", answered)).toBe("Ready for the final contract");   // N16
     expect(stageLine("CLIENT_RETURNED", round)).toBe("Client replied");
     expect(stageLine("INTERNAL_REVIEW", { points_open: 0 }, "legal")).toBe("Your review");
   });
@@ -53,7 +53,7 @@ describe("one primary step per person per stage", () => {
   it("gives each person one named act", () => {
     expect(nextStep({ ...owner, stage: "CLIENT_RETURNED", counts: round })?.label).toBe("Answer changes");
     expect(nextStep({ ...owner, stage: "CLIENT_RETURNED",
-      counts: { ...round, changes_left: 0, changes_left_for_me: 0 } })?.label).toBe("Prepare our reply");
+      counts: { ...round, changes_left: 0, changes_left_for_me: 0 } })?.label).toBe("Prepare final contract");
     expect(nextStep({ ...owner, stage: "CLIENT_RETURNED",
       counts: { ...round, changes_left_for_me: 0 } })).toBeNull();     // what is left is Legal's
     expect(nextStep({ ...owner, stage: "READY_TO_SEND", replyReady: true })?.label).toBe("Send our reply");

@@ -4637,6 +4637,96 @@
     ]
    }
   },
+  "/api/v1/contracts/{contract_id}/final-copy": {
+   "get": {
+    "description": "The dry run of \"Prepare final contract\" where no Annexure package applies\n(`AM-318`): ``available``, ``blockers[{code, message}]``, ``mode`` (copy \u00b7 reply),\n``of_version`` and what was ``agreed`` (each change's place and answer).",
+    "operationId": "final_copy_preview_api_v1_contracts__contract_id__final_copy_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Final Copy Preview Api V1 Contracts  Contract Id  Final Copy Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Final Copy Preview",
+    "tags": [
+     "negotiation"
+    ]
+   },
+   "post": {
+    "description": "Prepare the final clean copy (`AM-318`): the agreed text with every tracked change\naccepted and every comment removed, ingested as our next version (Company draft,\n``final_copy_of`` its source), reviewed like any upload, audited\n`contract.final_copy_prepared`. Legal then records the decision on the contract on\nit; Sign as is makes the deal Final. 409 FINAL_COPY_NOT_READY with ``blockers``.",
+    "operationId": "prepare_final_copy_api_v1_contracts__contract_id__final_copy_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Prepare Final Copy Api V1 Contracts  Contract Id  Final Copy Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Prepare Final Copy",
+    "tags": [
+     "negotiation"
+    ]
+   }
+  },
   "/api/v1/contracts/{contract_id}/mark-signed": {
    "post": {
     "description": "The deal is signed (`AM-292` r1): refused (409 SIGNING_NOT_READY, every reason)\nuntil the decision, the points, the stamp, both authorities and the signed copy\nallow it. The signed copy becomes the FINAL_SIGNED version; the record is final.",
@@ -7977,6 +8067,18 @@
         }
        ],
        "title": "Contract Id"
+      }
+     },
+     {
+      "description": "the Legal queue (`AM-318` A7): only Reviews with this caller now (B11), of the LATEST version of a contract that is not archived",
+      "in": "query",
+      "name": "with_me",
+      "required": false,
+      "schema": {
+       "default": false,
+       "description": "the Legal queue (`AM-318` A7): only Reviews with this caller now (B11), of the LATEST version of a contract that is not archived",
+       "title": "With Me",
+       "type": "boolean"
       }
      },
      {

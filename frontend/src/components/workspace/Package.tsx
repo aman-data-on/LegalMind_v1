@@ -272,8 +272,9 @@ export function PackageBar({ contractId, plan: changesOnly, canPrepare, canResta
   );
 }
 
-/** The final contract on the Document tab: what it is, its files once nothing in it is
- *  open, and Annexure A's record. "Send for signature" is the header's primary. */
+/** The final contract on the Document tab before it is Final: what it is, its files once
+ *  nothing in it is open, and Annexure A's record. Once Legal signs it off the Final card
+ *  (`FinalCopy.tsx`, `AM-318`) takes its place. */
 export function PackageCard({ version, versions, filesOpen }: {
   version: DocumentVersion; versions: DocumentVersion[];
   /** the stage lets the files out (`AM-293`: nothing undecided is offered as sendable) */
@@ -294,8 +295,8 @@ export function PackageCard({ version, versions, filesOpen }: {
           {instrument ? `An amendment listing ${n === 1 ? "1 change" : `${n} changes`} to the signed contract`
             : `Our contract as we sent it, with ${n === 1 ? "1 Special Condition" : `${n} Special Conditions`} (Annexure A)`}
           {theirs ? `, answering the client’s version ${theirs.version_number}` : ""}.{" "}
-          {version.sent_at ? <strong>Sent for signature on {formatDate(version.sent_at)}.</strong>
-            : filesOpen ? "Not sent yet."
+          {version.sent_at ? <strong>Recorded as sent on {formatDate(version.sent_at)}.</strong>
+            : filesOpen ? "Legal records the decision on it next."
             : "Its review still has a point open, so the files are held until it is decided."}
         </p>
       </div>
@@ -311,8 +312,10 @@ type TraceLoad = { kind: "idle" } | { kind: "loading" } | { kind: "ready"; sc: S
 
 /** Annexure A's record, read when opened: each entry, who agreed it, when, why, and the
  *  notes the server sends this reader. */
-export function SpecialConditionsTrace({ versionId, count, instrument = false }: {
+export function SpecialConditionsTrace({ versionId, count, instrument = false, summary }: {
   versionId: string; count: number; instrument?: boolean;
+  /** the disclosure's own words — the Final card says "What was agreed (N)" (`AM-318`) */
+  summary?: string;
 }) {
   const [load, setLoad] = useState<TraceLoad>({ kind: "idle" });
   function read() {
@@ -322,7 +325,7 @@ export function SpecialConditionsTrace({ versionId, count, instrument = false }:
   }
   return (
     <details className="lm-pkgtrace" onToggle={(event) => { if ((event.target as HTMLDetailsElement).open && load.kind === "idle") read(); }}>
-      <summary>{instrument ? `What the amendment changes (${count})` : `What is in Annexure A (${count})`}</summary>
+      <summary>{summary ?? (instrument ? `What the amendment changes (${count})` : `What is in Annexure A (${count})`)}</summary>
       {load.kind === "loading" ? <p className="ws-pane__note" role="status">Reading…</p> : null}
       {load.kind === "error" ? (
         <p className="cx-error" role="alert">{load.message}{" "}

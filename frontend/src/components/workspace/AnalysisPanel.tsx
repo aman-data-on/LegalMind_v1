@@ -222,7 +222,8 @@ export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner
             <ContractDecision reviewId={state.review.id} reviewStatus={state.review.status}
                               refreshKey={state.findings.map((f) => f.status).join()}
                               onRecorded={reload} readOnly={reference} />
-            {reference ? null : <LegalAngle reviewId={state.review.id} refreshKey={refreshKey} withRecommendation={false}
+            {/* AM-318: a Final deal has nothing open and nothing left to offer */}
+            {reference || stage?.stage === "FINAL" ? null : <LegalAngle reviewId={state.review.id} refreshKey={refreshKey} withRecommendation={false}
                         decided={new Set(state.findings.filter((f) => !OPEN_STATES.has(pointState(f)))
                                                       .map((f) => f.id))}
                         onOpen={sideTabs ? (id) => sideTabs.openFindings({ findingId: id })
@@ -233,7 +234,7 @@ export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner
                                               state.progress?.stage !== "NOT_SENT") }]))} />}
           </section>
           {/* AM-305: how far the deal owner may go without Legal */}
-          {reference ? null : <OfferSection contractId={state.review.contract_id} />}
+          {reference || stage?.stage === "FINAL" ? null : <OfferSection contractId={state.review.contract_id} />}
           <section className="ws-summary__part" aria-labelledby="ws-sum-terms">
             <h3 id="ws-sum-terms" className="ws-summary__title">Key terms</h3>
             <BusinessAngle reviewId={state.review.id} refreshKey={refreshKey} />
@@ -379,6 +380,10 @@ export function AttentionLine({ progress, stage, viewer, canDecide, counts }: {
   // a signed contract tells one story: the stage, and the review kept for reference —
   // no open-point counter, no progress bar (owner item (b))
   const signed = stage?.stage === "SIGNED";
+  const final = stage?.stage === "FINAL";                        // AM-318: the end
+  if (final) {
+    return <div className="ws-attn"><p className="ws-attn__count">Nothing left to do. Final contract ready.</p></div>;
+  }
   const counted = !signed && progress && progress.required > 0 && progress.stage !== "SUPERSEDED";
   const points = pointsWords(counts, viewer);
   const changes = signed ? null : changesWords(counts, viewer);

@@ -198,18 +198,11 @@ export function UploadToClient({ client, onDone, initialContractId }: {
           <select value={role} onChange={(event) => setRole(event.target.value)}
                   disabled={busy}>
             <option value="">Not classified</option>
-            {VERSION_ROLES.map((r) => (
-              <option key={r.role} value={r.role}>
-                {r.role === "FINAL_SIGNED" ? "This contract is already signed" : `${r.label} — ${r.hint}`}
-              </option>
+            {/* AM-318 B8: signing happens in another tool — "signed" is never declared here */}
+            {VERSION_ROLES.filter((r) => r.role !== "FINAL_SIGNED").map((r) => (
+              <option key={r.role} value={r.role}>{`${r.label} — ${r.hint}`}</option>
             ))}
           </select>
-          {role === "FINAL_SIGNED" ? (
-            <span className="ws-field__help">
-              Filed as signed outside LegalMind. You can add the stamp duty and who
-              signed later, from the signing record.
-            </span>
-          ) : null}
         </label>
 
         {/* Name and type belong to the DOCUMENT, so they are asked for only

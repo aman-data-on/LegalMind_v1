@@ -15,7 +15,7 @@ import { documentStatusBucket, relativeTime, shortDate, UNFINISHED_REVIEW_STATUS
 /** Display order: the deal's path, start to finish, then the pause. */
 export const STAGE_ORDER: readonly NegotiationStageCode[] = [
   "DRAFTING", "INTERNAL_REVIEW", "WITH_CLIENT", "CLIENT_RETURNED",
-  "READY_TO_SEND", "READY_TO_SIGN", "SIGNED", "ON_HOLD",
+  "READY_TO_SEND", "READY_TO_SIGN", "FINAL", "SIGNED", "ON_HOLD",
 ];
 
 /** The words live in the one label map (`stageWords`); kept as a record for the list's
@@ -23,16 +23,22 @@ export const STAGE_ORDER: readonly NegotiationStageCode[] = [
 export const STAGE_LABEL = Object.fromEntries(
   STAGE_ORDER.map((code) => [code, stageWords(code)])) as Record<NegotiationStageCode, string>;
 
-export function StageBadge({ stage, counts, showDays = true, viewer = "owner" }: {
+export function StageBadge({ stage, counts, showDays = true, viewer = "owner", final = false }: {
   stage: NegotiationStage | undefined | null;
   /** the server's `counts` (`AM-291`): the chip names the real next step from them */
   counts?: DealCounts | undefined;
   showDays?: boolean;
   /** Who is reading: the lawyer holding a review reads "Your review" (S1). */
   viewer?: StageViewer;
+  /** `AM-318`: the latest version is the final contract (the stage chip names its wait) */
+  final?: boolean;
 }) {
   if (!stage) return <span className="ws-dealstage ws-dealstage--none">—</span>;
-  const label = stageLine(stage.stage, counts, viewer);
+  if (stage.stage === "FINAL") {
+    // the end of the deal: "Final · 9 Nov 2026", a date rather than an age
+    return <span className="ws-dealstage ws-dealstage--final">{`Final · ${shortDate(stage.since)}`}</span>;
+  }
+  const label = stageLine(stage.stage, counts, viewer, final);
   const ourTurn = stage.stage === "CLIENT_RETURNED" || stage.stage === "READY_TO_SEND";
   return (
     <span
@@ -58,6 +64,9 @@ export function CountsCell({ contract, viewer }: { contract: Contract; viewer: S
   // a signed deal has nothing left to count: its stage is the whole story
   if (contract.negotiation_stage?.stage === "SIGNED") {
     return <span className="ws-home__counts"><span>{stageWords("SIGNED")}</span></span>;
+  }
+  if (contract.negotiation_stage?.stage === "FINAL") {         // AM-318
+    return <span className="ws-home__counts"><span>Final copy ready</span></span>;
   }
   const review = contract.latest_analysis?.review_status;
   const changes = changesWords(contract.counts, viewer);

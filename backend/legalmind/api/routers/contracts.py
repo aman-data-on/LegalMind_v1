@@ -84,7 +84,8 @@ STATUS_BUCKETS = ("draft", "analyzing", "needs_attention", "analyzed")
 
 
 def _status_bucket(item: dict, stage: str | None = None) -> str:
-    if stage == DS.NegotiationStage.SIGNED:     # `AM-298`: a signed deal waits on nobody
+    # `AM-298`: a signed deal waits on nobody; nor does a Final one (`AM-318`)
+    if stage in (DS.NegotiationStage.SIGNED, DS.NegotiationStage.FINAL):
         return "analyzed"
     version = item.get("latest_version")
     if version is None or version.get("processing_status") != "COMPLETED":
@@ -410,7 +411,8 @@ def negotiation_stages(guard: Guard, contracts: list[M.Contract]) -> dict[UUID, 
             continue
         versions.setdefault(v.contract_id, []).append(DS.VersionFacts(
             v.version_number, v.created_at, role,
-            v.sent_at, bool(negotiation.answers(v.doc_metadata))))
+            v.sent_at, bool(negotiation.answers(v.doc_metadata)),
+            bool(negotiation.final_of(v.doc_metadata))))
         if v.version_number > latest_id.get(v.contract_id, (-1, v.id))[0]:
             latest_id[v.contract_id] = (v.version_number, v.id)
 
@@ -553,10 +555,20 @@ def get_contract(contract_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
         .where(M.ContractDraft.contract_id == contract.id)
         .order_by(M.ContractDraft.created_at).limit(1)).scalar_one_or_none()
     if made is not None:
+        def named(tv: M.TemplateVersion) -> str | None:
+            return ((tv.source or {}).get("catalogue") or {}).get("name")
+        # template re-check #3: a version with no name of its own takes the newest name
+        # recorded for the same template, never the generic one
+        name = named(made) or next((n for tv in guard.db.execute(
+            select(M.TemplateVersion).where(
+                M.TemplateVersion.template_key == made.template_key)
+            .order_by(M.TemplateVersion.version.desc())).scalars()
+            if (n := named(tv))), None)
         payload["made_from"] = {
             "template_key": made.template_key, "version": made.version,
-            "doc_type": made.doc_type, "brand": made.brand,
-            "name": ((made.source or {}).get("catalogue") or {}).get("name")}
+            "doc_type": made.doc_type, "brand": made.brand, "name": name,
+            # template re-check #4: withdrawn since — information only, blocks nothing
+            **({"withdrawn": True} if made.status == "RETIRED" else {})}
     # AM-309: the signed contract it amends and its amendments — readable ones only
     payload.update(relations(guard, contract))
     return data(payload)

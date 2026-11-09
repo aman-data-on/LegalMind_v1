@@ -94,23 +94,54 @@ def _readable(guard: Guard, contract_id: UUID | None) -> M.Contract | None:
         return None
 
 
+def final_copy(db, contract_id: UUID) -> tuple[M.DocumentVersion, Any] | None:
+    """`AM-318`: the contract's final copy and when it became Final — its latest version
+    is a final contract (``package_of`` / ``final_copy_of``) whose current contract
+    decision is Sign as is (not reopened since). The same rule `deal_stage` reads."""
+    latest = db.execute(select(M.DocumentVersion).where(
+        M.DocumentVersion.contract_id == contract_id)
+        .order_by(M.DocumentVersion.version_number.desc()).limit(1)).scalar()
+    if latest is None or not negotiation.final_of(latest.doc_metadata):
+        return None
+    review = negotiation._latest_review(db, latest)
+    record = None if review is None else db.execute(
+        select(M.ContractOutcomeRecord).where(
+            M.ContractOutcomeRecord.review_id == review.id)
+        .order_by(M.ContractOutcomeRecord.version_number.desc()).limit(1)).scalar()
+    if (review is None or record is None
+            or record.outcome is not E.ContractOutcome.SIGN_AS_IS
+            or (review.reopened_at and review.reopened_at > record.created_at)):
+        return None
+    return latest, record.created_at
+
+
 def _signed_at(db, contract_id: UUID) -> Any:
-    """When the contract was signed — its sealed execution record, or (`AM-298` r4) a
-    version declared FINAL_SIGNED before the signing step (then the version's time)."""
+    """When the contract's agreed text came into force — its sealed execution record, or
+    (`AM-298` r4) a version declared FINAL_SIGNED (legacy, signed in LegalMind), else
+    (`AM-318`) when it became Final."""
     record = execution.current(db, contract_id)
     if record is not None and record.signed_at is not None:
         return record.signed_at
-    return db.execute(select(M.DocumentVersion.created_at).where(
+    at = db.execute(select(M.DocumentVersion.created_at).where(
         M.DocumentVersion.contract_id == contract_id,
         M.DocumentVersion.doc_metadata["version_role"].astext == execution.FINAL_SIGNED)
         .order_by(M.DocumentVersion.version_number.desc()).limit(1)).scalar()
+    if at is not None:
+        return at
+    final = final_copy(db, contract_id)
+    return final[1] if final else None
 
 
 def _final_signed(db, contract_id: UUID) -> M.DocumentVersion | None:
-    return db.execute(select(M.DocumentVersion).where(
+    """The agreed text: a legacy signed copy, else (`AM-318`) the final copy."""
+    signed = db.execute(select(M.DocumentVersion).where(
         M.DocumentVersion.contract_id == contract_id,
         M.DocumentVersion.doc_metadata["version_role"].astext == execution.FINAL_SIGNED)
         .order_by(M.DocumentVersion.version_number.desc()).limit(1)).scalar()
+    if signed is not None:
+        return signed
+    final = final_copy(db, contract_id)
+    return final[0] if final else None
 
 
 def _children(db, parent_id: UUID) -> list[M.Contract]:
@@ -133,8 +164,10 @@ def _agreed(db, contract_id: UUID) -> M.DocumentVersion | None:
     """The agreed final contract a signing closed — only when it is ours (a template
     draft) and the signed copy matched it; else None (nothing copied or applied)."""
     record = execution.current(db, contract_id)
-    if record is None or record.signed_at is None \
-            or record.differences_accepted_by is not None:
+    if record is None or record.signed_at is None:
+        final = final_copy(db, contract_id)          # AM-318: the final copy is agreed
+        return final[0] if final and not execution.current(db, contract_id) else None
+    if record.differences_accepted_by is not None:
         return None
     version = execution.agreed(db, contract_id, record.signed_document_version_id)[
         "version"]
@@ -179,8 +212,8 @@ def create_amendment(contract_id: UUID, body: AmendmentCreate | None = Body(None
         raise Conflict("an amendment amends the signed contract, never another "
                        "amendment — start it from the contract")
     if _signed_at(db, parent.id) is None:
-        raise Conflict("only a signed contract is amended — until it is signed, change "
-                       "it in its own negotiation")
+        raise Conflict("only a Final contract is amended — until its final copy is "
+                       "agreed, change it in its own negotiation")
     if parent.counterparty_id is None:
         raise Conflict("this contract has no client linked — an amendment is with the "
                        "same client, so link it first")
@@ -192,7 +225,7 @@ def create_amendment(contract_id: UUID, body: AmendmentCreate | None = Body(None
             # SEC-07: named only to a caller who can read it
             which = (f"“{open_.name}”" if _readable(guard, open_.id) is not None
                      else "an amendment of this contract")
-            raise Conflict(f"{which} is still open — sign or archive it before "
+            raise Conflict(f"{which} is still open — finish or archive it before "
                            "starting another")
     signed = _signed_amendments(db, parent.id)
     source = signed[-1][0] if signed else parent  # the text in force now
@@ -260,6 +293,8 @@ def _copy(guard: Guard, storage: StorageBackend, amendment: M.Contract,
     a changes-only amendment (`AM-310`) it is the contract as amended, rebuilt."""
     db = guard.db
     meta = base.doc_metadata or {}
+    draft: M.ContractDraft | None
+    digest: str | None
     if meta.get("amendment"):
         basis = meta["amendment"]["basis"]
         made = _as_amended(db, amendment, basis)
@@ -270,9 +305,10 @@ def _copy(guard: Guard, storage: StorageBackend, amendment: M.Contract,
         name, mime = "as amended.docx", DOCX_MIME
     else:
         draft = db.execute(select(M.ContractDraft).where(
-            M.ContractDraft.document_version_id == base.id)).scalar_one()
-        data, digest, name = storage.get(base.storage_key), draft.model_hash, \
-            base.original_filename
+            M.ContractDraft.document_version_id == base.id)).scalar_one_or_none()
+        # AM-318: a final copy of the client's paper has no template draft — its file
+        data, digest, name = storage.get(base.storage_key), \
+            draft.model_hash if draft else None, base.original_filename
         sc, mime = meta.get("special_conditions"), base.mime_type
     version = ingest_document(
         db, storage, contract_id=amendment.id, uploaded_by=guard.user_id,
@@ -282,12 +318,13 @@ def _copy(guard: Guard, storage: StorageBackend, amendment: M.Contract,
         **{k: meta[k] for k in ("source", "counterparty", "effective_date") if k in meta},
         **({"special_conditions": sc} if sc else {}),
         "version_role": "COMPANY_DRAFT", "copy_of": str(base.id)}
-    db.add(M.ContractDraft(
-        contract_id=amendment.id, document_version_id=version.id,
-        template_version_id=draft.template_version_id, values=draft.values,
-        model_hash=digest, renderer_version=render_contract.RENDERER_VERSION
-        if meta.get("amendment") else draft.renderer_version,
-        clean_storage_key=version.storage_key, created_by=guard.user_id))
+    if draft is not None:
+        db.add(M.ContractDraft(
+            contract_id=amendment.id, document_version_id=version.id,
+            template_version_id=draft.template_version_id, values=draft.values,
+            model_hash=digest, renderer_version=render_contract.RENDERER_VERSION
+            if meta.get("amendment") else draft.renderer_version,
+            clean_storage_key=version.storage_key, created_by=guard.user_id))
     db.flush()
     dispatch_indexing(db, version.id, request_id=guard.request_id)
     return version
@@ -339,7 +376,7 @@ def effective_text(contract_id: UUID, guard: Guard = Depends(get_guard)) -> dict
     db = guard.db
     signed = _final_signed(db, contract.id)
     if signed is None:
-        raise Conflict("this contract is not signed yet — its text is its latest version")
+        raise Conflict("this contract is not Final yet — its text is its latest version")
     clauses, read, reason = effective.effective_clauses(db, signed.id)
     units = negotiation._units(clauses)
     original = {"document_version_id": str(signed.id),

@@ -168,6 +168,8 @@ DOCUMENT_VERSION_SENT = "document.version_sent"
 # AM-253 r8' (AB-150): one event per reply built and ingested as our next version
 DOCUMENT_REPLY_PREPARED = "document.reply_prepared"
 CONTRACT_PACKAGE_PREPARED = "contract.package_prepared"        # AM-307
+# AM-318: the final clean copy — a deal whose final contract is not an Annexure package
+CONTRACT_FINAL_COPY_PREPARED = "contract.final_copy_prepared"
 CONTRACT_AMENDMENT_CREATED = "contract.amendment_created"      # AM-309
 # AM-310: Legal chose to restate the whole contract instead of a changes-only amendment
 CONTRACT_AMENDMENT_RESTATED = "contract.amendment_restated"

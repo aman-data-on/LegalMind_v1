@@ -6,13 +6,14 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { CountsCell, STAGE_LABEL, STAGE_ORDER, StageBadge } from "@/components/workspace/StageBadge";
+import { ClosedPanel } from "@/components/workspace/FinalCopy";
 import type { Contract } from "@/lib/types";
 
 describe("StageBadge", () => {
-  it("names all eight stages in the deal's order", () => {
+  it("names all nine stages in the deal's order (AM-318: Final ends it)", () => {
     expect(STAGE_ORDER.map((s) => STAGE_LABEL[s])).toEqual([
       "Drafting", "With Legal", "With client", "Client replied",
-      "Ready to send", "Ready to sign", "Signed", "On hold"]);
+      "Ready to send", "Ready for the final contract", "Final", "Signed", "On hold"]);
   });
 
   it("shows the stage and its days, and says our turn in words", () => {
@@ -62,5 +63,25 @@ describe("CountsCell", () => {
     const html = renderToStaticMarkup(<CountsCell contract={row("WITH_CLIENT")} viewer="owner" />);
     expect(html).toContain("15 open points");
     expect(html).toContain("3 of 82 changes yours");
+  });
+});
+
+describe("Final (AM-318)", () => {
+  const since = "2026-11-09T06:00:00Z";
+  it("the chip says Final and the date, the row says the copy is ready", () => {
+    const chip = renderToStaticMarkup(<StageBadge stage={{ stage: "FINAL", since, days: 0 }} />);
+    expect(chip).toContain("Final · 9 Nov 2026");
+    const row = { id: "c", name: "MSA", counts: { points_open: 0 },
+      negotiation_stage: { stage: "FINAL", since, days: 0 } } as unknown as Contract;
+    const cell = renderToStaticMarkup(<CountsCell contract={row} viewer="owner" />);
+    expect(cell).toContain("Final copy ready");
+    expect(cell).not.toMatch(/point|change/);
+  });
+  it("a Final deal's tabs show one closed state, the points one click away", () => {
+    const html = renderToStaticMarkup(<ClosedPanel what="points"><p>points</p></ClosedPanel>);
+    expect(html).toContain("Nothing left to do");
+    expect(html).toContain("Show the points");
+    expect(html).not.toContain("<p>points</p>");
+    expect(renderToStaticMarkup(<ClosedPanel what="changes" />)).toContain("upload their version");
   });
 });

@@ -351,6 +351,7 @@ def download_name(db, version: M.DocumentVersion, ext: str | None = None) -> str
     contract = db.get(M.Contract, version.contract_id)
     meta = version.doc_metadata or {}
     what = ("our reply" if meta.get("reply_to")
+            else "final" if meta.get("final_copy_of") or meta.get("package_of")
             else _ROLE_SUFFIX.get(meta.get("version_role") or ""))
     name = f"{contract.name if contract else 'Contract'} - v{version.version_number}"
     if what:

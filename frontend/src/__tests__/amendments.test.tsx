@@ -51,9 +51,10 @@ describe("U7: amendments", () => {
                         { id: "a2", name: "Amendment 2", status: "DRAFT", signed: true, archived: false }];
     const html = renderToStaticMarkup(<AmendmentsPanel contract={{ id: "c", amendments }} canStart={false} />);
     expect(html).toContain("Being prepared");
-    expect(html).toContain("Signed");
+    expect(html).toContain("Final");
     expect(html).not.toContain("Start an amendment");
-    expect(renderToStaticMarkup(<AmendmentsPanel contract={{ id: "c", amendments: [] }} canStart />)).toContain("Start an amendment");
+    // AM-318: "Start an amendment" lives under ⋯; the panel shows only once there is one
+    expect(renderToStaticMarkup(<AmendmentsPanel contract={{ id: "c", amendments: [] }} canStart />)).toBe("");
     expect(renderToStaticMarkup(<AmendmentsPanel contract={{ id: "c", amendments: [] }} canStart={false} />)).toBe("");
   });
   it("a missing amendment template reads as a calm sentence, never the raw error", () => {

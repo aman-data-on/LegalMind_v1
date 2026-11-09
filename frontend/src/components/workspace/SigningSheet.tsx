@@ -19,7 +19,6 @@ import {
   cleaned, partyRows, signatoriesRecorded, signingView, stampRecorded, toFields,
   type ExecutionFields, type ExecutionState, type SignedComparison, type Signatory,
 } from "@/lib/execution";
-import { useStep } from "@/lib/nextStep";
 import type { DocumentVersion } from "@/lib/types";
 
 import { IconCheck } from "./icons";
@@ -32,7 +31,7 @@ export function RecordSigning({ contractId, label, primary = false, onSigned, ve
   versions?: DocumentVersion[] | undefined;
 }) {
   const [open, setOpen] = useState(false);
-  useStep("recordSigning", useCallback(() => setOpen(true), []));
+  // AM-318: no step opens the signing sheet any more — a legacy signed deal's record only
   return (
     <>
       <button type="button" className={`ws-btn ws-btn--sm${primary ? " ws-btn--primary" : ""}`}

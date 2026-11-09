@@ -34,7 +34,7 @@ type Load =
   | { kind: "ready"; contract: Contract | null; text: EffectiveText };
 
 /** `AM-310`: on the page and on every printed copy, in these words (owner, 2026-11-05) */
-export const NOT_BINDING = "For reference only, not binding. The signed contract and its signed amendments govern.";
+export const NOT_BINDING = "For reference only, not binding. The agreed contract and its agreed amendments govern.";
 
 const said = (m: string) => m.charAt(0).toUpperCase() + m.slice(1).replace(/\.?$/, ".");
 
@@ -51,7 +51,7 @@ function Note({ text, clause, removed = false }: { text: EffectiveText; clause: 
   return (
     <p>
       {verb} by {who ? (
-        <><Link href={contractHref(who.id)}>{who.label}</Link>, signed {who.signed}</>
+        <><Link href={contractHref(who.id)}>{who.label}</Link>, agreed {who.signed}</>
       ) : "an amendment"}
     </p>
   );
@@ -142,6 +142,8 @@ export function TermsView({ contractId, contract, text }: {
   const n = text.amendments.length;
   const stage = contract?.negotiation_stage;
   const signedOn = stage?.stage === "SIGNED" ? shortDate(stage.since) : "";
+  // AM-318: a Final deal's terms start from its final copy
+  const finalOn = stage?.stage === "FINAL" ? shortDate(stage.since) : "";
   const shown = current
     ? current.clauses.map((c, i) => [c, lines[i]] as const).filter(([c]) => !onlyChanged || "original" in c)
     : [];
@@ -150,8 +152,8 @@ export function TermsView({ contractId, contract, text }: {
     <div className="ws-recordpage lm-terms-page">
       <PageHeader wide title="Terms in force" back={back}
         meta={<span>
-          {signedOn ? `Signed on ${signedOn}` : "As signed"}
-          {n ? `, with ${n === 1 ? "1 signed amendment" : `${n} signed amendments`} applied` : ""}
+          {signedOn ? `Signed on ${signedOn}` : finalOn ? `From the final copy of ${finalOn}` : "As agreed"}
+          {n ? `, with ${n === 1 ? "1 amendment" : `${n} amendments`} applied` : ""}
         </span>}
         secondary={current ? (
           <span className="lm-terms__acts">
@@ -170,8 +172,8 @@ export function TermsView({ contractId, contract, text }: {
           <div className="lm-terms__summary">
             <p className="lm-terms__binding" role="note">{NOT_BINDING}</p>
             <p>
-              {n === 0 ? "No amendment has been signed. This is the contract as signed."
-                : changed + removed.length === 0 ? "The signed amendments change no clause."
+              {n === 0 ? "No amendment has been agreed. This is the contract as agreed."
+                : changed + removed.length === 0 ? "The amendments change no clause."
                 : `${changed === 1 ? "1 clause is" : `${changed} clauses are`} changed`
                   + (removed.length ? `, ${removed.length === 1 ? "1 is" : `${removed.length} are`} removed` : "")
                   + ". Each says which amendment changed it."}
@@ -181,7 +183,7 @@ export function TermsView({ contractId, contract, text }: {
                 {text.amendments.map((a) => (
                   <li key={a.contract_id}>
                     <Link href={contractHref(a.contract_id)}>{contractDisplayName(a.name)}</Link>
-                    <span>signed {shortDate(a.signed_at)}</span>
+                    <span>agreed {shortDate(a.signed_at)}</span>
                   </li>
                 ))}
               </ol>
@@ -204,9 +206,9 @@ export function TermsView({ contractId, contract, text }: {
               <h2 id="lm-terms-stopped" className="ws-replynote__title">The terms in force can&rsquo;t be shown</h2>
               <p className="ws-replynote__sub">{said("reason" in text.current ? text.current.reason : "")}</p>
               <p className="ws-replynote__sub">
-                Nothing is shown as in force until a person checks it. The signed contract and each
-                amendment are unchanged; <Link href={contractHref(contractId)}>open the signed contract</Link> to
-                read it as signed.
+                Nothing is shown as in force until a person checks it. The agreed contract and each
+                amendment are unchanged; <Link href={contractHref(contractId)}>open the contract</Link> to
+                read it as agreed.
               </p>
             </div>
           </section>

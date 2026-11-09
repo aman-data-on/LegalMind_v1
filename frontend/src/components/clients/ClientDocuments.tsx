@@ -477,7 +477,9 @@ function RoleControl({ version, onChanged }: {
               this control the widest thing in the row and then truncated it
               anyway. The three hints are stated once, in the panel note above
               the list, where they are read rather than clipped. */}
-          {VERSION_ROLES.map((role) => (
+          {/* AM-318 B8: never declared signed here; a legacy signed copy keeps its label */}
+          {VERSION_ROLES.filter((role) => role.role !== "FINAL_SIGNED"
+                                || version.version_role === "FINAL_SIGNED").map((role) => (
             <option key={role.role} value={role.role}>{role.label}</option>
           ))}
         </select>

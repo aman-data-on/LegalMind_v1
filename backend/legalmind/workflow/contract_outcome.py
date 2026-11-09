@@ -43,6 +43,13 @@ def suggest(decision_types: set[DecisionType]) -> ContractOutcome:
     return ContractOutcome.SIGN_AS_IS
 
 
+def is_final_copy(db: DBSession, review: M.Review) -> bool:
+    """The Review is of a final contract (`AM-318`): a package or a final copy."""
+    from legalmind.analysis.negotiation import final_of  # circular at import
+    version = db.get(M.DocumentVersion, review.document_version_id)
+    return version is not None and bool(final_of(version.doc_metadata))
+
+
 def current_types(db: DBSession, review_id: UUID) -> set[DecisionType]:
     """Each Evaluation's current decision type (highest version wins)."""
     latest = (select(M.LegalDecision.evaluation_id,
@@ -77,6 +84,10 @@ def record(db: DBSession, review: M.Review, *, actor_id: UUID,
     if (review.status not in {ReviewStatus.RESOLVED, ReviewStatus.CLOSED}
             or not all_required_decisions_complete(db, review)):
         raise InvalidTransition("every point must be decided before the contract is")
+    if outcome is ContractOutcome.SIGN_WITH_CHANGES and is_final_copy(db, review):
+        # AM-318: the final contract IS the agreed text — signed as is, or not at all
+        raise InvalidTransition("a final contract is signed as it is, or not signed — "
+                                "for more changes, upload the client's version")
     if review.status is ReviewStatus.CLOSED and outcome is ContractOutcome.ON_HOLD:
         raise InvalidTransition("a closed review cannot be put on hold")
     chain = history(db, review.id)

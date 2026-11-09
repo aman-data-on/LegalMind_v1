@@ -13,6 +13,12 @@ changes_to_answer  changes left to me        the same deal, in its place (`AM-29
                                              task per contract per person)
 reply_ready        our reply is ready to     the same deals at READY_TO_SEND (`AM-293`:
                    send                      nothing undecided in it)
+contract_decision  every point is decided —  `legal.decision`; the latest version's
+                   record the decision on    Review is with me, RESOLVED, and holds no
+                   the contract              current contract decision (`AM-318`)
+prepare_final      every change is answered  my deals at CLIENT_RETURNED with nothing
+                   — prepare the final       left, or Ready for the final contract
+                   contract                  (`AM-318`)
 answered           Legal answered me         my escalations / reviews I sent, 14 days
 ```
 
@@ -31,6 +37,7 @@ from sqlalchemy import or_, select
 
 from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
 from legalmind.api.envelope import data
+from legalmind.api.routers.amendments import final_copy
 from legalmind.api.routers.contracts import negotiation_stages
 from legalmind.api.routers.negotiation import deal_counts
 from legalmind.api.routers.reviews import _visible_reviews, with_legal
@@ -46,7 +53,10 @@ from legalmind.workflow.review_progress import review_progress
 router = APIRouter(tags=["todo"], route_class=CommitBeforeResponse)
 
 KINDS = ("decide", "second_approval", "client_returned", "changes_to_answer",
-         "reply_ready", "answered")
+         "reply_ready", "answered", "contract_decision", "prepare_final")
+#: AM-318: the two closing sentences, said the same way wherever they appear
+DECIDE_CONTRACT = "Every point is decided. Record the decision on the contract."
+PREPARE_FINAL = "Every change is answered. Prepare the final contract."
 #: ponytail: no "seen" state exists, so an answer leaves the list after a fixed window;
 #: a read marker (the notifications table, `AM-273`) is the upgrade.
 ANSWERED_WINDOW = timedelta(days=14)
@@ -118,10 +128,44 @@ def _decisions(guard: Guard) -> list[dict]:
                 "decisions await your second approval."), link, min(cosign),
                 review_id=str(review.id), count=len(cosign)))
         if progress["to_decide"]:
-            out.append(_item("decide", contract, _plural(
-                progress["to_decide"], "point awaits your decision.",
-                "points await your decision."), link, waiting,
-                review_id=str(review.id), count=progress["to_decide"]))
+            # N13: the client's changes waiting on the same person, in the same line
+            changes = deal_counts(guard, [contract])[contract.id].get(
+                "changes_left_for_me", 0)
+            points = _plural(progress["to_decide"], "point", "points")
+            sentence = (f"{points} and {_plural(changes, 'change', 'changes')} await "
+                        "your decision." if changes else _plural(
+                            progress["to_decide"], "point awaits your decision.",
+                            "points await your decision."))
+            out.append(_item("decide", contract, sentence, link, waiting,
+                             review_id=str(review.id), count=progress["to_decide"],
+                             **({"changes": changes} if changes else {})))
+    return out + _contract_decisions(guard)
+
+
+def _contract_decisions(guard: Guard) -> list[dict]:
+    """`AM-318` A3: a Review with me whose points are all decided and whose contract
+    decision is due — on the latest version of a deal that is not Final or signed."""
+    db, me = guard.db, guard.user_id
+    Rec = M.ContractOutcomeRecord
+    out: list[dict] = []
+    for review in db.execute(
+            _visible_reviews(guard)
+            .join(M.Contract, M.Contract.id == M.Review.contract_id)
+            .where(M.Review.status == E.ReviewStatus.RESOLVED,
+                   M.Contract.archived_at.is_(None), with_legal(me))).scalars():
+        if is_superseded(db, review) or contract_signed(db, review.contract_id):
+            continue
+        latest = db.execute(select(Rec).where(Rec.review_id == review.id)
+                            .order_by(Rec.version_number.desc()).limit(1)).scalar()
+        if latest is not None and not (review.reopened_at
+                                       and review.reopened_at > latest.created_at):
+            continue
+        contract = db.get(M.Contract, review.contract_id)
+        assert contract is not None
+        out.append(_item("contract_decision", contract, DECIDE_CONTRACT,
+                         contract_link(contract.id),
+                         review.reopened_at or review.completed_at or review.created_at,
+                         review_id=str(review.id)))
     return out
 
 
@@ -146,6 +190,10 @@ def _my_deals(guard: Guard) -> list[dict]:
               contract_link(c.id), datetime.fromisoformat(stages[c.id]["since"]),
               days=stages[c.id]["days"])
         for c in mine if stages.get(c.id, {}).get("stage") == "READY_TO_SEND"]
+    out += [_item("prepare_final", c, PREPARE_FINAL, contract_link(c.id),
+                  datetime.fromisoformat(stages[c.id]["since"]),
+                  days=stages[c.id]["days"])
+            for c in mine if stages.get(c.id, {}).get("stage") == "READY_TO_SIGN"]
     for contract in returned:
         stage, n = stages[contract.id], counts[contract.id]
         # `AM-291`: ONE task per contract per person — the changes left to me; the
@@ -156,6 +204,8 @@ def _my_deals(guard: Guard) -> list[dict]:
             continue
         kind, sentence = ("client_returned",
                           "The client returned a new version — it is our turn.")
+        if "changes_total" in n and not n.get("changes_left"):
+            kind, sentence = "prepare_final", PREPARE_FINAL       # AM-318 A3
         if left:
             verb = "is" if left == 1 else "are"
             kind = "changes_to_answer"
@@ -198,9 +248,11 @@ def _answers(guard: Guard) -> list[dict]:
     out: list[dict] = []
     for (contract_id, what), at in rows.items():
         contract = db.get(M.Contract, contract_id)
+        # B10: nothing waits on a signed contract; AM-318: nor on a Final one
         if contract is None or contract.archived_at is not None \
                 or not can_read_contract(db, me, contract) \
-                or contract_signed(db, contract.id):          # B10: nothing waits
+                or contract_signed(db, contract.id) \
+                or final_copy(db, contract.id) is not None:
             continue
         out.append(_item("answered", contract, words[what],
                          contract_link(contract.id), at))

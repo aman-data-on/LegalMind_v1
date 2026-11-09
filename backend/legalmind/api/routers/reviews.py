@@ -216,9 +216,20 @@ def list_reviews(
     # not see.
     status: E.ReviewStatus | None = Query(default=None),
     contract_id: UUID | None = Query(default=None),
+    with_me: bool = Query(default=False, description=(
+        "the Legal queue (`AM-318` A7): only Reviews with this caller now (B11), of the "
+        "LATEST version of a contract that is not archived")),
 ) -> dict:
     guard.permission(P.REVIEW_VIEW)
     stmt = _visible_reviews(guard)
+    if with_me:
+        D = M.DocumentVersion
+        newest = (select(func.max(D.version_number)).where(
+            D.contract_id == M.Review.contract_id).correlate(M.Review).scalar_subquery())
+        stmt = (stmt.join(D, D.id == M.Review.document_version_id)
+                .join(M.Contract, M.Contract.id == M.Review.contract_id)
+                .where(with_legal(guard.user_id), D.version_number == newest,
+                       M.Contract.archived_at.is_(None)))
     if status is not None:
         stmt = stmt.where(M.Review.status == status)
     if contract_id is not None:

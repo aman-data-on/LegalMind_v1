@@ -502,10 +502,11 @@ export interface NavItem {
  *  2) — read from the declared role and the reply link, never from the number or date.
  *  Null when nobody said; the caller then falls back to whose paper it is. */
 export function versionRoleLabel(
-  v: { version_role?: string; reply?: { to_version_id: string } },
+  v: { version_role?: string; reply?: { to_version_id: string }; final_copy?: unknown; package?: unknown },
   versions: { id: string; version_number: number }[],
 ): string | null {
   if (v.version_role === "FINAL_SIGNED") return "Signed";
+  if (v.final_copy || v.package) return "Final contract";      // AM-318
   if (v.reply) {
     const theirs = versions.find((x) => x.id === v.reply!.to_version_id);
     return theirs ? `Our reply to v${theirs.version_number}` : "Our reply";
@@ -577,7 +578,8 @@ export function stageViewer(can: (permission: string) => boolean, isOwner: boole
  *  list — the server's To-do items, the most pressing kept where one contract carries
  *  two, oldest first. Nothing is derived beyond choosing which server item to show. */
 const TASK_RANK: Record<string, number> = {
-  decide: 0, second_approval: 1, changes_to_answer: 2, reply_ready: 3, client_returned: 4, answered: 5,
+  decide: 0, second_approval: 1, contract_decision: 1, changes_to_answer: 2, prepare_final: 3, reply_ready: 3,
+  client_returned: 4, answered: 5,
 };
 export function oneTaskPerContract<T extends { kind: string; contract_id: string; since: string | null }>(items: T[]): T[] {
   const best = new Map<string, T>();

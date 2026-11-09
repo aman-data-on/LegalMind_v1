@@ -8,7 +8,7 @@
  */
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api, describeError } from "@/lib/api";
 import * as P from "@/lib/permissions";
@@ -73,13 +73,17 @@ function useTemplates(enabled: boolean) {
 
 /** The template's full text in a dialog — for a version awaiting approval, which has no
  *  page of its own for anyone but Legal. Marked as a draft; nothing here is usable. */
-function PreviewDialog({ t, onClose }: { t: TemplateSummary; onClose: () => void }) {
+function PreviewDialog({ t, onClose, returnTo }: {
+  t: TemplateSummary; onClose: () => void;
+  /** template re-check #1 (WCAG 2.4.3): Esc or Close gives focus back to its Preview button */
+  returnTo: () => HTMLElement | null;
+}) {
   const [detail, setDetail] = useState<TemplateDetail | null>(null);
   const [error, setError] = useState<unknown>(null);
   useEffect(() => { api.template(t.id).then(setDetail).catch(setError); }, [t.id]);
   const numbers = detail ? clauseNumbers(detail.clauses) : new Map<string, string>();
   return (
-    <Dialog onClose={onClose} titleId="tpl-preview-title" overlayClassName="tpl-preview">
+    <Dialog onClose={onClose} titleId="tpl-preview-title" overlayClassName="tpl-preview" returnFocus={returnTo}>
       <h2 id="tpl-preview-title">{cardName(t)}</h2>
       <p className="tpl-quiet">Draft, awaiting approval. Not for use with a client.</p>
       <div className="tpl-preview__text">
@@ -145,6 +149,7 @@ export function TemplateLibrary() {
   const approver = can(P.LEGAL_APPROVE_CUSTOMIZATION);
   const { list, checks, error, runCheck, reload } = useTemplates(true);
   const [preview, setPreview] = useState<TemplateSummary | null>(null);
+  const previewFrom = useRef<HTMLElement | null>(null);
   const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
@@ -216,7 +221,7 @@ export function TemplateLibrary() {
                 <div className="tpl-lib__cards">
                   {awaiting.map((t) => (
                     <TemplateCard key={t.id} t={t} actions={<>
-                      <button type="button" className="ws-btn" onClick={() => setPreview(t)}
+                      <button type="button" className="ws-btn" onClick={(event) => { previewFrom.current = event.currentTarget; setPreview(t); }}
                               aria-label={`Preview: ${cardName(t)}`}>Preview</button>
                       <CardDownload t={t} />
                       {approver ? (
@@ -238,7 +243,7 @@ export function TemplateLibrary() {
             ) : null}
           </>
         )}
-      {preview ? <PreviewDialog t={preview} onClose={() => setPreview(null)} /> : null}
+      {preview ? <PreviewDialog t={preview} onClose={() => setPreview(null)} returnTo={() => previewFrom.current} /> : null}
       {uploading ? <UploadContractDialog firstRun={false} onClose={() => setUploading(false)} /> : null}
     </div>
   );

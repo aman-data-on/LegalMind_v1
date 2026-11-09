@@ -18,7 +18,7 @@ import type { PackageBlocker, PackageForm, PackagePlan, PreparedPackage, Special
 import type { Playbook } from "./playbook";
 import type { ClauseVersionRow, OutlineLine, TemplateCheck, TemplateDetail, TemplateSummary } from "./templates";
 import type { Answers, Created, Draft, DraftCheck, DraftPreview, FieldProblem, PublishedTemplate } from "./newContract";
-import type {
+import type { FinalCopyPlan,
   ReviewAngles,
   ReviewAssignments,
   ContractOutcome,
@@ -756,6 +756,10 @@ export const api = {
                    amendment?: { form: PackageForm; effective_date?: string }) =>
     request<PreparedPackage>(p`/contracts/${contractId}/package`, {
       method: "POST", body: { expected_entries_sha256: entriesSha256, ...amendment } }),
+  /** `AM-318`: the dry run of the final clean copy, where no Annexure package applies */
+  finalCopyPlan: (contractId: string) => request<FinalCopyPlan>(p`/contracts/${contractId}/final-copy`),
+  prepareFinalCopy: (contractId: string) =>
+    request<{ document_version: DocumentVersion }>(p`/contracts/${contractId}/final-copy`, { method: "POST" }),
   /** `AM-309`: an amendment of this signed contract; 409 with the reason otherwise */
   startAmendment: (contractId: string) =>
     request<Contract & { starts_empty?: string }>(p`/contracts/${contractId}/amendments`, { method: "POST" }),
@@ -798,7 +802,7 @@ export const api = {
   },
 
   // ---- reviews ----------------------------------------------------------
-  reviews: (query: { page?: number; page_size?: number; status?: string; contract_id?: string } = {}) =>
+  reviews: (query: { page?: number; page_size?: number; status?: string; contract_id?: string; with_me?: "true" } = {}) =>
     requestPage<Review>("/reviews", { query }),
   review: (id: string) => request<Review>(p`/reviews/${id}`),
   createReview: (documentVersionId: string, configurationSnapshotId: string) =>

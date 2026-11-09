@@ -55,6 +55,7 @@ import { FindingsProvider, primeReviews, useFindingsState, useFindingsStateOptio
 import { HighlightProvider } from "./highlight";
 import { contractHref, contractTabFromPath, pickVersion, shortDate, stageViewer, versionRoleLabel } from "./model";
 import { RecordSigning } from "./SigningSheet";
+import { FinalCard, PrepareFinal, ClosedPanel } from "./FinalCopy";
 import { StageBadge } from "./StageBadge";
 import { UploadDocument } from "./UploadDocument";
 import { VersionComparison } from "./VersionComparison";
@@ -345,6 +346,32 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
       ))}
     </div>);
   }
+  // N5: our own version downloads from ⋯ at any stage — said to be a draft while a point
+  // is open; the server still gates a reply or final contract with an open point (AM-293)
+  if (version && can(P.DOCUMENT_DOWNLOAD) && !version.reply && !version.package && !version.final_copy) {
+    const draft = (contract.counts?.points_open ?? 0) > 0 && version.version_role !== "CLIENT_MODIFIED";
+    overflow.push(<a key="dl" role="menuitem" className="ws-menu__item"
+                     href={`/api/v1/document-versions/${encodeURIComponent(version.id)}/content`} download>
+      Download version {version.version_number}{draft ? " (draft — not yet cleared by Legal)" : ""}</a>);
+  }
+  // AM-318 A4: the client accepted our version as it was — its final copy
+  const ourLatest = !!latest && latest.version_role === "COMPANY_DRAFT" && !latest.package && !latest.final_copy;
+  if (ourLatest && canAnswer && (stageCode === "WITH_CLIENT" || stageCode === "READY_TO_SEND"
+                                     || stageCode === "DRAFTING")) {
+    overflow.push(<button key="fin" type="button" role="menuitem" className="ws-menu__item"
+                          onClick={() => runStep("prepareFinal")}>
+      Prepare final contract (client accepted version {latest!.version_number})</button>);
+  }
+  const canAmend = (stageCode === "FINAL" || stageCode === "SIGNED") && contract.contract_type !== "AMENDMENT"
+    && !contract.governed_by && !contract.archived_at && can(P.CONTRACT_CREATE) && can(P.CONTRACT_UPDATE);
+  if (canAmend && view === "document") {
+    overflow.push(<button key="amd" type="button" role="menuitem" className="ws-menu__item"
+                          onClick={() => runStep("startAmendment")}>{ACTION.startAmendment}</button>);
+  }
+  if (stageCode === "FINAL" || stageCode === "SIGNED") {
+    overflow.push(<Link key="terms" role="menuitem" className="ws-menu__item"
+                        href={`/contracts/${contract.id}/terms`}>Terms in force</Link>);
+  }
   if (version) overflow.push(<ReportMenuItem key="rep" />);
   overflow.push(<button key="link" type="button" role="menuitem" className="ws-menu__item"
                         onClick={copyLink}>Copy link</button>);
@@ -463,7 +490,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
             <UploadDocument
               contractId={contract.id}
               // with the client, what comes back is theirs; otherwise the reader says
-              roleDefault={stageCode === "WITH_CLIENT" ? "CLIENT_MODIFIED" : ""}
+              roleDefault={stageCode === "WITH_CLIENT" || stageCode === "FINAL" ? "CLIENT_MODIFIED" : ""}
               submitLabel={`Upload version ${(latest?.version_number ?? version.version_number) + 1}`}
               onUploaded={async () => {
                 // The revised version gets the same in-flow analysis as a first
@@ -481,6 +508,11 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
 
       {/* the view the record's tabs choose (WAI-ARIA tabpanel; `display: contents`, so the
           workspace's own layout is untouched) */}
+      {/* #9: the unselected tab's panel stays in the DOM, hidden, so its aria-controls resolves */}
+      {version && !phone && changesFeed.enabled ? (
+        <div role="tabpanel" hidden id={`ws-view-${view === "changes" ? "document" : "changes"}`}
+             aria-labelledby={`ws-viewtab-${view === "changes" ? "document" : "changes"}`} />
+      ) : null}
       <div className="ws-viewpanel" {...(version && !phone && changesFeed.enabled
         ? { role: "tabpanel", id: `ws-view-${view}`, "aria-labelledby": `ws-viewtab-${view}` } : {})}>
       {/* AM-293: the reply's banner (its files, "send it") only once nothing is open —
@@ -490,17 +522,21 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
         && (version.sent_at || stageCode === "READY_TO_SEND") ? (
         <ReplyNotice version={version} versions={versions} canSend={!!changeList?.can_send} />
       ) : null}
-      {version && view === "document" && version.package ? (
+      {version && view === "document" && stageCode === "FINAL" && isLatest ? (
+        <FinalCard version={version} versions={versions} since={contract.negotiation_stage!.since} />
+      ) : version && view === "document" && version.package ? (
         <PackageCard version={version} versions={versions}
                      filesOpen={stageCode === "READY_TO_SEND" || stageCode === "READY_TO_SIGN" || stageCode === "SIGNED"} />
       ) : null}
-      {view === "document" ? (
-        <AmendmentsPanel contract={contract}
-                         canStart={stageCode === "SIGNED" && contract.contract_type !== "AMENDMENT" && !contract.governed_by
-                                   && !contract.archived_at && can(P.CONTRACT_CREATE) && can(P.CONTRACT_UPDATE)} />
+      {view === "document" ? <AmendmentsPanel contract={contract} canStart={canAmend} /> : null}
+      {version ? (
+        <PrepareFinal contractId={contract.id} nextVersion={(latest?.version_number ?? 0) + 1}
+                      onPrepared={() => { setView("document"); openVersion(null); }} />
       ) : null}
 
-      {version && changesFeed.enabled && view === "changes" ? (
+      {version && changesFeed.enabled && view === "changes" && stageCode === "FINAL" ? (
+        <ClosedPanel what="changes" />
+      ) : version && changesFeed.enabled && view === "changes" ? (
         <ChangesPane contractId={contract.id} versions={versions} changes={changesFeed}
                      onVersionCreated={() => { setView("document"); openVersion(null); }}
                      packageBar={pkg.plan ? (onPick: (rowKey: string) => void) => (
@@ -526,7 +562,9 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
               overlay sheet — see the layout's narrow branch. */}
           <WorkspaceLayout
             document={<PaneBoundary what="The document"><DocumentPane version={version} /></PaneBoundary>}
-            findings={<PaneBoundary what="The points"><FindingsPane version={version} /></PaneBoundary>}
+            findings={<PaneBoundary what="The points">{stageCode === "FINAL" && isLatest
+              ? <ClosedPanel what="points"><FindingsPane version={version} /></ClosedPanel>
+              : <FindingsPane version={version} />}</PaneBoundary>}
             analysis={<PaneBoundary what="The summary"><AnalysisPanel documentVersionId={version.id}
                                      signedCopy={version.version_role === "FINAL_SIGNED"}
                                      stage={contract.negotiation_stage ?? null}
@@ -652,11 +690,15 @@ function RecordHeader({
     findings?.refresh();
   };
   const signedAt = contract.negotiation_stage?.stage === "SIGNED" ? contract.negotiation_stage.since : null;
-  // signed: the review is for reference, so who holds it and "Send to Legal" are not shown
-  const holder = signedAt ? undefined : assign?.assigned[0];
+  const stageNow = contract.negotiation_stage?.stage;
+  // N15: who holds the review is said only while it is with them — never once Legal
+  // finished or the deal moved on
+  const holder = stageNow === "INTERNAL_REVIEW" ? assign?.assigned[0] : undefined;
+  // AM-318: the final contract waits on Legal's decision on the contract
+  const finalLatest = !!latest && !!(latest.package || latest.final_copy);
   // only with something for Legal to decide, and never while the paper is with the client
-  const canSendToLegal = !signedAt && contract.negotiation_stage?.stage !== "WITH_CLIENT"
-    && (contract.counts?.points_open ?? 0) > 0
+  const canSendToLegal = !signedAt && stageNow !== "WITH_CLIENT" && stageNow !== "FINAL"
+    && ((contract.counts?.points_open ?? 0) > 0 || (finalLatest && stageNow === "INTERNAL_REVIEW"))
     && !!assign?.can_send && !holder && assign.eligible.length > 0;
   const ours = !!latest && latest.version_role !== "CLIENT_MODIFIED" && latest.version_role !== "FINAL_SIGNED";
   const step = findings?.reference ? null : nextStep({
@@ -664,6 +706,7 @@ function RecordHeader({
     replyReady: !!latest?.reply && !latest.sent_at,
     draftUnsent: ours && !latest?.reply && !latest?.package && !latest?.sent_at,
     packageReady, packageUnsent: !!latest?.package && !latest.sent_at, amendment: contract.contract_type === "AMENDMENT",
+    finalLatest,
   });
   /** Where the act lives: switch to its tab first, then ask its pane. */
   const go = (kind: StepKind, tab: "document" | "changes") => {
@@ -672,14 +715,12 @@ function RecordHeader({
   let primary: React.ReactNode = null;
   if (step && reviewId && assign && step.kind === "sendToLegal") {
     primary = <SendToLegal reviewId={reviewId} data={assign} onChange={assigned} label={step.label} primary />;
-  } else if (step && step.kind === "recordSigning") {
-    primary = <RecordSigning contractId={contract.id} label={step.label} primary onSigned={onReload}
-                             versions={contract.document_versions} />;
   } else if (step && latest && (step.kind === "sendReply" || step.kind === "sendToClient"
-                                 || step.kind === "sendForSignature")) {
+                                 || step.kind === "downloadFinal")) {
     primary = <SendOut version={latest} label={step.label} onSent={onReload} />;
   } else if (step) {
-    const tab = step.kind === "decide" ? "document" : "changes";   // preparePackage: Changes
+    // preparePackage: Changes; prepareFinal: the dialog on either tab
+    const tab = step.kind === "decide" ? "document" : step.kind === "prepareFinal" ? view : "changes";
     primary = (
       <button type="button" className="ws-btn ws-btn--sm ws-btn--primary" onClick={() => go(step.kind, tab)}>
         {step.label}
@@ -691,7 +732,7 @@ function RecordHeader({
     <PageHeader wide title={contractDisplayName(contract.name)} back={{ href: "/contracts", label: "Contracts" }}
       meta={<>
         {contract.negotiation_stage ? (
-          <StageBadge stage={contract.negotiation_stage} counts={contract.counts} viewer={viewer} />
+          <StageBadge stage={contract.negotiation_stage} counts={contract.counts} viewer={viewer} final={finalLatest} />
         ) : null}
         {/* P-1: the contract's own declared state (Draft / Active / Superseded), read back in
             words beside the deal stage (restored 2026-11-05). Once signed, the stage says it
@@ -706,7 +747,8 @@ function RecordHeader({
         {versionMeta}
         <GovernedByLink contract={contract} />
         {contract.made_from ? (
-          <span>Made from {contract.made_from.name ?? templateName(contract.made_from)}, version {contract.made_from.version}</span>
+          <span>Made from {contract.made_from.name ?? templateName(contract.made_from)}, version {contract.made_from.version}
+            {contract.made_from.withdrawn ? <span className="ws-record__quiet">, a template that has since been withdrawn</span> : null}</span>
         ) : null}
         {/* AB-13 r7 — the LINKED company wins; linked, it opens every document for it */}
         {company ? (

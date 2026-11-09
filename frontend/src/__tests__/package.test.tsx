@@ -80,14 +80,20 @@ describe("words", () => {
 describe("the step (nextStep)", () => {
   const counts = { changes_total: 3, changes_left: 0, changes_left_for_me: 0 };
   const base = { viewer: "owner" as const, canAnswer: true, counts };
-  it("prepares the final contract when its dry run is clear, our reply otherwise", () => {
-    expect(nextStep({ ...base, stage: "CLIENT_RETURNED", packageReady: true })?.label).toBe("Prepare final contract");
-    expect(nextStep({ ...base, stage: "CLIENT_RETURNED" })?.label).toBe("Prepare our reply");
+  it("prepares the final contract: the Annexure package when its dry run is clear, else the final copy", () => {
+    expect(nextStep({ ...base, stage: "CLIENT_RETURNED", packageReady: true })?.kind).toBe("preparePackage");
+    expect(nextStep({ ...base, stage: "CLIENT_RETURNED" })?.kind).toBe("prepareFinal");      // AM-318 A4
   });
-  it("sends the final contract for signature before it is marked signed", () => {
-    expect(nextStep({ ...base, stage: "READY_TO_SIGN", packageUnsent: true })?.label).toBe("Send for signature");
-    expect(nextStep({ ...base, stage: "READY_TO_SEND", packageUnsent: true })?.kind).toBe("sendForSignature");
-    expect(nextStep({ ...base, stage: "READY_TO_SIGN" })?.kind).toBe("recordSigning");
+  it("ends at Final: download it, and nothing leads to signing (AM-318)", () => {
+    expect(nextStep({ ...base, stage: "FINAL" })?.label).toBe("Download final contract");
+    expect(nextStep({ ...base, stage: "READY_TO_SIGN" })?.kind).toBe("prepareFinal");
+    expect(nextStep({ ...base, stage: "READY_TO_SIGN", finalLatest: true })).toBeNull();
+    expect(nextStep({ ...base, stage: "INTERNAL_REVIEW", finalLatest: true, canSendToLegal: true })?.kind)
+      .toBe("sendToLegal");
+    for (const stage of ["FINAL", "READY_TO_SIGN", "READY_TO_SEND", "SIGNED"] as const) {
+      expect(["recordSigning", "sendForSignature"]).not.toContain(
+        nextStep({ ...base, stage, packageUnsent: true })?.kind);
+    }
   });
 });
 
@@ -104,14 +110,14 @@ describe("the final contract (PackageCard)", () => {
     expect(held).toContain("the files are held");
     expect(held).not.toContain("Download");
     const open = renderToStaticMarkup(<PackageCard version={version()} versions={versions} filesOpen />);
-    expect(open).toContain("Not sent yet.");
+    expect(open).toContain("Legal records the decision on it next.");
     expect(open).toContain("PDF");
     expect(open).toContain("What is in Annexure A (3)");
   });
   it("says when it went out", () => {
     const sent = renderToStaticMarkup(<PackageCard version={version({ sent_at: "2026-11-04T10:00:00Z" })}
                                                    versions={versions} filesOpen={false} />);
-    expect(sent).toContain("Sent for signature on 4 Nov 2026");
+    expect(sent).toContain("Recorded as sent on 4 Nov 2026");
     expect(sent).toContain("PDF");
   });
 });

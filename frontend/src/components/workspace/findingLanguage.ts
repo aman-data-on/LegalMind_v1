@@ -71,6 +71,14 @@ const CODE_WORDS: Record<string, string> = {
   TOS: "TOS",
 };
 
+/** Template re-check #6 (2026-11-09): the plain name of a point whose code words read as
+ *  shorthand. Words only — the standard behind each is unchanged. */
+const PLAIN_NAMES: Record<string, string> = {
+  "DATA-PURGE": "Deleting data after the end",
+  "DISPUTE-VENUE": "Where disputes are heard",
+  "LATE-INTEREST": "Interest on late payment",
+};
+
 export function requirementTitle(
   requirement: { code?: string | null; name?: string | null } | null | undefined,
 ): string {
@@ -83,6 +91,8 @@ export function requirementTitle(
   // the requirement's own words stays ("REFERENCE-GOVERNING-MSA-…").
   const parts = code.split(/[-\s]+/).filter((part) => part.length > 0 && !/^\d+$/.test(part));
   if (parts.length > 1 && TYPE_CODES.has(parts[parts.length - 1]!.toUpperCase())) parts.pop();
+  const plain = PLAIN_NAMES[parts.join("-").toUpperCase()];
+  if (plain) return plain;
   const words = parts
     .flatMap((piece) => piece.split("_"))
     .filter((part) => part.length > 0)

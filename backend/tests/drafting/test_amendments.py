@@ -83,7 +83,7 @@ def _amend(api, contract, **body):
 def test_only_a_signed_contract_is_amended_and_never_an_amendment(db, api, negotiated):
     contract, _, _, _ = negotiated
     r = _amend(api, contract)
-    assert r.status_code == 409 and "only a signed contract" in r.json()["error"]["message"]
+    assert r.status_code == 409 and "only a Final contract" in r.json()["error"]["message"]
 
 
 def test_the_database_holds_the_rule_whoever_writes_the_row(db, signed_deal, lawyer):
@@ -547,3 +547,55 @@ def test_only_the_governed_by_trigger_is_a_409():
                   err("new row violates check constraint", "23514")):
         with pytest.raises(DBAPIError):
             refusal(other)
+
+
+# ------------------------------------------- AM-318: amended from the final copy
+@pytest.fixture
+def final_deal(db, api, negotiated, lawyer):
+    """Round 1's final contract (v3), linked to a client, Legal's Sign as is — Final."""
+    contract, _, _, storage = negotiated
+    client = M.Counterparty(name="Client A", created_by=lawyer.id)
+    db.add(client)
+    db.flush()
+    contract.counterparty_id = client.id
+    db.flush()
+    v3 = _package(db, api, contract)
+    review = db.execute(select(M.Review).where(
+        M.Review.document_version_id == v3.id)).scalars().first()
+    _decide(db, review)
+    return contract, v3, storage
+
+
+def test_a_final_contract_is_amended_from_its_final_copy(db, api, final_deal):
+    """B5: "Start an amendment" on a Final deal; its v1 is a copy of the final copy, and
+    Terms in force open from it."""
+    contract, v3, _ = final_deal
+    stage = api.get(f"{V1}/contracts/{contract.id}").json()["data"]["negotiation_stage"]
+    assert stage["stage"] == "FINAL"
+    r = _amend(api, contract)
+    assert r.status_code == 201, r.text
+    first = r.json()["data"]["document_version"]
+    assert first is not None
+    v1 = db.get(M.DocumentVersion, uuid.UUID(first["id"]))
+    assert v1.doc_metadata["copy_of"] == str(v3.id)
+    terms = api.get(f"{V1}/contracts/{contract.id}/effective")
+    assert terms.status_code == 200, terms.text
+    assert terms.json()["data"]["original"]["document_version_id"] == str(v3.id)
+
+
+def test_the_trigger_admits_a_final_parent(db, final_deal, lawyer):
+    contract, _, _ = final_deal
+    row = M.Contract(owner_id=lawyer.id, name="a", status=E.ContractStatus.DRAFT,
+                     contract_type="AMENDMENT", counterparty_id=contract.counterparty_id,
+                     governed_by_contract_id=contract.id)
+    db.add(row)
+    db.flush()
+    plain = M.Contract(owner_id=lawyer.id, name="p", status=E.ContractStatus.DRAFT,
+                       counterparty_id=contract.counterparty_id)
+    db.add(plain)
+    db.flush()
+    with pytest.raises(DBAPIError), db.begin_nested():
+        db.add(M.Contract(owner_id=lawyer.id, name="b", status=E.ContractStatus.DRAFT,
+                          contract_type="AMENDMENT", counterparty_id=plain.counterparty_id,
+                          governed_by_contract_id=plain.id))
+        db.flush()

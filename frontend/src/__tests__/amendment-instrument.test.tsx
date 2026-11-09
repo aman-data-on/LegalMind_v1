@@ -55,7 +55,7 @@ describe("the conformed copy", () => {
     current: { read: "APPLIED", removed: [], clauses: [{ number: "1", heading: null, text: "A clause." }] } };
   it("says it is not binding, and can be printed with that line", () => {
     const html = renderToStaticMarkup(<TermsView contractId="c" contract={null} text={text} />);
-    expect(NOT_BINDING).toBe("For reference only, not binding. The signed contract and its signed amendments govern.");
+    expect(NOT_BINDING).toBe("For reference only, not binding. The agreed contract and its agreed amendments govern.");
     expect(html).toContain("For reference only, not binding.");
     expect(html).toContain("Print or save as PDF");
   });

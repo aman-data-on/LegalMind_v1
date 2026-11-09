@@ -893,10 +893,12 @@ function firstWords(change: ClientChange): string {
 /** Our prepared reply's two files. Fetched, not navigated: a reply whose review still
  *  has an undecided point is refused (`AM-293` r1, 409 REPLY_UNDECIDED), and the refusal
  *  lists what is open — each point a link to it on the reply — instead of a raw error. */
-export function ReplyDownloads({ version, pdf = "reply-pdf" }: {
+export function ReplyDownloads({ version, pdf = "reply-pdf", word: hasWord = true }: {
   version: Pick<DocumentVersion, "id">;
   /** our reply's PDF, or — a contract made from our template — the contract's */
   pdf?: "reply-pdf" | "pdf";
+  /** false for a final copy of the client's own PDF: there is no Word file (`AM-318`) */
+  word?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [refused, setRefused] = useState<{ message: string; gate?: ReplyGate | undefined } | null>(null);
@@ -916,9 +918,11 @@ export function ReplyDownloads({ version, pdf = "reply-pdf" }: {
   const gate = file.error instanceof ApiError ? file.error.gate : undefined;
   return (
     <>
-      <button type="button" className="ws-btn ws-btn--sm" disabled={busy} onClick={() => void word()}>
-        <IconDownload size={14} /> <span className="ws-dlverb">Download </span>Word
-      </button>
+      {hasWord ? (
+        <button type="button" className="ws-btn ws-btn--sm" disabled={busy} onClick={() => void word()}>
+          <IconDownload size={14} /> <span className="ws-dlverb">Download </span>Word
+        </button>
+      ) : null}
       <button type="button" className="ws-btn ws-btn--sm" disabled={file.busy} aria-busy={file.busy}
               onClick={() => void file.download()}>
         <IconDownload size={14} /> {file.label ?? <><span className="ws-dlverb">Download </span>PDF</>}
@@ -957,14 +961,18 @@ export function GateList({ message, gate }: { message: string; gate?: ReplyGate 
 
 /** "Send our reply" / "Send to client" (`AM-260`): LegalMind sends nothing itself, so the
  *  step says what it is — download the file, send it to the client, record when it went
- *  (once, audited, server-checked: a reply with an undecided point is refused, `AM-293`). */
+ *  (once, audited, server-checked: a reply with an undecided point is refused, `AM-293`).
+ *  The final contract (`AM-318`) is only downloaded: it is signed in another tool, and
+ *  recording that it went is optional and never moves the deal off Final. */
 export function SendOut({ version, label, onSent }: {
-  version: Pick<DocumentVersion, "id" | "version_number" | "reply" | "package">; label: string; onSent: () => void;
+  version: Pick<DocumentVersion, "id" | "version_number" | "reply" | "package" | "final_copy" | "sent_at" | "mime_type">;
+  label: string; onSent: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  useStep(version.package ? "sendForSignature" : version.reply ? "sendReply" : "sendToClient",
+  const final = !!(version.package || version.final_copy);
+  useStep(final ? "downloadFinal" : version.reply ? "sendReply" : "sendToClient",
           useCallback(() => setOpen(true), []));
   return (
     <>
@@ -973,32 +981,36 @@ export function SendOut({ version, label, onSent }: {
         <Dialog onClose={() => setOpen(false)} titleId="lm-sendout-title">
           <h2 id="lm-sendout-title">{label}</h2>
           <p className="ws-pane__note">
-            Download version {version.version_number}, send it to the client
-            {version.package ? " for signature" : ""} from your email, then record it here so everyone
-            sees it went.
+            {final ? <>Download version {version.version_number}, the final contract, and sign it in your
+              signing tool. Nothing more is needed here.</>
+              : <>Download version {version.version_number}, send it to the client from your email, then
+                record it here so everyone sees it went.</>}
           </p>
           <div className="cx-dialog__foot cx-dialog__foot--start">
-            <ReplyDownloads version={version} pdf={version.reply ? "reply-pdf" : "pdf"} />
+            <ReplyDownloads version={version} pdf={version.reply ? "reply-pdf" : "pdf"}
+                            word={version.mime_type !== "application/pdf"} />
           </div>
           {error ? <p className="cx-error" role="alert">{error}</p> : null}
           <div className="cx-dialog__foot">
-            <button type="button" className="ws-btn" onClick={() => setOpen(false)}>Cancel</button>
-            <button type="button" className="ws-btn ws-btn--primary" disabled={busy}
-                    onClick={async () => {
-                      setBusy(true);
-                      setError(null);
-                      try {
-                        await api.markSent(version.id);
-                        setOpen(false);
-                        onSent();
-                      } catch (cause) {
-                        setError(describeError(cause));
-                      } finally {
-                        setBusy(false);
-                      }
-                    }}>
-              {busy ? "Recording…" : "I have sent it"}
-            </button>
+            <button type="button" className="ws-btn" onClick={() => setOpen(false)}>{final ? "Close" : "Cancel"}</button>
+            {final && version.sent_at ? null : (
+              <button type="button" className={`ws-btn${final ? "" : " ws-btn--primary"}`} disabled={busy}
+                      onClick={async () => {
+                        setBusy(true);
+                        setError(null);
+                        try {
+                          await api.markSent(version.id);
+                          setOpen(false);
+                          onSent();
+                        } catch (cause) {
+                          setError(describeError(cause));
+                        } finally {
+                          setBusy(false);
+                        }
+                      }}>
+                {busy ? "Recording…" : final ? "Record that you sent it" : "I have sent it"}
+              </button>
+            )}
           </div>
         </Dialog>
       ) : null}

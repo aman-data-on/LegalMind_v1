@@ -220,6 +220,13 @@ def answers(meta: dict | None) -> str | None:
     return meta.get("reply_to") or meta.get("package_of")
 
 
+def final_of(meta: dict | None) -> str | None:
+    """The version a final contract was made from (`AM-318`): the Annexure package's
+    ``package_of`` (`AM-307`) or a final copy's ``final_copy_of`` — else None."""
+    meta = meta or {}
+    return meta.get("package_of") or meta.get("final_copy_of")
+
+
 def is_ours(version: M.DocumentVersion) -> bool:
     """A version WE sent or drafted: declared Company draft, or undeclared and not the
     counterparty's paper (`source`) — never CLIENT_MODIFIED or FINAL_SIGNED."""
@@ -906,7 +913,8 @@ def reply_open_points(db: DBSession, version: M.DocumentVersion) -> dict | None:
     Its latest Review must have finished its analysis (none, queued or failed fails
     closed, `AM-284` r2) and hold no undecided point."""
     meta = version.doc_metadata or {}
-    if not answers(meta) or meta.get("version_role") != "COMPANY_DRAFT":
+    ours = meta.get("version_role") == "COMPANY_DRAFT"
+    if not (answers(meta) or final_of(meta)) or not ours:
         return None
     review = _latest_review(db, version)
     if review is None or review.status not in _ANALYSED:
@@ -939,10 +947,13 @@ def carry_acceptances(db: DBSession, review: M.Review, *,
     Returns how many."""
     reply = db.get(M.DocumentVersion, review.document_version_id)
     meta = (reply.doc_metadata or {}) if reply else {}
-    if (reply is None or not answers(meta)
-            or meta.get("version_role") != "COMPANY_DRAFT"):
+    of = answers(meta) or final_of(meta)        # AM-318: a final copy of their version
+    if reply is None or not of or meta.get("version_role") != "COMPANY_DRAFT":
         return 0
-    theirs = db.get(M.DocumentVersion, UUID(answers(meta)))
+    theirs = db.get(M.DocumentVersion, UUID(of))
+    if theirs is not None and not answers(meta) and (
+            theirs.doc_metadata or {}).get("version_role") == "COMPANY_DRAFT":
+        return 0                    # a final copy of our own version: no client round
     contract = db.get(M.Contract, review.contract_id)
     versions = list(db.execute(select(M.DocumentVersion).where(
         M.DocumentVersion.contract_id == review.contract_id)).scalars())

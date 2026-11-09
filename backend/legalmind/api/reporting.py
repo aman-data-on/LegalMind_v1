@@ -203,6 +203,8 @@ def outcome_payload(db: DBSession, review: M.Review) -> dict[str, Any]:
         "ready": read_only is None
                  and review.status in {E.ReviewStatus.RESOLVED, E.ReviewStatus.CLOSED},
         "read_only": read_only,
+        # AM-318: on a final contract only Sign as is / Do not sign / On hold
+        "final": CO.is_final_copy(db, review),
         "history": [{"outcome": c.outcome.value, "suggested": c.suggested.value,
                      "justification": c.justification,
                      "decided_by_name": names.get(c.decided_by),
