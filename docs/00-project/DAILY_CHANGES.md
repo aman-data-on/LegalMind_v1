@@ -20,6 +20,16 @@ credential, a permission — including the things that leave no commit behind.
 
 ---
 
+## 2026-11-03
+
+### Reached production
+- **`d2a5243`** — PRs #280 (contract gate + chat file only when asked, AB-143), #281 (contract reading, AB-145), #282 (Ask quality, AB-144), #283 (CloudPe Gemma, AB-146 + the C26 gold fix #282 left failing). Health 200, no failed unit.
+- **Server:** DeepSeek (IndieRouter, Together) and Bonsai keys commented out in `/root/.legalmind.env` (402/500; values kept; backup `legalmind.env.before-cloudpe-gemma-2026-11-03`); CloudPe key and base URL added; API + worker restarted.
+- **Statutes:** all 17 Acts staged with chunker section-7; the first swap regressed one benchmark case and was rolled back the same minute (live = previous generation; STAGED kept).
+- **Backup:** an extra full backup at 17:15 (dump + documents, off-server copy verified) ahead of the disk resize.
+
+---
+
 ## 2026-11-02
 
 ### Changed on the server (no commit)

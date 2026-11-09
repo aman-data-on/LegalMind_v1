@@ -27676,3 +27676,35 @@ r3  THE PROVIDERS WITH NO CREDIT ARE OFF. DeepSeek on IndieRouter and on Togethe
 r4  NOTHING ELSE CHANGES: the same retrieval, permissions, answer check and audit apply to
     every model; the answer records which model wrote it.
 ```
+
+---
+
+AMENDMENT BATCH AB-147 — `AM-300` (2026-11-04): the Constitution names no counterparty, and a
+statute is reranked without India Code's editorial marks
+
+**Owner decisions:** 2026-11-03, "go with your recommendation" on redacting the NDA counterparty's
+name that one row of Constitution L1.15 still carried (rule 5 report, tracker O-11); 2026-11-04,
+"commit" for the statute fix and the swap. `AM-300` is numbered clear of AM-250–AM-299, which the
+CLM programme's uncommitted records hold.
+
+`AM-300` — Constitution L1.16; editorial marks out of the statute rerank text (amends `AM-243`
+r1's version and canonical path; extends `AM-87`'s statute rerank and `AM-247` r3)
+
+```text
+r1  L1.16 IS L1.15 WITH ONE CHANGE: the NDA counterparty's name in one row of the reference
+    table is replaced by "[NDA Counterparty]", the marker the Constitution already uses for
+    that party, so the redaction recorded since L1.10 holds in every line. No position,
+    figure or section changes. L1.15 stays as history under a superseded banner (rule 22:
+    locked text is never edited); its knowledge source becomes SUPERSEDED on ingest, so Ask
+    never searches it.
+r2  THE RERANKER READS THE LAW, NOT THE PRINTER'S MARKS. India Code's editorial marks
+    ("3[", "]", "1***") are removed from the text the cross-encoder scores for a statute.
+    Stored, embedded and cited text is unchanged. Found 2026-11-03: the section-7 re-ingest
+    cut the amendment footnotes, the dangling marks then read as noise, and IT Act s.43A fell
+    from rank 1 to 2 below DPDP s.17 (exemptions) for a data-leak compensation question;
+    1,603 of 5,002 chunks carry the marks.
+r3  MEASURED (zero Gemini): the hard benchmark at baseline on both statute generations (MRR
+    0.9116, S01 back to rank 1); rag_benchmark golden hit@1 0.857 → 0.929, reranked-pool MRR
+    0.8824 → 0.8882 (live) and 0.8941 → 0.9000 (staged); no metric fell. Then the staged
+    section-7 generation is swapped in (blue-green, rollback kept).
+```

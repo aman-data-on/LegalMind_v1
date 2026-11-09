@@ -103,6 +103,13 @@ def test_report_is_glossed_only_beside_a_breach_or_an_incident():
         "mujhe batana ki invoice kab bhejna hai")
 
 
+def test_the_cross_encoder_reads_a_section_without_india_codes_amendment_marks():
+    """2026-11-03: with its footnotes cut, "3[43A. … ]" scored under DPDP s. 17."""
+    assert statutes.without_editorial_marks(
+        "3[43A. Compensation.-Where 1*** a body corporate … deem fit.]") == (
+        "43A. Compensation.-Where  a body corporate … deem fit.")
+
+
 def test_chunking_loses_no_section_text():
     joined = " ".join(c.content for c in chunk_statute_text(SYNTHETIC_ACT))
     for phrase in ("synthetic care", "synthetic penalty", "purely synthetic event"):
