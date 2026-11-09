@@ -58,7 +58,7 @@ async function uploadRevision(page: import("@playwright/test").Page, contractId:
     {
       headers: {
         "Content-Type": f.document.mime,
-        "X-Filename": "revised.docx",
+        "X-Version-Role": "COMPANY_DRAFT", "X-Filename": "revised.docx",
         "X-CSRF-Token": await csrfToken(page),
       },
       data: readFileSync(f.document.path),

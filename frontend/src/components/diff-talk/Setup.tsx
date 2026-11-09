@@ -124,7 +124,8 @@ function Slot({ step, label, hint, placeholder, value, source, side, groups, onC
       // An ordinary LegalMind document — same storage, parsing, access and audit as
       // any upload; a refused file: the shared helper archives the empty contract.
       const contract = await api.createContract(nameFromFilename(file.name));
-      const result = await uploadFirstDocument(contract.id, file);
+      const result = await uploadFirstDocument(contract.id, file,
+                                               source === "COUNTERPARTY" ? "CLIENT_MODIFIED" : "COMPANY_DRAFT");
       const versionId = result.document_version.id;
       // An ordinary document, declared ours or theirs. Deliberately NOT analysed
       // here: a review spends Gemini calls (semantic recognition, type suggestion)

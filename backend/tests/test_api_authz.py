@@ -758,7 +758,7 @@ def test_legal_read_access_confers_no_write_and_no_decision_authority(
     assert api.post(f"{V1}/contracts/{owned_review.contract_id}/document-versions",
                     content=b"%PDF-1.4 fake",
                     headers={"content-type": "application/pdf",
-                             "x-filename": "x.pdf"}).status_code == 404
+                             "x-version-role": "COMPANY_DRAFT", "x-filename": "x.pdf"}).status_code == 404
     # And the object stayed exactly as its owner left it.
     assert db.get(M.Contract, owned_review.contract_id).name != "renamed by legal"
     # Deciding still needs `legal.decision`, and this role has none: 403, not 404

@@ -247,6 +247,14 @@ def test_create_makes_v1_company_draft_reviewed_and_prefills_the_next(
     assert {"party_two_name", "count_value"} <= set(again["prefilled"])
 
 
+def test_a_deals_own_figure_is_never_carried_from_another_deal():
+    """AM-324 r2: a variable marked "prefill": false (the liability months) is answered
+    afresh on every deal — never filled from the client's previous contract."""
+    from legalmind.api.routers.drafts import prefill_keys
+    assert prefill_keys([{"key": "client_name"}, {"key": "our_name", "locked_value": "X"},
+                         {"key": "liability_months", "prefill": False}]) == {"client_name"}
+
+
 def test_client_profile_fields_prefill_the_importers_client_questions(db, published):
     """All ten legal fields (`AM-286` r1), by the variable's ROLE — a key such as the
     placeholder's ``party_two_cin`` is filled when its role is ``counterparty_cin``."""

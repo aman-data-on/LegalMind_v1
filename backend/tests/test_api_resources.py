@@ -93,7 +93,7 @@ def test_upload_produces_a_document_version_and_evidence(api, db, owner):
         f"{V1}/contracts/{contract_id}/document-versions",
         content=build_docx(["1. Limitation of Liability",
                             "Liability is capped at fees paid."]),
-        headers={"Content-Type": DOCX_MIME, "X-Filename": "msa.docx"})
+        headers={"Content-Type": DOCX_MIME, "X-Version-Role": "COMPANY_DRAFT", "X-Filename": "msa.docx"})
     assert response.status_code == 201
     body = response.json()["data"]
     assert body["document_version"]["version_number"] == 1
@@ -102,6 +102,28 @@ def test_upload_produces_a_document_version_and_evidence(api, db, owner):
     assert body["duplicate_of"] is None
     # Storage coordinates are never part of the resource.
     assert "storage_key" not in body["document_version"]
+
+
+def test_an_upload_says_whose_paper_it_is_in_the_same_request(api, db, owner):
+    """AM-324 r4: no version is left without a declared role — the upload refuses one
+    that does not say, and stores the answer (role and source) with the file."""
+    sign_in(api, db, owner)
+    contract_id = api.post(f"{V1}/contracts", json={"name": "Paper"}).json()["data"]["id"]
+    doc = build_docx(["1. Fees", "Fees are payable monthly."])
+    bare = api.post(f"{V1}/contracts/{contract_id}/document-versions", content=doc,
+                    headers={"Content-Type": DOCX_MIME, "X-Filename": "p.docx"})
+    assert bare.status_code == 422 and "whose paper" in bare.json()["error"]["message"]
+    for role in ("FINAL_SIGNED", "nonsense"):
+        assert api.post(f"{V1}/contracts/{contract_id}/document-versions", content=doc,
+                        headers={"Content-Type": DOCX_MIME, "X-Filename": "p.docx",
+                                 "X-Version-Role": role}).status_code == 422
+    ok = api.post(f"{V1}/contracts/{contract_id}/document-versions", content=doc,
+                  headers={"Content-Type": DOCX_MIME, "X-Filename": "p.docx",
+                           "X-Version-Role": "CLIENT_MODIFIED"})
+    assert ok.status_code == 201
+    version = db.get(M.DocumentVersion, uuid.UUID(ok.json()["data"]["document_version"]["id"]))
+    assert (version.doc_metadata["version_role"], version.doc_metadata["source"]) == (
+        "CLIENT_MODIFIED", "COUNTERPARTY")
 
 
 def test_a_non_ascii_filename_round_trips_through_the_percent_encoded_header(
@@ -129,7 +151,7 @@ def test_a_non_ascii_filename_round_trips_through_the_percent_encoded_header(
         f"{V1}/contracts/{contract_id}/document-versions",
         content=build_docx(["1. Limitation of Liability",
                             "Liability is capped at fees paid."]),
-        headers={"Content-Type": DOCX_MIME, "X-Filename": quote(real_name)})
+        headers={"Content-Type": DOCX_MIME, "X-Version-Role": "COMPANY_DRAFT", "X-Filename": quote(real_name)})
     assert response.status_code == 201, response.text
     assert response.json()["data"]["document_version"]["original_filename"] == real_name
 
@@ -143,7 +165,7 @@ def test_upload_with_mismatched_magic_bytes_is_rejected(api, db, owner):
     response = api.post(f"{V1}/contracts/{contract_id}/document-versions",
                         content=b"#!/bin/sh\nrm -rf /\n",
                         headers={"Content-Type": "application/pdf",
-                                 "X-Filename": "not-really.pdf"})
+                                 "X-Version-Role": "COMPANY_DRAFT", "X-Filename": "not-really.pdf"})
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "UPLOAD_REJECTED"
     assert db.execute(select(M.DocumentVersion)).first() is None
@@ -156,7 +178,7 @@ def test_reupload_reports_the_duplicate_rather_than_suppressing_it(api, db, owne
     contract_id = api.post(f"{V1}/contracts",
                            json={"name": "ACME MSA"}).json()["data"]["id"]
     payload = build_docx(["1. Limitation of Liability"])
-    headers = {"Content-Type": DOCX_MIME, "X-Filename": "msa.docx"}
+    headers = {"Content-Type": DOCX_MIME, "X-Version-Role": "COMPANY_DRAFT", "X-Filename": "msa.docx"}
 
     first = api.post(f"{V1}/contracts/{contract_id}/document-versions",
                      content=payload, headers=headers).json()["data"]
@@ -173,7 +195,7 @@ def test_download_returns_the_preserved_original(api, db, owner):
     payload = build_docx(["1. Limitation of Liability"])
     version_id = api.post(
         f"{V1}/contracts/{contract_id}/document-versions", content=payload,
-        headers={"Content-Type": DOCX_MIME, "X-Filename": "msa.docx"}
+        headers={"Content-Type": DOCX_MIME, "X-Version-Role": "COMPANY_DRAFT", "X-Filename": "msa.docx"}
     ).json()["data"]["document_version"]["id"]
 
     response = api.get(f"{V1}/document-versions/{version_id}/content")
@@ -194,14 +216,15 @@ def test_a_name_in_any_script_downloads_under_that_name(api, db, owner):
         f"{V1}/contracts/{contract_id}/document-versions",
         content=build_docx(["1. Term"]),
         headers={"Content-Type": DOCX_MIME,
-                 "X-Filename": quote("अनुबंध 合同 ✓ v2.docx")}
+                 "X-Version-Role": "COMPANY_DRAFT", "X-Filename": quote("अनुबंध 合同 ✓ v2.docx")}
     ).json()["data"]["document_version"]["id"]
     response = api.get(f"{V1}/document-versions/{version_id}/content")
     assert response.status_code == 200
     disposition = response.headers["Content-Disposition"]
     # named for the deal (contract and version), not the upload
-    assert disposition.startswith('attachment; filename="QA - v1.docx"; ')
-    assert unquote(disposition.split("filename*=UTF-8''")[1]) == "QA 合同 - v1.docx"
+    # AM-324 r4: declared ours at upload, so the name says so
+    assert disposition.startswith('attachment; filename="QA - v1 (ours).docx"; ')
+    assert unquote(disposition.split("filename*=UTF-8''")[1]) == "QA 合同 - v1 (ours).docx"
 
 
 def test_download_is_a_permission_distinct_from_view(api, db, owner):
@@ -211,7 +234,7 @@ def test_download_is_a_permission_distinct_from_view(api, db, owner):
     version_id = api.post(
         f"{V1}/contracts/{contract_id}/document-versions",
         content=build_docx(["1. Liability"]),
-        headers={"Content-Type": DOCX_MIME, "X-Filename": "msa.docx"}
+        headers={"Content-Type": DOCX_MIME, "X-Version-Role": "COMPANY_DRAFT", "X-Filename": "msa.docx"}
     ).json()["data"]["document_version"]["id"]
 
     # A second identity owning nothing cannot even see it (41.24)...
@@ -966,7 +989,8 @@ def test_contract_detail_lists_its_document_versions_newest_first(api, db, owner
         response = api.post(
             f"/api/v1/contracts/{contract['id']}/document-versions",
             content=build_docx([f"Clause {n}. Liability is limited to fees paid."]),
-            headers={"content-type": docx, "x-filename": f"msa-v{n}.docx"})
+            headers={"content-type": docx, "x-version-role": "COMPANY_DRAFT",
+                     "x-filename": f"msa-v{n}.docx"})
         assert response.status_code in (200, 201), response.text
 
     detail = api.get(f"/api/v1/contracts/{contract['id']}").json()["data"]
@@ -1127,7 +1151,7 @@ def _upload(api, contract_id):
         f"{V1}/contracts/{contract_id}/document-versions",
         content=build_docx(["1. Limitation of Liability",
                             "Liability is capped at fees paid."]),
-        headers={"Content-Type": DOCX_MIME, "X-Filename": "msa.docx"},
+        headers={"Content-Type": DOCX_MIME, "X-Version-Role": "COMPANY_DRAFT", "X-Filename": "msa.docx"},
     ).json()["data"]["document_version"]["id"]
 
 
@@ -1142,7 +1166,9 @@ def test_declared_metadata_is_omitted_until_declared_then_round_trips(api, db, o
     version_id = _upload(api, contract_id)
 
     before = api.get(f"{V1}/document-versions/{version_id}").json()["data"]
-    assert not {"source", "counterparty", "effective_date"} & before.keys()
+    # AM-324 r4: whose paper it is is said at upload; the rest is absent until declared
+    assert before["source"] == "ORGANIZATION"
+    assert not {"counterparty", "effective_date"} & before.keys()
 
     declared = api.patch(f"{V1}/document-versions/{version_id}", json={
         "source": "COUNTERPARTY",
@@ -1404,7 +1430,7 @@ def test_declaring_a_version_executed_is_audited_without_its_text(api, db, owner
                         .where(M.AuditEvent.action == "document.declared")).scalars().all()
     assert len(events) == 3 and {(e.before_state["version_role"],
                                   e.after_state["version_role"]) for e in events} == {
-        (None, "CLIENT_MODIFIED"), ("CLIENT_MODIFIED", "COMPANY_DRAFT"),
+        ("COMPANY_DRAFT", "CLIENT_MODIFIED"), ("CLIENT_MODIFIED", "COMPANY_DRAFT"),
         ("COMPANY_DRAFT", "FINAL_SIGNED")}
     assert all(e.actor_id == owner.id and e.entity_id == uuid.UUID(version_id)
                for e in events)
@@ -1839,7 +1865,7 @@ def test_a_nul_character_is_a_validation_error_never_a_500(api, db, owner):
     response = api.post(
         f"{V1}/contracts/{contract_id}/document-versions",
         content=build_docx(["1. Services", "The provider shall provide services."]),
-        headers={"Content-Type": DOCX_MIME, "X-Filename": "msa%00.docx"})
+        headers={"Content-Type": DOCX_MIME, "X-Version-Role": "COMPANY_DRAFT", "X-Filename": "msa%00.docx"})
     assert response.status_code == 201, response.text
     assert response.json()["data"]["document_version"]["original_filename"] == "msa.docx"
 
@@ -1852,7 +1878,7 @@ def test_deleting_a_contract_removes_its_uploaded_original(api, db, owner):
     contract_id = api.post(f"{V1}/contracts", json={"name": "Gone MSA"}).json()["data"]["id"]
     api.post(f"{V1}/contracts/{contract_id}/document-versions",
              content=build_docx(["1. Services", "The provider shall provide services."]),
-             headers={"Content-Type": DOCX_MIME, "X-Filename": "gone.docx"})
+             headers={"Content-Type": DOCX_MIME, "X-Version-Role": "COMPANY_DRAFT", "X-Filename": "gone.docx"})
     key = db.execute(select(M.DocumentVersion.storage_key).where(
         M.DocumentVersion.contract_id == uuid.UUID(contract_id))).scalar_one()
     assert get_storage().exists(key)
@@ -1870,7 +1896,7 @@ def test_a_name_never_carries_line_breaks_or_a_bidi_override(api, db, owner):
     upload = api.post(
         f"{V1}/contracts/{made.json()['data']['id']}/document-versions",
         content=build_docx(["1. Services", "The provider shall provide services."]),
-        headers={"Content-Type": DOCX_MIME, "X-Filename": "invoice%E2%80%AEfdp.docx"})
+        headers={"Content-Type": DOCX_MIME, "X-Version-Role": "COMPANY_DRAFT", "X-Filename": "invoice%E2%80%AEfdp.docx"})
     assert upload.json()["data"]["document_version"]["original_filename"] == "invoicefdp.docx"
 
 
@@ -1882,7 +1908,7 @@ def test_creating_uploading_and_reviewing_leave_an_audit_trail(api, db, owner):
     contract_id = api.post(f"{V1}/contracts", json={"name": "Trail MSA"}).json()["data"]["id"]
     up = api.post(f"{V1}/contracts/{contract_id}/document-versions",
                   content=build_docx(["1. Services", "The provider shall provide services."]),
-                  headers={"Content-Type": DOCX_MIME, "X-Filename": "..%2F..%2Fx.docx"})
+                  headers={"Content-Type": DOCX_MIME, "X-Version-Role": "COMPANY_DRAFT", "X-Filename": "..%2F..%2Fx.docx"})
     assert up.json()["data"]["document_version"]["original_filename"] == "x.docx"
     actions = {e.action for e in db.query(M.AuditEvent).filter(
         M.AuditEvent.actor_id == owner.id)}

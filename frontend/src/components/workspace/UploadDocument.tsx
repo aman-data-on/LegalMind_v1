@@ -17,7 +17,7 @@
 import { useRef, useState } from "react";
 
 import { ErrorBanner } from "@/components/Feedback";
-import { api } from "@/lib/api";
+import { api, type UploadRole } from "@/lib/api";
 import { VERSION_ROLES } from "@/lib/documentTypes";
 import { ROLE_WORDS } from "./model";
 
@@ -50,14 +50,13 @@ export function UploadDocument({
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     const file = fileInput.current?.files?.[0];
-    const gaps = { file: !file, role: further && !role };
+    const gaps = { file: !file, role: !role };            // AM-324 r4: always said
     setMissing(gaps);
     if (!file || gaps.role) return;
     setBusy(true);
     setError(null);
     try {
-      const uploaded = await api.uploadDocument(contractId, file);
-      if (role) await api.declareVersion(uploaded.document_version.id, { version_role: role });
+      await api.uploadDocument(contractId, file!, role as UploadRole);
       await onUploaded();
     } catch (cause) {
       setError(cause);
@@ -95,7 +94,8 @@ export function UploadDocument({
         </div>
         {missing.file ? <p className="ws-field__error" id="ws-upload-file-error">Choose a file to upload</p> : null}
       </div>
-      {further ? (
+      {/* AM-324 r4: every upload says whose paper it is */}
+      {(
         <label className="ws-field">
           <span className="ws-field__label">What is this version?</span>
           <select value={role} required disabled={busy} aria-invalid={missing.role || undefined}
@@ -112,7 +112,7 @@ export function UploadDocument({
           </select>
           {missing.role ? <p className="ws-field__error" id="ws-upload-role-error">Choose what this version is</p> : null}
         </label>
-      ) : null}
+      )}
       {further ? <ErrorBanner error={error} /> : null}
       {/* the dialog's footer: Cancel, then the one primary, right-aligned */}
       <div className={further ? "ws-upload__acts ws-modal__acts" : "ws-upload__acts"}>

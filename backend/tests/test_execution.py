@@ -377,7 +377,7 @@ def test_a_signed_contract_takes_no_negotiation_write(api, db, owner, tmp_path):
                                              "expected_version": 1}).status_code == 200
     refused = [
         api.post(f"{V1}/contracts/{c.id}/document-versions", content=_docx(*AGREED),
-                 headers={"X-Filename": "late.docx", "Content-Type":
+                 headers={"X-Version-Role": "COMPANY_DRAFT", "X-Filename": "late.docx", "Content-Type":
                           "application/vnd.openxmlformats-officedocument."
                           "wordprocessingml.document"}),
         api.post(f"{V1}/document-versions/{agreed.id}/mark-sent"),

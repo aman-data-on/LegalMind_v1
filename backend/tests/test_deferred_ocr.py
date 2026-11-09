@@ -241,7 +241,7 @@ def test_the_upload_endpoint_defers_and_dispatches_the_ocr_run(
     uploaded = api.post(f"/api/v1/contracts/{contract_id}/document-versions",
                         content=build_pdf([mangle(READABLE_PAGE)]),
                         headers={"content-type": PDF_MIME,
-                                 "x-filename": "scan.pdf"})
+                                 "x-version-role": "COMPANY_DRAFT", "x-filename": "scan.pdf"})
     assert uploaded.status_code == 201, uploaded.text
 
     version = uploaded.json()["data"]["document_version"]

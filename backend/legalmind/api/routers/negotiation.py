@@ -78,7 +78,7 @@ from legalmind.api.storage import get_storage
 from legalmind.db import models as M
 from legalmind.db.lookup import contract_signed, must_exist
 from legalmind.domain.client_profile import FINAL_SIGNED
-from legalmind.domain.enums import DecisionType, FindingStatus, ProcessingStatus
+from legalmind.domain.enums import DecisionType, ProcessingStatus
 from legalmind.domain.user_status import ACCEPTABLE
 from legalmind.drafting import (
     blank,
@@ -97,7 +97,6 @@ from legalmind.drafting.reply_plan import Answer, clause_text, reply_rows, sha25
 from legalmind.evaluation.workflow import (
     carried_forward,
     current_decision,
-    derive_finding_status,
     effective_decision,
     second_person_needed,
 )
@@ -111,7 +110,7 @@ from legalmind.security.authorization import require_contract_negotiable
 from legalmind.security.errors import NotVisible, SecurityError
 from legalmind.security.resolver import has_permission
 from legalmind.worker.dispatch import dispatch_analysis, dispatch_indexing, dispatch_pdf
-from legalmind.workflow.decisions import record_decision, wording_tag
+from legalmind.workflow.decisions import record_decision, standing_decision, wording_tag
 from legalmind.workflow.escalation import is_escalated
 from legalmind.workflow.review_progress import review_progress
 
@@ -326,17 +325,16 @@ def _holder_accepted(guard: Guard, change: dict, before: M.DocumentVersion | Non
 
 
 def _carried_acceptance(db, finding_id: UUID) -> bool:
-    """`AM-323` r2: Legal's acceptance on an earlier version, carried to this one on the
-    same words (`AM-317` r7 as `AM-321` re-checks it), lets the client's wording stand as
-    the decision itself would — only while the Finding still derives RESOLVED by it."""
-    carried = carried_forward(db, finding_id)
+    """`AM-323` r2 as `AM-324` r1 corrects it: Legal's acceptance on an earlier version,
+    carried to this one on the same words, lets the client's wording stand — only while
+    the whole chain stands NOW (`standing_decision`: in effect, not superseded, no
+    escalation on any hop, the decider still holding `legal.decision`) and it accepts."""
     finding = db.get(M.Finding, finding_id)
-    if carried is None or finding is None or carried.get("decision_type") not in {
-            t.value for t in _ACCEPTING}:
+    if finding is None or carried_forward(db, finding_id) is None:
         return False
-    escalated = is_escalated(db, finding_id)
-    return derive_finding_status(db, finding, escalated=escalated) \
-        is FindingStatus.RESOLVED
+    standing = standing_decision(db, finding)
+    return standing is not None and standing.get("decision_type") in {
+        t.value for t in _ACCEPTING}
 
 
 def _reader(guard: Guard, contract: M.Contract,
@@ -1606,6 +1604,10 @@ _FINAL_COPY_ROUTES = {"NOTHING_TO_ANSWER", "NOT_OUR_TEMPLATE", "REDLINE_ROUND",
 #: filled in on the line itself, the answer written between underscores ("___Pune___",
 #: "__8___", "___1st_ day"); "___________are" and "___ months" are still blank
 _BLANK = re.compile(r"_{3,}")
+#: the other placeholder shapes (`AM-324` r3): "[●]", "[•]", "[ ]", and a run of dots or
+#: ellipses — but not a contents page's dot leader before its page number
+_PLACEHOLDER = re.compile(r"\[\s*[●•]?\s*\]|(?<![.…])(?:\.{4,}|…(?: ?…)+|(?:\. ){3,}\.)"
+                          r"(?![.…])(?!\s*\d+\s*$)")
 _FILLED = re.compile(r"_+[^\W_][^_\s]*_+")
 
 
@@ -1614,18 +1616,25 @@ def _is_blank(text: str, m: re.Match) -> bool:
                    for f in _FILLED.finditer(text))
 
 
+def blank_in(text: str) -> re.Match | None:
+    """The first blank left to fill in ``text`` (underscores not filled in on the line,
+    or a bracket / dot placeholder), or None."""
+    return next((m for m in _BLANK.finditer(text) if _is_blank(text, m)),
+                None) or _PLACEHOLDER.search(text)
+
+
 def blanks(db, version: M.DocumentVersion) -> str | None:
     """Every place ``version`` still has a blank to fill, in plain words ("clause 1.4
     (banks at ___ are open)", …) — or None. A final contract never keeps one: it is a
     blocker before "Prepare final contract", whichever route makes it."""
     places: list[str] = []
     for c in load_clauses(db, version.id):
-        m = next((m for m in _BLANK.finditer(c.content) if _is_blank(c.content, m)), None)
+        m = blank_in(c.content)
         if m is None:
             continue
         near = c.content[max(0, m.start() - 30):m.end() + 20].strip()
         where = f"clause {c.section_number}" if c.section_number else "the opening text"
-        places.append(f"{where} (…{_BLANK.sub('___', near)}…)")
+        places.append(f"{where} (…{_BLANK.sub('___', near)}…)".replace("……", "…"))
     if not places:
         return None
     return (f"{len(places)} blank{'s are' if len(places) != 1 else ' is'} still to fill: "

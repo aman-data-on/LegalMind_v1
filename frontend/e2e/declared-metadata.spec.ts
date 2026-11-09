@@ -53,7 +53,7 @@ async function uploadOnly(page: Page): Promise<{ contractId: string; versionId: 
   const upload = await page.request.post(`/api/v1/contracts/${contract.id}/document-versions`, {
     headers: {
       "Content-Type": f.document.mime,
-      "X-Filename": f.document.filename,
+      "X-Version-Role": "COMPANY_DRAFT", "X-Filename": f.document.filename,
       "X-CSRF-Token": await csrfToken(page),
     },
     data: readFileSync(f.document.path),
@@ -66,7 +66,11 @@ test("the keys are absent until declared, round-trip, reach the list, and freeze
   const { contractId, versionId } = await uploadOnly(page);
 
   const bare = (await (await page.request.get(`/api/v1/document-versions/${versionId}`)).json()).data;
-  for (const key of Object.keys(DECLARED)) expect(bare, `${key} omitted, not nulled`).not.toHaveProperty(key);
+  // AM-324 r4: the upload itself says whose paper it is (source with it); the rest is absent
+  expect(bare.source).toBe("ORGANIZATION");
+  for (const key of Object.keys(DECLARED).filter((k) => k !== "source")) {
+    expect(bare, `${key} omitted, not nulled`).not.toHaveProperty(key);
+  }
 
   const declared = await declare(page, versionId, DECLARED);
   expect(declared.status()).toBe(200);

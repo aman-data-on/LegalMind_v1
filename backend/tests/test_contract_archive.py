@@ -248,7 +248,7 @@ def test_an_archived_contract_refuses_every_write(api, db, seeded):
     assert api.post(f"{V1}/contracts/{contract.id}/document-versions",
                     content=b"%PDF-1.4 fake",
                     headers={"content-type": "application/pdf",
-                             "x-filename": "x.pdf"}).status_code == 409
+                             "x-version-role": "COMPANY_DRAFT", "x-filename": "x.pdf"}).status_code == 409
     assert api.post(f"{V1}/reviews", json={
         "document_version_id": str(version.id),
         "configuration_snapshot_id": str(snapshot.id)}).status_code == 409

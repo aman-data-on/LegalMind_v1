@@ -4345,6 +4345,24 @@
        "title": "X-Filename",
        "type": "string"
       }
+     },
+     {
+      "description": "`AM-324` r4: whose paper this version is, declared in the same request \u2014 COMPANY_DRAFT (our draft) or CLIENT_MODIFIED (the client's paper or markup)",
+      "in": "header",
+      "name": "x-version-role",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "`AM-324` r4: whose paper this version is, declared in the same request \u2014 COMPANY_DRAFT (our draft) or CLIENT_MODIFIED (the client's paper or markup)",
+       "title": "X-Version-Role"
+      }
      }
     ],
     "responses": {

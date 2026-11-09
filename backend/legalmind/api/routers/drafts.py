@@ -156,12 +156,21 @@ def _published(guard: Guard, template_version_id: UUID) -> M.TemplateVersion:
 
 
 # ---------------------------------------------------------------- drafts
+def prefill_keys(variables: list[dict[str, Any]]) -> set[str]:
+    """The variables a returning client's answers may fill: not locked, not marked
+    ``"prefill": false``."""
+    return {v["key"] for v in variables
+            if "locked_value" not in v and v.get("prefill", True)}
+
+
 def prefill(guard: Guard, tv: M.TemplateVersion,
             counterparty: M.Counterparty) -> dict[str, Any]:
     """A returning client's answers: its latest contract generated from the same
     template key (readable by the caller), then its profile's legal fields — only keys
-    this template declares, never a locked one."""
-    open_keys = {v["key"] for v in tv.variables if "locked_value" not in v}
+    this template declares, never a locked one, and never one the template marks
+    ``"prefill": false`` (a deal's own figure — the liability months — is answered afresh
+    on every deal, `AM-324` r2)."""
+    open_keys = prefill_keys(tv.variables)
     roles = {model_.role(v): v["key"] for v in tv.variables if v["key"] in open_keys}
     latest = guard.db.execute(
         select(M.ContractDraft.values)

@@ -857,6 +857,10 @@ async def upload_document_version(
     contract_id: UUID,
     request: Request,
     x_filename: str = Header(..., max_length=400),
+    # checked after the contract is (404/409 first, never a 422 that names the field)
+    x_version_role: str | None = Header(None, description=(
+        "`AM-324` r4: whose paper this version is, declared in the same request — "
+        "COMPANY_DRAFT (our draft) or CLIENT_MODIFIED (the client's paper or markup)")),
     guard: Guard = Depends(get_guard),
     storage: StorageBackend = Depends(get_storage),
 ) -> dict:
@@ -881,6 +885,12 @@ async def upload_document_version(
     """
     # AM-259 r2: the owner or a collaborator uploads the client's returned copy
     await run_in_threadpool(guard.contract_negotiable, contract_id, P.DOCUMENT_UPLOAD)
+    if x_version_role not in UPLOAD_ROLES:
+        # AM-324 r4: never a version nobody said was ours or the client's; "signed" is
+        # filed only through the signing record of a deal signed before AB-171
+        raise BusinessRuleRejected("say whose paper this is: X-Version-Role must be "
+                                   "COMPANY_DRAFT (our draft) or CLIENT_MODIFIED (the "
+                                   "client's paper)")
 
     # The client percent-encodes this header (2026-09-03): HTTP header values are
     # restricted to ISO-8859-1 bytes, and a filename carrying any character outside
@@ -901,12 +911,17 @@ async def upload_document_version(
         raise BusinessRuleRejected("the request body is empty")
     return await run_in_threadpool(
         _ingest_upload, guard, storage, contract_id, payload,
-        original_filename, request.headers.get("content-type", ""))
+        original_filename, request.headers.get("content-type", ""), True, x_version_role)
+
+
+#: the two answers to "whose paper is it?" an upload takes (`AM-324` r4), and the Step 6
+#: source each declares beside it
+UPLOAD_ROLES = {"COMPANY_DRAFT": "ORGANIZATION", "CLIENT_MODIFIED": "COUNTERPARTY"}
 
 
 def _ingest_upload(guard: Guard, storage: StorageBackend, contract_id: UUID,
                    payload: bytes, original_filename: str, declared_mime: str,
-                   render_pages: bool = True) -> dict:
+                   render_pages: bool = True, version_role: str | None = None) -> dict:
     # `defer_ocr` — the ~63s-upload fix (2026-09-03). A document that needs OCR
     # returns from ingest as PROCESSING with no evidence, the request finishes in
     # native-parse time, and the OCR runs as its own background ProcessingRun
@@ -926,12 +941,22 @@ def _ingest_upload(guard: Guard, storage: StorageBackend, contract_id: UUID,
     )
 
     dv = result.document_version
+    if version_role is not None:              # AM-324 r4: declared in the same request
+        dv.doc_metadata = {**(dv.doc_metadata or {}), "version_role": version_role,
+                           "source": UPLOAD_ROLES[version_role]}
+        guard.db.flush()
+        if version_role == "CLIENT_MODIFIED":         # AM-273 m3, as the declaration did
+            from legalmind import notifications
+            contract = guard.db.get(M.Contract, contract_id)
+            if contract is not None:
+                notifications.client_returned(guard.db, contract, actor_id=guard.user_id)
     audit.record(guard.db, action=audit.DOCUMENT_UPLOADED, entity_type="contract",
                  entity_id=contract_id, actor_id=guard.user_id,
                  request_id=guard.request_id,
                  after={"document_version_id": str(dv.id), "version_number":
                         dv.version_number, "filename": dv.original_filename,
-                        "file_hash": dv.file_hash, "file_size_bytes": dv.file_size_bytes})
+                        "file_hash": dv.file_hash, "file_size_bytes": dv.file_size_bytes,
+                        **({"version_role": version_role} if version_role else {})})
     if result.document_version.processing_status is E.ProcessingStatus.PROCESSING:
         # The deferred path: OCR (and then indexing, over the evidence OCR
         # writes) continues in the background; the response below says

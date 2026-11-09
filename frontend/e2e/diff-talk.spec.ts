@@ -42,7 +42,7 @@ async function uploadText(page: Page, name: string, text: string,
                           source: "ORGANIZATION" | "COUNTERPARTY"): Promise<string> {
   const contract = await postOk(page, "/contracts", { name: `${name} ${Date.now()}` });
   const upload = await page.request.post(`/api/v1/contracts/${contract.id}/document-versions`, {
-    headers: { "Content-Type": "text/plain", "X-Filename": `${name}.txt`,
+    headers: { "Content-Type": "text/plain", "X-Version-Role": "COMPANY_DRAFT", "X-Filename": `${name}.txt`,
                "X-CSRF-Token": await csrfToken(page) },
     data: Buffer.from(text),
   });

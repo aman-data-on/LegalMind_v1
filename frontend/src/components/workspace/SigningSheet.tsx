@@ -81,7 +81,7 @@ function SigningSheet({ contractId, onClose, onSigned, versions }: {
   };
 
   const upload = (file: File) => run("upload", async () => {
-    const { document_version } = await api.uploadDocument(contractId, file);
+    const { document_version } = await api.uploadDocument(contractId, file, "CLIENT_MODIFIED");
     await save({ signed_document_version_id: document_version.id });
   });
   const markSigned = () => run("sign", async () => {

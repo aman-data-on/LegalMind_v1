@@ -545,6 +545,15 @@ def _decided(db: DBSession, finding: M.Finding) -> dict | None:
             "from_finding_id": str(finding.id)}
 
 
+def standing_decision(db: DBSession, finding: M.Finding) -> dict | None:
+    """`AM-324` r1: what Legal decision stands on ``finding`` NOW — the one check both the
+    carry (`carry_forward`) and every use of a carried decision (a carried acceptance,
+    `AM-323` r2) run, so they cannot diverge: `_decided`, every hop re-checked at the
+    moment of use (in effect, not superseded, no escalation on any hop, the decider
+    still holding `legal.decision`)."""
+    return _decided(db, finding)
+
+
 def _requirement(db: DBSession, requirement_version_id: UUID) -> UUID | None:
     rv = db.get(M.RequirementVersion, requirement_version_id)
     return rv.requirement_id if rv else None

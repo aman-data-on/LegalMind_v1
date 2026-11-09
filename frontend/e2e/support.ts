@@ -132,7 +132,7 @@ export async function createAnalysedReview(
     {
       headers: {
         "Content-Type": f.document.mime,
-        "X-Filename": f.document.filename,
+        "X-Version-Role": "COMPANY_DRAFT", "X-Filename": f.document.filename,
         "X-CSRF-Token": await csrfToken(page),
       },
       data: readFileSync(f.document.path),

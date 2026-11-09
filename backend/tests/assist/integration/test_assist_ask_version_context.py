@@ -67,7 +67,7 @@ def _two_version_contract(api, db, user, monkeypatch):
         response = api.post(f"/api/v1/contracts/{contract_id}/document-versions",
                             content=build_docx(paragraphs),
                             headers={"content-type": DOCX_MIME,
-                                     "x-filename": filename})
+                                     "x-version-role": "COMPANY_DRAFT", "x-filename": filename})
         assert response.status_code == 201, response.text
         return response.json()["data"]["document_version"]
 
@@ -147,7 +147,7 @@ def test_a_version_from_another_contract_is_refused(api, db, seeded, user, monke
     foreign = api.post(f"/api/v1/contracts/{other}/document-versions",
                        content=build_docx(REVISED),
                        headers={"content-type": DOCX_MIME,
-                                "x-filename": "other.docx"}
+                                "x-version-role": "COMPANY_DRAFT", "x-filename": "other.docx"}
                        ).json()["data"]["document_version"]["id"]
 
     refused = api.post(f"/api/v1/conversations/{conversation_id}/messages",
@@ -171,7 +171,7 @@ def test_another_users_version_is_byte_identical_404(api, db, seeded, user, monk
                       json={"name": "Theirs", "contract_type": "MSA"}).json()["data"]["id"]
     hidden = api.post(f"/api/v1/contracts/{theirs}/document-versions",
                       content=build_docx(PARAGRAPHS),
-                      headers={"content-type": DOCX_MIME, "x-filename": "t.docx"}
+                      headers={"content-type": DOCX_MIME, "x-version-role": "COMPANY_DRAFT", "x-filename": "t.docx"}
                       ).json()["data"]["document_version"]["id"]
 
     _, _, _, conversation_id = _two_version_contract(api, db, user, monkeypatch)

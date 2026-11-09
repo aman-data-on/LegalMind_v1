@@ -51,7 +51,7 @@ def _url(contract, user=None):
 
 def _upload(api, contract):
     return api.post(f"{V1}/contracts/{contract.id}/document-versions", content=RETURNED,
-                    headers={"Content-Type": DOCX, "X-Filename": "returned.docx"})
+                    headers={"Content-Type": DOCX, "X-Version-Role": "CLIENT_MODIFIED", "X-Filename": "returned.docx"})
 
 
 def test_the_owner_adds_a_same_department_colleague_and_not_an_outsider(db, api, team):
@@ -108,7 +108,7 @@ def test_a_collaborator_uploads_and_answers_but_never_archives_transfers_or_dele
 def _attached(db, api, user):
     conversation = service.create_conversation(db, user_id=user.id, contract_id=None)
     r = api.post(f"{V1}/conversations/{conversation}/attachments", content=RETURNED,
-                 headers={"Content-Type": DOCX, "X-Filename": "returned.docx"})
+                 headers={"Content-Type": DOCX, "X-Version-Role": "CLIENT_MODIFIED", "X-Filename": "returned.docx"})
     assert r.status_code == 201, r.text
     return conversation, r.json()["data"]["id"]
 
@@ -130,7 +130,7 @@ def test_an_attachment_is_filed_only_on_the_readers_action(db, api, team):
     assert [t["id"] for t in api.get(f"{base}/file-targets").json()["data"]] == [
         str(contract.id)]
 
-    headers = {"Content-Type": DOCX, "X-Filename": quote("returned.docx")}
+    headers = {"Content-Type": DOCX, "X-Version-Role": "CLIENT_MODIFIED", "X-Filename": quote("returned.docx")}
     wrong = api.post(f"{base}/file", params={"contract_id": str(contract.id)},
                      content=RETURNED + b"x", headers=headers)
     assert wrong.status_code == 422 and _versions(db, contract) == 0
@@ -154,7 +154,7 @@ def test_filing_into_a_contract_the_reader_cannot_write_is_a_404(db, api, team):
     base = f"{V1}/conversations/{conversation}/attachments/{attachment}"
     assert api.get(f"{base}/file-targets").json()["data"] == []
     r = api.post(f"{base}/file", params={"contract_id": str(contract.id)},
-                 content=RETURNED, headers={"Content-Type": DOCX, "X-Filename": "r.docx"})
+                 content=RETURNED, headers={"Content-Type": DOCX, "X-Version-Role": "CLIENT_MODIFIED", "X-Filename": "r.docx"})
     assert r.status_code == 404 and _versions(db, contract) == 0
     sign_in(api, db, owner)                 # someone else's chat: the same 404
     assert api.get(f"{base}/file-targets").status_code == 404

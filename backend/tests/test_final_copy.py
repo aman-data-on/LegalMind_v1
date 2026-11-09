@@ -153,3 +153,16 @@ def test_a_final_copy_is_never_signed_after_our_changes(api, db, owner, tmp_path
             pytest.raises(InvalidTransition):
         CO.record(db, review, actor_id=owner.id, justification="x",
                   outcome=E.ContractOutcome.SIGN_WITH_CHANGES)
+
+
+@pytest.mark.parametrize("text, blank", [
+    ("banks at ___________are open", True), ("in the ___ months preceding", True),
+    ("banks at ___Pune___are open", False), ("Clause __8___ of", False),
+    ("effective as of ___1st_ day", False), ("the fee is [●] per month", True),
+    ("within [ ] days", True), ("dated [•]", True), ("at .......... (the city)", True),
+    ("Notice … … …", True), ("Definitions ........ 3", False), ("See clause [12]", False),
+    ("as stated (i.e. ... and so on)", False)])
+def test_what_counts_as_a_blank(text, blank):
+    """AM-323 r3 / AM-324 r3: a blank to fill, not a filled-in one or a dot leader."""
+    from legalmind.api.routers.negotiation import blank_in
+    assert (blank_in(text) is not None) is blank

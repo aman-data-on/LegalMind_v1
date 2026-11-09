@@ -161,7 +161,7 @@ interface RequestOptions {
   method?: string;
   body?: unknown;
   /** Raw bytes for the upload endpoint, which takes the file as the body. */
-  raw?: { data: BodyInit; contentType: string; filename: string };
+  raw?: { data: BodyInit; contentType: string; filename: string; versionRole?: UploadRole };
   query?: Record<string, string | number | undefined>;
   /** 49.8 — echoed as `Idempotency-Key`; a repeat must not duplicate the effect. */
   idempotencyKey?: string;
@@ -228,6 +228,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     // (so it can never fail this way) while staying reversible; the server
     // decodes it back to the real filename (see `upload_document_version`).
     headers["X-Filename"] = encodeURIComponent(options.raw.filename);
+    if (options.raw.versionRole) headers["X-Version-Role"] = options.raw.versionRole;   // AM-324 r4
   } else if (options.body !== undefined) {
     body = JSON.stringify(options.body);
     headers["Content-Type"] = "application/json";
@@ -610,13 +611,16 @@ export const api = {
    * claim; the server sniffs the magic bytes and rejects a mismatch, so nothing
    * here needs to (or may) decide whether a file is acceptable.
    */
-  uploadDocument: (contractId: string, file: File) =>
+  /** `AM-324` r4: whose paper it is travels with the file — the server refuses an upload
+   *  that does not say, so no version is ever left undeclared. */
+  uploadDocument: (contractId: string, file: File, versionRole: UploadRole) =>
     request<UploadResult>(p`/contracts/${contractId}/document-versions`, {
       method: "POST",
       raw: {
         data: file,
         contentType: file.type || "application/octet-stream",
         filename: file.name,
+        versionRole,
       },
     }),
   documentVersion: (id: string) => request<DocumentVersion>(p`/document-versions/${id}`),
@@ -1051,9 +1055,12 @@ export const api = {
  * rethrown — but ONLY for a refusal (4xx): a dropped connection or a 5xx may have come after
  * the server kept the version, and then the contract is left alone for the reader to retry. Never call this for a contract that already has documents.
  */
-export async function uploadFirstDocument(contractId: string, file: File) {
+/** The two answers an upload takes to "whose paper is it?" (`AM-324` r4). */
+export type UploadRole = "COMPANY_DRAFT" | "CLIENT_MODIFIED";
+
+export async function uploadFirstDocument(contractId: string, file: File, versionRole: UploadRole) {
   try {
-    return await api.uploadDocument(contractId, file);
+    return await api.uploadDocument(contractId, file, versionRole);
   } catch (cause) {
     // Only a REFUSAL (4xx) stored nothing. A network failure, a timeout or a 5xx may have
     // come after the server kept the version — archiving then would hide a real contract.

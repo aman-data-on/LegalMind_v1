@@ -149,13 +149,11 @@ export function UploadContract({ firstRun, onClose }: {
       const contract = await api.createContract(name || file.name);
       setContractId(contract.id);
       contractIdRef.current = contract.id;
-      const uploaded = await uploadFirstDocument(contract.id, file);
+      // verifier item 7 / AM-324 r4: whose paper it is travels with the file — the
+      // server stores the role and Step 6's source in the same request
+      const uploaded = await uploadFirstDocument(contract.id, file,
+                                                 paper === "ours" ? "COMPANY_DRAFT" : "CLIENT_MODIFIED");
       uploadedVersionId = uploaded.document_version.id;
-      // verifier item 7: whose paper it is, said by the person — client paper is never
-      // read as our draft (the role and Step 6's source, both declared)
-      await api.declareVersion(uploadedVersionId, paper === "ours"
-        ? { version_role: "COMPANY_DRAFT", source: "ORGANIZATION" }
-        : { version_role: "CLIENT_MODIFIED", source: "COUNTERPARTY" });
       setVersionId(uploadedVersionId);
     } catch (cause) {
       setContractId(null);

@@ -23,7 +23,7 @@ async function uploadOnly(page: Page): Promise<{ contractId: string; versionId: 
   const upload = await page.request.post(`/api/v1/contracts/${contract.id}/document-versions`, {
     headers: {
       "Content-Type": f.document.mime,
-      "X-Filename": f.document.filename,
+      "X-Version-Role": "COMPANY_DRAFT", "X-Filename": f.document.filename,
       "X-CSRF-Token": await csrfToken(page),
     },
     data: readFileSync(f.document.path),

@@ -169,13 +169,54 @@ def test_a_real_decision_on_the_intermediate_version_carries_from_there(build, d
     assert event.after_state["from_version_number"] == 2
 
 
-# ------------------------------------------------- AM-323 r2: a carried acceptance stands
+# ------------------------------------------------- AM-323 r2 as AM-324 r1 corrects it
+def _accepted(db, finding):
+    from legalmind.api.routers.negotiation import _carried_acceptance
+    return _carried_acceptance(db, finding.id)
+
+
 def test_a_carried_acceptance_lets_the_clients_wording_stand(build, db, seeded):
     """The holder's acceptance on version 1, carried to version 2 on the same words, is
-    what lets the client's wording stand there — and it stops the moment Legal's latest
-    word on version 2 is a rejection or the point is escalated."""
-    from legalmind.api.routers.negotiation import _carried_acceptance
-    contract, _, f2 = _carried_v2(build, db, seeded)
-    assert _carried_acceptance(db, f2.id)
+    what lets the client's wording stand there."""
+    _, _, f2 = _carried_v2(build, db, seeded)
+    assert _accepted(db, f2)
+
+
+def test_a_carried_acceptance_falls_when_the_decider_loses_the_right(build, db, seeded):
+    """Verifier probe: the decider's roles removed — the acceptance no longer stands."""
+    _, decision, f2 = _carried_v2(build, db, seeded)
+    from sqlalchemy import delete
+    db.execute(delete(M.UserRole).where(M.UserRole.user_id == decision.decided_by))
+    db.flush()
+    assert not _accepted(db, f2)
+
+
+def test_a_carried_acceptance_falls_when_the_decider_is_erased(build, db, seeded):
+    """AM-238 / QA-041: an erased person keeps the row, loses every role and identity."""
+    _, decision, f2 = _carried_v2(build, db, seeded)
+    from sqlalchemy import delete
+    user = db.get(M.User, decision.decided_by)
+    user.name, user.email = "Former user", f"former-user-{user.id.hex}@erased.invalid"
+    for kind in (M.UserIdentity, M.UserRole):
+        db.execute(delete(kind).where(kind.user_id == user.id))
+    db.flush()
+    assert not _accepted(db, f2)
+
+
+def test_a_later_reject_on_the_original_version_breaks_the_acceptance(build, db, seeded):
+    _, decision, f2 = _carried_v2(build, db, seeded)
+    original = db.get(M.Finding, decision.finding_id)
+    _decide(db, original, E.DecisionType.REJECT, n=2)
+    assert not _accepted(db, f2)
+
+
+def test_an_escalation_on_the_original_version_breaks_the_acceptance(build, db, seeded):
+    _, decision, f2 = _carried_v2(build, db, seeded)
+    _escalate(build, db, db.get(M.Finding, decision.finding_id))
+    assert not _accepted(db, f2)
+
+
+def test_an_escalation_on_the_carried_version_breaks_the_acceptance(build, db, seeded):
+    _, _, f2 = _carried_v2(build, db, seeded)
     _escalate(build, db, f2)
-    assert not _carried_acceptance(db, f2.id)
+    assert not _accepted(db, f2)

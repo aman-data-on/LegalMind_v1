@@ -89,7 +89,7 @@ class Client:
         r = self.s.post(
             f"{self.base}/api/v1/contracts/{contract_id}/document-versions",
             headers=self._headers({"Content-Type": DOCX_MIME,
-                                   "X-Filename": path.name}),
+                                   "X-Version-Role": "COMPANY_DRAFT", "X-Filename": path.name}),
             data=path.read_bytes(), timeout=300)
         if not r.ok:
             raise SystemExit(f"upload -> {r.status_code} {r.text[:400]}")
