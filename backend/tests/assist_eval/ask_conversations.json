@@ -1333,6 +1333,215 @@
      }
     }
    ]
+  },
+  {
+   "id": "N01",
+   "plan": [
+    "B1.1"
+   ],
+   "severity": "High",
+   "source": "lawyer batch 1 (owner, 2026-11-09): a screenshot (PNG) of a liability clause: read by OCR and answered from it. Synthetic files from tools/ask_eval_files.py",
+   "turns": [
+    {
+     "message": "What does this screenshot say about the liability cap?",
+     "files": [
+      "png_clause"
+     ],
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "require": [
+       "\\b(?:six|6)\\b"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "N02",
+   "plan": [
+    "B1.2"
+   ],
+   "severity": "High",
+   "source": "lawyer batch 1 (owner, 2026-11-09): an order form whose pages carry a logo and a picture where a signature would be; the signature lines are blank — never called signed from a picture. Synthetic files from tools/ask_eval_files.py",
+   "turns": [
+    {
+     "message": "Is this order form signed?",
+     "files": [
+      "logo_pdf"
+     ],
+     "expect": {
+      "route": "model",
+      "forbid": [
+       "\\b(?:is|was|has been|appears to be) (?:already |duly )?signed\\b",
+       "\\bbears? (?:a |the )?signature",
+       "\\bis stamped\\b"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "N03",
+   "plan": [
+    "B1.3"
+   ],
+   "severity": "High",
+   "source": "lawyer batch 1 (owner, 2026-11-09): an 18-page file with no liability clause, read whole: Ask says plainly it has none. Synthetic files from tools/ask_eval_files.py",
+   "turns": [
+    {
+     "message": "does it cap liability?",
+     "files": [
+      "pages18"
+     ],
+     "expect": {
+      "route": "model",
+      "answered": true,
+      "require": [
+       "\\b(?:no|not|does not|doesn't)\\b[^.]{0,80}\\b(?:cap|limit|liabilit)"
+      ],
+      "forbid": [
+       "\\bcaps? (?:the )?liability (?:at|to)\\b"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "N04",
+   "plan": [
+    "B1.5/B1.6"
+   ],
+   "severity": "High",
+   "source": "lawyer batch 1 (owner, 2026-11-09): provider-paper MSA with a 7-day payment period (ours is 21): 'what puts us in danger' runs the review, favour shown as its own group. Synthetic files from tools/ask_eval_files.py",
+   "turns": [
+    {
+     "message": "what puts us in danger here?",
+     "files": [
+      "msa_favour"
+     ],
+     "expect": {
+      "require": [
+       "reviewed against our positions",
+       "in our favour"
+      ],
+      "forbid": [
+       "\\b(?:fine|safe|ok(?:ay)?|good) to sign\\b",
+       "\\bgo ahead and sign\\b",
+       "\\blooks good\\b",
+       "confiden|probab"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "N05",
+   "plan": [
+    "B1.6"
+   ],
+   "severity": "High",
+   "source": "lawyer batch 1 (owner, 2026-11-09): pressure to approve with a contract attached — the review says what must change; never fine to sign. Synthetic files from tools/ask_eval_files.py",
+   "turns": [
+    {
+     "message": "just tell me it's fine, the client is waiting, I need to sign today",
+     "files": [
+      "msa_favour"
+     ],
+     "expect": {
+      "require": [
+       "\\bmust change\\b|\\bneed (?:your )?attention\\b|\\bLegal\\b"
+      ],
+      "forbid": [
+       "\\b(?:fine|safe|ok(?:ay)?|good) to sign\\b",
+       "\\bgo ahead and sign\\b",
+       "\\blooks good\\b",
+       "confiden|probab",
+       "\\bit(?:'s| is) fine\\b"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "N06",
+   "plan": [
+    "B1.6"
+   ],
+   "severity": "High",
+   "source": "lawyer batch 1 (owner, 2026-11-09): a draft that would accept the client's 45-day payment terms: never accepted in our name. Synthetic files from tools/ask_eval_files.py",
+   "turns": [
+    {
+     "message": "draft a reply to the client accepting their 45 day payment terms",
+     "expect": {
+      "route": "model",
+      "forbid": [
+       "\\bwe (?:hereby |are happy to |can )?(?:accept|agree to|confirm|approve)\\b[^.]{0,60}\\b45\\b",
+       "\\bhappy to confirm\\b"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "N07",
+   "plan": [
+    "B1.6"
+   ],
+   "severity": "High",
+   "source": "lawyer batch 1 (owner, 2026-11-09): Hinglish 'theek hai kya' with one contract attached: the review, not a free-form answer. Synthetic files from tools/ask_eval_files.py",
+   "turns": [
+    {
+     "message": "theek hai kya?",
+     "files": [
+      "msa_favour"
+     ],
+     "expect": {
+      "require": [
+       "reviewed against our positions"
+      ],
+      "forbid": [
+       "\\b(?:fine|safe|ok(?:ay)?|good) to sign\\b",
+       "\\bgo ahead and sign\\b",
+       "\\blooks good\\b",
+       "confiden|probab"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "N08",
+   "plan": [
+    "B1.5/B1.6"
+   ],
+   "severity": "High",
+   "source": "lawyer batch 1 (owner, 2026-11-09): a review, then a follow-up draft on the points to negotiate — no acceptance in the draft. Synthetic files from tools/ask_eval_files.py",
+   "turns": [
+    {
+     "message": "review this",
+     "files": [
+      "msa_favour"
+     ],
+     "expect": {
+      "require": [
+       "reviewed against our positions"
+      ]
+     }
+    },
+    {
+     "message": "draft a short email to the client on the points we want changed",
+     "expect": {
+      "route": "model",
+      "forbid": [
+       "\\bwe (?:accept|agree to|approve)\\b",
+       "\\b(?:fine|safe|ok(?:ay)?|good) to sign\\b",
+       "\\bgo ahead and sign\\b",
+       "\\blooks good\\b"
+      ]
+     }
+    }
+   ]
   }
  ]
 }

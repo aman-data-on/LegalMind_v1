@@ -27708,3 +27708,135 @@ r3  MEASURED (zero Gemini): the hard benchmark at baseline on both statute gener
     0.8824 → 0.8882 (live) and 0.8941 → 0.9000 (staged); no metric fell. Then the staged
     section-7 generation is swapped in (blue-green, rollback kept).
 ```
+
+---
+
+AMENDMENT BATCH AB-175 — `AM-330`–`AM-335` (2026-11-09): Ask reads a contract the way
+LeapSwitch's lawyer does — screenshots, pictures said plainly, how a chat file was read, what
+is in our favour, the everyday ways a contract is handed over, and no sign-off in any words
+
+**Owner, 2026-11-09:** *"think like our org's real lawyer, miss nothing"* — with the lawyer
+gap research (items 1–4 approved, and the in-our-favour group as an owner requirement) as
+batch 1. Under the master RAG roadmap ownership (owner, 2026-09-24) for P3–P5; items 1 and 2
+owner-approved. IDs scanned free on main, every worktree and every remote branch (highest
+seen AM-322 / AB-173); this batch takes AB-175 and AM-330–AM-335.
+
+`AM-330` — A photo or screenshot in an Ask chat (amends `AM-133` r1's chat formats; `AM-144`'s
+OCR bounds unchanged)
+
+```text
+r1  A PNG or JPEG attached in Ask is checked by its magic bytes as any upload is (34.16):
+    an image declared as another type, or another type declared as an image, is the same
+    CONTENT_TYPE_MISMATCH; bytes that are no format are UNRECOGNISED_CONTENT.
+r2  It is placed on one PDF page with no text layer and read by the existing OCR, under
+    AM-144's bounds; a side longer than 3,508 px (A4 at 300 dpi) is halved until it fits.
+    Its chunks carry read_by OCR, so a figure read from it is said to be one. No text read
+    -> IMAGE_NO_TEXT, said in words.
+r3  Never a Contract and never on the Dashboard: `validate_upload` still refuses images.
+    The 10 MB and 10-file limits are unchanged.
+```
+
+`AM-331` — Pictures in a chat file are said, never read as a signature (extends F12, plan
+1.15; `AM-144` unchanged)
+
+```text
+r1  Each picture placed in a chat file is recorded beside the parse (page, share of the
+    page, top / middle / bottom, whether OCR read its page; a DOCX picture by paragraph) in
+    the attachment's parse JSON — no migration. The parse and every OCR decision in it are
+    untouched (read again on its own; byte-identical segments, tested).
+r2  The model and the reader see one fixed line per picture, e.g. "Page 3: a small picture
+    near the foot; its content was not read." A small picture near the top may be called
+    a logo; nothing else is said about what a picture shows. The same picture on several
+    pages is one line with its pages ("Pages 1-20: …").
+r3  F12 EXTENDED: with no document selected, a reply that calls a chat file signed,
+    stamped or executed, or says a page bears a signature, stamp or seal, is refused unless
+    it is the reader's own word (user_stated) or a cited record of the file itself states
+    execution (a blank signature line states nothing). A chat file has no execution
+    record. "Stamp duty" and "signatures of authorised signatories" are not such claims.
+r4  A PHOTO OR A CLAUSE IS PART OF A DOCUMENT. An image, or a file with fewer than three
+    numbered top-level clauses and under 4,000 characters, never gets the whole-contract
+    review (one-file, or AM-143's): it would report as missing what it never read
+    (AM-143 r5). The agent answers about what the file holds. Decided in code.
+```
+
+`AM-332` — How each chat file was read (extends `AM-247` r4 to chat files)
+
+```text
+r1  Each chat file is labelled for the model in code: read WHOLE (inlined whole, no unread
+    page) or searched IN PART (N of M characters inlined, unread pages named).
+r2  The absence rule of AM-247 r4 applies to a file read WHOLE: its silence on a point is a
+    fact of that file. With no document selected and every chat file read whole, a sentence
+    saying the file lacks something it nowhere names is not held to a clause; read in part,
+    it is checked as before.
+r3  The inline budgets are unchanged (120,000 characters; the lean model 24,000).
+```
+
+`AM-333` — A context line before a chunk's embedding: built, measured, OFF (AM-82 r5, AM-26
+and AM-83 NOT amended)
+
+```text
+r1  Behind LEGALMIND_CONTEXTUAL_EMBED (default off), a document's or chat file's chunk is
+    embedded as "{title} ({type}) · {clause} · {heading}" + its text, from metadata only;
+    statutes never take it; the query and the stored text are unchanged.
+r2  Measured with no paid call (tools.benchmark_document_lane, same scratch database, the
+    eight source documents re-ingested each way): gold clause shown 28 -> 14 of 44, gold in
+    the first three 27 -> 13, NOT_FOUND questions with document text admitted 0 -> 2 (and
+    claimed 0 -> 2), bundle p50 758 -> 1,078 ms; re-index about 7 -> 12 s a document. The
+    same harm AM-82 r5 recorded for a statute breadcrumb, on documents.
+r3  It stays OFF. Switching it on needs a measurement that passes; the lexical half
+    (content_tsv is a generated column) was not built, since the vector half failed.
+```
+
+`AM-334` — In our favour, as its own group (extends `AM-236` r4/r5 and `AM-232`'s fixed words)
+
+```text
+r1  A one-contract review and a side-by-side review show the lawyer's groups in fixed
+    words written by code: Must change before signing; To negotiate (Legal deciding named);
+    Already agreed (signed); In our favour — keep; usable as leverage in negotiation; then
+    the count of points that match our position.
+r2  A point is in our favour ONLY from the engine's own action (AM-239's accepted favour
+    form, or AM-165's favourable deviation on provider paper with a sourced direction) or a
+    client change code and the review model both read as moving risk away from LeapSwitch
+    (AM-224). Never inferred here; never counted as a match.
+r3  A note that such a point may draw push-back or not hold appears only where a source
+    states it: the standard's favourable_counsel_check, or the Constitution's enforceability
+    note with the supplied statute (AM-242; omitted without the positions permission).
+r4  The agent prompt (ask-agent-38) answers "what puts us at risk / what favours us"
+    without a file in the same order, each point from a cited record.
+r5  What favours us is always said, even when a short list is cut at seven; a clause that
+    is both a favour finding and a client change that helps us is counted once.
+```
+
+`AM-335` — The everyday review asks, and no sign-off in any words (amends `AM-236` r1's
+exclusion of "what are the risks"; strengthens `AM-141` r3 / P13)
+
+```text
+r1  With ONE chat file, a BARE "is this ok / fine / safe", "what puts us in danger",
+    "risks in this contract", "anything in our favour", "review this", "theek hai kya",
+    "risk kya hai" runs the engine review — bare meaning nothing else but filler words: no
+    clause, figure, topic or action ("45 days in clause 8, is that ok?", "is this fine to
+    send?" are the agent's) — and only when the file is what the turn is about (AM-246's
+    material_reason); "what are the risks of GDPR?" stays a question.
+r2  P13 refuses, in a statement: fine / safe / good / ok to sign, go ahead and sign, you
+    can sign it, looks good. In a draft: AM-141 r3's shape always; and, wider, we (or
+    "happy to") accept / approve / agree to / confirm / commit to a term marked as changed
+    or a figure with its unit ("confirm 99.99% uptime", "agree to extend payment to 45
+    days") — the figure only when none of OUR records shown this turn states it, so a
+    draft restating our position ("we confirm a lock-in period of 1 year") accepts
+    nothing. "Confirm that …" reports a fact. A deferral or contrast (whether, until,
+    after, once, when, upon, provided, but, however, review, revert, Legal decides) is
+    never an acceptance; "we accept the fees as invoiced" stays a reply.
+r3  Measured with no paid call: the independent re-check found the first wide version
+    flipped 6 of 1,628 stored replies (customer drafts confirming our own lock-in); the
+    "0 of 20,769" first reported was wrong — that walk passed whole texts without the
+    records a turn shows. After r2: the re-check's probe sentences all as expected; a
+    block-level replay of 1,874 stored replies (31 drafts) flips 0.
+NOT changed (every term of this batch): Ask never decides compliance and never produces a
+Finding or Legal Decision (AM-25); no position absent from a ratified standard;
+permissions first (rule 18); stage 9 fails closed with no token streaming (AM-25 r5,
+AM-69); nothing invented (rules 7, 21).
+Confirmation, once, on Gemini (2026-11-09): eight new cases N01–N08 on synthetic files,
+8/8 passed; 16 calls including the key check, about 232k tokens, about $0.19. After the
+re-check's fixes (D1–D6, this record as amended before it landed), one targeted run:
+see DAILY_CHANGED.md 2026-11-09.
+```

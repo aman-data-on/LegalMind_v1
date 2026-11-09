@@ -32,6 +32,8 @@ const SCANNED = "Scanned — not readable here. Upload it on the Dashboard, wher
  *  (Ask audit H5, 2026-10-29: a salesperson's proposal showed "(NO_TEXT)"). */
 const FAILED_WHY: Record<string, string> = {
   OCR_REQUIRED: SCANNED,
+  IMAGE_NO_TEXT: "No readable text found in this picture. Attach a sharper screenshot, or "
+    + "paste its text here.",
   NO_TEXT: "No readable text found — it may be a scanned or picture-only PDF. Paste its "
     + "text here, or upload it on the Dashboard, where scans are read.",
   EXTRACTION_FAILED: "This file could not be opened. Save it again as PDF or Word and "
@@ -48,6 +50,8 @@ export function statusText(a: ChatAttachment): string {
       : `page${unread.length > 1 ? "s" : ""} ${unread.join(", ")}`;
     return `${STATUS.READY} — ${which} could not be read`;
   }
+  // B1.1: a photo or screenshot is said to be one — its figures came from OCR
+  if (a.status === "READY" && a.mime_type.startsWith("image/")) return "Read from an image";
   if (a.status !== "FAILED" || !a.failure_code) return STATUS[a.status];
   if (a.kind === "PASTE") return "Nothing to read in this pasted text. Paste it again.";
   return FAILED_WHY[a.failure_code]
@@ -107,6 +111,11 @@ export function MaterialList({ items }: { items: ChatAttachment[] }) {
             <IconFile size={14} />
             <span className="ws-chat__filename">{a.filename ?? "Pasted text"}</span>
             <span className="ws-chat__filestatus">{statusText(a)}</span>
+            {a.pictures?.length ? (
+              <ul className="ws-chat__pictures" aria-label="Pictures in this file">
+                {a.pictures.map((line, i) => <li key={i}>{line}</li>)}
+              </ul>
+            ) : null}
           </li>
         ))}
       </ul>

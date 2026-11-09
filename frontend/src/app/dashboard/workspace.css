@@ -6819,6 +6819,7 @@ button.ws-open__go:hover { background: var(--ws-paper); }
 .ws-deal__chip[data-status="LEGAL_DECIDES"] { background: var(--ws-classify-soft); color: var(--ws-classify); }
 .ws-deal__chip[data-status="AGREED"] { background: var(--ws-accent-soft); color: var(--ws-brand); }
 .ws-deal__chip[data-status="FINE"] { background: var(--ws-ok-soft); color: var(--ws-ok); }
+.ws-deal__chip[data-status="FAVOUR"] { background: var(--ws-ok-soft); color: var(--ws-ok); }
 .ws-deal__tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
   gap: var(--ws-s2); }
 .ws-deal__toggle { display: inline-flex; align-items: center; gap: 8px; min-height: 40px;
@@ -6875,6 +6876,11 @@ button.ws-open__go:hover { background: var(--ws-paper); }
 .ws-memo__point[data-needs="ASK_CHANGE"] { border-left-color: var(--ws-warn); }
 .ws-memo__point[data-needs="LEGAL_DECIDES"] { border-left-color: var(--ws-classify); }
 .ws-memo__point[data-needs="AGREED"] { border-left-color: var(--ws-brand); }
+.ws-memo__point[data-needs="FAVOUR"] { border-left-color: var(--ws-ok); }
+.ws-chat__pictures { grid-column: 2; margin: 2px 0 0; padding: 0; list-style: none;
+  font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
+.ws-memo__group { margin: var(--ws-s3) 0 8px; font-size: var(--ws-text-sm); font-weight: 600;
+  color: var(--ws-ink-900); }
 .ws-memo__head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0 0 6px; }
 .ws-memo__head strong { color: var(--ws-ink-900); font-weight: 600; }
 .ws-memo__detail { margin: 0 0 6px; color: var(--ws-ink-700); font-weight: 500; }

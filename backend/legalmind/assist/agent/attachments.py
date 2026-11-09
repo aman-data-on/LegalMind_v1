@@ -28,7 +28,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
@@ -86,14 +86,24 @@ def already_attached(db: DBSession, conversation_id: UUID, data: bytes,
     return None
 
 
-class PartialText(list):
+class Segments(list):
+    """A parse's segments with the pictures placed in the file (lawyer batch 1, B1.2):
+    each picture's page, share of the page, position and whether OCR read it
+    (`parsing.pictures`) — said in fixed words, never read as a signature or stamp."""
+
+    def __init__(self, segments=(), pictures=()):
+        super().__init__(segments)
+        self.pictures = list(pictures)
+
+
+class PartialText(Segments):
     """Segments from a parse that did not read every page (A4), with the pages it could
     not read and the parser's diagnostics. Searched like any other, never kept as
     reviewable segments (`AM-143` r5). The unread pages are shown to the model and the
     reader (`Attachment.pages_unread`); before 2026-10-15 they were silent."""
 
-    def __init__(self, segments=(), pages_failed=(), diagnostics=()):
-        super().__init__(segments)
+    def __init__(self, segments=(), pages_failed=(), diagnostics=(), pictures=()):
+        super().__init__(segments, pictures)
         self.pages_failed = list(pages_failed)
         self.diagnostics = list(diagnostics)
 
@@ -120,6 +130,8 @@ class Attachment:
     #: A READY file's pages the parser could not read (a scan above the OCR bound, a
     #: page OCR could not read) — [] when every page was read.
     pages_unread: list[int]
+    #: B1.2: the pictures placed in the file (`Segments.pictures`) — [] for none.
+    pictures: list[dict] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -153,7 +165,8 @@ class _Row:
 
 # `segments` was a list before 2026-10-15: `->` on a list is NULL, so those read [].
 _COLUMNS = ("id, kind, filename, mime_type, byte_size, status, failure_code, "
-            "created_at, expires_at, COALESCE(segments->'pages_failed', '[]'::jsonb)")
+            "created_at, expires_at, COALESCE(segments->'pages_failed', '[]'::jsonb), "
+            "COALESCE(segments->'pictures', '[]'::jsonb)")
 
 
 def _schema() -> str:
@@ -437,10 +450,13 @@ def add(db: DBSession, *, conversation_id: UUID, data: bytes, kind: str, mime: s
     # COMPLETE parse's segments (`AM-143` r5: a partial one would let the engine report
     # as MISSING what it never read); a partial parse keeps its unread pages and
     # diagnostics, so neither is silent (F7), and is never reviewed.
+    pics = getattr(extracted, "pictures", None)
+    pictures = {"pictures": pics} if pics else {}
     segments = (json.dumps({"pages_failed": extracted.pages_failed,
-                            "diagnostics": extracted.diagnostics}
+                            "diagnostics": extracted.diagnostics, **pictures}
                            if isinstance(extracted, PartialText)
-                           else {"segments": [_segment(s) for s in extracted]})
+                           else {"segments": [_segment(s) for s in extracted],
+                                 **pictures})
                 if kind == FILE and not failure else None)
     db.execute(text(f"""
         UPDATE "{schema}".conversation_attachments
@@ -453,6 +469,84 @@ def add(db: DBSession, *, conversation_id: UUID, data: bytes, kind: str, mime: s
               status=FAILED if failure else READY, failure_code=failure or "",
               byte_size=str(len(data)), sha256=digest)
     return next(a for a in list_for(db, conversation_id) if a.id == attachment_id)
+
+
+#: below this, a file with fewer than three numbered top-level clauses may be only part
+#: of a document — reviewed, but never told it lacks a clause (recheck N1)
+FRAGMENT_MAX_CHARS = 4000
+#: the reader's own words for a part of a document — "this clause", "the screenshot"
+_A_PART = re.compile(r"\b(?:this|the|that|attached)\s+(?:clause|screenshot|snippet|"
+                     r"excerpt|extract|section|paragraph|para|part|page|photo|picture|"
+                     r"image)\b|\bscreenshot\b", re.I)
+
+
+def is_image(attachment: Attachment) -> bool:
+    return attachment.mime_type.startswith("image/")
+
+
+def names_a_part(attachment: Attachment, question: str) -> bool:
+    """A photo or screenshot, or a file the reader calls a part ("is this clause ok?")
+    — answered by the agent about what it holds, never by the whole-contract review
+    (recheck D4/N1, `AM-143` r5). Decided in code."""
+    return is_image(attachment) or bool(_A_PART.search(question or ""))
+
+
+def is_fragment(attachment: Attachment, parse: dict) -> bool:
+    """May this file be only PART of a document? A photo, or one with fewer than three
+    numbered top-level clauses and under `FRAGMENT_MAX_CHARS`. It is still reviewed (a
+    short amendment or order form is a whole one), but what it does not state is never
+    reported as missing (`deal_review.build`'s ``partial``)."""
+    if is_image(attachment):
+        return True
+    if "segments" not in parse:
+        return False             # read in part: its own reply names the unread pages
+    segments = parse["segments"] or []
+    tops = {str(s.get("section_number") or "").split(".")[0] for s in segments} - {""}
+    return len(tops) < 3 and sum(len(s.get("content") or "") for s in segments) \
+        < FRAGMENT_MAX_CHARS
+
+
+_WHERE = {"top": "near the top", "middle": "in the middle", "bottom": "near the foot"}
+
+
+def picture_lines(pictures: list[dict]) -> list[str]:
+    """Each picture in a file, in fixed words (B1.2): where it is, its size and whether
+    its text was read — never what it shows. A picture is not evidence that the file is
+    signed, stamped or executed (F12), so nothing here says it is. The same picture on
+    page after page (a 20-page scan) is one line with its pages (recheck D5)."""
+    said: dict[str, list] = {}
+    for p in pictures:
+        share = p.get("share") or 0
+        size = ("covering the whole page" if share >= 0.85 else "large" if share >= 0.4
+                else "small" if share < 0.1 else "")
+        where = _WHERE.get(p.get("position") or "", "")
+        what = ("a picture " + size if size.startswith("covering")
+                else " ".join(x for x in ("a", size, "picture", where) if x))
+        logo = " (it may be a logo)" if size == "small" and p.get("position") == "top" \
+            else ""
+        read = "its text was read by OCR" if p.get("read") else "its content was not read"
+        said.setdefault(f"{what}{logo}; {read}.", []).append(
+            ("Page", p["page"]) if p.get("page") else
+            ("Paragraph", p["paragraph"]) if p.get("paragraph") else ("", None))
+    out = []
+    for line, places in said.items():
+        kind = places[0][0]
+        numbers = sorted({n for k, n in places if k == kind and n is not None})
+        place = (f"{kind}s {_ranges(numbers)}" if len(numbers) > 1 else
+                 f"{kind} {numbers[0]}" if numbers else "The file")
+        out.append(f"{place}: {line}")
+    return out
+
+
+def _ranges(numbers: list[int]) -> str:
+    """[1, 2, 3, 5] -> "1-3, 5"."""
+    runs: list[list[int]] = []
+    for n in numbers:
+        if runs and n == runs[-1][-1] + 1:
+            runs[-1].append(n)
+        else:
+            runs.append([n])
+    return ", ".join(f"{r[0]}-{r[-1]}" if len(r) > 1 else str(r[0]) for r in runs)
 
 
 def _segment(s: Any) -> dict:
@@ -564,7 +658,15 @@ def _index(db: DBSession, attachment_id: UUID, segments: list) -> str | None:
           "ann": _annotations(c.content, by_row[c.evidence_id].read_by),
           "v": CHUNKING_ALGORITHM_VERSION}
          for i, c in zip(ids, chunks, strict=True)])
-    _embed(db, ids, [c.content for c in chunks])
+    from legalmind.assist.ingestion import indexing
+    texts = [c.content for c in chunks]
+    if indexing.contextual_embed():                      # B1.4, off: no extra query
+        name = db.execute(text(
+            f'SELECT filename FROM "{schema}".conversation_attachments WHERE id = :a'),
+            {"a": attachment_id}).scalar()
+        texts = [indexing.context_line(name, None, by_row[c.evidence_id].location, None)
+                 + c.content for c in chunks]
+    _embed(db, ids, texts)
     return None
 
 

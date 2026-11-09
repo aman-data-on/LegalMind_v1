@@ -867,7 +867,8 @@ export interface DealQuestion {
 }
 
 /** `AM-229`: a row's status — the engine's action and the reader's answers, never the AI's. */
-export type DealStatus = "MUST_CHANGE" | "ASK_CHANGE" | "LEGAL_DECIDES" | "AGREED" | "FINE";
+export type DealStatus = "MUST_CHANGE" | "ASK_CHANGE" | "LEGAL_DECIDES" | "AGREED" | "FAVOUR"
+  | "FINE";
 
 export interface DealCell {
   finding_id: string;
@@ -882,6 +883,10 @@ export interface DealCell {
   /** `AM-232`: the clause in plain words; absent when it did not pass the figure check. */
   plain?: string;
   proposal?: CounterProposal;
+  /** B1.5: why a point in our favour may draw push-back or not hold — only where a
+   *  source states it (the standard's Counsel check, or the Constitution's note). */
+  counsel?: { text: string; source: "standard" | "constitution"; section?: string | null;
+              law?: { source: string; section: string; quote: string } };
 }
 
 export interface DealRow {
@@ -910,6 +915,8 @@ export interface DealFile {
   changes: number;
   notes: { clause: string; author?: string; text: string }[];
   precedence: string[];
+  /** B1.5: client changes code and the review model both read as better for us. */
+  favour_changes?: { clause: string | null; page: number | null; quote?: string }[];
   unchecked: { section: string; title: string; clause: string; kind: string;
                removed: string; added: string }[];
 }
@@ -1006,6 +1013,8 @@ export interface ChatAttachment {
   expires_at: string;
   /** A READY file read in part: the pages that could not be read (F7). */
   pages_unread?: number[];
+  /** B1.2: each picture in the file, in the server's fixed words (never "signed"). */
+  pictures?: string[];
 }
 
 export interface Conversation {

@@ -10,11 +10,15 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
-### 2026-11-09 — Answer check V-1 evaluation set and V-2a structural layer, dormant behind a flag — branch `feat/structural-check-v2a`
+### 2026-11-09 — Ask, lawyer batch 1: screenshots, pictures, how a file was read, in our favour, everyday review asks (AB-175: AM-330–AM-335) — branch `feat/ask-lawyer-batch1`, NOT committed
+
+A PNG/JPEG in an Ask chat is read by the existing OCR (chat only; the Dashboard still refuses images). Pictures in a chat file are listed in fixed words and a chat file is never called signed or stamped from one (F12 extended). Each chat file is labelled read WHOLE or searched IN PART, and the absence rule applies to a file read whole. A review shows Must change / To negotiate / In our favour (keep; leverage) / N match — favour only from the engine's own action or a client change both readings call better for us (`deal_review.FAVOUR`, fixing `cell_status` folding it into "fine"). "is this ok?", "what puts us in danger?", "risks in this contract", "anything in our favour?", "review this", "theek hai kya" asked bare with one chat file run the engine review; a screenshot or a clause or two never does. P13 refuses "fine to sign / go ahead and sign / looks good" and a draft accepting a marked term, or a figure none of our records states. Independent re-check D1–D6 fixed the same day. A context line before a chunk's embedding was built behind `LEGALMIND_CONTEXTUAL_EMBED` and measured worse (gold shown 28 → 14 of 44, NOT_FOUND admitted 0 → 2) — it stays off. Prompt `ask-agent-38`. Eight cases N01–N08 (synthetic files, `tools/ask_eval_files.py`): 8/8 on Gemini, 16 calls, ≈ $0.19. Record: `all_lock.md` AB-175; spec `/root/legalmind-clm-local/audit/ASK-LAWYER-GAP-SPEC.md` §d batch 1.
+
+### 2026-11-09 — Answer check V-1 evaluation set and V-2a structural layer, dormant behind a flag — merged (PR #289)
 
 `tools/eval_claims.py` (V-1: typed claims from real source text, perturbed, split dev / held-out / unseen by document, zero Gemini) and `assist/verification/structural.py` (V-2a: limb coverage, scope widening, unsupported conclusion, ABSTAIN), wired into `verify.judge` only on a claim already judged SUPPORTED, behind `LEGALMIND_STRUCTURAL_CHECK` — `off` by default, so stage 9's behaviour is unchanged; `shadow` logs, `on` can only refuse more. No lock touched. Ported from an uncommitted agent worktree.
 
-### 2026-11-09 — Agent instruction files restructured to the official Claude Code guidance — branch `docs/agent-instructions-20261109`, NOT committed
+### 2026-11-09 — Agent instruction files restructured to the official Claude Code guidance — merged (PR #288, `7510589`)
 
 No lock, rule or decision changed; guidance reorganised. `CLAUDE.md` 665 → 141 lines (all 23 rules and their IDs kept; history removed; the old file verbatim at `docs/00-project/archive/CLAUDE_MD_2026-11-09.md`). Path-scoped `.claude/rules/` (ui-ux, ask-rag, legal-engine-config, records-and-locks, testing), skills `local-stack`, `team-delivery`, `lock-amendment`, read-only agent `independent-verifier`. Contradictions fixed: MSA cap 6 vs 12 months, "two" standards/evaluators, Ask stage 6 "never built", commit-to-main git text, the `AM-239` favour form missing, DESIGN.md as binding; AGENTS.md §7/§8/§20 no longer advise stash, `add -A`, checkpoint commits or pushing without the owner, and it now carries the shared-working-tree section. Hooks proposed, not enabled: `docs/00-project/PROPOSED_HOOKS_2026-11-09.md`. Audit: `docs/00-project/AGENT_INSTRUCTIONS_AUDIT_2026-11-09.md`.
 
@@ -23,21 +27,21 @@ No lock, rule or decision changed; guidance reorganised. `CLAUDE.md` 665 → 141
 - **AM-300** L1.16 redacts the NDA counterparty's name that one reference-table row of L1.15 still carried (L1.15 kept as history under a banner); the statute cross-encoder reads the text without India Code's editorial marks — IT Act s.43A back to rank 1 for the data-leak compensation question; golden hit@1 0.857 → 0.929; no benchmark metric fell. After deploy: `tools.ingest_constitution`, then the statute swap (17 Acts, section-7, staged 2026-11-03) checked by the hard benchmark with rollback kept.
 - **Records:** batches AB-143/144/145/146 DEPLOYED 2026-11-03 as `d2a5243` (PRs #280–#283); a merge gap on #282 (job 13 failed, merged on the required check only) fixed by #283 before any deploy — merge rule now: read every check first.
 
-### 2026-11-03 — CloudPe Gemma as an Ask model; no-credit models switched off (AB-146: AM-249) — branch `feat/cloudpe-gemma-20261103`, NOT committed
+### 2026-11-03 — CloudPe Gemma as an Ask model; no-credit models switched off (AB-146: AM-249) — merged (PR #283, `d2a5243`)
 
 - `cloudpe-gemma` (gemma-4-26b-a4b on CloudPe's own vLLM endpoint, 32k window → lean profile) added to the model registry; offered in the picker once deployed, Gemini stays default. Measured: 5 cases 3/5 (long multi-point emails answered in part), C26 41/50 — equal to Gemini — p50 25 s, no cost.
 - Server, 2026-11-03: DeepSeek (IndieRouter, Together — 402) and Bonsai (500) keys commented out in `/root/.legalmind.env` (values kept; backup `legalmind.env.before-cloudpe-gemma-2026-11-03`); CloudPe key and base URL added; API and worker restarted.
-### 2026-11-03 — Ask cites the governing section, states a document's silence, catches strengthened meaning (AB-144: AM-247) — branch `feat/ask-quality-20261103`, NOT committed
+### 2026-11-03 — Ask cites the governing section, states a document's silence, catches strengthened meaning (AB-144: AM-247) — merged (PR #282, `d27df97`)
 
 - Q-11: a section the question names by title is read with its title and reaches the results (AUP §5 for crypto mining); this turn's search before carried records; CERT-In annexures and direction (iii) as their own units, the 6-hour rule reached by the Hinglish question. After deploy: CERT-In re-ingest by blue-green swap, then re-baseline the two benchmarks (commands in IMPLEMENTATION_STATUS).
 - Q-8: a document read whole states what it lacks plainly ("this NDA has no liability cap, so clause 10 is not limited by it"); search-only reads never claim absence (prompt ask-agent-37).
 - Q-1: typed meaning checks in the answer check — held-out overstatement accepted 27% → 14%, negation 16% → 11%, no correct claim newly rejected. The remaining gap is the claim-decomposition verifier's job.
 - Reviewed independently; every finding fixed (incl. a "may → must" regression caught in review). Zero Gemini to build.
-### 2026-11-03 — Reading a contract like LeapSwitch's lawyer (AB-145: AM-248) — branch `feat/contract-reading-20261103`, NOT committed
+### 2026-11-03 — Reading a contract like LeapSwitch's lawyer (AB-145: AM-248) — merged (PR #281, `49ab4fb`)
 
 - R-1 a customer-only indemnity is ONE_SIDED, a §10 DEVIATION (our published TOS/AUP excepted) — our own MSA templates now deviate, reported to the owner; R-2/R-4/R-5 clause titles, "N. Label:" numbers, "50 Mbps" is not §50; R-3 another family's numeric standard measures only clauses it confirms by its own words; R-6 a change clause naming no cancellation/notice/termination is UNABLE_TO_EVALUATE; R-7 a clause across a PDF page break is one segment. Processor legalmind-ingest-v9 (new readings only).
 - Replay of 15 real documents vs main: 32 findings changed, all justified, zero new MATCH/ACCEPTABLE. Reviewed independently; all review findings fixed. Tests: 56 batch + 1,131 across 39 modules; frontend label test 76 passed.
-### 2026-11-02 (night) — Is this a contract at all? A chat file only on a turn about it (AB-143: AM-245, AM-246) — branch `feat/contract-gate-20261102`, NOT committed
+### 2026-11-02 (night) — Is this a contract at all? A chat file only on a turn about it (AB-143: AM-245, AM-246) — merged (PR #280, `2771328`)
 
 - **AM-245** `domain/paper_kind.py`: a deterministic gate (no model) reads each reading once — a clear CV or invoice with no legal and no commitment signal is NOT_A_CONTRACT; anything contract-shaped is at worst UNSURE. NOT_A_CONTRACT: no analysis, no AM-54 egress, no type-suggestion call, no Ask review; "Review anyway" (same permission as analysis, audited after dispatch, carried in the queued job). The upload screen creates no Review for it; the findings pane says so and offers the override.
 - **AM-246** a chat file goes to the model only on a turn about it (attached now, named, or a follow-up to a file turn); otherwise no inline material, no attachment tools, and earlier turns that carried it are replaced in the history by a fixed placeholder.

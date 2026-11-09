@@ -42,7 +42,7 @@ def test_each_question_carries_the_files_saved_before_it(api, db, seeded, user, 
     # The view the list already gives: names, sizes and status, never the content.
     assert set(asked[0]["attachments"][0]) == {
         "id", "kind", "filename", "mime_type", "byte_size", "status", "failure_code",
-        "pages_unread", "created_at", "expires_at"}
+        "pages_unread", "pictures", "created_at", "expires_at"}  # B1.2: fixed words
 
 
 def test_an_old_chats_files_never_pass_to_its_next_question(api, db, seeded, user, quiet):

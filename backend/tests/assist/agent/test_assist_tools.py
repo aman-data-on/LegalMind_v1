@@ -590,7 +590,8 @@ def test_d6_a_file_beside_the_document_is_named_in_every_record_of_it(db, user, 
     named = 'your file "Vendor B MSA .docx"'
     ctx = _ctx(db, user, conv)
     reg = agent.EvidenceRegistry(db, conv)
-    blocks = agent._inline_material(ctx, reg)
+    blocks = [b for b in agent._inline_material(ctx, reg).blocks
+              if b.startswith("<user_material")]
     # the label's own quotes are dropped inside the attribute, so it cannot close it
     attr = named.replace('"', "")
     assert blocks and all(f'from="{attr}" trust="untrusted">' in b for b in blocks)

@@ -37,7 +37,7 @@ const rows: DealRow[] = [
     cells: { a: cell("FINE", "Indian law"), b: cell("FINE", "Indian law") },
     status: "FINE", needs: "FINE", decided_by: "a", also: [] },
 ];
-const counts = { MUST_CHANGE: 1, ASK_CHANGE: 0, LEGAL_DECIDES: 0, AGREED: 0, FINE: 1 };
+const counts = { MUST_CHANGE: 1, ASK_CHANGE: 0, LEGAL_DECIDES: 0, AGREED: 0, FAVOUR: 0, FINE: 1 };
 
 describe("the assistant's questions", () => {
   it("are real inputs with each one's reason, the defaults chosen, and a way to skip", () => {

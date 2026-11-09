@@ -142,6 +142,41 @@ def sniff_mime(data: bytes) -> str | None:
     return None
 
 
+#: Lawyer batch 1 (B1.1, P1): a photo or screenshot in an Ask CHAT only — never a
+#: Dashboard upload, which `validate_upload` keeps to PDF, DOCX and text (34.2).
+PNG_MIME = "image/png"
+JPEG_MIME = "image/jpeg"
+IMAGE_MIME_TYPES = frozenset({PNG_MIME, JPEG_MIME})
+_IMAGE_MAGIC = ((b"\x89PNG\r\n\x1a\n", PNG_MIME), (b"\xff\xd8\xff", JPEG_MIME))
+
+
+def sniff_image(data: bytes) -> str | None:
+    """PNG or JPEG from its magic bytes, else None — never from a name or a claim."""
+    return next((mime for magic, mime in _IMAGE_MAGIC if data.startswith(magic)), None)
+
+
+def validate_chat_image(data: bytes, declared_mime: str) -> str | None:
+    """The image type of an Ask chat file, checked as `validate_upload` checks the rest
+    (34.16), or None when neither the bytes nor the claim is an image. An image declared
+    as another type, or another type declared as an image, is the same mismatch."""
+    actual = sniff_image(data)
+    declared = "image/jpeg" if declared_mime == "image/jpg" else declared_mime
+    if actual is None and declared not in IMAGE_MIME_TYPES:
+        return None
+    if not data:
+        raise UploadRejected("EMPTY_FILE", "File is empty.")
+    if actual is None:
+        if sniff_mime(data) is not None:
+            raise UploadRejected("CONTENT_TYPE_MISMATCH",
+                                 "File content does not match its declared type.")
+        raise UploadRejected("UNRECOGNISED_CONTENT",
+                             "File content does not match a supported format.")
+    if actual != declared:
+        raise UploadRejected("CONTENT_TYPE_MISMATCH",
+                             "File content does not match its declared type.")
+    return actual
+
+
 def looks_like_text(data: bytes) -> bool:
     """Is this actually text? Decodable as UTF-8, and predominantly printable.
 

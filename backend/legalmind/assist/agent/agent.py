@@ -36,7 +36,7 @@ from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, NamedTuple, Protocol
 from uuid import UUID
 
 from sqlalchemy import text
@@ -48,7 +48,7 @@ from legalmind.assist.agent import attachments, ledger, points, tools
 from legalmind.assist.llm import breaker, generation
 from legalmind.assist.verification import agent_verify
 
-PROMPT_VERSION = "ask-agent-37"
+PROMPT_VERSION = "ask-agent-38"
 #: A safety net, not the control (owner, 2026-10-07): the loop ends on `_should_stop` —
 #: the time budget first, then the model's own "done", a question asked, or a round
 #: that found nothing new. Six decisions plus the final call and its one repair.
@@ -202,6 +202,10 @@ reader's draft, clause or term acceptable, fine or safe to sign — not in a rep
 draft for them either ("we accept the 45-day exit" is a decision only Legal can make). \
 Set out what their paper says beside our position, and say that accepting the \
 difference is Legal's decision.
+- Asked what puts us at risk or what favours us in a contract or term, answer in \
+this order, each point from a cited record: what must change before signing; what to \
+negotiate (Legal decides); what is in our favour — keep it, it is leverage we can \
+trade. Say a favourable term may draw push-back or not hold only where a record says so.
 - When it helps, end with one short offer of the next point you could explain.
 - Match the language of the user's current message (stated at the end of the final \
 instruction).
@@ -1341,16 +1345,41 @@ def _context(ctx: tools.ToolContext, thread: Thread, pinned: dict | None,
     return [{"role": "user", "parts": [{"text": p} for p in parts]}]
 
 
+class Inlined(NamedTuple):
+    """The chat's material as the model reads it: the data blocks, and the ids of the
+    files read WHOLE (B1.3) — whose silence on a point is a fact of that file."""
+    blocks: list[str]
+    whole: list[UUID]
+    #: every READY file is read whole — only then is the material a closed world
+    all_whole: bool = False
+
+
+#: B1.3 (P3): how each chat file was read, in code's words — the absence rule of
+#: `WHOLE_READ` (`AM-247` r4) applies to a file read whole, never to one read in part
+FILE_WHOLE = ("FILE {name}: read WHOLE — its whole text is below, read without a "
+              "gap: what it does not contain is not in it. Say so plainly, as a fact of "
+              "this file, naming the clause it bears on.")
+FILE_IN_PART = ("FILE {name}: searched IN PART ({shown:,} of {size:,} characters are "
+                "below{unread}) — never say it lacks something; say the parts read do "
+                "not state it, and search_attachment for the rest.")
+#: B1.2 (P2): a picture is said, never read as a signature, stamp or execution (F12)
+PICTURES = ("Pictures in {name} (never evidence that it is signed, stamped or "
+            "executed): {lines}")
+
+
 def _inline_material(ctx: tools.ToolContext, reg: EvidenceRegistry, *,
-                     limit: int | None = None) -> list[str]:
+                     limit: int | None = None) -> Inlined:
     """READY material in full as <user_material> data blocks (architecture §5.5): each
     attachment whole, the newest first, while the total fits `INLINE_MATERIAL_CHARS`;
     the rest is reached through `search_attachment`. Shown in the order it arrived, each
-    block and record named after its file (D6: two agreements in one chat)."""
+    block and record named after its file (D6: two agreements in one chat). Each FILE
+    first says how it was read — WHOLE or IN PART (B1.3) — and what pictures it carries
+    (B1.2)."""
     if not ctx.material:
-        return []
+        return Inlined([], [])
     schema = config.assist_schema()
     named = attachments.names(ctx.db, ctx.conversation_id)
+    files = {a.id: a for a in attachments.list_for(ctx.db, ctx.conversation_id)}
     rows = ctx.db.execute(text(
         f"SELECT a.id, c.id, c.content, c.location, c.annotations->>'read_by' "
         f'FROM "{schema}".attachment_chunks c '
@@ -1367,20 +1396,37 @@ def _inline_material(ctx: tools.ToolContext, reg: EvidenceRegistry, *,
         if total + size <= limit:
             keep.add(att)
             total += size
-    out = []
-    for att, (cid, content, location, how) in ((a, c) for a in by_att if a in keep
-                                               for c in by_att[a]):
+    out, whole = [], []
+    for att, chunks in by_att.items():
         name = named.get(att, attachments.label(None))
-        key = reg.key_for(tools.Record(ref=f"ATT:{cid}", source="attachments",
-                                       authority="USER_MATERIAL", status="current",
-                                       location=location, text=content,
-                                       item_id=str(cid), scope=name, read_by=how),
-                          weak=False)
-        # read_by only where set (F8): an OCR'd figure is said to be one
-        out.append(generation.untrusted("user_material", content, id=key,
-                                        **{"from": name},
-                                        **({"read_by": how} if how else {})))
-    return out
+        meta = files.get(att)
+        if meta is not None and meta.kind == attachments.FILE:
+            unread = meta.pages_unread
+            if att in keep and not unread:
+                whole.append(att)
+                out.append(FILE_WHOLE.format(name=name))
+            else:
+                size = sum(len(c[1]) for c in chunks)
+                out.append(FILE_IN_PART.format(
+                    name=name, shown=size if att in keep else 0, size=size,
+                    unread=f"; page(s) {', '.join(map(str, unread))} could not be read"
+                    if unread else ""))
+            if lines := attachments.picture_lines(meta.pictures):
+                out.append(PICTURES.format(name=name, lines=" ".join(lines)))
+        if att not in keep:
+            continue
+        for cid, content, location, how in chunks:
+            key = reg.key_for(tools.Record(ref=f"ATT:{cid}", source="attachments",
+                                           authority="USER_MATERIAL", status="current",
+                                           location=location, text=content,
+                                           item_id=str(cid), scope=name, read_by=how),
+                              weak=False)
+            # read_by only where set (F8): an OCR'd figure is said to be one
+            out.append(generation.untrusted("user_material", content, id=key,
+                                            **{"from": name},
+                                            **({"read_by": how} if how else {})))
+    files_read = [a for a in by_att if (m := files.get(a)) and m.kind == attachments.FILE]
+    return Inlined(out, whole, bool(files_read) and set(files_read) <= set(whole))
 
 
 # ------------------------------------------------------------------------------ the loop
@@ -1741,8 +1787,9 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
     ctx = dataclasses.replace(ctx, material=result.material != attachments.NOT_ABOUT_IT)
     if not ctx.material:
         thread = manager.thread(message, hide_material=True)
-    material = _inline_material(ctx, reg, limit=LEAN_MATERIAL_CHARS if lean
-                                else getattr(provider, "material_chars", None))
+    inlined = _inline_material(ctx, reg, limit=LEAN_MATERIAL_CHARS if lean
+                               else getattr(provider, "material_chars", None))
+    material = inlined.blocks
     # material is also what the reader pasted into an earlier turn of this thread — with
     # attachments off it stays only there (final review, 2026-10-07)
     has_material = (bool(material)
@@ -1985,8 +2032,12 @@ def _run_turn(provider: Provider, ctx: tools.ToolContext, message: str, *,
             "reply_language": language, "instruments": instruments,
             "reader_figures": reader_figures, "brand": ctx.brand,
             # the whole selected text, read without a gap, for a claim of what it lacks
+            # — or, with no document selected, the chat's files when every one was
+            # read whole (B1.3, P3: `AM-247` r4 for chat files)
             "document_passages": (tools.document_passages(ctx.db, selected)
-                                  if selected is not None and gap is None else ()),
+                                  if selected is not None and gap is None else
+                                  tools.attachment_passages(ctx.db, inlined.whole)
+                                  if selected is None and inlined.all_whole else ()),
             # the reader's figures from earlier turns, for a draft only (V19)
             "conversation_figures": frozenset().union(*(
                 agent_verify.reader_figures(c) for r, c in thread.window
