@@ -17,7 +17,7 @@ Minimum context before you act:
 
 **LegalMind is a specification-first project, and implementation is authorized and underway** — `IMPL-01` (2026-08-17) for the V1 engine, `IMPL-02` (2026-08-25) for the assist lane. *(This paragraph previously said the project was "in the specification phase" and that application code must not be written; that was true when written and became misleading once `IMPL-01` landed. Corrected 2026-08-25.)*
 
-**Specification-first still governs everything.** Authorization covers **building what is already locked** and confers no authority to decide what is not. Do not implement an unspecified behavior, add a table beyond `AM-27`'s nine, or add a technology or dependency without approval. Do not invent a legal rule, threshold, or evaluator behavior. When you find a contradiction, report it — never resolve it yourself.
+**Specification-first still governs everything.** Authorization covers **building what is already locked** and confers no authority to decide what is not. Do not implement an unspecified behavior, add a table, column or enum not covered by a lock record, or add a technology or dependency without approval. Do not invent a legal rule, threshold, or evaluator behavior. When you find a contradiction, report it — never resolve it yourself.
 
 ---
 
@@ -31,13 +31,12 @@ branching, worktrees, commits, pushes, PRs, conflicts, CI. They do not touch the
 specification rules in [CLAUDE.md](CLAUDE.md), which still win on anything about what may
 be built or decided.
 
-**Where this supersedes CLAUDE.md.** [CLAUDE.md § Git workflow — one owner, keep it in
-`main`](CLAUDE.md) says to commit straight to `main` and not to open a branch per task.
-That is superseded by §1 below: **work on a task branch, always.** `main` is
-branch-protected and rejects direct pushes anyway, and multiple agents now run
-concurrently. Everything else in that section — merge promptly, delete the branch, no
-retry branches, the deploy tree is `/root/Legalmind.v1` on clean `main`, one deploy at a
-time — still stands.
+**CLAUDE.md and this file agree** (reconciled 2026-11-09): work on a task branch in your
+own worktree, always; `main` is branch-protected. Claude Code loads `CLAUDE.md` only, not
+this file (code.claude.com/docs/en/memory § AGENTS.md), so CLAUDE.md § Git carries the
+essentials and links here for the procedure. Still standing from the 2026-09-02 owner
+instruction: merge promptly and delete the branch, no retry branches (`-work`, `-work2`),
+the deploy tree is `/root/Legalmind.v1` on clean `main`, one deploy at a time.
 
 The goal is to prevent:
 - Multiple sessions editing the same worktree
@@ -274,29 +273,21 @@ Coordinate one of these options:
 
 ## 7. Never discard unknown work
 
-Do not run these commands unless the user explicitly authorizes data loss:
+Do not run these commands unless the owner explicitly authorizes data loss:
 
 ```bash
 git reset --hard
 git clean -fd
 git checkout -- .
 git restore .
-git stash clear
+git stash / git stash clear
 ```
 
-If you need a clean state, preserve changes first:
-
-```bash
-git stash push -u -m "preserve work before task"
-```
-
-Or create a backup branch:
-
-```bash
-git switch -c backup/<description>
-git add -A
-git commit -m "Checkpoint existing work"
-```
+If you need a clean state, do **not** stash, back up or commit someone else's changes
+(stash and `add -A` sweep in other sessions' files; commits need the owner, §13). Create
+your own worktree at `origin/main` instead (§2) and leave the unknown work where it is;
+report it if it blocks you. To tell your failures from pre-existing ones, run the same
+tests in a clean worktree at `origin/main` and compare.
 
 Before using `git stash pop`, inspect:
 
@@ -307,9 +298,10 @@ git stash show --stat stash@{0}
 
 ---
 
-## 8. Commit checkpoints regularly
+## 8. Commit checkpoints regularly — once the owner has said "commit"
 
-Make small, understandable commits.
+No commit without the owner's go (§13, owner 2026-09-29; CLM branches delegated 2026-11-04).
+When committing is authorized, make small, understandable commits.
 
 Good commit examples:
 
@@ -841,7 +833,7 @@ Confirm:
 - [ ] CI was checked
 - [ ] Specification changes are documented
 - [ ] Required PR labels are present
-- [ ] Branch is pushed
+- [ ] Branch is pushed — only if the owner said push (§13)
 - [ ] Worktree state is reported
 - [ ] No uncommitted work is accidentally abandoned
 
@@ -878,3 +870,135 @@ Before every edit, commit, rebase, merge, push, or PR update:
 6. Make the smallest safe change.
 7. Run the relevant tests.
 8. Report exactly what happened.
+
+---
+
+# Shared working tree, worktrees and the deploy tree
+
+*Moved verbatim from CLAUDE.md on 2026-11-09 (the restructure in `docs/00-project/AGENT_INSTRUCTIONS_AUDIT_2026-11-09.md`). The struck-through "commit as soon as verified" line is kept as history; the owner rule of 2026-09-29 (§13) governs. CLAUDE.md § Git, worktrees, deploy carries the summary.*
+
+**Owner instruction, 2026-09-04**, after the incident below: *"Multiple development
+sessions/agents may be working on this repository simultaneously… Act like a senior
+engineer working on a team, not an isolated coding agent."*
+
+Rule 23 already says completed work stays completed whoever did it. This section covers
+the sharper case: another session is editing **right now**, in the same working tree.
+
+### The 2026-09-04 incident this section responds to
+
+Two sessions worked concurrently. Session B finished a set of simplifications, committed
+**only its own four files**, then ran a `git reset` to `origin/main` — which discarded
+session A's five *uncommitted* files from the working tree. Nothing warned either
+session. Session A's work was unstaged, so it was **not recoverable from git**; it
+survived only because a scratchpad copy of one file and the diff itself happened to still
+be in that session's transcript. Session B's own commit was fine — it was on a branch.
+
+Two lessons, both now rules: **a reset destroys everyone's uncommitted work, not just
+yours**, and **work that is not committed is not safe** in a tree someone else may reset.
+
+### The rules
+
+- **Never `reset`, `checkout --`, `stash`, `clean` or revert files you did not modify.**
+  The working tree is shared. `git reset --hard` and `git checkout -- .` are effectively
+  destructive to every other session at once, and what they destroy is unrecoverable
+  because it was never in the object store. If you need a clean baseline, commit your own
+  work first, then reset only your own paths.
+- **Never commit until the owner says so (owner, 2026-09-29).** Finished, green work stays
+  uncommitted in your OWN worktree and is reported; the owner decides when it is committed.
+  The worktree is the protection against another session's reset, not an early commit.
+  ~~Commit your work as soon as it is verified.~~ — superseded 2026-09-29.
+- **Stage by explicit path, never `git add -A` or `git add .`.** Another session's files
+  are almost certainly in the tree beside yours. Name your files; check `git status` and
+  the staged diff before committing; if the boundary is genuinely ambiguous, stop and
+  report rather than guessing.
+- **Inspect before you touch anything.** `git status`, `git branch --show-current`,
+  `git log --oneline -5`, and the diff of any file you are about to edit. Unexpected
+  edits in a file are a *signal*, not noise — identify their purpose and integrate with
+  them.
+- **A commit you did not write is not yours to land.** Before concluding a commit is
+  orphaned, run `git branch --contains <sha>` — in this incident a commit was assumed
+  dangling and was in fact safe on its own branch. Work sitting on another session's
+  branch is that session's in-flight work heading for its own review: leave it there,
+  and coordinate rather than cherry-picking it into `main`. Resurrect only work that is
+  genuinely lost *and* wanted.
+- **Prefer KEEP → MERGE → ADAPT → REMOVE.** "Mine is newer" is not a reason to drop
+  someone else's change. If two sessions built the same thing, keep the better
+  implementation — one correct implementation beats two competing ones — and never
+  destroy the loser's *unrelated* work in the process.
+- **Leave a coordination note** in [CHANGELOG.md](CHANGELOG.md) `[Unreleased]` or the
+  relevant PR when you make a call that affects another session's work, including a
+  deliberate decision *not* to integrate something and why. Agents resolve routine
+  engineering conflicts between themselves; the owner is for product, legal and security
+  decisions.
+
+### Work in your own worktree — the structural fix
+
+The rules above are mitigations. The root cause is that every session edits **one**
+checkout, so one session's `reset`, `checkout`, branch switch or build churns another's
+files. On 2026-09-04 that cost one session its unstaged work, put another session's
+unreviewed Reviews/Report changes into a **production deploy**, and moved `HEAD` out from
+under a third mid-task.
+
+`git worktree` removes the cause: each session gets its own directory and its own `HEAD`,
+sharing one object store and one set of branches. Nothing is duplicated and no history is
+rewritten.
+
+```bash
+# Start of a session that will edit files:
+git worktree add /root/legalmind-worktrees/<short-task-name> -b <branch> origin/main
+cd /root/legalmind-worktrees/<short-task-name>
+# ... work, commit, push, open the PR from here ...
+
+# When the PR is merged:
+cd /root/Legalmind.v1
+git worktree remove /root/legalmind-worktrees/<short-task-name>
+```
+
+**Point a worktree at the source material, or six tests skip silently.** `legal-docs/`
+is gitignored (locked 54.6) so it exists only in the deploy tree, and
+`test_source_material.py` resolves it relative to *its own* root — in a fresh worktree
+all six document checks skip and the run still says "passed":
+
+```bash
+export LEGALMIND_SOURCE_MATERIAL_DIR=/root/Legalmind.v1/legal-docs   # 6 skips -> 10 passed
+```
+
+A skip is not a pass. Check the skip count against the deploy tree's before believing a
+green run in a worktree.
+
+- **`/root/Legalmind.v1` is the deploy tree. Treat it as shared infrastructure, not a
+  desk.** The systemd units serve straight from it, so it should sit on `main`, clean.
+  Read there freely; do exploratory edits and feature work in your own worktree.
+- **`git worktree list` is part of the start-of-session inspection**, alongside
+  `git status` and `git branch --show-current`. It tells you who else is checked out
+  where — a second worktree on a feature branch means another session is live.
+- **A branch can only be checked out in one worktree at a time.** Git refuses the second
+  attempt; that refusal is the feature, not an obstacle to work around.
+- **Never `git worktree remove --force`** a worktree you did not create, and never one
+  with uncommitted changes — that is the same destructive act as `reset`, wearing a
+  different name.
+- Deploying still happens from `/root/Legalmind.v1` on a clean `main`, and
+  `frontend/scripts/deploy-frontend.sh` refuses a dirty tree so a deploy ships a commit
+  rather than whatever someone was mid-way through.
+- **The deploy tree is writable by root ONLY, as of 2026-09-16 — do not re-add group
+  write.** It had 13,480 group-writable paths, `.git/config` among them. That is fine
+  while only administrators deploy, and is a root escalation the moment anyone else can:
+  write access to `.git/config` means `core.hooksPath`, which means the next
+  `sudo legalmind-deploy` runs your script as root. Group **read** is kept, so read the
+  tree freely; edit in your own worktree, which is where feature work belonged anyway.
+- **`sudo legalmind-deploy` is the one root command a non-administrator may run** (owner
+  decision, 2026-09-16; group `legalmind-dev`). It takes **no arguments and accepts
+  none**, fast-forwards the deploy tree to `origin/main`, runs `ops/deploy.sh`, refuses a
+  dirty tree, and logs the invoking account. Never widen that sudoers rule to a directory,
+  a wildcard or a second command — the narrowness is the whole control. Details and the
+  restore procedure: [ops/README.md](ops/README.md).
+- **One deploy at a time.** `ops/deploy.sh` holds `flock -n /var/lock/legalmind-deploy.lock`
+  and REFUSES rather than queues. Two overlapping deploys build the frontend into the same
+  staging directory and both swap it live, so the result is a mixture of two builds and the
+  rollback copy points at neither. `REFUSING: another deploy is already running` is the
+  guard working — wait and re-run, never work around it.
+- **Keep `main` deployable, because a deploy ships `origin/main`, not your commit.**
+  Anything merged and not yet deployed goes out with the next person's unrelated change,
+  and since 2026-09-16 that person may be a developer shipping a CSS fix rather than an
+  administrator who knows what else is pending. Do not merge what you are not willing to
+  see deployed; if you must, say so loudly and expect it to ship with the next change.
