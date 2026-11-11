@@ -1000,7 +1000,8 @@ def _review_findings(db: DBSession, review: M.Review | None) -> list[dict]:
         f = out.setdefault(finding_id, {
             "finding_id": str(finding_id), "requirement_code": code,
             "classification": cls.value,
-            "user_status": statuses.get(finding_id, "NEEDS_DECISION"),
+            "user_status": (word := statuses.get(finding_id, "NEEDS_DECISION")),
+            "in_our_favour": in_our_favour(cls, word),
             "evaluation_ids": [], "evidence_ids": [], "confirmed_evidence": []})
         confirmed = ((result or {}).get("evaluated_facts") or {}).get(
             "mapping_state") == MappingState.CONFIRMED.value
