@@ -7247,13 +7247,13 @@ button.ws-open__go:hover { background: var(--ws-paper); }
 .ws-open__list { gap: 0; border-top: 1px solid var(--ws-ink-100); }
 .ws-open__list > li { border-bottom: 1px solid var(--ws-ink-100); }
 .ws-open__go { border: 0; border-radius: 0; padding: 12px 4px; gap: 2px; }
-.ws-open__line { display: flex; align-items: baseline; gap: var(--ws-s2); min-width: 0; }
-.ws-open__line .ws-open__name { flex: 0 1 auto; min-width: 4em; overflow: hidden;
-  text-overflow: ellipsis; white-space: nowrap; }
+/* B3 p1: a point's name and its place are never cut off — the line wraps instead: the
+   name first, the chip beside it, the place after (on its own line when it must) */
+.ws-open__line { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--ws-s1) var(--ws-s2); min-width: 0; }
+.ws-open__line .ws-open__name { flex: 0 1 auto; min-width: 0; overflow-wrap: anywhere; }
 .ws-open__line .ws-open__word { flex: none; font-weight: 500; color: var(--ws-ink-500);
   font-size: var(--t-caption); }
-.ws-open__line .ws-open__where { margin-left: auto; flex: 0 1000 auto; min-width: 0;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ws-open__line .ws-open__where { margin-left: auto; flex: 0 0 auto; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .ws-recordpage .ws-explain--collapsible { border-top: 0; padding-top: 0; margin: 0 0 var(--ws-s3); }
 .ws-open__go > .ws-open__who { font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
 

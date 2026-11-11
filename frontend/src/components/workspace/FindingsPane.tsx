@@ -954,12 +954,11 @@ function EvaluationCard({
       {/*
         * The comparison, as the two facts a reader came for.
         *
-        * `.ws-facts` and these two `dt` strings are LEGAL-02's own proof and are
-        * NOT free to rename: `confidentiality.spec.ts` reads the `dt` labels to
-        * assert that "Company Standard" is ABSENT for a caller without
-        * `legal_position.view` and present for one with it. So the labels stay
-        * exactly as they were and only the VALUES changed — from the raw
-        * `ABSENT` / `PRESENT` enums to a mark and a word.
+        * `.ws-facts` and these `dt` strings are LEGAL-02's own proof:
+        * `confidentiality.spec.ts` reads the `dt` labels to assert that "What we
+        * need" (our standard) is ABSENT for a caller without `legal_position.view`
+        * and present for one with it. Renamed together with that spec (B3 p1, the
+        * plain card shape); the absent-not-hidden property is unchanged.
         *
         * `Comparison: presence` used to sit here as a third row. It names the
         * operator the evaluator ran, which is a fact about the engine and not
@@ -971,13 +970,15 @@ function EvaluationCard({
       <dl className="ws-facts ws-facts--compare">
         {kase ? null : (
           <>
-            <dt>Contract</dt>
+            {/* B3 p1: the plain card shape (PLAIN-LANGUAGE §4): what it says, what we need,
+                what to do. "What we need" is absent — never hidden — without the position */}
+            <dt>What it says</dt>
             <dd><SideValue side={contractSide} /></dd>
           </>
         )}
         {evaluation.expected_value !== undefined ? (
           <>
-            <dt>Our standard</dt>
+            <dt>What we need</dt>
             <dd><SideValue side={standardSide} /></dd>
           </>
         ) : null}
@@ -991,7 +992,7 @@ function EvaluationCard({
             columns, with no column count hardcoded either place. */}
         {action ? (
           <>
-            <dt>Next step</dt>
+            <dt>What to do</dt>
             <dd className="ws-facts__next">{action}</dd>
           </>
         ) : null}

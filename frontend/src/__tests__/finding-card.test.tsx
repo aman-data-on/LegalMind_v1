@@ -201,7 +201,7 @@ describe("LEGAL-02 — an omitted legal position leaves no trace", () => {
     expect(html).not.toMatch(/ws-evaluation__outcome/);
     expect(html).not.toMatch(/ws-explain/);
     // What survives: the contract's own value and the audit provenance.
-    expect(html).toMatch(/<dt>Contract<\/dt>/);
+    expect(html).toMatch(/<dt>What it says<\/dt>/);
     expect(html).toMatch(/PRESENCE-v1/);
   });
 });
@@ -276,7 +276,7 @@ describe("technical/engineering facts stay off the default-visible card (owner, 
     expect(before).toMatch(/Residuals/);                        // what was checked
     expect(before).toMatch(/24 months/);                          // what the document says
     expect(before).toMatch(/6 months/);                           // what the standard expects
-    expect(before).toMatch(/NEXT STEP/i);                         // what to do next
+    expect(before).toMatch(/What to do/);                         // what to do next
     // And NOT the raw outcome label that used to sit right beside it.
     expect(before).not.toMatch(/Not acceptable/);
   });
@@ -394,7 +394,7 @@ describe("the five required real-world cases (owner, 2026-09-08, third pass)", (
     // "No action is needed" is more useful to a Sales reader than silently
     // omitting the row, and it is a fact about the workflow state, not an
     // invented legal conclusion.
-    expect(before).toMatch(/NEXT STEP.*No action is needed/is);
+    expect(before).toMatch(/What to do.*No action is needed/s);
     expect(before).not.toMatch(/PRESENCE-v1/);
     expect(before).not.toMatch(/GOVLAW-NDA-001/);
     expect(inside).toContain("PRESENCE-v1");
@@ -454,7 +454,7 @@ describe("the status mark and the merged three-part comparison (owner, 2026-09-0
     // One `.ws-facts--compare` block; "Next step" is a dt/dd pair inside it,
     // not a second, separately-styled element after it.
     expect((before.match(/ws-facts--compare/g) ?? []).length).toBe(1);
-    expect(before).toMatch(/<dt>Next step<\/dt><dd class="ws-facts__next">/);
+    expect(before).toMatch(/<dt>What to do<\/dt><dd class="ws-facts__next">/);
     // The old standalone paragraph class is gone.
     expect(before).not.toContain("ws-eval__next");
   });
@@ -496,7 +496,7 @@ describe("the status mark and the merged three-part comparison (owner, 2026-09-0
       } as unknown as Partial<Evaluation>,
     );
     const { before } = splitAtDetails(html);
-    expect(before).toMatch(/<dt>Next step<\/dt><dd[^>]*>No action is needed\.<\/dd>/);
+    expect(before).toMatch(/<dt>What to do<\/dt><dd[^>]*>No action is needed\.<\/dd>/);
   });
 });
 
@@ -620,7 +620,7 @@ describe("the four-word status on the card face", () => {
     expect(before).toMatch(/Residuals/);
     expect(before).toMatch(/24 months/);
     expect(before).toMatch(/12 months/);
-    expect(before).toMatch(/Next step/i);
+    expect(before).toMatch(/What to do/);
   });
 });
 
@@ -640,7 +640,7 @@ describe("the face is only the four answers; the proof is one click away (owner,
   it("shows exactly three labelled facts on the face for a caller who sees the standard, two otherwise", () => {
     const full = splitAtDetails(card({ classification: "MISSING" }, { classification: "MISSING" })).before;
     expect(full.match(/<dt>/g)?.length).toBe(3);
-    expect(full).toMatch(/<dt>Contract<\/dt>.*<dt>Our standard<\/dt>.*<dt>Next step<\/dt>/s);
+    expect(full).toMatch(/<dt>What it says<\/dt>.*<dt>What we need<\/dt>.*<dt>What to do<\/dt>/s);
     const limited = splitAtDetails(card({}, { expected_value: undefined, rule_outcome: undefined, explanation: undefined } as unknown as Partial<Evaluation>)).before;
     expect(limited.match(/<dt>/g)?.length).toBe(2);
   });

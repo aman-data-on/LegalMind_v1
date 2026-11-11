@@ -221,6 +221,8 @@
   --c-status-decision: #4f46e5;  --c-status-decision-tint: #eef2ff;
   --c-status-favour: #0f766e;    --c-status-favour-tint: #e6f6f4;
   --c-status-done: #2b3444;      --c-status-done-tint: #f2f4f8;
+  /* the client's text in a redline — the rule beside a clause wholly theirs (Compare's value) */
+  --c-diff-client-rule: #2f9e5b;
 
   /* Spacing 4·8·12·16·24·32·48·64; 2px only for borders and focus offsets. */
   --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px;

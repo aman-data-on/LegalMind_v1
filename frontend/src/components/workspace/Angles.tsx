@@ -17,6 +17,8 @@ import type {
   BusinessPoint, CounterProposal, LegalItem, Observation, ReviewAngles,
 } from "@/lib/types";
 import { StatusChip, type ChipStatus } from "@/components/StatusChip";
+import { useCanQuietly } from "@/lib/session";
+import * as P from "@/lib/permissions";
 
 const cache = new Map<string, Promise<ReviewAngles | null>>();
 
@@ -292,14 +294,18 @@ export function CounterProposalCard({ proposal }: { proposal: CounterProposal })
   // a Company Position is our stance, not clause wording: never "send this back" (review,
   // 2026-10-17) — only the Constitution's Drafting Notes are wording to send
   const wording = proposal.kind === "DRAFTING_LANGUAGE";
+  // B3 p1: where the wording comes from ("Constitution §16 — Drafting Notes…") is a Legal
+  // detail (PLAIN-LANGUAGE §3): shown to a `legal.review` holder only — by permission,
+  // never by role name. The wording itself is the server's, unchanged.
+  const legalReader = useCanQuietly(P.LEGAL_REVIEW);
   return (
     <aside className="ws-counter"
-           aria-label={wording ? "Recommended counter-proposal" : "Our position"}>
+           aria-label={wording ? "Wording to send back" : "Our standard"}>
       <p className="ws-counter__title">
-        {wording ? "Recommended wording to send back" : "Our position — no approved wording to send"}
+        {wording ? "Wording to send back" : "No standard wording yet — ask Legal"}
       </p>
       <blockquote className="ws-counter__text">{proposal.text}</blockquote>
-      <p className="ws-counter__label">{proposal.label}</p>
+      {legalReader ? <p className="ws-counter__label">{proposal.label}</p> : null}
     </aside>
   );
 }

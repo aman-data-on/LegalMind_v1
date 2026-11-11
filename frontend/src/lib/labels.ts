@@ -321,7 +321,7 @@ export function stageWords(code: string, viewer: StageViewer = "owner"): string 
  * CHANGES are the client's edits in the open round, POINTS the gaps against our standard
  * still undecided. "yours / total" wherever both apply. Nothing here counts anything. */
 
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+export const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 /** One label per action, sentence case — every button and link that does the act says it
  *  in these words (home, To-do, the contract header, the Changes tab). */

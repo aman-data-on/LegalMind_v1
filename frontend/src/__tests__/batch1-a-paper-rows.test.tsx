@@ -51,7 +51,10 @@ describe("why a NEGATIVE row goes to Legal", () => {
     const html = renderToStaticMarkup(<ForUs effect="NEGATIVE" measured="REVIEW" />);
     expect(html).toContain("Legal checks");
     expect(html).not.toContain("Not measured");
-    expect(card(theirs({ measured: "REVIEW" }))).toContain("Legal reviews this change.");
+    // B3 p1: where the reader may Ask Legal, "Legal decides" is said once, beside that button
+    const said = card(theirs({ measured: "REVIEW" }));
+    expect(said).toMatch(/Legal reviews this change\.|Legal decides this one\./);
+    expect((said.match(/Legal decides|Legal reviews/g) ?? []).length).toBe(1);
   });
 
   it("groups a point placed in no clause apart from the opening text", () => {

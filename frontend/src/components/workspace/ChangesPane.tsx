@@ -377,8 +377,8 @@ export function ChangesPane({
                 client&rsquo;s).</>} <ins>Underlined</ins>: the client added. <del>Struck</del>: the client
                 removed.</>
             ) : (
-              <>Version {data.to.version_number} is the client&rsquo;s own paper — no version of ours
-                comes before it. Each row is a clause our review found differs from our standard.</>
+              // PLAIN-LANGUAGE §2.4's own replacement wording
+              <>This is the client&rsquo;s own contract. Each item below is a clause that differs from our standard.</>
             )}{" "}
             {/* the j/k keys are Legal's working tool; a Sales reader never sees the hint */}
             {data.can_decide ? <span className="cx-legend__keys"><kbd>j</kbd> <kbd>k</kbd> next and previous change</span> : null}
@@ -658,6 +658,17 @@ function ChangeIndex({ rows, current, onPick, allUntracked, reader, formatting, 
 const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
 export function Marked({ change, list }: { change: ClientChange; list: Pick<ChangeList, "from" | "to" | "template"> }) {
+  // B3 p1 (DESIGN-FOUNDATION §2.5): a clause that is wholly the client's — added, or their
+  // own paper — is ONE block with a header, never a page underlined line by line. `<ins>`
+  // still tells assistive technology it is the client's text.
+  if (!change.before?.text && change.after?.text) {
+    return (
+      <div className="cx-whole">
+        <p className="cx-whole__head">{change.kind === "ADDED" ? "The client added this clause" : "The client\u2019s own clause"}</p>
+        <p className="cx-whole__text"><ins><span className="ws-visually-hidden">client added: </span>{change.after.text}</ins></p>
+      </div>
+    );
+  }
   return (
     <DiffText from={change.before?.text ?? ""} to={change.after?.text ?? ""}
               added="client added" removed="client removed"
@@ -745,13 +756,16 @@ export function AnswerCard({ change, list, contractId, onAnswered, onReload, inP
             {change.route_reason === "MEASURED_BY_A_STANDARD"
               ? <span>Our standard covers this clause</span> : <span>No finding against our standard here</span>}
           </>}
-          {point ? <span> · {requirementTitle({ code: point.requirement_code })}</span> : null}
+          {/* the topic is said once: the point's name only where it is not the heading's */}
+          {point && requirementTitle({ code: point.requirement_code }) !== rowLabel(change, "")
+            ? <span> · {requirementTitle({ code: point.requirement_code })}</span> : null}
           {formattingOnly(change) ? <span className="cx-tag">Formatting only</span>
             : change.kind !== "MODIFIED" ? <span className="cx-tag">{KIND_LABEL[change.kind]}</span> : null}
           {change.moved ? <span className="cx-tag">Also moved</span> : null}
         </p>
+        {/* "Legal decides" is said ONCE, beside Ask Legal below — not again here */}
         <p className="cx-line-forus"><ForUs effect={change.effect_for_us} measured={change.measured} size={15} />
-          <span>{effectSentence(change.effect_for_us, change.measured)}</span></p>
+          {asking ? null : <span>{effectSentence(change.effect_for_us, change.measured)}</span>}</p>
         {/* nothing confirmed which clause holds this point: say so, never pick one */}
         {!change.after && change.candidates?.length ? (
           <p className="ws-pane__note">We could not tell which clause covers this. Clauses that may:{" "}
@@ -761,7 +775,7 @@ export function AnswerCard({ change, list, contractId, onAnswered, onReload, inP
         <OfferLine change={change} contractId={contractId} />
         <p className="cx-line2" data-route={change.route} data-waiting={waiting || undefined}>
           <strong>{whoLine(change, list)}</strong>
-          {routeWhy ? <span>{routeWhy}</span> : null}
+          {routeWhy && !asking ? <span>{routeWhy}</span> : null}
         </p>
       </header>
 
@@ -837,8 +851,9 @@ export function AnswerCard({ change, list, contractId, onAnswered, onReload, inP
       ) : null}
 
       {asking ? (
-        <section className="cx-section" aria-label="Ask Legal">
-          <p className="ws-pane__note">Accepting the client&rsquo;s wording here is Legal&rsquo;s decision — ask them:</p>
+        <section className="cx-section cx-asklegal" aria-label="Ask Legal">
+          {/* the one place this pane says it (PLAIN-LANGUAGE §2.4) */}
+          <p className="cx-asklegal__line"><strong>Legal decides this one.</strong></p>
           {details === null && change.review.after.length ? <p role="status" className="ws-pane__note">Loading the points…</p> : null}
           {details?.length ? details.map(({ finding }) => {
             const read = change.review.after.find((f) => f.finding_id === finding.id);

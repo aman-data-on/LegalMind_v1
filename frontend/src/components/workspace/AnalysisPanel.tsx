@@ -64,7 +64,7 @@ import { OfferSection } from "./OfferPlaybook";
 import { useSideTabs } from "./WorkspaceLayout";
 import { chipStatus } from "@/components/StatusChip";
 import { EmptyState, ErrorState, LoadingState } from "@/components/Feedback";
-import { STATUS_CHIP_WORDS } from "@/lib/labels";
+import { STATUS_CHIP_WORDS, plural } from "@/lib/labels";
 
 /** The Summary speaks the card's three words (owner, 2026-09-09 — reversing
  *  the 2026-09-01 tile correction; AM-50 r4), in the one order and the one set
@@ -421,14 +421,21 @@ export function AttentionLine({ progress, stage, viewer, canDecide, counts }: {
   }
   const counted = !signed && progress && progress.required > 0 && progress.stage !== "SUPERSEDED";
   const points = pointsWords(counts, viewer);
-  const changes = signed ? null : changesWords(counts, viewer);
+  // B3 p1: one fact, one sentence (PLAIN-LANGUAGE §2.2). Not yet sent to Legal, with open
+  // points AND client changes left: both of the server's counts in ONE sentence, never
+  // two lines that each say "need Legal". No relation between them is claimed.
+  const left = counts?.changes_left ?? 0, total = counts?.changes_total ?? 0;
+  const joint = !!counted && !!points && open > 0 && left > 0 && viewer !== "legal"
+    && progress?.stage === "NOT_SENT" && !(counts?.changes_left_for_me ?? 0);
+  const changes = signed || joint ? null : changesWords(counts, viewer);
   return (
     <div className="ws-attn">
       {/* the stage is the header's; the Summary starts at the count */}
       {counted && points ? (
         <>
           <p className="ws-attn__count">
-            {summaryCount({ points, open, canDecide, mine: (counts?.points_for_me ?? 0) > 0,
+            {summaryCount({ points: joint ? `${points} and ${left === total ? plural(total, "change") : `${left} of ${plural(total, "change")}`}` : points,
+                            open: joint ? open + left : open, canDecide, mine: (counts?.points_for_me ?? 0) > 0,
                             notSent: progress.stage === "NOT_SENT",
                             assignee: progress.assignee?.name, waiting, decided, required: progress.required })}
           </p>

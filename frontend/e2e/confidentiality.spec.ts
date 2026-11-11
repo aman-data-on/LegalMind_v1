@@ -181,7 +181,7 @@ test.describe("LEGAL-02 — a caller WITH the permission does receive it", () =>
        that test's absence meaningful rather than vacuous. */
     // polled: "Contract" shows only until the point's case has loaded (the card head then
     // says what the contract does), so the settled set is the one asserted
-    await expect.poll(() => labelsOf(evaluation)).toEqual(["our standard"]);
+    await expect.poll(() => labelsOf(evaluation)).toEqual(["what we need"]);   // B3 p1: the plain card label
 
     // And it is real, renderable content — not dead markup sitting unreachable
     // in a disclosure nobody can open: expanding it makes the chip visible.

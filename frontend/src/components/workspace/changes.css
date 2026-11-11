@@ -363,3 +363,21 @@ button.cx-bar__open[aria-expanded="true"] svg { transform: rotate(-90deg); }
 .lm-pkg__date span { font-weight: 500; color: var(--ws-ink-900); }
 .lm-pkg__date input { font: inherit; padding: 8px 8px; border: 1px solid var(--ws-input-border); border-radius: var(--ws-radius-sm);
   background: var(--ws-surface); color: inherit; }
+/* B3 p1: "Legal decides this one." and Ask Legal as the one action-blue button beside it
+   (style only — EscalateControl's behaviour is unchanged) */
+.cx-asklegal__line { margin: 0 0 var(--ws-s2); font-size: var(--ws-text-base); color: var(--ws-ink-900); }
+.cx-asklegal .ws-escalate__link {
+  display: inline-flex; align-items: center; gap: var(--ws-s2); min-height: 36px; padding: 8px 16px;
+  border: 1px solid var(--c-action); border-radius: var(--r-card); background: var(--c-action);
+  color: var(--c-on-action); font: inherit; font-size: var(--t-dense); font-weight: 500; text-decoration: none; cursor: pointer;
+}
+.cx-asklegal .ws-escalate__link:hover { background: var(--c-action-hover); border-color: var(--c-action-hover); color: var(--c-on-action); text-decoration: none; }
+.cx-asklegal .ws-escalate__link:focus-visible { outline: 2px solid var(--c-action); outline-offset: 2px; }
+/* B3 p1: a clause wholly the client's — normal reading text in one block, a 3px client
+   rule and a one-line header; no underline on every line (DESIGN-FOUNDATION §2.5) */
+.cx-whole { border: 1px solid var(--c-line); border-left: 3px solid var(--c-diff-client-rule); border-radius: var(--r-control);
+  background: var(--c-surface); padding: var(--ws-s3) var(--ws-s4); max-width: 75ch; }
+.cx-whole__head { margin: 0 0 var(--ws-s2); font-size: var(--t-caption); font-weight: 600; color: var(--c-text-2); }
+.cx-whole__text { margin: 0; font-family: var(--ws-serif); font-size: var(--ws-text-base); line-height: 1.6;
+  color: var(--c-text); white-space: pre-wrap; }
+.cx .cx-whole ins { text-decoration: none; background: none; color: inherit; }

@@ -192,10 +192,10 @@ describe("verify round 1: one word, and no wording to counter a favour point", (
     const favourOnly = renderToStaticMarkup(<AnswerAnglesView angles={angles} evidenceIds={["ev-8"]} />)
       .split("Also in this contract")[0]!;
     expect(favourOnly).toContain("in our favour");
-    expect(favourOnly).not.toContain("Recommended wording");
+    expect(favourOnly).not.toContain("Wording to send back");
     expect(favourOnly).not.toContain("Thirty days to cure");
     expect(renderToStaticMarkup(<AnswerAnglesView angles={angles} evidenceIds={["ev-13"]} />))
-      .toContain("Recommended wording to send back");
+      .toContain("Wording to send back");
   });
   it("the Changes read and its explanation say In our favour, as the card does", () => {
     const read = { finding_id: "f", requirement_code: "PAYMENT-PERIOD-MSA-001", classification: "DEVIATION",
