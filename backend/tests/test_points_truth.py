@@ -78,6 +78,21 @@ def test_the_report_lists_favour_points_apart_from_matches():
     assert any(b.text.endswith("on 3 points: 2 match; 1 in our favour.") for b in blocks)
 
 
+def test_the_report_counts_a_decided_favour_point_in_its_sentence():
+    """LOW: "ACCEPTABLE" counts decided points too, so the favour count must as well."""
+    def point(n, favour):
+        return {"id": f"f{n}", "requirement": {"code": f"R-{n}", "name": f"Point {n}"},
+                "user_status": "ACCEPTABLE", "in_our_favour": favour, "evidence": []}
+    blocks = build_export_model(
+        contract={"name": "C"}, version={}, review={},
+        report={"user_status_counts": {"ACCEPTABLE": 3},
+                "decisions": [{"finding_id": "f3", "decision_type": "ACCEPT"}]},
+        findings=[point(1, False), point(2, True), point(3, True)],
+        exported_at="2026-11-11T10:00:00")
+    assert any(b.text.endswith("on 3 points: 1 match; 2 in our favour.") for b in blocks)
+    assert "In our favour (1)" in [b.text for b in blocks if b.kind == "h2"]
+
+
 def _categorical(api, db):
     admin = _legal_admin(db)
     sign_in(api, db, admin)
@@ -136,3 +151,71 @@ def test_a_deleted_sub_clause_groups_under_its_parents_twin():
     # a deleted row whose parent went too keeps its own unit
     alone = N.row_clause(old[2], None, old, new, {})
     assert alone["group"]["key"] == old[0]["evidence_ids"][0]
+
+
+# ---- verify round 1 (FIX FIRST 13/4) --------------------------------------------------
+def test_angles_send_no_wording_back_on_a_point_in_our_favour(
+        db, review, requirement_version, monkeypatch):
+    """HIGH: §13's Drafting Notes are wording to send back on a deviation — never on one
+    the approved rule accepted in our favour (Ask's Legal angle quoted it to counter a
+    clause already better for us)."""
+    from types import SimpleNamespace
+
+    from legalmind.api import angles as A
+    favour = _point(db, review, requirement_version, C.DEVIATION, C.DEVIATION, R.ACCEPTABLE)
+    change = _point(db, review, requirement_version, C.DEVIATION, C.DEVIATION,
+                    R.UNACCEPTABLE)
+    rows = A._rows(db, review)
+    stamped = {r["finding"].id: r["in_our_favour"] for r in rows}
+    assert stamped == {favour.id: True, change.id: False}
+    for r in rows:
+        r["standard"] = {"constitution": {"section": "13"}}
+    monkeypatch.setattr(A, "_rows", lambda db, review: rows)
+    monkeypatch.setattr(A, "load_clauses", lambda db, version: [])
+    monkeypatch.setattr(A, "_review_document_type", lambda db, review: "MSA")
+    monkeypatch.setattr(A.reading, "read", lambda *a: None)
+    monkeypatch.setattr(A, "group_ids", lambda db, ids, **kw: {})
+    monkeypatch.setattr(A, "_proposals", lambda db, sections: {
+        "13": {"section": "13", "kind": "DRAFTING_LANGUAGE", "label": "§13", "text": "y"}})
+    out = A.review_angles(None, SimpleNamespace(id=None, document_version_id=None),
+                          legal_position=True)
+    assert set(out["counter_proposals"]) == {str(change.id)}
+    action = {i["finding_id"]: i["action"] for i in out["legal"]["items"]}
+    assert action[str(favour.id)] == A.ACCEPT_FAVOURABLE
+
+
+def test_ask_and_the_changes_read_carry_the_same_flag(db, review, requirement_version):
+    _point(db, review, requirement_version, C.DEVIATION, C.DEVIATION, R.ACCEPTABLE)
+    code = db.get(M.Requirement, requirement_version.requirement_id).code
+    found = _findings_for_standards(db, review.document_version_id, {code},
+                                    frozenset({P.FINDING_VIEW}))
+    assert found[code]["in_our_favour"] is True
+    # the one rule the Changes read stubs and the comparison stamp with
+    from legalmind.domain.user_status import in_our_favour
+    assert in_our_favour(C.DEVIATION, "ACCEPTABLE")
+    assert not in_our_favour(C.MATCH, "ACCEPTABLE")
+    assert not in_our_favour(C.UNABLE_TO_EVALUATE, "ACCEPTABLE")
+    assert not in_our_favour(C.DEVIATION, "REQUIRES_MODIFICATION")
+
+
+def test_a_recognised_value_must_be_a_list_of_words(api, db, seeded):
+    """MEDIUM (pre-existing): a bare string was read character by character, so "a" in
+    "a court in New Delhi" named an allowed venue — a false Acceptable."""
+    import pytest
+
+    from legalmind.evaluation.categorical import CategoricalMisconfigured, configured
+    from legalmind.extraction.categorical import read_values
+    rid, standard = _categorical(api, db)
+    url = f"{V1}/requirements/{rid}/standard"
+    for words in ("alpha", [], [""], [3]):
+        bad = {**standard, "recognised_values": {"A": words}}
+        assert api.post(url, json={"company_standard": bad, "reason": "x"}).status_code \
+            == 422, words
+    delhi = _clauses([("Disputes go to a court in New Delhi.", "22", False)])
+    with pytest.raises(CategoricalMisconfigured):
+        read_values(delhi, {"allowed_values": ["MUMBAI"],
+                            "recognised_values": {"MUMBAI": "Mumbai"}})
+    assert configured({"allowed_values": ["MUMBAI"],
+                       "recognised_values": {"MUMBAI": ["Mumbai"]}})
+    assert read_values(delhi, {"allowed_values": ["MUMBAI"],
+                               "recognised_values": {"MUMBAI": ["Mumbai"]}}).values == ()

@@ -10,6 +10,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import { StandardForm } from "@/components/configuration/StandardForm";
+import { AnswerAnglesView } from "@/components/workspace/Angles";
+import { explanation, readerWord as changeWord, type ClientChange } from "@/lib/changes";
 import { choicesForLegal } from "@/components/diff-talk/text";
 import { ForUs } from "@/components/workspace/ChangesPane";
 import { FindingCard, inBucket } from "@/components/workspace/FindingsPane";
@@ -19,7 +21,7 @@ import { contractFacts, type StatusBucket } from "@/components/workspace/model";
 import { POINT_STATUS_ORDER } from "@/components/workspace/PointStatus";
 import { CountsCell } from "@/components/workspace/StageBadge";
 import { nameFromFilename } from "@/lib/documentTypes";
-import type { Contract, Evaluation, Finding, RequirementVersion } from "@/lib/types";
+import type { Contract, Evaluation, Finding, RequirementVersion, ReviewAngles } from "@/lib/types";
 
 // the Review's angles, as the server sends them: a counter-proposal for f1 and one
 // across-the-document observation on its passage
@@ -169,5 +171,38 @@ describe("leftovers", () => {
                        latest_analysis: { review_status: "ANALYSIS_COMPLETE" } } as unknown as Contract;
     expect(renderToStaticMarkup(<CountsCell contract={contract} viewer="owner" />))
       .toContain("15 waiting for the client");
+  });
+});
+
+describe("verify round 1: one word, and no wording to counter a favour point", () => {
+  it("Ask's Legal angle sends no wording back on a point in our favour", () => {
+    // the server's payload after the fix: the counter-proposal only on the change
+    const angles = {
+      business: [], top_risks: [], commercial: {}, observations: { structural: [], additional: [] },
+      legal: { actionable: 2, matching: 0, items: [
+        { finding_id: "fav", requirement_code: "PAYMENT-PERIOD-MSA-001", title: "Payment period",
+          classification: "DEVIATION", waived: false, where: "clause 8.5", evidence_ids: ["ev-8"],
+          action: "Accept — it differs from our standard in our favour" },
+        { finding_id: "chg", requirement_code: "CURE-PERIOD-MSA-001", title: "Cure period",
+          classification: "DEVIATION", waived: false, where: "clause 13", evidence_ids: ["ev-13"],
+          action: "Send our wording" }] },
+      counter_proposals: { chg: { section: "13", kind: "DRAFTING_LANGUAGE", label: "§13", text: "Thirty days to cure." } },
+    } as unknown as ReviewAngles;
+    const favourOnly = renderToStaticMarkup(<AnswerAnglesView angles={angles} evidenceIds={["ev-8"]} />)
+      .split("Also in this contract")[0]!;
+    expect(favourOnly).toContain("in our favour");
+    expect(favourOnly).not.toContain("Recommended wording");
+    expect(favourOnly).not.toContain("Thirty days to cure");
+    expect(renderToStaticMarkup(<AnswerAnglesView angles={angles} evidenceIds={["ev-13"]} />))
+      .toContain("Recommended wording to send back");
+  });
+  it("the Changes read and its explanation say In our favour, as the card does", () => {
+    const read = { finding_id: "f", requirement_code: "PAYMENT-PERIOD-MSA-001", classification: "DEVIATION",
+                   user_status: "ACCEPTABLE" as const, in_our_favour: true, evaluation_ids: [] };
+    const change = { review: { after: [read], before: [] }, review_delta: [] } as unknown as ClientChange;
+    expect(changeWord(change)).toBe("In our favour");
+    expect(explanation(change, { from: 1, to: 2 })[0]).toContain(": In our favour.");
+    const match = { ...change, review: { after: [{ ...read, classification: "MATCH", in_our_favour: false }], before: [] } };
+    expect(changeWord(match as ClientChange)).toBeNull();
   });
 });

@@ -45,7 +45,7 @@ import { useEffect, useState } from "react";
 
 import { api, describeError } from "@/lib/api";
 import { sectionRef } from "@/lib/documentTypes";
-import { USER_STATUS_LABELS, requirementTitle, userStatus } from "./findingLanguage";
+import { readerWord, requirementTitle, userStatus } from "./findingLanguage";
 import type { ClauseChange, DocumentVersion, VersionComparison as Comparison } from "@/lib/types";
 
 type Load =
@@ -222,7 +222,7 @@ function Result({
                       key={finding.finding_id}
                       className={`ws-chip ws-chip--fill ws-chip--status-${userStatus(finding).toLowerCase()}`}
                     >
-                      {USER_STATUS_LABELS[userStatus(finding)]}
+                      {readerWord(finding)}
                       {finding.requirement_code ? ` · ${requirementTitle({ code: finding.requirement_code })}` : ""}
                     </span>
                   ))}

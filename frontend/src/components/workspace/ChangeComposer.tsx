@@ -21,7 +21,7 @@ import { useSeesLegalPosition } from "@/lib/session";
 import type { Evaluation, Finding } from "@/lib/types";
 
 import { DecisionControl } from "./DecisionControl";
-import { USER_STATUS_LABELS, requirementTitle } from "./findingLanguage";
+import { readerWord, requirementTitle } from "./findingLanguage";
 import { IconArrowLeft, IconLock } from "./icons";
 
 export const NO_STANDARD = "No standard clause is published for this point yet.";
@@ -186,7 +186,7 @@ export function AnswerComposer({ change, list, actions, contractId, details, onA
               {/* named only when there are several — one point is the card's line 1 */}
               {several ? (
                 <p className="cx-decide__name">
-                  <strong>{USER_STATUS_LABELS[read.user_status]}</strong> · {requirementTitle({ code: read.requirement_code })}
+                  <strong>{readerWord(read)}</strong> · {requirementTitle({ code: read.requirement_code })}
                 </p>
               ) : null}
               {evaluations.map((evaluation) => (

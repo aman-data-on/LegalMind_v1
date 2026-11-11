@@ -1195,7 +1195,7 @@ def test_the_assessment_is_the_evaluators_existing_finding_and_needs_finding_vie
                             permissions=USER_PERMS | {"finding.view"}, question=question)
     assert with_view.positions[0]["finding"] == {
         "finding_id": str(finding.id), "classification": "MATCH",
-        "user_status": "ACCEPTABLE"}
+        "user_status": "ACCEPTABLE", "in_our_favour": False}   # a match is never favour
 
     without = service.ask(db, conversation_id=_conversation(db, user, contract),
                           document_version_id=version.id, permissions=USER_PERMS,

@@ -23,14 +23,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind.db import models as M
-from legalmind.domain.enums import (
-    ConfigStatus,
-    FindingClassification,
-    FindingStatus,
-    ProcessingStatus,
-)
+from legalmind.domain.enums import ConfigStatus, FindingStatus, ProcessingStatus
+from legalmind.domain.user_status import in_our_favour
 from legalmind.evaluation.constitution_boundaries import constitution_prohibition_for
-from legalmind.evaluation.user_status import ACCEPTABLE, user_status, worst
+from legalmind.evaluation.user_status import user_status, worst
 from legalmind.evaluation.workflow import (
     carried_forward,
     current_decision,
@@ -212,8 +208,7 @@ def serialize_finding(db: DBSession, finding: M.Finding, *,
         "user_status": status,
         # Batch 1 (d): the evaluator's recorded rule outcome accepted this deviation
         # (AM-239 r1, AM-303) — the folded word above, never AM-301 dominance
-        "in_our_favour": (finding.classification is FindingClassification.DEVIATION
-                          and status == ACCEPTABLE),
+        "in_our_favour": in_our_favour(finding.classification, status),
         "evaluations": serialized,
         "evidence": finding_evidence(db, finding.id, names),
         # AM-317 r7: an earlier version's Legal Decision stands for this point —

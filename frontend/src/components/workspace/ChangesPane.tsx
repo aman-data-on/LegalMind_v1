@@ -42,7 +42,7 @@ import type { DocumentVersion, Evaluation, Finding } from "@/lib/types";
 import "./changes.css";
 import { AnswerComposer, DiffText } from "./ChangeComposer";
 import { EscalateControl } from "./EscalateControl";
-import { USER_STATUS_LABELS, requirementTitle } from "./findingLanguage";
+import { USER_STATUS_LABELS, readerWord as pointWord, requirementTitle } from "./findingLanguage";
 import {
   IconAlertCircle, IconArrowLeft, IconBetter, IconFileMinus, IconCheck, IconChevronRight, IconClock, IconDownload, IconLock, IconSame, IconWorse, IconFallback,
 } from "./icons";
@@ -778,7 +778,7 @@ export function AnswerCard({ change, list, contractId, onAnswered, onReload, inP
               <span className="cx-label">From the review of version {versions.to}</span>
               <ul>
                 {change.review.after.map((f) => (
-                  <li key={f.finding_id}><strong>{USER_STATUS_LABELS[f.user_status]}</strong> · {requirementTitle({ code: f.requirement_code })}</li>
+                  <li key={f.finding_id}><strong>{pointWord(f)}</strong> · {requirementTitle({ code: f.requirement_code })}</li>
                 ))}
               </ul>
             </>
@@ -848,7 +848,7 @@ export function AnswerCard({ change, list, contractId, onAnswered, onReload, inP
                 {/* named only when there are several — one point is the card's line 1 */}
                 {open.length > 1 ? (
                   <p className="cx-decide__name">
-                    <strong>{USER_STATUS_LABELS[read.user_status]}</strong> · {requirementTitle({ code: read.requirement_code })}
+                    <strong>{pointWord(read)}</strong> · {requirementTitle({ code: read.requirement_code })}
                   </p>
                 ) : null}
                 <EscalateControl finding={finding} onChanged={onReload} />

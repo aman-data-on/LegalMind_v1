@@ -44,6 +44,7 @@ from sqlalchemy.orm import Session as DBSession
 
 from legalmind.db import models as M
 from legalmind.db.lookup import latest_completed_run_id
+from legalmind.domain.user_status import in_our_favour
 from legalmind.evaluation.user_status import by_finding
 from legalmind.mapping.service import body_rows
 
@@ -154,6 +155,8 @@ def _findings_by_section(db: DBSession, review_id: UUID | None) -> dict[str, lis
             "finding_id": str(finding.id),
             "classification": finding.classification.value,
             "user_status": statuses.get(finding.id, "NEEDS_DECISION"),
+            "in_our_favour": in_our_favour(finding.classification,
+                                           statuses.get(finding.id, "NEEDS_DECISION")),
             "requirement_code": requirement_code,
         }
         bucket = index.setdefault(section, [])
