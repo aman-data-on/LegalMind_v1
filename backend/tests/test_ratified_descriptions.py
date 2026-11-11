@@ -23,21 +23,22 @@ def test_the_standard_set_is_exactly_what_the_records_ratified_and_retired():
     2026-10-19) + 1 Constitution §16 late-interest position (`AM-166`, 2026-10-19) + 1
     Constitution §11 credit-remedy position (`AM-193`, 2026-10-26) + 1 Constitution §15
     mutuality position (`AM-199`, 2026-10-26) + 1 Constitution §15 definition position
-    (`AM-206`, 2026-10-26) = 78 active, + 7 retired (`AM-65`) = 85 files."""
+    (`AM-206`, 2026-10-26) = 78 active, + 14 Constitution §12/§15/§31.14 positions
+    (`AM-322`, 2026-11-09) = 92 active, + 7 retired (`AM-65`) = 99 files."""
     payloads = _payloads()
     retired = {c for c, d in payloads.items() if "retired" in d}
-    assert len(STANDARDS) == 85
+    assert len(STANDARDS) == 99
     assert len(retired) == 7, sorted(retired)
-    assert len(payloads) - len(retired) == 78
+    assert len(payloads) - len(retired) == 92
     # `AM-72` — the §31 document types, by count. Pinned so a position cannot enter
     # or leave without a recorded ruling, the same discipline as the retired set.
     by_type: dict[str, int] = {}
     for d in payloads.values():
         by_type[d["configuration"]["document_type"]] = (
             by_type.get(d["configuration"]["document_type"], 0) + 1)
-    assert by_type["PARTNER_AGREEMENT"] == 5      # §31.3-§31.6, §31.8, §31.4
-    assert by_type["VENDOR_AGREEMENT"] == 11      # §31.9
-    assert by_type["DISTRIBUTION_AGREEMENT"] == 10  # §31.10
+    assert by_type["PARTNER_AGREEMENT"] == 7      # §31.3-§31.6, §31.8, §31.4, §31.14 ×2
+    assert by_type["VENDOR_AGREEMENT"] == 14      # §31.9, §12, §31.14 ×2
+    assert by_type["DISTRIBUTION_AGREEMENT"] == 12  # §31.10, §31.14 ×2
     assert by_type["ORDER_FORM"] == 7             # §31.11
     assert by_type["AMENDMENT"] == 6              # §31.12
     # AM-65 — the seven the current Constitution does not define.

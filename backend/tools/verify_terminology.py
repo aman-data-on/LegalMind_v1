@@ -64,16 +64,27 @@ def _clauses(document: Path) -> list[Clause]:
     ]
 
 
+#: AM-322 r14 — the canonical versions a standard may cite and be read against as is.
+_CANONICAL = ("L1.15", "L1.16")
 CONSTITUTION = Path(__file__).resolve().parents[2] / "docs" / "02-legal-domain" / "LEGAL_CONSTITUTION_L1.10.md"
 
 
-def _constitution_clauses(section: str) -> list[Clause]:
+def _read_version(version: str) -> str:
+    """The Constitution file a standard citing `version` is read against."""
+    return version if version in _CANONICAL else "L1.10"
+
+
+def _constitution_clauses(section: str, version: str = "L1.10") -> list[Clause]:
     r"""The paragraphs of one L1.10 section, each as a clause titled by the section.
 
     The heading forms are `# **16\. Payment…**` for a section and `## **31.15 …**`
     for a subsection; the slice runs to the next heading of the same or higher
     level. Bold and quote marks are stripped so the words match as written."""
-    text = CONSTITUTION.read_text(encoding="utf-8")
+    # AM-322: a standard quoting a canonical Constitution (L1.15, and L1.16 since AM-322
+    # r14) is verified against that file (§12 changed after L1.10). Earlier standards keep L1.10, as before: LATE-INTEREST-MSA-001 cites
+    # L1.14, whose §16 states two late-interest figures, and reading it there fails.
+    text = CONSTITUTION.with_name(f"LEGAL_CONSTITUTION_{_read_version(version)}.md") \
+        .read_text(encoding="utf-8")
     number = section.replace(".", r"\.")
     start = re.search(rf"^#{{1,2}} \*\*{number}\\?\.? ", text, re.M)
     if start is None:
@@ -167,7 +178,11 @@ def verify(standards_dir: Path, source_dir: Path) -> tuple[list[str], bool]:
             # reproduced from its section's own text (the Company Position and
             # the illustrative clause language). Representative counterparty
             # paper, when supplied, is the second calibration (35.10).
-            clauses, source_file = _constitution_clauses(str(section)), f"Constitution §{section}"
+            version = payload["configuration"]["constitution"].get("version", "L1.10")
+            clauses = _constitution_clauses(str(section), version)
+            read = _read_version(version)
+            source_file = (f"Constitution {read} §{section}"
+                           + (f" (the standard cites {version})" if read != version else ""))
 
         rules = MappingRules.from_config(mapping_config)
         result = map_requirement(uuid.uuid5(_NS, code), rules, clauses)

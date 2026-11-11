@@ -90,6 +90,8 @@ Nothing is committed until the owner says "commit".
 | R-6 | "Amendments in writing" shown Match for changes/cancellation | ✅ DEPLOYED 2026-11-03 `d2a5243` |
 | R-7 | A clause split over two PDF pages gives a false Conflict | ✅ DEPLOYED 2026-11-03 `d2a5243` |
 | R-8 | A re-run should carry decisions over on unchanged points | ⏳ |
+| R-9 | Constitution positions with no standard file (§12 data residency, breach notification, sub-processors; §15 trade secrets on an MSA; §31.14 assignment and change of control per family) — 14 standards (`AM-322` r1–r16, AB-174). §12 is presence-only: absence is MISSING, a clause found goes to a person; seven owner-approved finding terms (2026-11-11); cited to L1.16 | 🔧 BUILT + TESTED + verified on branch `feat/constitution-standards-20261109`, NOT committed — waiting for the records re-verify, then the owner's "commit" |
+| R-10 | Owner/Legal: C-31 (does a standalone DPA get measured against §12? §12.2 vs `AM-73` r1/`AM-244`) and the vendor-paper party reading withdrawn in `AM-322` r11 | 🙋 |
 
 ## 4. Industry methods we do not use yet
 

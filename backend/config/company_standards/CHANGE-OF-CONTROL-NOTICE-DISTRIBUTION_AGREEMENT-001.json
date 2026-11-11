@@ -1,0 +1,99 @@
+{
+  "_about": [
+    "RATIFIED Company Standard — approved THROUGH THE LEGAL CONSTITUTION L1.16 (AM-73: everything in the",
+    "Constitution is ratified except what it disclaims itself; owner go 2026-11-09, AM-322). Hand-written",
+    "because it is NUMERIC (the generator never emits a figure); the terminology is CHANGE-OF-CONTROL-NOTICE-MSA-001's",
+    "for the same §31.14 position, and `source_quote` is the section's own bullet, verbatim (rules 7, 21)."
+  ],
+  "requirement_code": "CHANGE-OF-CONTROL-NOTICE-DISTRIBUTION_AGREEMENT-001",
+  "description": "The distributor notifies the company of a change of control within a set number of days.",
+  "ratified": "2026-11-09",
+  "approval": {
+    "basis": "CONSTITUTION",
+    "section": "31.14",
+    "ruling": "owner, 2026-09-18 (AM-73) and 2026-11-09 (AM-322) — this standard restates the cited position without changing it",
+    "calibration": "35.10 — verified against the Constitution's own §31.14 text (tools.verify_terminology); NOT calibrated against counterparty paper (rule 21)"
+  },
+  "source_document": "Legal Constitution, Lawyer Review Version L1.16 — docs/02-legal-domain/LEGAL_CONSTITUTION_L1.16.md",
+  "source_clause": "§31.14",
+  "source_quote": "Distributor should provide notice within 30 days of a Change of Control.",
+  "configuration": {
+    "document_type": "DISTRIBUTION_AGREEMENT",
+    "constitution": {
+      "version": "L1.16",
+      "section": "31.14",
+      "topic": "Major Changes — Change of Control",
+      "basis": "COMPANY_APPROVED"
+    },
+    "preferred": 30,
+    "unit": "DAYS",
+    "basis": "CHANGE_OF_CONTROL_NOTICE",
+    "scope_key": "GENERAL",
+    "applicability": "REQUIRED",
+    "extraction": {
+      "cap_phrases": [
+        "notice of a change of control",
+        "notify",
+        "written notice",
+        "within"
+      ],
+      "unlimited_phrases": [],
+      "units": {
+        "DAYS": [
+          "days",
+          "calendar days"
+        ]
+      },
+      "bases": {
+        "CHANGE_OF_CONTROL_NOTICE": [
+          "change of control",
+          "change in control"
+        ]
+      },
+      "exceptions": []
+    },
+    "not_applicable_to": [
+      "PARTNER_AGREEMENT"
+    ]
+  },
+  "evaluation_rules": {
+    "evaluator": "NUMERIC_COMPARISON",
+    "_note": "comparison semantics live in tested code (44.29)"
+  },
+  "mapping_rules": {
+    "exact_phrases": [
+      "change of control",
+      "change in control"
+    ],
+    "aliases": [
+      "change of ownership",
+      "acquisition of a controlling interest"
+    ],
+    "keyword_groups": [
+      [
+        "control",
+        "notice"
+      ],
+      [
+        "control",
+        "assign"
+      ]
+    ],
+    "negative_patterns": [],
+    "section_heading_terms": [
+      "change of control",
+      "assignment"
+    ],
+    "confirm_threshold": 5
+  },
+  "_calibration": [
+    "No favourable form: AM-239 admits it only where LeapSwitch is the provider (MSA/TOS/SLA/ORDER_FORM/AMENDMENT). A clause stating the change-of-control right but no period reads UNKNOWN → a person. Calibration outstanding (35.10)."
+  ],
+  "legal_rule": {
+    "rule_type": "THRESHOLD",
+    "configuration": {
+      "deviation_outcome": "UNACCEPTABLE",
+      "unlimited_outcome": "UNACCEPTABLE"
+    }
+  }
+}
