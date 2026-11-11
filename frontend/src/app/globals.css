@@ -1204,12 +1204,12 @@ pre { overflow-x: auto; margin: 0.3rem 0; font-size: var(--t-caption); }
 /* a clause's status chip and the standard it was checked against, on one line */
 .ws-compare__finding { display: inline-flex; align-items: center; gap: var(--s-2); }
 
-/* The neutral lozenge (round 2): a stage or lifecycle state — With Legal, Awaiting approval,
-   Retired, Draft, Signed. Ink on paper with a control-strength edge and square-ish corners
-   (radius 4), so it never reads as a point status (StatusChip, radius 8, a status hue). */
+/* The neutral lozenge: a stage or lifecycle state — With Legal, Awaiting approval, Retired,
+   Draft, Signed, Recommended. Ink on paper, no status hue (StatusChip owns the hues). */
 .lm-lozenge, .ws-chip.lm-lozenge {
   display: inline-flex; align-items: center; gap: var(--s-1);
-  padding: 2px var(--s-2); border: 1px solid var(--c-state-edge); border-radius: var(--r-control);
+  /* round 3: a decorative edge and the chip radius — a label, never the shape of a control */
+  padding: 2px var(--s-2); border: 1px solid var(--c-line); border-radius: var(--r-card);
   background: var(--c-state-tint); color: var(--c-state);
   font-family: var(--font-sans); font-size: var(--t-label); line-height: var(--t-label-lh); font-weight: var(--w-medium);
   white-space: nowrap; vertical-align: middle;
@@ -1237,8 +1237,15 @@ pre { overflow-x: auto; margin: 0.3rem 0; font-size: var(--t-caption); }
 .lm-seg__item:focus-visible { position: relative; z-index: 2; outline: 2px solid var(--c-action); outline-offset: 2px; }
 .lm-seg__item svg { flex: none; }
 .lm-seg__n { font-size: var(--t-caption); font-weight: var(--w-regular); font-variant-numeric: tabular-nums; opacity: 0.85; }
-.lm-seg__select { display: inline-flex; align-items: center; gap: var(--s-2); max-width: 100%; }
-.lm-seg__selectlabel { font-size: var(--t-caption); color: var(--c-text-3); }
+/* the label sits ABOVE the field (round 3), never beside it — so it never wraps */
+.lm-seg__select { display: inline-grid; gap: var(--s-1); max-width: 100%; }
+.lm-seg__label { margin: 0 0 var(--s-1); font-size: var(--t-caption); line-height: var(--t-caption-lh); color: var(--c-text-3); }
+.lm-seg__select .lm-seg__label { margin: 0; }
+/* wrap: separate toggle buttons 8px apart, on at most two rows (the component counts them) */
+.lm-seg--wrap .lm-seg__row { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.lm-seg--wrap .lm-seg__measure { width: 100%; }
+.lm-seg--wrap .lm-seg__item, .lm-seg--wrap .lm-seg__item:first-child, .lm-seg--wrap .lm-seg__item:last-child { border-radius: var(--r-control); }
+.lm-seg--wrap .lm-seg__item + .lm-seg__item { margin-left: 0; }
 .lm-seg__select select {
   min-height: 36px; max-width: 100%; padding: var(--s-1) var(--s-6) var(--s-1) var(--s-3);
   font: inherit; font-size: var(--t-dense); color: var(--c-text);
@@ -1264,3 +1271,4 @@ pre { overflow-x: auto; margin: 0.3rem 0; font-size: var(--t-caption); }
 /* the one restricted note (style only — AccessRestricted's words and behaviour are unchanged) */
 .access-restricted h2 { margin-top: 0; }
 .access-restricted .hint { font-style: normal; color: var(--c-text-3); }
+.lm-state .lm-state__acts { display: flex; flex-wrap: wrap; gap: var(--s-2); }

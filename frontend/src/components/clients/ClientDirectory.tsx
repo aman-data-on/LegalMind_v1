@@ -265,7 +265,8 @@ export function ClientDirectory() {
                           {...(stale ? { fix: "The rows below are the last ones that loaded. Try again in a moment." } : {})} />
             ) : null}
 
-            {clients === null ? (
+            {/* round 3: never a skeleton beside an error (the shared-state rule, GP-4) */}
+            {clients === null && error ? null : clients === null ? (
               /* The column header is part of the loading state, not something that
                  appears afterwards — the 2026-09-08 lesson from the Dashboard:
                  rendering rows without it moved everything down by the header's
@@ -293,7 +294,7 @@ export function ClientDirectory() {
                  above already keeps this whole ternary from rendering while the
                  form is open, so this branch is reached only when it should show. */
               <div className="ws-state ws-cl__zero">
-                <h2>No client profiles yet</h2>
+                <h2>No clients yet</h2>
                 <p>
                   A client profile keeps one company&apos;s details and contracts together.
                 </p>

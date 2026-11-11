@@ -796,7 +796,9 @@
   /* UX Batch 2: buttons 14/500, and a secondary button's edge at control strength (3.56:1) */
   font: inherit; font-size: var(--ws-text-dense); font-weight: 500; padding: 8px 16px; min-height: 36px;
   border-radius: var(--ws-radius); border: 1px solid var(--ws-input-border); background: var(--ws-surface);
-  color: var(--ws-ink-700); cursor: pointer; text-decoration: none; display: inline-block;
+  /* round 3: an icon and its word are always 8px apart, on every button, set once here */
+  color: var(--ws-ink-700); cursor: pointer; text-decoration: none;
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--ws-s2);
   transition: background-color var(--ws-t), border-color var(--ws-t), color var(--ws-t), transform var(--ws-t), box-shadow var(--ws-t);
 }
 .ws-btn:hover:not(:disabled) { border-color: var(--ws-ink-500); color: var(--ws-ink-900); background: var(--ws-paper); }
@@ -3582,14 +3584,15 @@
                     flex-wrap: wrap; font-size: var(--ws-text-sm); }
 
 .ws-rolecards { display: grid; gap: var(--ws-s3);
-                grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+                grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); }
 .ws-rolecard {
+  min-width: 0;  /* round 3: a card never widens the page at 390 (Roles was 420px) */
   background: var(--ws-surface); border: 1px solid var(--ws-ink-100);
   border-radius: var(--ws-radius-card); padding: var(--ws-s4);
   display: flex; flex-direction: column; gap: var(--ws-s2);
 }
-.ws-rolecard__head { display: flex; align-items: flex-start;
-                     justify-content: space-between; gap: var(--ws-s2); }
+.ws-rolecard__head { display: flex; align-items: flex-start; flex-wrap: wrap;
+                     justify-content: space-between; gap: var(--ws-s2); min-width: 0; }
 .ws-rolecard__name { margin: 0; font-size: var(--ws-text-md); font-weight: 600; }
 .ws-rolecard__tags { display: flex; gap: var(--ws-s1); flex-wrap: wrap;
                      justify-content: flex-end; }
@@ -3599,7 +3602,7 @@
 .ws-rolecard__perms ul { list-style: none; margin: var(--ws-s1) 0 0; padding: 0;
                          display: grid; gap: var(--ws-s1); }
 .ws-rolecard__perms li { display: flex; align-items: baseline; gap: var(--ws-s2);
-                         flex-wrap: wrap; font-size: var(--t-caption); }
+                         flex-wrap: wrap; font-size: var(--t-caption); overflow-wrap: anywhere; min-width: 0; }
 
 .ws-field--check { flex-direction: row; align-items: center; gap: var(--ws-s2); }
 .ws-field--check input { width: auto; }
@@ -4133,7 +4136,7 @@
   color: var(--ws-ink-500);
 }
 .ws-evidence__more {
-  font: inherit; font-size: var(--t-caption); font-weight: 500;
+  font: inherit; font-size: var(--t-dense); font-weight: 500;  /* a control reads at 14 (round 3) */
   background: none; border: 0; padding: 2px 0;
   color: var(--ws-accent); cursor: pointer; justify-self: start;
 }
@@ -4454,7 +4457,7 @@
 .ws-point { flex: none; display: flex; flex-direction: column; align-items: flex-start;
   gap: 4px; margin-top: 4px; }
 .ws-point__who { display: inline-flex; align-items: center; gap: 4px;
-  font-size: var(--t-caption); font-weight: 500; color: var(--ws-ink-700);
+  font-size: var(--t-dense); font-weight: 500; color: var(--ws-ink-700);  /* line 2 of a point reads at 14 (round 3) */
   white-space: nowrap; }
 .ws-point__who[data-answer="to_decide"] { color: var(--ws-ink-900); font-weight: 600; }
 .ws-point__who svg { color: var(--ws-ink-500); }
@@ -4848,10 +4851,10 @@
   display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .ws-cl__docname:hover { color: var(--ws-accent); text-decoration: underline; text-underline-offset: 3px; }
-.ws-cl__rowacts {
-  display: flex; align-items: center; gap: 8px; justify-content: flex-end;
-  white-space: nowrap;
-}
+/* round 3: the actions cell stays a table cell (a flex <td> drew a short row divider);
+   its buttons sit side by side, right-aligned, 8px apart */
+.ws-cl__rowacts { text-align: right; white-space: nowrap; }
+.ws-cl__rowacts > * + * { margin-left: var(--ws-s2); }
 /* `.ws-btn` is `display: inline-block` with no vertical centring of its own
    (deliberately — some pages give it its own line-height); a short label
    inside a `min-height`-driven box then sits at the TOP of the extra space
@@ -7142,7 +7145,7 @@ button.ws-open__go:hover { background: var(--ws-paper); }
 .ws-hometable .ws-rowact .ws-btn--sm { min-height: 32px; display: inline-flex; align-items: center; }
 .ws-home .ws-dealstage__days { font-family: inherit; font-variant-numeric: tabular-nums; }
 .ws-home__n { font-weight: 600; color: var(--ws-ink-900); font-variant-numeric: tabular-nums; }
-.ws-home__quiet { color: var(--ws-ink-500); }
+.ws-home__quiet { color: var(--ws-ink-500); white-space: nowrap; }  /* a short state never wraps (round 3) */
 .ws-home__empty { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-s3);
   padding: 16px var(--ws-s4); font-size: var(--ws-text-sm); color: var(--ws-ink-700);
   background: var(--ws-surface); border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-card); }
@@ -7627,3 +7630,20 @@ a.ws-askglobal[data-away]:not(:focus-visible) {
 .ws-stackform > label :is(input, select, textarea) { width: 100%; max-width: 100%; min-width: 0; }
 .ws-stackform > label > * { min-width: 0; }
 .ws-stackform > .ws-btn { justify-self: start; }
+/* round 3: on a phone the Clients skeleton is a stacked list — the desktop header table
+   (636px) never loads into a 390px window */
+@media (max-width: 640px) {
+  .ws-cl__table--skel table { display: none; }
+  .ws-cl__table--skel .ws-cl__skel { flex-direction: column; align-items: stretch; }
+}
+/* round 3: the Contracts stage choice — a visible control on wide screens, a field inside the
+   Filter panel at 640px and below (never two filter controls side by side on a phone) */
+.ws-home__stagefield { display: none; }
+@media (max-width: 640px) {
+  .ws-home__stages { display: none; }
+  .ws-home__stagefield { display: grid; }
+}
+/* the marks' key, folded (round 3) */
+.lm-legendbox > summary { cursor: pointer; font-size: var(--t-caption); color: var(--ws-ink-700); padding: var(--ws-s1) 0; }
+.lm-legendbox > summary:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+.lm-legendbox[open] > summary { margin-bottom: var(--ws-s1); }

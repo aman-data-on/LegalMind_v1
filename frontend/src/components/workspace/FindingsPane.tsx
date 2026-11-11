@@ -532,7 +532,7 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
             {/* round 2: the one filter control. "All", then the marks in one fixed order with
                 StatusChip's words; a mark at 0 is not offered; a deep link (Summary, report)
                 lands on its own subset, shown selected so "All" clears it. */}
-            <SegmentedFilter label="Show points" value={filterId} onChange={(id) => {
+            <SegmentedFilter wrap label="Show points" value={filterId} onChange={(id) => {
               if (id === "all" || id === "deep") setView("all");
               else setView({ bucket: id as StatusBucket });
             }} segments={[

@@ -63,6 +63,8 @@ import { ObligationsPanel } from "./ObligationsPanel";
 import { OfferSection } from "./OfferPlaybook";
 import { useSideTabs } from "./WorkspaceLayout";
 import { chipStatus } from "@/components/StatusChip";
+import { EmptyState, ErrorState, LoadingState } from "@/components/Feedback";
+import { STATUS_CHIP_WORDS } from "@/lib/labels";
 
 /** The Summary speaks the card's three words (owner, 2026-09-09 — reversing
  *  the 2026-09-01 tile correction; AM-50 r4), in the one order and the one set
@@ -185,7 +187,7 @@ export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner
           Visually hidden because the tab above already says "Summary" on
           screen; the outline needs the level, not a second label. */}
       <div className="ws-analysis__updated">
-        <h2 id="ws-sum-attention" className="ws-summary__h2">What needs attention</h2>
+        <h2 id="ws-sum-attention" className="ws-summary__h2">{state.kind === "no-review" && signedCopy ? "Signed copy" : "What needs attention"}</h2>
         <button type="button" className="ws-toolbtn" aria-label="Refresh analysis"
                 title={state.kind === "ready" && state.review.completed_at
                   ? `Updated ${relativeTime(state.review.completed_at)}` : "Refresh"}
@@ -194,9 +196,11 @@ export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner
         </button>
       </div>
       {state.kind === "loading" ? (
-        <p className="ws-pane__note" aria-busy="true" role="status">
-          Loading the analysis…
-        </p>
+        <LoadingState label="Loading the summary…" rows={3} />
+      ) : state.kind === "no-review" && signedCopy ? (
+        // round 3: nothing to settle on a signed copy — one empty state, not a muted line
+        <EmptyState heading="h3" icon={<IconCheckCircle size={24} />} title="Nothing to settle"
+                    body={SIGNED_COPY_NOTE} />
       ) : state.kind === "no-review" ? (
         /* "no-review" is also a review outside this reader's scope (REC-09/AM-174: Legal's
            scope ends when it is CLOSED; SEC-07 hides that it exists) — so never claim the
@@ -223,7 +227,7 @@ export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner
           The analysis could not be completed — the Points tab has the details.
         </p>
       ) : state.kind === "error" ? (
-        <p className="ws-pane__note">{describeError(state.error)}</p>
+        <ErrorState heading="h3" title="The summary could not be loaded" error={state.error} onRetry={reload} />
       ) : (
         <>
           <ReanalyseNotice documentVersionId={documentVersionId}
@@ -287,9 +291,8 @@ function AnalysisSummary({ findings }: { findings: Finding[] }) {
   if (total === 0) {
     return (
       <section className="ws-analysis__section" aria-label="Status summary">
-        <p className="ws-pane__note">
-          Analysis complete. None of our standards produced a finding.
-        </p>
+        <EmptyState heading="h3" icon={<IconCheckCircle size={24} />} title="No points on this contract"
+                    body="None of our standards found anything to raise in it." />
       </section>
     );
   }
@@ -305,12 +308,13 @@ function AnalysisSummary({ findings }: { findings: Finding[] }) {
             key={status}
             type="button"
             className={`ws-tile ws-tile--${tone}`}
-            aria-label={`Show the ${statuses[status]} ${USER_STATUS_LABELS[status]} finding${statuses[status] === 1 ? "" : "s"}`}
+            aria-label={`Show the ${statuses[status]} ${STATUS_CHIP_WORDS[chipStatus(status)]} finding${statuses[status] === 1 ? "" : "s"}`}
             onClick={() => sideTabs?.openFindings({ status })}
             disabled={statuses[status] === 0}
           >
             <span className="ws-tile__n">{statuses[status]}</span>
-            <span className="ws-tile__label">{USER_STATUS_LABELS[status]}</span>
+            {/* round 3: the chip's own word ("Matches"), the same on every surface */}
+            <span className="ws-tile__label">{STATUS_CHIP_WORDS[chipStatus(status)]}</span>
             {/* Never colour alone: the word above, the icon beside it. */}
             <span className={`ws-status ws-status--${tone}`}>
               <StatusIcon status={status} size={18} />

@@ -78,7 +78,6 @@ import type {
 import { useAskIntent } from "./askIntent";
 import { AnswerAngles, AnswerLead } from "./Angles";
 import { ComparisonTable } from "./ComparisonTable";
-import { readerWord } from "./findingLanguage";
 import { AnswerMeta, AnswerProse, citesPositions, type ShowInDocument, sourceKind } from "./AnswerProse";
 import { useHighlight } from "./highlight";
 import { IconPlus, IconSparkle, IconX } from "./icons";
@@ -90,6 +89,7 @@ import {
   STOPPED, type Pending, answerOf, arrived, before, chatTitle, enterSends, isImeEnter, liveTurns,
   useAskRuntime, useFocusAfterAnswer, waitEnded,
 } from "./askThread";
+import { StatusChip, chipStatus } from "@/components/StatusChip";
 
 export function AskDock({
   contractId,
@@ -887,12 +887,8 @@ export function PositionsSection({
             {position.finding ? (
               <p className="ws-ask__assessment">
                 <span className="ws-ask__routed-label">Assessment — by the evaluator&rsquo;s Finding</span>
-                <span
-                  className={`ws-chip ws-chip--fill ws-chip--status-${position.finding.user_status.toLowerCase()}`}
-                  data-status={position.finding.user_status}
-                >
-                  {readerWord(position.finding)}
-                </span>
+                {/* round 3: the one StatusChip (presentation only; the finding is the server's) */}
+                <StatusChip status={chipStatus(position.finding.user_status, position.finding.in_our_favour)} />
                 {contractId ? (
                   <Link
                     className="ws-ask__cite"

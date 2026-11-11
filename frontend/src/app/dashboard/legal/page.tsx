@@ -39,6 +39,7 @@ import { TodoViews } from "@/components/workspace/TodoViews";
 import type { Finding, Review } from "@/lib/types";
 import { StatusChip, chipStatus } from "@/components/StatusChip";
 import { ErrorState } from "@/components/Feedback";
+import { SegmentedFilter } from "@/components/SegmentedFilter";
 
 /** Step 30 statuses under which undecided Findings can still exist. LEGAL_REVIEW
  *  first: it is the explicitly-escalated lane. RESOLVED/CLOSED reviews cannot
@@ -144,14 +145,11 @@ export default function LegalQueuePage() {
       <div className="ws-docs">
         <TodoViews />
         {state.kind === "ready" && rows.length > 0 ? (
-          <div className="ws-filter" role="group" aria-label="Whose reviews">
-            <button type="button" aria-pressed={view === "yours"} onClick={() => setPick("yours")}>
-              Yours <span className="ws-filter__n">{pointCount(yours)}</span>
-            </button>
-            <button type="button" aria-pressed={view === "all"} onClick={() => setPick("all")}>
-              All with Legal <span className="ws-filter__n">{pointCount(rows)}</span>
-            </button>
-          </div>
+          // round 3: the one filter control; "Yours" at 0 is not offered (PLAIN-LANGUAGE §5)
+          <SegmentedFilter label="Whose reviews" value={view} onChange={setPick} segments={[
+            { id: "yours", label: "Yours", text: "Yours", count: pointCount(yours) },
+            { id: "all", label: "All with Legal", text: "All with Legal", count: pointCount(rows), always: true },
+          ]} />
         ) : null}
         <p className="ws-pane__note">
           Findings waiting for a Legal Decision. Each row opens the document, where you decide.

@@ -130,3 +130,33 @@ describe("round 2 components", () => {
     expect(html).toContain("Check your connection and try again.");
   });
 });
+
+describe("round 3", () => {
+  it("wrap: separate toggle buttons with every count in view, the label above", () => {
+    const html = renderToStaticMarkup(<SegmentedFilter wrap showLabel label="Show points" value="all" onChange={() => {}} segments={[
+      { id: "all", label: "All", text: "All", count: 6, always: true },
+      { id: "m", label: "Matches", text: "Matches", count: 2 },
+      { id: "c", label: "Change needed", text: "Change needed", count: 2 },
+      { id: "d", label: "Needs a decision", text: "Needs a decision", count: 2 },
+      { id: "x", label: "Missing", text: "Missing", count: 0 },
+    ]} />);
+    expect(html).toContain("lm-seg lm-seg--wrap");
+    expect(html).toMatch(/lm-seg__label[^>]*>Show points<\/p><div class="lm-seg__row" role="group"/);
+    expect(html).not.toContain("Missing");
+    expect(html).not.toContain("<select");
+  });
+
+  it("an error's actions sit together, Try again first, the way out beside it", () => {
+    const html = renderToStaticMarkup(<ErrorState title="This contract could not be opened" onRetry={() => {}}
+      back={{ href: "/contracts", label: "Go to Contracts" }} />);
+    expect(html).toMatch(/lm-state__acts"><button[^>]*ws-btn ws-btn--primary[^>]*>Try again<\/button><a class="ws-btn" href="\/contracts">Go to Contracts<\/a>/);
+  });
+
+  it("a lifecycle label has a decorative edge and the chip radius — never a control's", () => {
+    const css = readFileSync("src/app/globals.css", "utf8");
+    const rule = css.slice(css.indexOf(".lm-lozenge, .ws-chip.lm-lozenge {"), css.indexOf("}", css.indexOf(".lm-lozenge, .ws-chip.lm-lozenge {")));
+    expect(rule).toContain("border: 1px solid var(--c-line);");
+    expect(rule).toContain("border-radius: var(--r-card);");
+  });
+});
+

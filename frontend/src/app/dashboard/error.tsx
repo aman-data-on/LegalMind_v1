@@ -1,7 +1,5 @@
 "use client";
 
-import Link from "next/link";
-
 import { ErrorState } from "@/components/Feedback";
 
 /** A section that fails to render inside the shell: the navigation stays, and the
@@ -11,9 +9,8 @@ export default function SectionError({ reset }: { error: Error & { digest?: stri
   return (
     <div className="lm-page">
       <ErrorState heading="h1" title="This page could not be shown"
-                  fix="Nothing you saved is affected." onRetry={reset}>
-        <p className="lm-state__body"><Link href="/contracts">Go to Contracts</Link></p>
-      </ErrorState>
+                  fix="Nothing you saved is affected." onRetry={reset}
+                  back={{ href: "/contracts", label: "Go to Contracts" }} />
     </div>
   );
 }

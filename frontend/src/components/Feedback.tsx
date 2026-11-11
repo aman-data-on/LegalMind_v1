@@ -12,6 +12,8 @@
  * - Not-found stays the one identical sentence for every cause (49.5 r1 / 52.4).
  */
 
+import Link from "next/link";
+
 import { ApiError, describeError } from "@/lib/api";
 import { FEEDBACK_COPY } from "@/lib/labels";
 import { IconAlertCircle, IconInfo } from "@/components/workspace/icons";
@@ -29,13 +31,15 @@ function transient(error: unknown): boolean {
   return !(error instanceof ApiError) || error.status === 0 || error.status >= 500 || error.isRateLimited;
 }
 
-export function ErrorState({ title, fix, error, onRetry, heading: Heading = "h2", children }: {
+export function ErrorState({ title, fix, error, onRetry, back, heading: Heading = "h2", children }: {
   /** what failed, without a full stop: "Standards could not be loaded" */
   title: string;
   /** what to do; defaults to the connection fix for a transient failure */
   fix?: string | null;
   error?: unknown;
   onRetry?: () => void;
+  /** the way out, beside "Try again" (Carbon: actions together, primary first) */
+  back?: { href: string; label: string };
   /** "h1" where the error IS the page (an error boundary in the shell) */
   heading?: "h1" | "h2" | "h3";
   /** an extra control a caller needs (a declare-roles form, a link home) */
@@ -54,9 +58,14 @@ export function ErrorState({ title, fix, error, onRetry, heading: Heading = "h2"
         {why ? <p className="lm-state__body">{why}</p> : null}
         {next ? <p className="lm-state__body">{next}</p> : null}
         {children}
-        {onRetry ? (
+        {onRetry || back ? (
           <p className="lm-state__acts">
-            <button type="button" className="ws-btn" onClick={onRetry}>{FEEDBACK_COPY.retry}</button>
+            {onRetry ? (
+              <button type="button" className={`ws-btn${back ? " ws-btn--primary" : ""}`} onClick={onRetry}>
+                {FEEDBACK_COPY.retry}
+              </button>
+            ) : null}
+            {back ? <Link className="ws-btn" href={back.href}>{back.label}</Link> : null}
           </p>
         ) : null}
         {reference ? <p className="lm-state__ref">{FEEDBACK_COPY.reference(reference)}</p> : null}

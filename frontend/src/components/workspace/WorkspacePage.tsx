@@ -265,9 +265,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
                       action={<Link className="ws-btn ws-btn--primary" href="/contracts">Go to Contracts</Link>} />
         ) : (
           <ErrorState heading="h1" title="This contract could not be opened" error={state.error}
-                      onRetry={() => void load()}>
-            <p className="lm-state__body"><Link href="/contracts">Go to Contracts</Link></p>
-          </ErrorState>
+                      onRetry={() => void load()} back={{ href: "/contracts", label: "Go to Contracts" }} />
         )}
       </div>
     );

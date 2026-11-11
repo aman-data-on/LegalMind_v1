@@ -307,6 +307,17 @@ function DocumentsListView() {
         <details className="ws-home__filter" ref={filterRef}>
           <summary className="ws-btn">Filter{activeFilters ? ` · ${activeFilters}` : ""}</summary>
           <div className="ws-home__filterpanel">
+            {stagesHeld.length ? (
+              <label className="ws-field ws-home__stagefield">
+                <span className="ws-field__label">Stage</span>
+                <select value={stageFilter} onChange={(event) => { setStageFilter(event.target.value as typeof stageFilter); setPage(1); }}>
+                  <option value="">All stages</option>
+                  {stagesHeld.map((code) => (
+                    <option key={code} value={code}>{`${STAGE_LABEL[code] ?? code} (${summary?.stages?.[code] ?? 0})`}</option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             <label className="ws-field">
               <span className="ws-field__label">Type</span>
               <select value={typeFilter} onChange={(event) => { setTypeFilter(event.target.value); setPage(1); }}>
@@ -339,15 +350,12 @@ function DocumentsListView() {
 
       {/* A scope FILTER, not a tablist: two pressed-state buttons re-query one region. */}
       {canSeeDepartment ? (
-        <div className="ws-filter ws-home__chips" role="group" aria-label="Which deals">
-          <button type="button" aria-pressed={scope === "own"} onClick={() => { setScope("own"); setPage(1); }}>
-            My deals
-          </button>
-          <button type="button" aria-pressed={scope === "department"}
-                  onClick={() => { setScope("department"); setPage(1); }}>
-            {identity?.department ? `${identity.department.name} deals` : "Department deals"}
-          </button>
-        </div>
+        <SegmentedFilter label="Which deals" value={scope}
+                         onChange={(next) => { setScope(next); setPage(1); }}
+                         segments={[{ id: "own", label: "My deals", text: "My deals", always: true },
+                           { id: "department", always: true,
+                             label: identity?.department ? `${identity.department.name} deals` : "Department deals",
+                             text: identity?.department ? `${identity.department.name} deals` : "Department deals" }]} />
       ) : null}
       {canSeeDepartment && scope === "department" && !identity?.department ? (
         <p className="ws-pane__note" role="note">
@@ -357,13 +365,16 @@ function DocumentsListView() {
 
       {/* Where every deal stands (`AM-260`): only the stages holding a deal, in the deal's
           own order, one line that scrolls sideways on a phone. */}
+      {/* round 3: on a wide screen the stages are one visible control; at 640px and below
+          they live in the Filter panel (one filter control on a phone, never two) */}
       {stagesHeld.length ? (
-        // round 2: the one filter control — collapses to "Filter" instead of clipping at 390
-        <SegmentedFilter label="Filter by stage" value={stageFilter}
-                         onChange={(code) => { setStageFilter(code); setPage(1); }}
-                         segments={[{ id: "", label: "All stages", text: "All stages", always: true },
-                           ...stagesHeld.map((code) => ({ id: code, label: STAGE_LABEL[code], text: STAGE_LABEL[code] ?? code,
-                             count: summary?.stages?.[code] ?? 0 }))]} />
+        <div className="ws-home__stages">
+          <SegmentedFilter label="Stage" value={stageFilter}
+                           onChange={(code) => { setStageFilter(code); setPage(1); }}
+                           segments={[{ id: "", label: "All stages", text: "All stages", always: true },
+                             ...stagesHeld.map((code) => ({ id: code, label: STAGE_LABEL[code], text: STAGE_LABEL[code] ?? code,
+                               count: summary?.stages?.[code] ?? 0 }))]} />
+        </div>
       ) : null}
 
       {error ? (

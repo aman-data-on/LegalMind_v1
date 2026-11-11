@@ -13,10 +13,6 @@
 .tc:has(input:focus-visible) { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
 .tc__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px var(--ws-s2); }
 .tc__name { font-size: var(--ws-text-md); font-weight: 600; color: var(--ws-ink-900); line-height: 1.4; }
-.tc__badge { font-size: var(--t-label); font-weight: 600; line-height: 18px; padding: 0 8px; white-space: nowrap;
-  border: 1px solid var(--ws-accent); border-radius: var(--ws-radius-sm); color: var(--ws-accent-strong); }
-/* awaiting approval is a lifecycle state: the neutral lozenge, never the Change-needed hue */
-.tc__badge--wait { border-color: var(--c-state-edge); color: var(--c-state); background: var(--c-state-tint); }
 .tc__purpose { font-size: var(--ws-text-sm); color: var(--ws-ink-700); line-height: 1.45; }
 .tc__legal { font-size: var(--ws-text-sm); color: var(--ws-ink-700); line-height: 1.45; }
 /* a fact about the template, not a warning: ink, not amber (round 2) */

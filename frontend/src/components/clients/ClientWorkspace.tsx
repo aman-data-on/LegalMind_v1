@@ -308,9 +308,8 @@ export function ClientWorkspace({ clientId }: { clientId: string }) {
 
   if (error) {
     return (
-      <ErrorState title="This client could not be opened" error={error} fix={null}>
-        <p className="lm-state__acts"><Link className="ws-btn" href="/dashboard/clients">All clients</Link></p>
-      </ErrorState>
+      <ErrorState title="This client could not be opened" error={error} fix={null}
+                  back={{ href: "/dashboard/clients", label: "All clients" }} />
     );
   }
 

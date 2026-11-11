@@ -128,7 +128,7 @@ describe("the four reader words wear one tone each, in one order", () => {
     // The label order matches the tone order — a tile cannot wear one word and
     // another word's colour.
     expect(Array.from(html.matchAll(/ws-tile__label">([^<]+)</g)).map((m) => m[1]))
-      .toEqual(["Matches our standard", "Change needed", "Missing", "Needs a decision"]);
+      .toEqual(["Matches", "Change needed", "Missing", "Needs a decision"]);   // the chip's words (round 3)
   });
 
   it("draws the four words once — tiles only, no bar and no ring (owner, 2026-10-21)", () => {
@@ -169,7 +169,7 @@ describe("the four reader words wear one tone each, in one order", () => {
     // Rule 12 and DESIGN.md: colour is never the only carrier. Every tone that
     // renders on a tile has its label beside it.
     const html = summary();
-    for (const status of USER_STATUS_ORDER) expect(html).toContain(USER_STATUS_LABELS[status]);
+    for (const word of ["Matches", "Change needed", "Missing", "Needs a decision"]) expect(html).toContain(word);
   });
 
   it("leaves the tiles out for a reader without Legal's review (S1) — absent, not greyed", () => {

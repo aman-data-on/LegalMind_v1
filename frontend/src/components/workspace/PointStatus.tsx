@@ -55,11 +55,15 @@ export function PointStatusMark({ bucket, children }: { bucket: StatusBucket; ch
   );
 }
 
-/** The key, in the one order. */
+/** The key, in the one order — folded behind one disclosure (round 3), so the Contents rail
+ *  keeps its rows; the Points pane has its own "What the statuses mean". */
 export function PointStatusLegend() {
   return (
-    <ul className="lm-legend" aria-label="What the marks mean">
-      {POINT_STATUS_ORDER.map((bucket) => <li key={bucket}><PointStatusMark bucket={bucket} /></li>)}
-    </ul>
+    <details className="lm-legendbox">
+      <summary>What the marks mean</summary>
+      <ul className="lm-legend" aria-label="What the marks mean">
+        {POINT_STATUS_ORDER.map((bucket) => <li key={bucket}><PointStatusMark bucket={bucket} /></li>)}
+      </ul>
+    </details>
   );
 }

@@ -1142,11 +1142,12 @@ export function ReplyBar({ contractId, versions, list, onVersionCreated, onPick 
     }
   }
 
-  const progress = (
+  // round 3: nothing to answer, no counter — never "0 of 0" (PLAIN-LANGUAGE §5)
+  const progress = list.summary.total ? (
     <span className="cx-bar__count">
       <strong>{answered}</strong> of {list.summary.total} answered
     </span>
-  );
+  ) : null;
   if (ours) {
     return (
       <div className="cx-bar__end">
