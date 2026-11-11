@@ -12,7 +12,7 @@ vi.mock("@/lib/session", () => ({
 }));
 vi.mock("@/components/Dialog", () => ({ Dialog: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }));
 
-import { AnswerCard, ForUs, changesEnabled, groupHead } from "@/components/workspace/ChangesPane";
+import { AnswerCard, ForUs, changesEnabled, groupHead, rowLabel } from "@/components/workspace/ChangesPane";
 import { matches, where, type ChangeList, type ClientChange } from "@/lib/changes";
 import { offerFor, type PlaybookPoint } from "@/lib/playbook";
 import type { DocumentVersion } from "@/lib/types";
@@ -85,6 +85,15 @@ describe("a point nothing confirmed in one clause", () => {
                                     name: "Restriction on Early Termination" } })))
       .toBe("2 — Restriction on Early Termination");
     expect(where(theirs({ clause: { number: "5", heading: "Fees", name: null } }))).toBe("5 Fees");
+  });
+
+  it("says a repeated number's own words once", () => {
+    const c = theirs({ clause: { number: "7", heading: null, name: "Leapswitch shall provide the services…" },
+                       after: { evidence_ids: ["e"], text: "7. Leapswitch shall provide the services as agreed." } });
+    expect(rowLabel(c, "")).toBe("7 — Leapswitch shall provide the services…");
+    // a bare number still gets its first words
+    expect(rowLabel(theirs({ clause: { number: "7.1", heading: null },
+                             after: { evidence_ids: ["e"], text: "7.1 The fee is due." } }), "")).toBe("7.1 The fee is due.");
   });
 });
 

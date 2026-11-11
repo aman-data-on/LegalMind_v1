@@ -50,7 +50,12 @@ export interface AnswerEntry {
 
 /** A clause as the server names it; ``name``: only where the paper uses this number for
  *  two or more clauses — the clause's OWN heading or first words, never a parent's. */
-export interface ClauseName { number: string | null; heading: string | null; name?: string | null }
+export interface ClauseName {
+  number: string | null; heading: string | null; name?: string | null;
+  /** its top-level number is used twice: the parent unit it sits in (`key`) and that
+   *  parent's own words — null when the number is unique */
+  group?: { key: string; name: string | null } | null;
+}
 
 /** Why a NEGATIVE row goes to Legal — only on NEGATIVE rows (proposed AM-299 r1 split). */
 export type Measured = "WORSE" | "ABSENT" | "REVIEW" | "NOT_MEASURED";

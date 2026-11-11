@@ -564,7 +564,7 @@ function ChangeIndex({ rows, current, onPick, allUntracked, reader, formatting, 
   // the formatting-only rows are one group, first and closed (a heading's capitals or
   // colon, 19 of them on a returned MSA, are not 19 things to read)
   const [closed, setClosed] = useState<ReadonlySet<string>>(new Set([`${FMT}-fmt`]));
-  const groups: { key: string; head: string; title: string | null; name?: string | null; rows: ClientChange[]; fmt?: boolean }[] = [];
+  const groups: { key: string; head: string; title: string | null; name?: string | null; unit?: string | null; rows: ClientChange[]; fmt?: boolean }[] = [];
   const fmtRows = rows.filter(formattingOnly);
   if (fmtRows.length) groups.push({ key: `${FMT}-fmt`, head: FMT, title: null, rows: fmtRows, fmt: true });
   // grouped by top-level clause: "9", "9.1", "9.2" sit under 9 (the document's own number)
@@ -572,10 +572,12 @@ function ChangeIndex({ rows, current, onPick, allUntracked, reader, formatting, 
     if (formattingOnly(c)) continue;
     const top = c.clause.number?.split(".")[0];
     const head = groupHead(c);
-    // a number the paper uses twice is two clauses, told apart by their own words
-    const name = c.clause.number === top ? c.clause.name ?? null : null;
-    if (groups.at(-1)?.head !== head || (name && groups.at(-1)?.name !== name) || groups.at(-1)?.fmt) {
-      groups.push({ key: `${head}-${groups.length}`, head, title: null, name, rows: [] });
+    // a number the paper uses twice is two clauses: each row sits in its own parent
+    // unit (the server's `group`), told apart by that unit's own words
+    const unit = c.clause.group?.key ?? null;
+    const last = groups.at(-1);
+    if (last?.head !== head || (last?.unit ?? null) !== unit || last?.fmt) {
+      groups.push({ key: `${head}-${groups.length}`, head, title: null, name: c.clause.group?.name ?? null, unit, rows: [] });
     }
     const g = groups.at(-1)!;
     g.rows.push(c);
@@ -620,7 +622,7 @@ function ChangeIndex({ rows, current, onPick, allUntracked, reader, formatting, 
                             onClick={() => onPick(c.row_key)}>
                       {/* the group already says the clause: a row that would only repeat
                           it, or say a bare number, says its own first words */}
-                      <span className="cx-row__where">{rowLabel(c, g.name ? `${g.head} — ${g.name}` : [g.head, g.title].filter(Boolean).join(" "))}</span>
+                      <span className="cx-row__where">{rowLabel(c, groupLabel(g))}</span>
                       <span className="cx-row__meta">
                         {/* S1 — ONE status on line 1: the review's word against our standard
                             when it asks for a person, else what the change does for us. The
@@ -909,13 +911,20 @@ function GivenAnswer({ change, waiting }: { change: ClientChange; waiting: boole
   );
 }
 
-/** A row's label in its clause group: where it is, or — when that only repeats the
- *  group's own heading — the changed passage's first words. */
+/** A clause group's label, said as a clause is (`clauseName`): "2 — Invoicing and
+ *  Payment" for a number the paper uses twice, else "9 Limitation of Liability". */
+export function groupLabel(g: { head: string; title: string | null; name?: string | null }): string {
+  return g.name ? `${g.head} — ${g.name}` : [g.head, g.title].filter(Boolean).join(" ");
+}
+
+/** THE label of a change — row, card and lists alike: where it is, or — when that only
+ *  repeats the group's own label — the changed passage's first words. */
 export function rowLabel(change: ClientChange, groupLabel: string): string {
   const label = where(change);
   const words = firstWords(change);
-  // a bare number ("1.2") says nothing: the number, then the clause's first words
-  if (!change.clause.heading && change.clause.number && words) return `${label} ${words}`;
+  // a bare number ("1.2") says nothing: the number, then the clause's first words —
+  // unless its name (a repeated number) already says its own words
+  if (!change.clause.heading && !change.clause.name && change.clause.number && words) return `${label} ${words}`;
   return label !== groupLabel ? label : words || label;
 }
 

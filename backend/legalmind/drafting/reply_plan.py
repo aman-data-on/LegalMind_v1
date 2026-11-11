@@ -256,8 +256,8 @@ def reply_rows(db: DBSession, before: M.DocumentVersion | None, after: M.Documen
             ids = (row["after"] or {}).get("evidence_ids") or []
             n = {"evidence_ids": ids} if ids else None
             c = row["clause"]
-            label = (f"clause {c['number']}" if c["number"] else c["heading"]
-                     or row["review"]["after"][0]["requirement_code"])
+            label = (f"clause {N.clause_label(c, heading=False)}" if c["number"]
+                     else c["heading"] or row["review"]["after"][0]["requirement_code"])
             if answers[row["row_key"]].kind == "keep_ours":
                 out.append(RowPlan(row["row_key"], label, [], ReplyError(
                     "there is no wording of ours to keep on the client's paper",
@@ -267,7 +267,9 @@ def reply_rows(db: DBSession, before: M.DocumentVersion | None, after: M.Documen
             if len(held) > 1 and answers[row["row_key"]].kind in _WRITES:
                 # one wording over several clauses would rewrite the first and delete
                 # the rest of the client's text — a person places it (rule 15)
-                named = " and ".join(c["number"] or c["heading"] or "?" for c in held)
+                said = list(dict.fromkeys(N.clause_label(c) or "?" for c in held))
+                named = (", ".join(said[:-1]) + " and " + said[-1]) if len(said) > 1 \
+                    else said[0]
                 out.append(RowPlan(row["row_key"], label, [], ReplyError(
                     f"this point covers clauses {named}; write it in by hand",
                     "UNSUPPORTED"), spot(n, None, label)))
@@ -283,7 +285,7 @@ def reply_rows(db: DBSession, before: M.DocumentVersion | None, after: M.Documen
             continue
         here = n or o
         assert here is not None
-        label = (f"clause {here['number']}" if here["number"]
+        label = (f"clause {N.clause_label(here, heading=False)}" if here["number"]
                  else here["heading"] or "the opening text")
         out.append(plan(key, kind, i, o, n, label))
     return out

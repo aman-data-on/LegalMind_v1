@@ -213,3 +213,31 @@ def test_a_clause_with_no_heading_is_named_by_its_first_words():
     assert got[0] == ("1", None)                    # nothing of its own to say: unnamed
     assert got[1] == ("9", None)
     assert got[2] == ("1", "Each party keeps the other party's information secret…")
+
+
+def test_a_name_is_read_past_an_empty_first_line():
+    rows = [("8.4.\u200b\nAll amounts payable are due in thirty days.", "8.4", None, False),
+            ("9. Other.", "9", None, False),
+            ("8.4 Data is kept for the term.", "8.4", None, False)]
+    assert [n for _, n in _names(rows)] == [
+        "All amounts payable are due in thirty days", None, "Data is kept for the term"]
+
+
+def test_a_sub_clause_groups_under_its_own_parent_unit():
+    rows = [("2. Fees are invoiced.", "2", None, False),
+            ("2.1 Invoices monthly.", "2.1", None, False),
+            ("3. Term.", "3", None, False),
+            ("2. Early exit is restricted.", "2", None, False),
+            ("2.1 Notice of ninety days.", "2.1", None, False),
+            ("4. Unique.", "4", None, False), ("4.1 Unique sub.", "4.1", None, False)]
+    units = N._units(_clauses(rows))
+    groups = [(u["number"], u["group"] and u["group"]["name"]) for u in units]
+    assert groups == [("2", "Fees are invoiced"), ("2.1", "Fees are invoiced"),
+                      ("3", None), ("2", "Early exit is restricted"),
+                      ("2.1", "Early exit is restricted"), ("4", None), ("4.1", None)]
+
+
+def test_a_clause_is_said_once_with_its_own_words():
+    assert N.clause_label({"number": "2", "heading": "Fees", "name": "Fees"}) == "2 — Fees"
+    assert N.clause_label({"number": "7", "heading": "Fees", "name": None}) == "7 Fees"
+    assert N.clause_label({"number": "7", "heading": "Fees"}, heading=False) == "7"

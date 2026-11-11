@@ -323,7 +323,10 @@ def _units(clauses: list[Clause]) -> list[dict[str, Any]]:
     other unnumbered row belongs to the clause above it. Text before the first is the
     opening. ``name``: only where one number belongs to two or more units (a paper that
     restarts its numbering), each such unit's OWN heading or first words (`_own_name`)
-    — never a heading inferred from another row; else None."""
+    — never a heading inferred from another row; else None. ``group``: where the
+    unit's top-level number is used by two or more units, ``{key, name}`` of its parent
+    — the nearest unit before it (itself included) numbered that top-level number —
+    keyed by the parent's name, or its first evidence row when it has none; else None."""
     units: list[dict[str, Any]] = []
     for row in clauses:
         first = (row.content or "").strip().split("\n", 1)[0]
@@ -346,10 +349,22 @@ def _units(clauses: list[Clause]) -> list[dict[str, Any]]:
         unit["original"] = "\n".join(r.content or "" if (r.marks or {}).get("original")
                                      is None else r.marks["original"] for r in rows)
         unit["changes"] = [c for r in rows for c in (r.marks or {}).get("changes") or ()]
-    numbers = Counter(u["number"] for u in units if u["number"])
+    numbers = Counter(_num(u["number"]) for u in units if u["number"])
+    parents: dict[str, dict] = {}
     for unit in units:
-        unit["name"] = _own_name(unit) if numbers[unit["number"]] > 1 else None
+        number = _num(unit["number"])
+        unit["name"] = _own_name(unit) if number and numbers[number] > 1 else None
+        if number and "." not in number:
+            parents[number] = unit
+        parent = parents.get(number.split(".")[0]) if number else None
+        unit["group"] = None if parent is None or numbers[_num(parent["number"])] < 2 \
+            else {"key": parent["name"] or parent["evidence_ids"][0],
+                  "name": parent["name"]}
     return units
+
+
+def _num(number: str | None) -> str:
+    return (number or "").rstrip(".")
 
 
 #: how many of a unit's own first words name it when it has no heading
@@ -363,14 +378,16 @@ def _own_name(unit: dict) -> str | None:
     only ever this unit's text (two "2"s told apart, never a guessed parent)."""
     if (unit["heading"] or "").translate(_ZERO_WIDTH).strip():
         return unit["heading"].strip()
-    first = (unit["texts"][0] if unit["texts"] else "").strip().split("\n", 1)[0]
+    text = unit["text"].translate(_ZERO_WIDTH).strip()
     number = unit["number"] or ""
-    if number and first.startswith(number):
-        first = first[len(number):]
-    words = first.translate(_ZERO_WIDTH).strip(_NAME_MARKUP).replace("**", "").split()
-    if not words:
-        return None
-    return " ".join(words[:_NAME_WORDS]) + ("…" if len(words) > _NAME_WORDS else "")
+    if number and text.startswith(number):
+        text = text[len(number):]
+    for line in text.split("\n"):          # the first line with words of its own
+        words = line.strip(_NAME_MARKUP).replace("**", "").split()
+        if words:
+            return " ".join(words[:_NAME_WORDS]) + ("…" if len(words) > _NAME_WORDS
+                                                    else "")
+    return None
 
 
 #: `AM-317` r3: a definition's own term — "Business Day" shall mean / means / has the
@@ -629,7 +646,18 @@ def _tracked(kind: str, old: dict | None, new: dict | None,
 
 
 def _clause(unit: dict) -> dict:
-    return {"number": unit["number"], "heading": unit["heading"], "name": unit["name"]}
+    return {"number": unit["number"], "heading": unit["heading"], "name": unit["name"],
+            "group": unit["group"]}
+
+
+def clause_label(clause: dict, heading: bool = True) -> str | None:
+    """A clause in words, as the Changes tab says it (`clauseName`): "2 — Invoicing
+    and Payment" for a number the paper uses twice, else "7 Fees" (or "7" without
+    ``heading``) / the heading."""
+    number, name = clause["number"], clause.get("name")
+    if number and name:
+        return f"{number} — {name}"
+    return " ".join(t for t in (number, heading and clause["heading"]) if t) or None
 
 
 #: `AM-299` r1 split (Batch 1, proposed): why a NEGATIVE row goes to Legal, in three
@@ -1002,7 +1030,7 @@ def paper_first(db: DBSession, contract: M.Contract, after: M.DocumentVersion, *
         out.append({
             "row_key": key, "kind": THEIRS_KIND, "moved": False,
             "clause": _clause(here[0]) if here else
-            {"number": None, "heading": None, "name": None},
+            {"number": None, "heading": None, "name": None, "group": None},
             # every clause the point was read in; none confirmed — the clauses that
             # may hold it, unranked and without a passage (nothing chose among them)
             "clauses": [_clause(u) for u in here],
