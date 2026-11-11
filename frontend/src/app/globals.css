@@ -1217,7 +1217,7 @@ pre { overflow-x: auto; margin: 0.3rem 0; font-size: var(--t-caption); }
 
 /* The filter control (SegmentedFilter): joined segments, square-ish corners, never a pill,
    never a status hue. Selected = ink fill. Collapses to a native select when it cannot fit. */
-.lm-seg { position: relative; min-width: 0; max-width: 100%; }
+.lm-seg { position: relative; min-width: 0; max-width: 100%; margin-bottom: var(--s-3); }
 .lm-seg__row { display: inline-flex; flex-wrap: nowrap; max-width: 100%; }
 /* the measuring copy lives in a clipped, invisible box: it never widens the page */
 .lm-seg__measurebox { position: absolute; inset: 0; overflow: hidden; visibility: hidden; pointer-events: none; }

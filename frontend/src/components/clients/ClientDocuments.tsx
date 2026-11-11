@@ -504,6 +504,8 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
   }
 
   const analyzed = bucket === "analyzed" || bucket === "needs_attention";
+  const primaryShown = (!!current && !analyzed && !contract.signed && can(P.REVIEW_CREATE)) || !!analyzed;
+  const menuShown = (can(P.CONTRACT_UPDATE) || can(P.CONTRACT_ARCHIVE) || can(P.DOCUMENT_UPLOAD)) && isMine;
   return (
     <>
       <tr className={bucket === "needs_attention" ? "ws-tr--attention" : undefined}>
@@ -591,7 +593,8 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
           {/* The existing comparison, in the workspace that owns it — only
               where there are two versions to compare. Never a control that
               opens onto nothing. */}
-          {versions.length > 1 ? (
+          {/* one button and ⋯ per row (re-review R3): beside Analyze/Review, Compare is a menu item */}
+          {versions.length > 1 && !(menuShown && primaryShown) ? (
             <Link className="ws-btn ws-btn--sm"
                   href={`/dashboard?id=${contract.id}&compare=1`}>
               Compare
@@ -601,9 +604,13 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
               needs CONTRACT_UPDATE, removing/deleting need CONTRACT_ARCHIVE
               (the same grant `AM-55` already gates the permanent delete
               with), both additionally scoped to the caller's own document. */}
-          {(can(P.CONTRACT_UPDATE) || can(P.CONTRACT_ARCHIVE) || can(P.DOCUMENT_UPLOAD))
-           && isMine ? (
+          {menuShown ? (
             <DocMenu label={`More actions for ${contract.name}`}>
+              {versions.length > 1 && primaryShown ? (
+                <Link role="menuitem" className="ws-menu__item" href={`/dashboard?id=${contract.id}&compare=1`}>
+                  Compare versions
+                </Link>
+              ) : null}
               {can(P.CONTRACT_UPDATE) && !contract.archived_at ? (
                 <button type="button" role="menuitem" className="ws-menu__item"
                         onClick={() => setEditingDoc(true)}>

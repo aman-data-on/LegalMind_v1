@@ -4853,9 +4853,9 @@
 .ws-cl__docname:hover { color: var(--ws-accent); text-decoration: underline; text-underline-offset: 3px; }
 /* round 3: the actions cell stays a table cell (a flex <td> drew a short row divider);
    its buttons sit side by side, right-aligned, 8px apart */
-.ws-cl__rowacts { text-align: right; }
-/* a row with three actions wraps inside its cell, never clipped past the card's edge */
-.ws-cl__rowacts > * { display: inline-flex; vertical-align: middle; margin: 2px 0 2px var(--ws-s2); }
+/* one button and ⋯ per row, on one line (a third action lives in the ⋯ menu) */
+.ws-cl__rowacts { text-align: right; white-space: nowrap; }
+.ws-cl__rowacts > * { display: inline-flex; vertical-align: middle; margin-left: var(--ws-s2); }
 /* `.ws-btn` is `display: inline-block` with no vertical centring of its own
    (deliberately — some pages give it its own line-height); a short label
    inside a `min-height`-driven box then sits at the TOP of the extra space
