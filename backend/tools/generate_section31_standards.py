@@ -1,4 +1,6 @@
-"""Emit Company Standard files from Legal Constitution L1.10 §31, verbatim.
+"""Emit Company Standard files from Legal Constitution L1.10 §31, verbatim — and, since
+`AM-322` (2026-11-09), the single-sentence positions of §12, §15 and §31.14 that had no
+standard file, from the canonical L1.16 (`POSITIONS` below; L1.15 until AM-322 r14).
 
 WHY A GENERATOR RATHER THAN THIRTY-FIVE HAND-WRITTEN FILES (owner, 2026-09-18).
 
@@ -126,7 +128,7 @@ _CODE_OVERRIDES: dict[str, str] = {
 #: the FILE, not a character of the position, and a reader shown the raw quote sees
 #: "Section 16\)". Un-escaping recovers the sentence the Constitution actually states; it
 #: is the opposite of altering the quote, and is the only transform applied to it.
-_MD_ESCAPE = re.compile(r"\\([\\`*_{}\[\]()#+\-.!|])")
+_MD_ESCAPE = re.compile(r"\\([\\`*_{}\[\]()#+\-.!|&])")
 
 
 def _unescape(text: str) -> str:
@@ -397,9 +399,314 @@ def _standard(*, section: str, document_type: str, heading: str, quote: str,
     return code, payload
 
 
+# ---------------------------------------------------------------------------------------
+# AM-322 (owner go, 2026-11-09) — positions OUTSIDE §31.9-§31.12, one sentence or one
+# bullet each, sliced from the CANONICAL Constitution. `starts` are the first words of
+# the sentence (or bullet) as the Constitution writes them; the quote runs to its full
+# stop (a bullet: to its line end), and several are joined by " ... " as the existing
+# §31.14 standard joins its two. Nothing is retyped. Mapping terms are configured per
+# position and every term is a word of the cited section (or, for the MSA trade-secret
+# copy, the ratified terminology of the SAME §15 position in TRADE-SECRET-CARVEOUT-NDA-001),
+# except the §12 finding terms the owner approved on 2026-11-11 (AM-322 r13,
+# `approved_terms`), which each file names apart from §12's own words (`_provenance`).
+# Numeric positions (§31.14's 30 days for a vendor or distributor) stay hand-written.
+# AM-322 r14: re-cited to L1.16 (AM-300) — §12, §15 and §31.14 are byte-identical to L1.15
+CANONICAL = CONSTITUTION.with_name("LEGAL_CONSTITUTION_L1.16.md")
+_CANONICAL_VERSION = "L1.16"
+
+_S12_TYPES = ("MSA", "VENDOR_AGREEMENT")
+_S12_ACCEPTABLE = "A vendor or client-facing document that commits to India data residency"
+_S12_UNACCEPTABLE = "A vendor or client-facing document with no data-residency commitment"
+_S12_POSITION = "Data residency is maintained within India for all India-designated"
+_ASSIGN = ["assignment"]
+
+
+def _s12(code_stem: str, types: tuple[str, ...], **spec) -> dict[str, dict]:
+    return {f"{code_stem}-{t}-001": {"section": "12", "document_type": t,
+                                     "topic": "Data Protection & Privacy",
+                                     "basis": "STAKEHOLDER_CONFIRMED",
+                                     "unacceptable": _S12_UNACCEPTABLE,
+                                     # AM-73 r1: a published policy states no position of
+                                     # its own; our Privacy Policy's breach and
+                                     # sub-processor wording is not a contract to measure
+                                     # DPA: until the owner rules C-31 (§12.2 vs AM-73
+                                     # r1/AM-244), a standalone DPA stays unmeasured
+                                     "not_applicable_to": ["PRIVACY_POLICY", "AUP", "DPA"],
+                                     # AM-322 r11: only absence is automatic; a clause
+                                     # found is read by a person, never MATCH (rule 15)
+                                     "found_clause_for_a_person": True,
+                                     **spec}
+            for t in types}
+
+
+def _terms(mapping: dict) -> list[str]:
+    """Every mapping term once, in configured order; a keyword group as "a + b"."""
+    out = [*mapping.get("exact_phrases", []), *mapping.get("aliases", []),
+           *(" + ".join(g) for g in mapping.get("keyword_groups", [])),
+           *mapping.get("section_heading_terms", [])]
+    return list(dict.fromkeys(out))
+
+
+def _provenance(spec: dict, mapping: dict, plain: str) -> str:
+    """Where the mapping terms come from, true per file. `plain` is the file's wording
+    when every term is the cited section's own; a §12 file carrying AM-322 r13's terms
+    (owner, 2026-11-11, from our own paper) names them apart from §12's words."""
+    approved = spec.get("approved_terms") or []
+    if not approved:
+        return plain
+    own = [t for t in _terms(mapping) if t not in approved]
+    return (f"the section's own words ({'; '.join(own)}) plus terms the owner approved "
+            f"on 2026-11-11 from our own paper, AM-322 r13 ({'; '.join(approved)})")
+
+
+POSITIONS: dict[str, dict] = {
+    # §12 Company Position + Unacceptable Position: "no data-residency commitment for
+    # India-designated services". A client-facing MSA or a vendor; the published TOS is
+    # left out (AM-322 r3).
+    **_s12("DATA-RESIDENCY", _S12_TYPES, starts=[_S12_POSITION],
+           scope_key="DATA_RESIDENCY",
+           description=("Data for India-designated services stays within India, and the "
+                        "document commits to that."),
+           # AM-322 r13 (owner, 2026-11-11): R1/R2 of AM322-PROPOSED-TERMS — finding-only
+           # terms from our MSA.pdf 11.5 ("Cross-Border Data Transfers: If Personal Data is
+           # transferred outside the jurisdiction … cross-border transfers from India …")
+           mapping={"exact_phrases": ["data residency", "data-residency"],
+                    "aliases": ["cross-border transfers"],
+                    "keyword_groups": [["residency", "india"],
+                                       ["transferred outside", "india"]],
+                    "negative_patterns": ["system logs"],
+                    "section_heading_terms": ["data residency",
+                                              "cross-border data transfers"]},
+           approved_terms=["cross-border transfers", "cross-border data transfers",
+                           "transferred outside + india"]),
+    # §12 Acceptable / Unacceptable: "a defined breach-notification timeline". §12.3: no
+    # contractual deadline is assumed, so no figure — but a timeline must be STATED, so
+    # no single term confirms: the breach and a timeline ("without undue delay", the
+    # Drafting Notes' words, or an hours figure) must appear together to FIND the
+    # clause; what it commits to is read by a person (§12.3, AM-322 r11).
+    **_s12("BREACH-NOTIFICATION", ("MSA", "TOS"), starts=[_S12_ACCEPTABLE],
+           scope_key="BREACH_NOTIFICATION",
+           description=("The other party is told of a personal data breach within a "
+                        "defined timeline."),
+           # AM-322 r13 (owner, 2026-11-11): B1/B2 — our TOS "Breach Notification:" and
+           # Privacy Policy "Data Breach Notification" headings; "data breach" only beside
+           # "notify" (alone it is in our MSA's disclaimers and customer indemnities)
+           mapping={"exact_phrases": [],
+                    "aliases": ["personal data breach"],
+                    "keyword_groups": [["personal data breach", "without undue delay"],
+                                       ["personal data breach", "hours"],
+                                       ["data breach", "notify"]],
+                    "negative_patterns": [],
+                    "section_heading_terms": ["breach notification",
+                                              "data breach notification"]},
+           approved_terms=["data breach + notify", "breach notification",
+                           "data breach notification"]),
+    # §12 Company Position (and §19's row): sub-processors disclosed and bound.
+    **_s12("SUB-PROCESSORS", ("MSA", "TOS"), starts=[_S12_POSITION],
+           scope_key="SUB_PROCESSORS", unacceptable=None,
+           description=("Sub-processors are disclosed and bound to obligations no less "
+                        "protective than the company's own."),
+           # AM-322 r13 (owner, 2026-11-11): S1/S2/S4 — our MSA.pdf 11.4 "Third-Party
+           # Processors", the executed MSA (2026-07-30) 18.2 "engage a subcontractor", our MSA's "Third Party
+           # Service Providers: Leapswitch may use third-party service providers". S1 is
+           # also an alias: the parser keeps 11.4's "Third-Party Processors:" label in the
+           # body, not as a section title, so a heading term alone never reads it.
+           mapping={"exact_phrases": ["sub-processors", "sub-processor"],
+                    "aliases": ["engage a subcontractor", "third-party service providers",
+                                "third-party processors"],
+                    "keyword_groups": [], "negative_patterns": [],
+                    "section_heading_terms": ["sub-processors", "third-party processors"]},
+           approved_terms=["engage a subcontractor", "third-party service providers",
+                           "third-party processors"]),
+    # §15: "except that obligations relating to trade secrets survive for as long as the
+    # information remains a trade secret" — entity-wide; the NDA copy exists, the MSA's
+    # did not. Same position, so the same scope key and terminology as the NDA copy.
+    "TRADE-SECRET-CARVEOUT-MSA-001": {
+        "section": "15", "document_type": "MSA",
+        "topic": "Confidentiality & Intellectual Property",
+        "basis": "STAKEHOLDER_CONFIRMED",
+        "starts": ["Obligations survive termination or expiry for 3 years"],
+        "scope_key": "TRADE_SECRET_CARVE_OUT",
+        "expected_when": ["CONF-SURVIVAL-MSA-001", "CONF-SURVIVAL-NDA-001"],
+        "description": ("Confidentiality obligations for trade secrets continue for as "
+                        "long as the information remains a trade secret."),
+        "copy_from": "TRADE-SECRET-CARVEOUT-NDA-001",
+    },
+    # §31.14 Change of Ownership / Control.
+    "CHANGE-OF-CONTROL-TERMINATION-PARTNER_AGREEMENT-001": {
+        "section": "31.14", "document_type": "PARTNER_AGREEMENT",
+        "topic": "Major Changes — Change of Control", "basis": "COMPANY_APPROVED",
+        "starts": ["Termination right: either party may terminate a Partner Agreement"],
+        "whole_line": True, "scope_key": "PARTNER_CHANGE_OF_CONTROL_TERMINATION",
+        "description": ("Either party may end a Partner Agreement when the other's change "
+                        "of control would harm its ability to perform."),
+        "mapping": {"exact_phrases": [], "aliases": [],
+                    "keyword_groups": [["change of control", "terminate"],
+                                       ["change of control", "immediately"]],
+                    "negative_patterns": [], "section_heading_terms": []},
+    },
+    "ASSIGNMENT-PARTNER_AGREEMENT-001": {
+        "section": "31.14", "document_type": "PARTNER_AGREEMENT",
+        "topic": "Major Changes — Assignment", "basis": "COMPANY_APPROVED",
+        "starts": ["Assignment on M&A:"], "whole_line": True,
+        "scope_key": "PARTNER_ASSIGNMENT",
+        "description": ("The partner assigns only with the company's prior written "
+                        "consent; the company may assign to an affiliate or acquirer."),
+        "mapping": {"exact_phrases": [], "aliases": [],
+                    "keyword_groups": [[*_ASSIGN, "prior written consent"],
+                                       [*_ASSIGN, "affiliate"], [*_ASSIGN, "acquirer"]],
+                    "negative_patterns": [], "section_heading_terms": _ASSIGN},
+    },
+    "ASSIGNMENT-MSA-001": {
+        "section": "31.14", "document_type": "MSA",
+        "topic": "Major Changes — Assignment", "basis": "COMPANY_APPROVED",
+        "starts": ["Company-side assignment should be permitted to an affiliate"],
+        "scope_key": "COMPANY_ASSIGNMENT",
+        "description": ("LeapSwitch may assign the agreement to an affiliate, successor or "
+                        "acquirer, or in a merger or restructuring, on notice."),
+        "mapping": {"exact_phrases": [], "aliases": [],
+                    "keyword_groups": [[*_ASSIGN, "affiliate"], [*_ASSIGN, "successor"],
+                                       [*_ASSIGN, "acquirer"]],
+                    "negative_patterns": [], "section_heading_terms": _ASSIGN},
+    },
+    "ASSIGNMENT-VENDOR_AGREEMENT-001": {
+        "section": "31.14", "document_type": "VENDOR_AGREEMENT",
+        "topic": "Major Changes — Assignment", "basis": "COMPANY_APPROVED",
+        "starts": ["Vendor assignment should remain subject to Company consent",
+                   "Company-side assignment to an affiliate/successor/acquirer"],
+        "scope_key": "VENDOR_ASSIGNMENT",
+        "description": ("The vendor assigns only with the company's consent, and the "
+                        "company may assign to an affiliate, successor or acquirer."),
+        "mapping": {"exact_phrases": [], "aliases": [],
+                    "keyword_groups": [[*_ASSIGN, "consent"], [*_ASSIGN, "affiliate"],
+                                       [*_ASSIGN, "successor"]],
+                    "negative_patterns": [], "section_heading_terms": _ASSIGN},
+    },
+    "ASSIGNMENT-DISTRIBUTION_AGREEMENT-001": {
+        "section": "31.14", "document_type": "DISTRIBUTION_AGREEMENT",
+        "topic": "Major Changes — Assignment", "basis": "COMPANY_APPROVED",
+        "starts": ["Assignment and successor rights should be clearly addressed"],
+        "scope_key": "DISTRIBUTOR_ASSIGNMENT",
+        "description": ("The distribution agreement clearly addresses assignment and "
+                        "successor rights."),
+        "mapping": {"exact_phrases": [], "aliases": [],
+                    "keyword_groups": [[*_ASSIGN, "successor"], [*_ASSIGN, "rights"]],
+                    "negative_patterns": [], "section_heading_terms": _ASSIGN},
+    },
+}
+
+
+def _span(text: str, section: str) -> str:
+    r"""`# **12\. …**` or `## **31.14 …**` up to the next heading of the same level."""
+    start = re.search(rf"^(#{{1,2}}) \*\*{re.escape(section)}\\?\.? ", text, re.M)
+    if not start:
+        raise SystemExit(f"section {section} not found in {CANONICAL.name}")
+    rest = text[start.end():]
+    end = re.search(rf"^#{{1,{len(start.group(1))}}} \*\*", rest, re.M)
+    return _unescape(rest[: end.start()] if end else rest)
+
+
+def _slice(body: str, start: str, *, whole_line: bool) -> str:
+    """The sentence (or bullet line) beginning with `start`, verbatim. Exactly once."""
+    if body.count(start) != 1:
+        raise SystemExit(f"{start!r} occurs {body.count(start)} times, not once")
+    i = body.index(start)
+    end = (body.find("\n", i) if whole_line
+           else re.compile(r"\.(?=\s|$)").search(body, i).end())  # type: ignore[union-attr]
+    return body[i:end if end != -1 else None].strip()
+
+
+def _position(code: str, spec: dict, text: str) -> dict:
+    body = _span(text, spec["section"])
+    whole = spec.get("whole_line", False)
+    quote = " ... ".join(_slice(body, s, whole_line=whole) for s in spec["starts"])
+    if spec.get("copy_from"):
+        source = json.loads((RATIFIED_STANDARDS_DIR / f"{spec['copy_from']}.json")
+                            .read_text())
+        mapping = source["mapping_rules"]
+        extra = {k: source["configuration"][k] for k in ("waiver_patterns",)
+                 if k in source["configuration"]}
+    else:
+        mapping = {**spec["mapping"], "confirm_threshold": 5}
+        extra = {}
+    constitution: dict = {"version": _CANONICAL_VERSION, "section": spec["section"],
+                          "topic": spec["topic"], "basis": spec["basis"]}
+    if spec.get("expected_when"):
+        constitution["expected_when"] = {"confirmed_any": spec["expected_when"]}
+    configuration: dict = {"document_type": spec["document_type"],
+                           "constitution": constitution,
+                           "expected_presence": "PRESENT",
+                           "scope_key": spec["scope_key"],
+                           "applicability": "REQUIRED",
+                           "position_statement": quote}
+    if spec.get("unacceptable"):
+        configuration["unacceptable_position"] = _slice(body, spec["unacceptable"],
+                                                        whole_line=False)
+    if spec.get("found_clause_for_a_person"):
+        configuration["found_clause_for_a_person"] = True
+    if spec.get("not_applicable_to"):
+        configuration["not_applicable_to"] = spec["not_applicable_to"]
+    configuration.update(extra)
+    return {
+        "_about": [
+            f"RATIFIED Company Standard — approved THROUGH THE LEGAL CONSTITUTION "
+            f"{_CANONICAL_VERSION} (AM-73: everything in the Constitution is ratified "
+            "except what it disclaims itself; owner go 2026-11-09, AM-322).",
+            "GENERATED by tools/generate_section31_standards.py — `source_quote` is "
+            "sliced from the section verbatim, never retyped (rules 7, 21).",
+        ],
+        "requirement_code": code,
+        "description": spec["description"],
+        "ratified": "2026-11-09",
+        "approval": {
+            "basis": "CONSTITUTION",
+            "section": spec["section"],
+            "ruling": ("owner, 2026-09-18 (AM-73) and 2026-11-09 (AM-322) — this "
+                       "standard restates the cited position without changing it"),
+            "calibration": ("35.10 — NOT calibrated against counterparty paper; the "
+                            + (f"mapping terms are {spec['copy_from']}'s ratified "
+                               "terminology for the same position"
+                               if spec.get("copy_from") else "mapping terms are "
+                               + _provenance(spec, mapping, "the section's own words"))
+                            + " (rule 21)."),
+        },
+        "source_document": (f"Legal Constitution, Lawyer Review Version "
+                            f"{_CANONICAL_VERSION} — docs/02-legal-domain/"
+                            f"{CANONICAL.name}"),
+        "source_clause": f"§{spec['section']}",
+        "source_quote": quote,
+        "configuration": configuration,
+        "evaluator_type": "PRESENCE",
+        "evaluation_rules": {
+            "evaluator": "PRESENCE",
+            "_note": "presence is established by the mapping layer alone (45D)",
+        },
+        "mapping_rules": mapping,
+        "_calibration": [
+            "GENERATED; the mapping terms are configuration (35.4), "
+            + (f"copied from {spec['copy_from']} (the same position)"
+               if spec.get("copy_from") else
+               _provenance(spec, mapping, "each a word of the cited section"))
+            + ", uncalibrated until a document of this type is supplied.",
+            f"The Constitution marks this position {spec['basis']}; `constitution.basis` "
+            "records PROVENANCE only and never suppresses an answer (AM-73 r4).",
+        ],
+        "legal_rule": {
+            "rule_type": "THRESHOLD",
+            "configuration": {
+                "deviation_outcome": "UNACCEPTABLE",
+                "unlimited_outcome": "UNACCEPTABLE",
+            },
+        },
+    }
+
+
 def build() -> dict[str, dict]:
     text = CONSTITUTION.read_text()
     built: dict[str, dict] = {}
+    canonical = CANONICAL.read_text()
+    for code, spec in POSITIONS.items():
+        built[code] = _position(code, spec, canonical)
     for section, spec in SECTIONS.items():
         if section in _SKIP_SECTIONS:
             continue

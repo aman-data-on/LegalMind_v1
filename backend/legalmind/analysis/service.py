@@ -1199,6 +1199,52 @@ def _with_continuations(clauses: list[Clause], mapping: MappingResult) -> list[C
     return out + run
 
 
+def _whole_sections(clauses: list[Clause], mapping: MappingResult) -> tuple[UUID, ...]:
+    """The rows a person needs to read what was found (AM-322 r12): the cited rows, every
+    row numbered under the same top-level section ("3.1" cited → 3, 3.1, 3.2, 3(a)) or,
+    on unnumbered paper, the cited clauses' continuations. The operative sentence of a
+    split clause ("3.1 This clause sets out data residency" / "3.2 … stored only in
+    India") is never left out. The section ends at the next number of another section,
+    a heading row, or a signature block ("IN WITNESS WHEREOF"); any other unnumbered row
+    continues it (r16)."""
+    cited = set(mapping.evidence_ids)
+    top = {m.group(0) for c in clauses
+           if c.evidence_id in cited and (m := _TOP.match(c.section_number or ""))}
+    # numbered paper reads by section; only unnumbered paper falls back on continuations
+    # (which run a numbered clause on to the next number, signature block included)
+    keep = cited if top else cited | {c.evidence_id
+                                      for c in _with_continuations(clauses, mapping)}
+    out, inside = [], False
+    for clause in clauses:
+        if clause.section_number:
+            head = _TOP.match(clause.section_number)
+            inside = head is not None and head.group(0) in top
+        elif clause.is_heading or _ends_section(clause.content or ""):
+            inside = False
+        if inside or clause.evidence_id in keep:
+            out.append(clause.evidence_id)
+    return tuple(out)
+
+
+_TOP = re.compile(r"\d+|[A-Za-z](?=[.)])")
+#: A page number a page break left at a row's start ("20 IN WITNESS WHEREOF …").
+_PAGE_LEAD = re.compile(r"^\s*\d{1,3}\s+")
+#: The start of a signature block (AM-322 r16): "IN WITNESS WHEREOF …", a signing row
+#: ("Signed by … for and on behalf of …", "For and on behalf of …"), or a By / Name /
+#: Designation / Signature line — never "Signed by either party, a waiver … is binding".
+_SIGNATURE_BLOCK = re.compile(
+    r"in\s+witness\s+where(?:of|as)\b|signed\s+(?:by|for)\b[^.;]{0,120}?\bfor\s+and\s+on\s+"
+    r"behalf\s+of\b|for\s+and\s+on\s+behalf\s+of\b|(?:by|name|designation|signature)\s*:",
+    re.I)
+
+
+def _ends_section(content: str) -> bool:
+    """An unnumbered row that ends a cited section (AM-322 r16): a signature block. Any
+    other unnumbered row — a "Title Case:" label with its sentence, or a short title
+    ("Exceptions") over a take-back — is the section's own text and is cited."""
+    return bool(_SIGNATURE_BLOCK.match(_PAGE_LEAD.sub("", " ".join(content.split()))))
+
+
 #: AM-207 — a page number stranded at a clause's end by a page break ("…notice\n7").
 _TRAILING_PAGE_NUMBER = re.compile(r"\n\s*\d{1,3}\s*$")
 
@@ -1844,8 +1890,11 @@ def applicable_by_content(items: list[_SnapshotItem],
                is EvaluatorType.NUMERIC_COMPARISON]
     own = [i for i in applied if not _cross_family(i, declared_type)]
     measured_by: dict[str, list[str]] = {}
+    stated_none: dict[str, bool] = {}
     for item in numeric:
-        sections = [o for o in own if _section(o) == _section(item)]
+        # the family's own FIGURES on the section (AM-322: a §12 presence position — data
+        # residency on an MSA — states no figure, so it never silences a TOS's §12 one)
+        sections = [o for o in own if _section(o) == _section(item) and o in numeric]
         # only a standard admitted because its clause was confirmed — never a commercial
         # pillar measured on every customer service paper (AM-152)
         pillar = ((item.company_standard.configuration or {}).get("commercial_pillar")
@@ -1860,14 +1909,18 @@ def applicable_by_content(items: list[_SnapshotItem],
         if stated <= set().union(*(read(o, stating=False) for o in by)):
             measured_by[item.requirement.code] = sorted(
                 o.requirement.code for o in (by or sections))
+            stated_none[item.requirement.code] = not stated
     for entry in coverage:
         if entry["code"] in measured_by:
             entry["outcome"] = SAME_TOPIC
             names = ", ".join(measured_by[entry["code"]])
-            entry["reason"] = (f"the declared family's own positions ({names}) govern "
-                               f"Constitution §{entry['section']} on this paper; another "
-                               "family's figure is read only from its own words, and "
-                               "they are absent or already measured (R-3)")
+            why = ("its clause states no figure in its own words"
+                   if stated_none[entry["code"]] else
+                   "the clauses that state its figure are already measured by them")
+            entry["reason"] = (f"the declared family's own figures on Constitution "
+                               f"§{entry['section']} ({names}) govern this paper; "
+                               "another family's figure is read only from its own "
+                               f"words, and {why} (R-3)")
     applied = [i for i in applied if i.requirement.code not in measured_by]
     return applied, detected, coverage
 
@@ -1905,6 +1958,20 @@ def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
         mapping = replace(mapping, state=MappingState.UNRESOLVED, explanation=(
             *mapping.explanation, "the clause found states how the paper is amended, "
                                   "not how a change or cancellation is made (R-6)"))
+    if (standard_configuration.get("found_clause_for_a_person")
+            and mapping.state in (MappingState.CONFIRMED, MappingState.UNRESOLVED)):
+        # AM-322 r12 — what was found is read by a person: cite the whole section
+        mapping = replace(mapping, evidence_ids=_whole_sections(clauses, mapping))
+    if (mapping.state is MappingState.CONFIRMED
+            and standard_configuration.get("found_clause_for_a_person")):
+        # AM-322 r11 — a qualitative §12 position (data residency, a breach-notice
+        # timeline, sub-processors) states no figure, and no word list reads whether a
+        # clause on the topic commits to it, conditions it, takes it back or puts it on
+        # the other side (r6/r10 were beaten each round). Only absence is automatic
+        # (MISSING); a clause found is for a person (rule 15), never MATCH.
+        mapping = replace(mapping, state=MappingState.UNRESOLVED, explanation=(
+            *mapping.explanation, "a clause on this §12 position was found; whether it "
+                                  "commits to the position is for a person (AM-322 r11)"))
     outcome.mapping_state = mapping.state.value
     # AM-54 — the semantic stage's record travels with the evaluation (REC-07).
     outcome.diagnostics.extend(line for line in mapping.explanation

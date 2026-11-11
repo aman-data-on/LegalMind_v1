@@ -227,6 +227,64 @@ measure the notice limb alone and so is forbidden by `AM-66`. Nothing is withhel
 **Refusal now applies only to a document type the Constitution states NOTHING for** — of Step 6's
 thirteen, that is DPA, AUP, PRIVACY_POLICY and OTHER.
 
+### §12, §15 and §31.14 positions with no file until now — 14 Requirements (`AM-322`, 2026-11-09)
+
+Owner go, 2026-11-09: turn the Constitution positions that had no standard file into standards.
+Twelve are generated from the canonical **L1.16** (L1.15 until `AM-322` r14; the cited sections are byte-identical) by the same tool (`POSITIONS` in
+`tools/generate_section31_standards.py`, one sentence or bullet each, sliced verbatim); the two
+numeric change-of-control notices are hand-written beside `CHANGE-OF-CONTROL-NOTICE-MSA-001`
+because the generator never emits a figure. All carry the zero-tolerance rule and no favour form
+(`AM-239` admits it only on provider paper). Mapping terms are the cited section's own words, with
+three exceptions: `TRADE-SECRET-CARVEOUT-MSA-001` copies the NDA copy's ratified terminology; the
+two numeric change-of-control notices copy `CHANGE-OF-CONTROL-NOTICE-MSA-001`'s (which include
+words such as "change in control" and "assign" that §31.14 does not use); and the six §12 files
+also carry finding terms the owner approved on 2026-11-11 from our own paper (`AM-322` r13 —
+"cross-border transfers", "cross-border data transfers", "transferred outside" + India; "data
+breach" + "notify", the "breach notification" / "data breach notification" headings; "engage a
+subcontractor", "third-party service providers", "third-party processors"), each file naming
+which terms are §12's and which are r13's. Under r11 those terms only find a clause for a person. None is calibrated
+against counterparty paper (35.10).
+
+**A §12 position found is read by a person (`AM-322` r11, superseding the element check of
+r6/r10).** The six §12 standards (data residency, breach notification, sub-processors) carry
+`found_clause_for_a_person`: absence is automatic (MISSING), but a clause found always goes to a
+person (UNABLE_TO_EVALUATE), never MATCH — word lists over free legal English were beaten in
+three verification rounds (qualifiers, take-backs in later sentences or sub-clauses, unknown or
+shifted actors, CERT-In element words, §12.3). The mapping terms only FIND the clause. Our
+published Leapswitch TOS breach and sub-processor clauses are both found and go to a person.
+
+| Code | § | Type | Evaluator | Position (the section's words) |
+|---|---|---|---|---|
+| DATA-RESIDENCY-MSA-001 | 12 | MSA | PRESENCE | "Data residency is maintained within India for all India-designated services" |
+| DATA-RESIDENCY-VENDOR_AGREEMENT-001 | 12 | VENDOR_AGREEMENT | PRESENCE | same; §12 Unacceptable names "a vendor or client-facing document" |
+| BREACH-NOTIFICATION-MSA-001 | 12 | MSA | PRESENCE | "a defined breach-notification timeline" — no figure (§12.3) |
+| BREACH-NOTIFICATION-TOS-001 | 12 | TOS | PRESENCE | same |
+| SUB-PROCESSORS-MSA-001 | 12 | MSA | PRESENCE | "sub-processors must be disclosed and bound to obligations no less protective" |
+| SUB-PROCESSORS-TOS-001 | 12 | TOS | PRESENCE | same |
+| TRADE-SECRET-CARVEOUT-MSA-001 | 15 | MSA | PRESENCE | "obligations relating to trade secrets survive for as long as the information remains a trade secret" — the NDA copy's terms and waiver patterns |
+| ASSIGNMENT-MSA-001 | 31.14 | MSA | PRESENCE | Company-side assignment to an affiliate, successor, acquirer or in a merger/restructuring, on notice |
+| ASSIGNMENT-VENDOR_AGREEMENT-001 | 31.14 | VENDOR_AGREEMENT | PRESENCE | vendor assignment subject to Company consent ... Company-side assignment permitted |
+| ASSIGNMENT-PARTNER_AGREEMENT-001 | 31.14 | PARTNER_AGREEMENT | PRESENCE | "Assignment on M&A" — the Partner needs prior written consent; the Company may assign |
+| ASSIGNMENT-DISTRIBUTION_AGREEMENT-001 | 31.14 | DISTRIBUTION_AGREEMENT | PRESENCE | "Assignment and successor rights should be clearly addressed" |
+| CHANGE-OF-CONTROL-TERMINATION-PARTNER_AGREEMENT-001 | 31.14 | PARTNER_AGREEMENT | PRESENCE | either party may terminate on an adverse change of control |
+| CHANGE-OF-CONTROL-NOTICE-VENDOR_AGREEMENT-001 | 31.14 | VENDOR_AGREEMENT | NUMERIC | 30 days |
+| CHANGE-OF-CONTROL-NOTICE-DISTRIBUTION_AGREEMENT-001 | 31.14 | DISTRIBUTION_AGREEMENT | NUMERIC | 30 days |
+
+**Left out, each for a stated reason:** §12's CERT-In 6 hours, 180-day logs and 5-year
+registration retention, and §19's takedown and AI-labelling rows (Applicable Law — a statute is
+not a Company Standard; the 2026-08-20 decline stands); the Fiduciary/Processor roles (a
+characterisation, not a clause the Unacceptable Position names); §12.1/§12.2 (drafting status and
+terminology); §19's residency and sub-processor rows (the same §12 positions, measured once);
+residency on the **TOS** (the published TOS, authoritative since `AM-129`, offers India, US and
+Europe datacentres and makes no residency commitment — an owner question, not a standard);
+§31.14's "no automatic termination" and the Company termination rights on MSA/Vendor/Distribution
+change of control (conditional rights a presence mapping cannot tell from the notice clause the
+same section holds; next candidates once real paper calibrates them); the customer-side
+assignment bullet (it defers to "the agreement's existing assignment/consent requirements");
+vendor audit rights (already inside `GOVERNING-LAW-DISPUTE-VENDOR_AGREEMENT-001`'s quote, and
+"should be considered" is not a clause to find); §15 mutuality, definition and non-solicitation on
+an MSA (outside this pass); C-28 and §9's 17.3(d)/(e) carve-outs (owner/management rulings).
+
 ### Retired — 7 Requirements (`AM-65`, 2026-09-14)
 
 The current Constitution states no position for these, so they are **RETIRED — NOT PRESENT IN

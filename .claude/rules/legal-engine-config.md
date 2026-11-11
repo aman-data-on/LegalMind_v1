@@ -34,8 +34,8 @@ touching mapping or extraction read `AM-54` (and `AM-60`, which removed its in-f
   `knowledge_items` source for Ask. Everything in it is ratified except what it disclaims itself
   (`AM-73`): **§31.6a stays unratified**. `constitution.basis` records provenance and never
   suppresses an answer.
-- **Standards live in exactly one place:** `backend/config/company_standards/*.json` — 85 files,
-  78 active, 7 retired `DEPRECATED` by `AM-65` (counted 2026-11-09; **count before quoting**).
+- **Standards live in exactly one place:** `backend/config/company_standards/*.json` — 99 files,
+  92 active, 7 retired `DEPRECATED` by `AM-65` (counted 2026-11-09 after `AM-322`; **count before quoting**).
   Drafts under `proposed/` are read by nothing until ratified. Fixtures reference a standard by
   `company_standard_ref` — never copy values into a fixture. A standard file is configuration,
   not specification; every position quotes its Constitution section verbatim and nothing is

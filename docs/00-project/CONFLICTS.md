@@ -43,6 +43,7 @@ Project rule: when two authoritative statements conflict, the conflict is report
 | C-27 | `ARBITRATION-MSA-001`'s ratified `source_quote` (the MSA template, §19.3–19.4) places arbitration in **Mumbai**; Constitution §22 states courts and arbitration seat at **Pune**. Found 2026-10-16 while adding `DISPUTE-VENUE-MSA-001` (`AM-148`) | ✅ **RESOLVED 2026-10-16 by the owner (`AM-150`): Pune.** The template's Mumbai quote stays verbatim as provenance, annotated as historical; the venue is measured by `DISPUTE-VENUE-MSA-001`, under which the template's own clause deviates (`AM-43`) |
 | C-28 | Constitution §13 Company Position: termination for cause needs a 30-day cure "except for non-payment, security threats, or illegal use, which permit immediate suspension"; §16 Unacceptable Position: "Suspension for non-payment with no prior written notice or cure opportunity". Found 2026-10-17 while building the non-payment observation (`AM-159` r6) | ⏳ **OPEN — recommended reading recorded, for the owner to ratify:** read together, §13 gives the right to suspend for non-payment and §16 fixes how (prior written notice and a cure opportunity); immediate suspension with no notice is the risky reading. Until ratified, a document with no non-payment remedy reads "Legal decides (§23.4)" — the observation asserts only that a remedy exists, never anything about notice (`AM-159` r6; owner-delegated, AB-95) |
 | C-29 | Constitution L1.14 §11 (from the website, `AM-129`) gives the Leapswitch SLA's minimum uptime as **99.95%** for Power (Dual Power Servers) and Private Network; the Leapswitch site moved to `www.leapswitch.com` on 2026-10-31 and its live SLA now states **99.9%** for every category, the 99.95% footnote gone. Found 2026-11-02 when the daily refresh (`AM-130`) failed on the redirect | ✅ **RESOLVED 2026-11-02 by the owner (`AM-243`):** "whatever is on the live website, take it from there" — the live 99.9% governs; Constitution L1.15 §11 states it, L1.14 stays as history |
+| C-31 | Constitution §12.2: DPA-type provisions are "evaluated directly against" the DPDP Act and "the Data Protection & Privacy position above … wherever it appears". `AM-73` r1 lists DPA among the types the Constitution states no position for (refused), and `AM-244` says a DPA attachment is never measured | ⏳ Open (LOW) — registered 2026-11-09 (`AM-322`). Until ruled, the new §12 standards list `DPA` under `not_applicable_to` (today's behaviour: a standalone DPA is not measured); a DPA-type clause inside an MSA or TOS is measured by content, as before |
 
 *Index note: `C-20` and `C-21` are recorded in full below but were never given a row in this
 table. Both are resolved (`AM-63`, `AM-64`); left for their author to index rather than
@@ -589,6 +590,18 @@ brand's published policies, and quotes only that brand's SLA schedule; with no b
 labelled. **Still open:** the evaluator measures a CloudPe contract against standards with no
 brand scope — that needs the schema decision above.
 
+**Annotation PROPOSAL 2026-11-09 (`AM-322`) — not a resolution; C-19 stays open.** The
+canonical L1.15 states the brand axis immaterial for most positions in its own Applicability
+lines: §9 "applies identically to Leapswitch- and CloudPe-branded agreements"; §10, §13, §14,
+§15, §22 "applies to both Leapswitch- and CloudPe-branded agreements"; §12 and §19 "both
+Leapswitch- and CloudPe-branded services"; §16 entity-wide with refund scope "differs by brand as
+published". Proposed reading for the owner: measuring a CloudPe contract against a standard
+citing one of those sections is **not** the substitution §4 forbids, so the evaluator gap narrows
+to the positions whose text differs by brand — §11 (SLA schedules), §17 (AUP), §18 (TOS / service
+terms), §16's refund scope, and the four published policies the website governs (`AM-129`). The
+`AM-322` standards (§12, §15, §31.14) all sit on the entity-wide side. Still for the owner: the
+schema decision for the brand-specific sections.
+
 ## C-20 — L1.10 §24.4's status mapping vs `AM-56` r2
 
 ## ✅ RESOLVED 2026-09-13 — `AM-63`
@@ -867,3 +880,23 @@ impersonation complaints, which the IT Rules address (§19, §28.3 unchanged). N
 **2026-10-09, item (a) decided by `AM-131` (Constitution L1.13):** the owner chose the website's statement (Companies
 Act, 2013) for the incorporating statute, with the CIN's 2010 registration kept beside it for verification against
 the Certificate of Incorporation. Items (b)–(d) remain open.
+
+## C-31 — Constitution §12.2 (DPA provisions measured against §12) vs `AM-73` r1 / `AM-244` (a DPA never measured)
+
+**Registered 2026-11-09 (`AM-322`, AB-174). Open (LOW). Owner decision.**
+
+| Source | Says |
+|---|---|
+| **Constitution L1.15 §12.2** | "DPA-type contractual provisions are evaluated directly against the Digital Personal Data Protection Act 2023, applicable Digital Personal Data Protection Rules 2025, applicable CERT-In directions, and the Data Protection & Privacy position above, regardless of whether a standalone company DPA form exists." |
+| **`AM-73` r1** | Refusal applies to a type the Constitution states nothing for — DPA, AUP, PRIVACY_POLICY, OTHER |
+| **`AM-244`** | An AUP / Privacy Policy / DPA attachment is never measured against a position |
+
+**Consequence today:** the `AM-322` §12 standards (data residency, breach notification,
+sub-processors) would measure a document declared `DPA` by content. Until the owner rules, each
+lists `DPA` under `not_applicable_to`, which keeps today's behaviour (a standalone DPA is not
+measured). A DPA-type clause inside an MSA or TOS is measured, as §12.2 asks.
+
+**Not resolved here (rule 5).** Options for the owner: (a) §12.2 governs — remove `DPA` from
+`not_applicable_to` and amend `AM-73` r1/`AM-244` for review (Ask attachments unchanged or not);
+(b) `AM-73`/`AM-244` govern — record that §12.2 applies to DPA-type clauses in other papers only.
+

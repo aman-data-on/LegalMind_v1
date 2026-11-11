@@ -27840,3 +27840,329 @@ Confirmation, once, on Gemini (2026-11-09): eight new cases N01–N08 on synthet
 re-check's fixes (D1–D6, this record as amended before it landed), one targeted run:
 see DAILY_CHANGED.md 2026-11-09.
 ```
+
+---
+
+AMENDMENT BATCH AB-174 — `AM-322` (2026-11-09): the Constitution positions that had no
+standard file become standards — §12, §15 and §31.14
+
+**Owner instruction, 2026-11-09:** go — turn the Constitution positions that have no standard
+file yet into standards (under `AM-73`: everything in the Constitution is ratified except what
+it disclaims itself). IDs taken after a scan of `origin/main`, every worktree and every remote
+branch on 2026-11-09 (highest seen AM-321 / AB-173; the Ask batch-1 worktree takes AB-175 and AM-330–AM-335).
+
+`AM-322` — fourteen positions ratified through the Constitution (extends `AM-73` r2 and
+`AM-59` r6; amends no earlier position)
+
+```text
+r1  WHAT IS ADDED, EACH QUOTING ITS SECTION VERBATIM (L1.15). §12 Data Protection: data
+    residency within India for India-designated services (MSA, VENDOR_AGREEMENT — the
+    Unacceptable Position names "a vendor or client-facing document"); a defined
+    breach-notification timeline (MSA, TOS — no figure: §12.3 assumes no contractual
+    deadline, so the mapping requires the breach and a stated timeline together and a
+    notice with none goes to a person); sub-processors disclosed and bound (MSA, TOS).
+    §15: trade-secret survival on an MSA (the NDA copy existed; same scope key, terms and
+    waiver patterns, so one position is measured once). §31.14: assignment per family
+    (MSA Company-side; Vendor consent and Company-side; Partner "Assignment on M&A";
+    Distribution "assignment and successor rights"), the Partner change-of-control
+    termination right, and 30-day change-of-control notice for Vendor and Distribution
+    (NUMERIC, as the MSA copy, with no favour form — AM-239 is provider paper only).
+    The §12 standards are not applicable to a Privacy Policy or an AUP (AM-73 r1: a
+    published policy states no position to measure). Active 78 -> 92; 99 files with
+    the seven retired.
+r2  GENERATED, NOT TRANSCRIBED. Twelve are emitted by tools/generate_section31_standards.py
+    (`POSITIONS`): each quote is the sentence or bullet that begins with the configured
+    words, sliced from the canonical L1.15 to its full stop, so a paraphrase cannot enter;
+    `--check` covers them. The two numeric notices are hand-written (the tool never emits a
+    figure), their quotes checked verbatim by test. Every mapping term is a word of the
+    cited section, or the ratified terminology of the same position's NDA copy.
+r3  LEFT OUT, WITH THE REASON. Applicable-Law rows of §12/§19 (CERT-In 6 hours, 180-day
+    logs, 5-year registration retention, takedowns, AI labelling — a statute is not a
+    Company Standard); §12's Fiduciary/Processor characterisation; §12.1/§12.2; §19's
+    residency and sub-processor rows (the same §12 positions); data residency on the TOS
+    (the published TOS, authoritative under AM-129, offers India, US and Europe and makes
+    no residency commitment — an owner question); §31.14's "no automatic termination" and
+    the Company's change-of-control termination rights on MSA/Vendor/Distribution (not yet
+    distinguishable by mapping from the notice clause); the customer-side assignment bullet
+    (it defers to the agreement's own consent terms); vendor audit rights (inside
+    GOVERNING-LAW-DISPUTE-VENDOR_AGREEMENT-001's quote already, and "should be considered"
+    is not a clause); C-28 and §9's 17.3(d)/(e) carve-outs (owner/management rulings).
+r4  VERIFIED, NOT CALIBRATED. tools.verify_terminology reproduces all fourteen from their
+    own sections (an L1.15-quoting standard is now read against L1.15; earlier standards
+    keep L1.10, unchanged). Calibration against counterparty paper is not claimed (35.10).
+r5  C-19 IS NOT RESOLVED. An annotation proposal is recorded in CONFLICTS.md: the sections
+    whose Applicability says "both Leapswitch- and CloudPe-branded" make the brand axis
+    immaterial for their standards, narrowing the open evaluator gap to the brand-specific
+    sections. The schema decision stays the owner's.
+```
+
+APPENDED RECORD — `AM-322` r6–r9 (2026-11-09)
+
+Appended after an independent verification of AB-174 found six of the fourteen standards
+returning MATCH (Accepted) on wording that does the opposite of the Constitution — e.g. "host
+its data in data centres within India, the United States or Europe" as data residency, a
+termination cure clause ("material breach … notify … 72 hours") as breach notification, and
+"may engage any sub-processors without notice … and shall have no liability for them" as
+sub-processor disclosure. Rule 15 governs: finding a clause on the topic is never a MATCH.
+
+```text
+r6  ELEMENTS, NOT TOPIC. A qualitative §12 position carries `position_elements`: ONE clause
+    must state every element in the Constitution's own words and the clauses found none of
+    its departures, or the mapping is UNRESOLVED and a person decides (UNABLE_TO_EVALUATE),
+    never MATCH. Residency: "data residency"/"data-residency" + India; departures
+    "cross-border", "transfer", "transferred", "countries" (§12 Legal Validation). Breach:
+    "personal data breach"/"breach-notification" + notify/notification + "without undue
+    delay"/hours (Drafting Notes, §12.3). Sub-processors: sub-processors + disclose(d) + "no
+    less protective" (§12, §19). The alias "within india", its keyword group and the heading
+    term "breach notification" are removed. Our published Leapswitch TOS still MATCHES on
+    breach; on sub-processors it lists them but does not say they are bound — a person.
+r7  R-3 NARROWED. A cross-family figure on a Constitution section is silenced only by the
+    declared family's own FIGURES on that section; a §12 presence position (data residency
+    on an MSA) no longer drops a TOS's §12 KYC figure. The reason names the figures that
+    govern and says whether the dropped clause stated no figure or was already measured.
+r8  C-31 REGISTERED (owner decision): Constitution §12.2 measures DPA-type provisions against
+    §12; AM-73 r1 and AM-244 never measure a DPA. Until ruled, the §12 standards list DPA
+    under `not_applicable_to` — today's behaviour.
+r9  CORRECTION TO r2: not every mapping term is a word of the cited section. The two numeric
+    change-of-control notices copy CHANGE-OF-CONTROL-NOTICE-MSA-001's terminology (it uses
+    words §31.14 does not, e.g. "change in control", "assign"); TRADE-SECRET-CARVEOUT-MSA-001
+    copies the NDA copy's; the first pass's heading term "breach notification" was not
+    §12's spelling and is removed (r6).
+```
+
+APPENDED RECORD — `AM-322` r10 (2026-11-09)
+
+Appended after the round-2 independent verification of AB-174. It found that r6's element
+check reads phrases, not what a sentence does with them: 17 of 23 sentences that state the §12
+elements and then negate, permit or condition them came back MATCH (Accepted). Examples are
+"data residency within India is not guaranteed", "may, but shall not be obliged to, notify …
+without undue delay" and "disclosed only on request". The builder's re-check found that a
+reversed duty ("Customer shall notify Provider of any personal data breach without undue
+delay") also matched. Rule 15 governs every term below: each one only routes a matched clause
+to a person. None states a position, threshold or figure.
+
+```text
+r10 THE ELEMENT SENTENCE MUST STATE THE POSITION, NOT MERELY NAME IT. For a standard carrying
+    `position_elements` (the six §12 standards), each confirmed clause is read sentence by
+    sentence (on ".", ";" and line ends). A sentence that names any element phrase sends the
+    mapping to UNRESOLVED, and so to a person (UNABLE_TO_EVALUATE), when either of these holds:
+    (a) DEPARTURE WORDING. The sentence negates, permits or conditions what it states: not, no,
+        never, none, neither, nor, cannot, n't, without, may, might, discretion, option,
+        elect(s), choos-, deem(s), except-, unless, if, outside, subject to, provided that,
+        on/upon request. The Constitution's own words "no/not less protective", "without undue
+        delay" and "no/not later than" are read past first. This is grammar in the engine,
+        not company terminology.
+    (b) THE DUTY RUNS THE WRONG WAY. The first party that ACTS in the sentence is the other
+        side of the paper, not the party providing the service. The provider is LeapSwitch on
+        customer paper and the vendor on a VENDOR_AGREEMENT. The party words, the document's
+        own defined names (its parties block) and the "acts" test are those of
+        `analysis/reading.py` (AM-152). On customer paper "we" is ours and "you" is theirs.
+        A mutual party ("each party shall") binds the provider too, so it passes. A passive
+        sentence names no other side, so it passes.
+    BREACH TIMELINE. "hours" is removed from the breach-notification timeline element. §12.3
+    uses an hours figure only for the CERT-In statutory deadline, and says that where no
+    contractual notification period has been approved, none is assumed. Only "without undue
+    delay" (the Drafting Notes' words) states the timeline. "hours" still FINDS the clause
+    (mapping keyword group), so an hours-only customer notice goes to a person, not MISSING.
+    CORRECTION TO r6. r6 said a clause matches only with "none of its departures". In the
+    first build that held only for data residency's four listed words. A negated or
+    permissive clause still matched. r10(a) and r10(b) make r6's statement true for all six
+    §12 standards.
+    Our own paper is unchanged. The four MSA PDFs, both TOS PDFs and both brands' published
+    TOS (2026-10-09, 2026-10-13) give the same §12 results before and after. Known ceiling:
+    a negation in a later sentence that repeats no element word is not read. A passive
+    sentence with the other side as subject ("Customer shall be notified by Provider") goes
+    to a person (fail-closed).
+```
+
+APPENDED RECORD — `AM-322` r11 (2026-11-09)
+
+Appended after the round-3 independent verification of r10. The verifier wrote 45 new
+sentences that state a §12 position and then qualify it, take it back, shift it onto another
+party, or borrow its words from the CERT-In duty (§12.3). 41 of the 45 came back MATCH
+(Accepted) under r10. A deny-list of words over free legal English cannot fail closed, so the
+design changes; the list is not extended. r10 is not edited (rule 22). It is corrected and
+superseded here.
+
+```text
+r11 PRESENCE-ONLY FOR THE SIX §12 QUALITATIVE POSITIONS. This supersedes the matching terms of
+    r6 (`position_elements`) and r10(a)/(b). It covers DATA-RESIDENCY (MSA, VENDOR_AGREEMENT),
+    BREACH-NOTIFICATION (MSA, TOS) and SUB-PROCESSORS (MSA, TOS), each carrying
+    `found_clause_for_a_person`.
+    - Absence is automatic: MISSING inside the declared family (AM-51).
+    - A clause the mapping CONFIRMS goes to UNRESOLVED, so a person reads it
+      (UNABLE_TO_EVALUATE). It is never MATCH, whatever its words.
+    - The mapping terms only FIND the clause. That includes "hours" in the breach keyword
+      group, so an hours-only notice is found and read by a person, not MISSING.
+    - The deny-list, the benign-phrase strip, the sentence split and the direction check are
+      removed from the engine.
+    - Rejected alternative: an allow-list of sentence shapes. To be fail-closed it needs an
+      actor and back-reference parser plus a whitelist of accepted sentences, and only Legal
+      can supply that whitelist (rule 21). The way back to MATCH is that whitelist, ratified
+      verbatim, as its own amendment.
+    CORRECTION TO r10. r10 said "r10(a) and r10(b) make r6's statement true for all six §12
+    standards". That was false. It held only for the sentences pinned in r10; the round-3
+    attacks beat it on all six standards. The CHANGELOG's "17 → 0" was likewise true only for
+    the pinned set.
+    VENDOR-PAPER READING WITHDRAWN. r10(b) read the §12 positions as binding "the party
+    providing the service": LeapSwitch on customer paper, the vendor on a vendor agreement.
+    §12's text does not say which party commits. Its Acceptable and Unacceptable Positions
+    speak of "a vendor or client-facing document", its Company Position is passive, and only
+    the Drafting Notes name a party ("Provider shall notify Customer"). That reading was
+    therefore the builder's interpretation, awaiting Legal's confirmation, never §12 text. It
+    leaves the engine with r10(b). Any future party rule needs Legal's ruling first.
+    OUR OWN PAPER. One finding changes. LeapSwitch TOS BREACH-NOTIFICATION-TOS-001 moves from
+    MATCH to UNABLE_TO_EVALUATE on the TOS PDF and on the published TOS of 2026-10-09 and
+    2026-10-13; it still cites clause 10, page 4 of the PDF. Every other §12 result on the
+    four MSA PDFs and both brands' TOS is unchanged. No other standard can reach this code.
+    LANDING NOTE. origin/main now carries LEGAL_CONSTITUTION_L1.16 (AM-300). §12 is
+    identical, but the fourteen AM-322 standards cite L1.15. Re-cite them at landing, by
+    rebase plus regeneration, as its own step.
+```
+
+APPENDED RECORD — `AM-322` r12 (2026-11-09)
+
+Appended after the round-4 independent verification of r11. Under r11 a found §12 clause goes
+to a person, but the finding could cite only the scored row of a split clause. The person was
+then not shown the operative sentence: "3.1 This clause sets out data residency" was cited, and
+"3.2 … stored only in India" was not.
+
+```text
+r12 THE PERSON IS SHOWN THE WHOLE SECTION. For the six `found_clause_for_a_person` standards,
+    whenever the mapping found something (CONFIRMED or UNRESOLVED), the finding cites:
+    - every row numbered under the same top-level section as a cited row (3, 3.1, 3.2, 3(a)),
+      up to the next numbered row of another section or an unnumbered heading;
+    - plus the cited clauses' continuations (`_with_continuations`), for unnumbered paper.
+    The classification is unchanged; only the citations grow. No other standard's evidence
+    changes. Measured: all active standards on 15 of our documents (four MSA PDFs, both TOS
+    PDFs, the published TOS of 2026-10-09, 2026-10-13 and 2026-11-02, and the SLA, NDA, AUP
+    and Privacy PDFs) give identical classifications and citations before and after.
+    FINDING TERMS NOT WIDENED. The verifier also found false MISSING on wording the §12 terms
+    do not name, including our own MSA.pdf 11.5 "Cross-Border Data Transfers" and 11.4
+    "Third-Party Processors". New terms are aliases (rule 21). They are proposed for the
+    owner's or Legal's decision, quoted from real documents, and not wired in.
+```
+
+APPENDED RECORD — `AM-322` r13 (2026-11-11)
+
+Owner approval, 2026-11-11, on `AM322-PROPOSED-TERMS.md`: "go with your recommendation". The
+proposal answered the round-4 verifier's false MISSING: real on-topic wording, including our
+own MSA's 11.4 and 11.5, mapped to nothing. The terms below are aliases, so they are a rule-21
+item. Each one is quoted from our own paper, and only these were approved. Under r11 a term
+only FINDS a clause. Whatever is found goes to a person, never MATCH, so no term states a
+position or a threshold.
+
+```text
+r13 OWNER-APPROVED FINDING TERMS (routing only). This amends r2's "mapping terms are the
+    section's own words" for the terms below.
+    DATA-RESIDENCY (MSA, VENDOR_AGREEMENT). Source: our MSA.pdf 11.5, "Cross-Border Data
+    Transfers: If Personal Data is transferred outside the jurisdiction in which it was
+    originally collected (including cross-border transfers from India or the European
+    Economic Area), LeapSwitch shall ensure such transfers are lawful …".
+      R1  alias "cross-border transfers"; heading term "cross-border data transfers".
+      R2  keyword group "transferred outside" + "india". A second source is our Privacy
+          Policy: "Where your data is transferred outside India, we ensure that appropriate
+          safeguards are in place …".
+    BREACH-NOTIFICATION (MSA, TOS).
+      B1  heading terms "breach notification" and "data breach notification". Sources: our
+          TOS, "Breach Notification: Leapswitch will notify you without undue delay upon
+          becoming aware of a personal data breach …", and our Privacy Policy, "Data Breach
+          Notification In the event of a personal data breach …".
+      B2  keyword group "data breach" + "notify", only as the pair. Alone, "data breach"
+          appears in our MSA's disclaimers and customer indemnities ("LeapSwitch disclaims
+          all liability for any … security incident, data breach …").
+    SUB-PROCESSORS (MSA, TOS).
+      S1  heading term and alias "third-party processors". Source: our MSA.pdf 11.4,
+          "Sharing with Affiliates, Business Partners and Third-Party Processors: LeapSwitch
+          may disclose Personal Data to its affiliates, group companies, subcontractors, and
+          service providers …". It is an alias as well as a heading term because the parser
+          keeps that label in the clause body, not as a section title; as a heading term
+          alone it never reads 11.4. This is the one placement beyond the proposal's
+          wording, and it serves the proposal's stated effect.
+      S2  alias "engage a subcontractor". Source: the executed MSA (2026-07-30) 18.2, "Leapswitch may upon notice
+          to and prior permission of Customer engage a subcontractor to provide Services to
+          Customer". The "subcontracting" heading is not taken.
+      S4  alias "third-party service providers". Source: our MSA.pdf 21.1, "Third Party
+          Service Providers: Leapswitch may use third-party service providers, including
+          application service providers, hosting service providers and system integrators
+          for rendering Services."
+    Not taken, as recommended: "datacenters located in India", "hosted in the Data Center
+    facility", "territory of India", "security incident(s)", "unauthorised access" + notify,
+    "subcontractors" alone, "Data Processor". The "Residency Road" noise item stays with
+    Legal.
+    OUR OWN PAPER. Measured on all active standards across 15 documents. Seven findings move
+    from MISSING to UNABLE_TO_EVALUATE (a person), and nothing becomes MATCH:
+      - DATA-RESIDENCY-MSA-001 on MSA.pdf, MSA-Feb.pdf and MSA-original.pdf (11.5);
+      - SUB-PROCESSORS-MSA-001 on the same three (11.4, 21.1);
+      - SUB-PROCESSORS-MSA-001 on the executed MSA (2026-07-30) (18.2).
+    Every other finding is identical. One over-route the proposal did not foresee: S4 also
+    finds our MSA's force-majeure 18.1 (failure of "third-party service providers"). It adds
+    section 18 to the SUB-PROCESSORS citations but changes no result.
+```
+
+APPENDED RECORD — `AM-322` r14 (2026-11-11)
+
+The branch was rebased onto origin/main db177332, which carries LEGAL_CONSTITUTION_L1.16
+(AM-300, AB-147). L1.16 supersedes L1.15. The fourteen AM-322 standards cited L1.15.
+
+```text
+r14 RE-CITED TO L1.16. Every section the fourteen standards quote was diffed between L1.15
+    and L1.16, as a slice from the section heading to the next heading of the same or higher
+    level. All three are byte-identical: §12 (8,829 bytes), §15 (3,658 bytes) and §31.14
+    (10,753 bytes). L1.16's 18 changed lines are all outside them: the header, the banner and
+    one reference-table row.
+    - The generator now reads LEGAL_CONSTITUTION_L1.16.md. Its twelve generated standards
+      and the two hand-written change-of-control notices now cite "L1.16".
+    - `source_quote` and `unacceptable_position` are unchanged, because they were sliced
+      from identical text.
+    - tools/verify_terminology.py reads a standard citing L1.15 or L1.16 against that file.
+    No position, term or result changes. This is a citation change only.
+```
+
+APPENDED RECORD — `AM-322` r15 (2026-11-11)
+
+Appended after two records re-checks of r12's section span. As built in r12, the span ran on
+through unnumbered rows to the end of the document, which pulled in signature blocks. A first
+correction then stopped it at any "Title Case:" label, and that dropped the operative
+sentence: "Storage Location: All Customer Data shall be stored only in India." r12 is not
+edited (rule 22); it is corrected here.
+
+```text
+r15 WHERE A CITED SECTION ENDS. For the six `found_clause_for_a_person` standards, the span of
+    r12 runs to one of these:
+    - the next row numbered under another top-level section;
+    - a heading row;
+    - an unnumbered bare title line with no body of its own ("Signatory Details");
+    - an execution block ("IN WITNESS WHEREOF …"), even when a page number a page break left
+      stands before it.
+    A "Title Case:" label with its own sentence continues the section. On numbered paper the
+    span reads by section only. The clause continuations of `_with_continuations` run a
+    numbered clause on through the signature block, so they are used only on unnumbered
+    paper.
+    Classification is unchanged. Measured on all active standards across 15 of our documents:
+    exactly two citations shrink, SUB-PROCESSORS-MSA-001 on MSA.pdf and on MSA-original.pdf,
+    which no longer cite the signature pages. Both stay with a person.
+```
+
+APPENDED RECORD — `AM-322` r16 (2026-11-11)
+
+Appended after the verifier's final re-check of r15. It found that a short title over a
+take-back ended the cited section, so the take-back was never shown to the person. Its probe
+was "6. Sub-processors / 6.1 … / Exceptions / This clause does not apply to affiliates of
+Provider." r15 is not edited (rule 22); it is corrected here.
+
+```text
+r16 ONLY A HEADING OR A SIGNATURE BLOCK ENDS A CITED SECTION. This supersedes r15's
+    bare-title bullet. An unnumbered bare title ("Exceptions") no longer ends the r12 span;
+    it and the sentences under it are cited.
+    The span now ends at:
+    - the next row of another top-level section;
+    - a heading row;
+    - a signature block: "IN WITNESS WHEREOF …" (also after a stranded page number), a
+      signing row ("Signed by … for and on behalf of …", "For and on behalf of …"), or a
+      By / Name / Designation / Signature line.
+    The signature pattern is the span's own. The clause-start pattern shared with other
+    readings is unchanged, so "Signed by either party, a waiver of this clause is binding"
+    never ends a section here. Measured on all active standards across 15 of our documents:
+    the cited text is unchanged from r15.
+```

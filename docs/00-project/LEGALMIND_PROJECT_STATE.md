@@ -1,7 +1,7 @@
 # LegalMind — where the project stands
 
 **Status: 📁 DERIVED — written in plain language for the project owner.** Last updated
-**9 November 2026**.
+**11 November 2026**.
 
 > This document explains things, it doesn't decide them. Every number in it comes from
 > [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md), which is the only document allowed to state
@@ -15,6 +15,18 @@
 
 *The short version, kept current so a new session can answer "where are we?" immediately.
 Updated at the end of every working session.*
+
+**2026-11-11 — Fourteen Constitution positions become standards (built and verified, waiting for your "commit").**
+Contracts are now checked for data kept in India, telling the other side about a personal data
+breach, and sub-processors (§12), for trade secrets staying protected on an MSA (§15), and for
+assignment and change of control in each kind of agreement (§31.14). For the three §12 points
+the software never says "Accepted" on its own: if a clause is missing it says so, and if one is
+there a person reads it. Four rounds of independent checking showed that wording can always be
+found that fools a word list, so a person decides. You approved seven extra search words taken
+from our own MSA and TOS (2026-11-11), so our MSA's cross-border transfer and third-party
+processor clauses now reach a person instead of showing as missing. Open for you or Legal: does
+a standalone DPA get checked against §12 (C-31), and on a vendor agreement, which party must
+commit to these points.
 
 **2026-11-09 — Ask reviews a contract more like our lawyer (built, waiting for your "commit").**
 A screenshot or phone photo of a clause can now be attached in Ask and is read. Pictures in a
