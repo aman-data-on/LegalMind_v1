@@ -20,6 +20,7 @@ import { ErrorBanner } from "@/components/Feedback";
 import { api, type UploadRole } from "@/lib/api";
 import { VERSION_ROLES } from "@/lib/documentTypes";
 import { ROLE_WORDS } from "./model";
+import { FilePicker } from "@/components/FilePicker";
 
 export function UploadDocument({
   contractId,
@@ -42,7 +43,7 @@ export function UploadDocument({
   const [role, setRole] = useState(roleDefault ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
-  const [picked, setPicked] = useState<string | null>(null);
+  const [picked, setPicked] = useState<File | null>(null);
   /** each missing answer said under its own field, never as a browser bubble */
   const [missing, setMissing] = useState<{ file?: boolean; role?: boolean }>({});
   const further = roleDefault !== undefined;
@@ -75,24 +76,13 @@ export function UploadDocument({
   ];
   return (
     <form onSubmit={submit} noValidate className={further ? "ws-upload ws-upload--version" : "ws-upload"}>
-      {/* the native control stays in the form (keyboard, screen readers) but is drawn as
-          our own button with the chosen file's name beside it */}
+      {/* the one upload picker (UX Batch 2): the native control stays in the form */}
       <div className="ws-field">
         {further ? <span className="ws-field__label">File</span> : null}
-        <div className="ws-upload__file">
-          <label className="ws-btn ws-btn--sm ws-upload__pick">
-            {picked ? "Choose another file" : "Choose file"}
-            <input ref={fileInput} type="file" accept=".pdf,.docx,.md,.txt" required disabled={busy}
-                   className="ws-upload__input" aria-invalid={missing.file || undefined}
-                   aria-describedby={missing.file ? "ws-upload-file-error" : undefined}
-                   onChange={(event) => {
-                     setPicked(event.target.files?.[0]?.name ?? null);
-                     setMissing((m) => ({ ...m, file: false }));
-                   }} />
-          </label>
-          <span className="ws-upload__name" aria-live="polite">{picked ?? "No file chosen (PDF or Word)"}</span>
-        </div>
-        {missing.file ? <p className="ws-field__error" id="ws-upload-file-error">Choose a file to upload</p> : null}
+        <FilePicker compact required inputRef={fileInput} chosen={picked} disabled={busy}
+                    invalid={missing.file} describedBy={missing.file ? "ws-upload-file-error" : undefined}
+                    onFile={(file) => { setPicked(file); setMissing((m) => ({ ...m, file: false })); }}
+                    error={missing.file ? <p className="ws-field__error" id="ws-upload-file-error">Choose a file to upload</p> : null} />
       </div>
       {/* AM-324 r4: every upload says whose paper it is */}
       {(

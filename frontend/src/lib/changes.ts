@@ -257,8 +257,13 @@ export function actionsFor(change: ClientChange, list: Reader): Answer[] {
 /** Line 1 of a point (`AM-291` r1): the review's word against our standard, when the
  *  clause is not simply a match. Never merged with line 2. */
 export function readerWord(change: ClientChange): string | null {
-  const f = change.review.after.find((x) => x.user_status !== "ACCEPTABLE");
-  return f ? USER_STATUS_LABELS[f.user_status] : null;
+  const status = readerStatus(change);
+  return status ? USER_STATUS_LABELS[status] : null;
+}
+
+/** The server's reader status behind `readerWord` — what the one StatusChip shows. */
+export function readerStatus(change: ClientChange): UserStatus | null {
+  return change.review.after.find((x) => x.user_status !== "ACCEPTABLE")?.user_status ?? null;
 }
 
 /** Which of the four marks a change carries (the one status set, `PointStatus`): the

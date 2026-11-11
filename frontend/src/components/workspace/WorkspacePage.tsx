@@ -63,6 +63,7 @@ import { PaneBoundary } from "./PaneBoundary";
 import { IconUploadCloud, IconX } from "./icons";
 import { PhoneBar, WorkspaceLayout, arrowTab, useMinWidth, type PhoneView, type Region } from "./WorkspaceLayout";
 import { templateName } from "@/lib/templates";
+import { toastFailure } from "@/components/Toast";
 
 type Load =
   | { kind: "loading" }
@@ -780,7 +781,7 @@ function RecordHeader({
             {assign?.can_send && reviewId ? (
               <button type="button" className="ws-linkbtn"
                       onClick={() => void api.withdrawReview(reviewId, holder.user_id)
-                        .then((got) => assigned({ ...assign, assigned: got.assigned })).catch(() => undefined)}>
+                        .then((got) => assigned({ ...assign, assigned: got.assigned })).catch(toastFailure("The review was not withdrawn"))}>
                 Withdraw
               </button>
             ) : null}

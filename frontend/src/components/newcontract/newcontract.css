@@ -6,7 +6,7 @@
 .nc { display: flex; flex-direction: column; gap: var(--ws-s3); padding: var(--ws-s4) clamp(var(--ws-s4), 2vw, var(--ws-s5)) 0;
   height: calc(100dvh - var(--ws-shell-h)); min-height: 0; font-family: var(--ws-sans); color: var(--ws-ink-900); }
 .nc--one { height: auto; max-width: 46rem; width: 100%; margin: 0 auto; padding-bottom: var(--ws-s7); gap: var(--ws-s4); }
-.nc h1 { font-family: var(--ws-sans); font-size: var(--ws-text-xl); font-weight: 650; letter-spacing: -0.01em; margin: 0; }
+.nc h1 { font-family: var(--ws-sans); font-size: var(--ws-text-xl); font-weight: 600; letter-spacing: -0.01em; margin: 0; }
 .nc-quiet { margin: 0; color: var(--ws-ink-500); font-size: var(--ws-text-sm); line-height: 1.5; }
 .nc-error { margin: 0; color: var(--ws-error); font-size: var(--ws-text-sm); line-height: 1.5; }
 .nc-ok { margin: 0; font-size: var(--ws-text-sm); font-weight: 600; }
@@ -132,7 +132,7 @@
 
 .nc-well { background: var(--ws-viewer); border-radius: var(--ws-radius-card); padding: var(--ws-s4) var(--ws-s5) var(--ws-s6); }
 .nc-well__note { margin: 0 auto var(--ws-s3); max-width: 46rem; font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
-.nc-sheet__title { margin: 0 0 1.2em; text-align: center; font-family: var(--ws-serif); font-size: 1.25rem; font-weight: 700; color: var(--ws-ink-900); }
+.nc-sheet__title { margin: 0 0 1.2em; text-align: center; font-family: var(--ws-serif); font-size: var(--t-section); font-weight: 700; color: var(--ws-ink-900); }
 .nc-sheet__title--schedule { margin-top: 2.4em; padding-top: 1.6em; border-top: 1px solid var(--ws-ink-100); }
 .nc-plainhead { margin: 1.4em 0 0.6em; font-family: var(--ws-serif); font-size: var(--ws-text-md); font-weight: 700; }
 .nc-flush { padding-left: 0; }
@@ -242,7 +242,7 @@
 .nc-tablewrap:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
 .nc-tablewrap > .tpl-table { margin: 0; }
 .nc-tablewrap:has(.nc-exec) { margin-left: 0; }
-.nc-exec { width: 100%; font-size: 0.88em; }
+.nc-exec { width: 100%; font-size: var(--t-dense); }
 .nc-exec th, .nc-exec td { padding: 4px 6px; }
 .nc-exec td[data-col="party"], .nc-exec td[data-col="signatory"] { min-width: 7rem; }
 .nc-sheet .tpl-para.nc-recital { padding-left: 2.8em; }

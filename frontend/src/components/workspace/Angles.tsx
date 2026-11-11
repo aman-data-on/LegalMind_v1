@@ -16,6 +16,8 @@ import { requirementTitle } from "./findingLanguage";
 import type {
   BusinessPoint, CounterProposal, LegalItem, Observation, ReviewAngles,
 } from "@/lib/types";
+import { StatusChip, chipStatus } from "@/components/StatusChip";
+import type { UserStatus } from "./findingLanguage";
 
 const cache = new Map<string, Promise<ReviewAngles | null>>();
 
@@ -115,7 +117,7 @@ const ISSUES_SHOWN = 5;
  *  recommends, and where — one press opens its finding. Every word is the server's. */
 /** A point's two lines on the Summary (S1): the review's word against our standard, then
  *  who answers it — read from the findings already loaded, never re-derived here. */
-export interface PointWords { reader: string; answer: string | null }
+export interface PointWords { reader: string; status?: UserStatus; answer: string | null }
 
 function OpenPoint({ item, onOpen, words }: {
   item: LegalItem;
@@ -129,7 +131,9 @@ function OpenPoint({ item, onOpen, words }: {
     <>
       <span className="ws-open__line">
         <span className="ws-open__name">{requirementTitle({ code: item.requirement_code })}</span>
-        {words ? <span className="ws-open__word">{words.reader}</span> : null}
+        {/* UX Batch 2: the one StatusChip, as on Points and Changes */}
+        {words?.status ? <StatusChip status={chipStatus(words.status)} />
+          : words ? <span className="ws-open__word">{words.reader}</span> : null}
         {item.where ? <span className="ws-open__where">{item.where}</span> : null}
       </span>
       {words?.answer ? <span className="ws-open__who">{words.answer}</span> : null}

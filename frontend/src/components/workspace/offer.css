@@ -8,7 +8,7 @@
 .lm-offer__point + .lm-offer__point { margin-top: var(--ws-s2); }
 .lm-offer__point[data-room] { border-left-color: var(--ws-ink-700); }
 .lm-offer__list--fixed { margin-top: var(--ws-s2); }
-.lm-offer__title { font-size: var(--ws-text-sm); font-weight: 650; color: var(--ws-ink-900); }
+.lm-offer__title { font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-900); }
 .lm-offer__line { margin: 0; font-size: var(--ws-text-sm); line-height: 1.5; color: var(--ws-ink-700);
   max-width: 68ch; }
 .lm-offer__line [data-room] { font-weight: 600; color: var(--ws-ink-900); }

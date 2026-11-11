@@ -17,22 +17,24 @@
 
 .ws {
   /* Neutrals — cool, slightly blue-shifted: an instrument, not a default grey. */
-  --ws-ink-900: #0e1420;
-  --ws-ink-700: #2b3444;
-  --ws-ink-500: #5b6478;
-  --ws-ink-300: #a8afbd;
-  --ws-ink-100: #e4e7ee;
+  /* UX Batch 2: every value below that has a role is an alias of the one :root set
+     (globals.css). Change a colour there, never here. */
+  --ws-ink-900: var(--c-text);
+  --ws-ink-700: var(--c-text-2);
+  --ws-ink-500: var(--c-text-3);
+  --ws-ink-300: #a8afbd; /* decorative only (2.2:1): never an icon that means something */
+  --ws-ink-100: var(--c-line);
   /* QA-025: form-control edges at 3:1 or more on surface (3.56) and paper (3.23), WCAG 1.4.11 */
-  --ws-input-border: #808899;
+  --ws-input-border: var(--c-line-strong);
   /* 2026-09-01 reference-matched restyle (DD-9): grey canvas, white cards. */
-  --ws-paper: #f2f4f8;
-  --ws-surface: #ffffff;
+  --ws-paper: var(--c-page);
+  --ws-surface: var(--c-surface);
   --ws-shell: #0d1220;
   --ws-on-shell: #e7e9f0;
   --ws-on-shell-muted: #a9afc2;
   /* The one non-state accent: links, focus, primary actions, the highlight. */
-  --ws-accent: #2563eb;
-  --ws-accent-soft: #eff4ff;
+  --ws-accent: var(--c-action);
+  --ws-accent-soft: var(--c-action-tint);
   /* Brand blue — the wordmark's "Mind" half only (owner, 2026-09-02). Deliberately
      NOT the accent: the accent is a functional colour (links, focus, primary
      action) and the brand is an identity colour. Keeping them apart means
@@ -47,7 +49,8 @@
      (4.52:1) or #005fbe (3.01:1, AA-large) — same hue, lifted lightness only.
      `--ws-brand` stays #0055AA for light surfaces regardless. */
   --ws-brand: #0055aa;
-  --ws-brand-on-dark: #0055aa;
+  /* UX Batch 2: the lift DD-12 named, so the mark reads on the shell at 4.52:1 */
+  --ws-brand-on-dark: #007af3;
   /* DD-9 status buckets (owner-approved traffic light): match / review / missing.
      Presentation grouping only — the exact classification always renders beside
      the color. */
@@ -65,9 +68,9 @@
      (amber) and 3.30→5.03 (green); as a bar-segment or legend-dot fill there is
      no text to affect; and the one white-on-red button went 4.83→5.15.
      Previous values: #16a34a / #d97706 / #dc2626. */
-  --ws-ok: #11803a;    --ws-ok-soft: #e9f7ee;
+  --ws-ok: var(--c-status-match);    --ws-ok-soft: var(--c-status-match-tint);
   --ws-warn: #a85c05;  --ws-warn-soft: #fdf3e3;
-  --ws-bad: #d52222;   --ws-bad-soft: #fdecec;
+  --ws-bad: var(--c-error);   --ws-bad-soft: var(--c-error-tint);
   /* The three READER-STATUS tones (owner's reference design, 2026-09-09):
      Acceptable green · Requires modification orange · Needs a decision indigo.
      Named by tone slot (`ok`/`warn`/`bad`, see findingLanguage USER_STATUS_TONE)
@@ -76,8 +79,8 @@
      their meanings elsewhere (an absent value's ✗, an error). Text on white:
      orange 5.0:1, indigo 5.6:1; on their own soft tint both clear 4.5:1. */
   --ws-tone-ok: var(--ws-ok);       --ws-tone-ok-soft: var(--ws-ok-soft);
-  --ws-tone-warn: #c2410c;          --ws-tone-warn-soft: #fff3ea;
-  --ws-tone-bad: #4f46e5;           --ws-tone-bad-soft: #eef2ff;
+  --ws-tone-warn: var(--c-status-change);    --ws-tone-warn-soft: var(--c-status-change-tint);
+  --ws-tone-bad: var(--c-status-decision);   --ws-tone-bad-soft: var(--c-status-decision-tint);
   --ws-card-shadow: 0 1px 2px rgba(14, 20, 32, 0.04), 0 1px 3px rgba(14, 20, 32, 0.06);
   /* Axis hues — chips only, never backgrounds (master prompt §4.2). */
   --ws-mapping: #0e7490;      --ws-mapping-soft: #e3f2f5;
@@ -87,7 +90,8 @@
      the text of a filled axis chip. Previous: #b45309 / #15803d. */
   --ws-outcome: #b35209;      --ws-outcome-soft: #fcf0e1;
   --ws-decision: #157e3c;     --ws-decision-soft: #e6f3ea;
-  --ws-error: #dc2626;        --ws-error-soft: #fdecec;
+  /* retired #dc2626 (4.39:1 on paper, GP-4): one error red */
+  --ws-error: var(--c-error);  --ws-error-soft: var(--c-error-tint);
 
   /* Type roles — the master prompt §4.3 faces, self-hosted in fonts.css
      (DD-8, owner approval 2026-08-31) and served from our own origin.
@@ -97,25 +101,30 @@
   --ws-sans: var(--font-plex-sans, ui-sans-serif), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --ws-mono: var(--font-plex-mono, ui-monospace), ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
   --ws-serif: var(--font-source-serif, Georgia), Georgia, "Iowan Old Style", "Times New Roman", Times, serif;
-  --ws-text-xs: 0.75rem;   /* 12 */
-  --ws-text-sm: 0.8125rem; /* 13 */
-  --ws-text-base: 0.9375rem; /* 15 */
-  --ws-text-md: 1rem;      /* 16 */
-  --ws-text-lg: 1.1875rem; /* 19 */
-  --ws-text-xl: 1.5rem;    /* 24 — the largest anywhere; no hero type exists */
+  /* The one type scale (globals.css :root), by its .ws names. */
+  --ws-text-xs: var(--t-label);        /* 12 — the floor */
+  --ws-text-sm: var(--t-caption);      /* 13 */
+  --ws-text-dense: var(--t-dense);     /* 14 */
+  --ws-text-base: var(--t-body);       /* 15 */
+  --ws-text-md: var(--t-subsection);   /* 16 */
+  --ws-text-lg: var(--t-section);      /* 18 (was 19, off the scale) */
+  --ws-text-xl: var(--t-page);         /* 24 — the largest anywhere */
+  --ws-text-legal: var(--t-legal);     /* 17 — contract text */
 
   /* Spacing scale 4·8·12·16·24·32·48 */
   --ws-s1: 4px; --ws-s2: 8px; --ws-s3: 12px; --ws-s4: 16px;
-  --ws-s5: 24px; --ws-s6: 32px; --ws-s7: 48px;
-  --ws-radius: 8px;
-  --ws-radius-sm: 6px;
-  --ws-radius-card: 10px;
+  --ws-s5: 24px; --ws-s6: 32px; --ws-s7: 48px; --ws-s8: 64px;
+  /* Radius 4 inputs · 8 buttons, chips, cards · 12 dialogs */
+  --ws-radius: var(--r-card);
+  --ws-radius-sm: var(--r-control);
+  --ws-radius-card: var(--r-card);
+  --ws-radius-dialog: var(--r-dialog);
   /* One shared motion token for interactive feedback (hover/focus color and
      border shifts only — never layout). Reduced motion already zeroes every
      transition globally below. */
   --ws-t: 0.13s ease;
   /* The accent's pressed/hover step — same hue, one stop deeper. */
-  --ws-accent-strong: #1d4ed8;
+  --ws-accent-strong: var(--c-action-hover);
   --ws-shell-h: 52px;
   --ws-context-h: 64px;
   /* Workspace column widths (2026-09-02 owner reference pass). FIXED, not minmax,
@@ -132,7 +141,7 @@
   --ws-side-w: clamp(400px, 28vw, 540px);
   /* The document viewer's well — the grey ground the white paper sheet sits on.
      Slightly darker than --ws-paper so the sheet reads as a page, not a card. */
-  --ws-viewer: #dfe3eb;
+  --ws-viewer: var(--c-viewer);
   --ws-z-shell: 20;
   --ws-z-dialog: 30;
 
@@ -259,7 +268,7 @@
 .ws-notes__empty { display: grid; gap: 2px; margin: 0; }
 .ws-notes__empty strong { font-weight: 500; }
 .ws-notes__foot { border-top: 1px solid var(--ws-ink-100); padding-top: 8px; margin-top: 2px; }
-.ws-notes__foot a { color: var(--ws-accent); font-weight: 550; text-decoration: none; }
+.ws-notes__foot a { color: var(--ws-accent); font-weight: 500; text-decoration: none; }
 .ws-notes__foot a:hover { text-decoration: underline; }
 .ws-shell__user { position: relative; font-size: var(--ws-text-sm); color: var(--ws-on-shell-muted); }
 .ws-shell__usertoggle {
@@ -287,7 +296,7 @@
   padding: var(--ws-s2) var(--ws-s4);
   background: var(--ws-surface); border-bottom: 1px solid var(--ws-ink-100);
 }
-.ws-context h1 { font-size: var(--ws-text-lg); font-weight: 650; margin: 0; letter-spacing: -0.005em; }
+.ws-context h1 { font-size: var(--ws-text-xl); font-weight: 600; margin: 0; letter-spacing: -0.005em; }
 .ws-context__back {
   display: inline-flex; align-items: center; justify-content: center;
   width: 34px; height: 34px; border-radius: var(--ws-radius);
@@ -300,8 +309,10 @@
 .ws-export { display: inline-flex; align-items: center; gap: var(--ws-s2); }
 .ws-context__meta { display: flex; gap: var(--ws-s3); align-items: center; font-size: var(--ws-text-sm); color: var(--ws-ink-500); flex-wrap: wrap; }
 .ws-chip {
-  font-family: var(--ws-mono); font-size: 10.5px; font-weight: 500; letter-spacing: 0.02em;
-  padding: 2px 7px; border-radius: var(--ws-radius-sm); border: 1px solid var(--ws-ink-100);
+  /* UX Batch 2: the one chip shape (StatusChip's): sans, sentence case, 12/16 500, radius 8 —
+     mono is for references and IDs, never a state */
+  font-family: var(--ws-sans); font-size: var(--t-label); line-height: var(--t-label-lh); font-weight: 500;
+  padding: 2px 8px; border-radius: var(--ws-radius); border: 1px solid var(--ws-ink-100);
   color: var(--ws-ink-500); background: transparent; white-space: nowrap;
 }
 .ws-chip--type { color: var(--ws-ink-700); }
@@ -391,7 +402,7 @@
   border-bottom: 1px solid var(--ws-ink-100); flex: none;
 }
 .ws-side__tabs [role="tab"] {
-  font: inherit; font-size: var(--ws-text-sm); font-weight: 550; padding: 9px 12px;
+  font: inherit; font-size: var(--ws-text-sm); font-weight: 500; padding: 9px 12px;
   border: 0; border-bottom: 2px solid transparent; background: transparent;
   color: var(--ws-ink-500); cursor: pointer;
   transition: color var(--ws-t), border-color var(--ws-t);
@@ -516,7 +527,7 @@
   background: var(--ws-paper); border-color: var(--ws-ink-100); color: var(--ws-ink-900);
 }
 .ws-outline__title {
-  font-size: var(--ws-text-xs); font-weight: 650; letter-spacing: 0.09em; text-transform: uppercase;
+  font-size: var(--ws-text-xs); font-weight: 600;
   color: var(--ws-ink-700); padding: 0 var(--ws-s4) var(--ws-s2); margin: 0;
 }
 .ws-outline__head .ws-outline__title { padding-bottom: 0; }
@@ -545,7 +556,7 @@
 .ws-outline__list button:hover { background: var(--ws-paper); }
 .ws-outline__list button[aria-current="true"] {
   border-left-color: var(--ws-accent); color: var(--ws-accent);
-  background: var(--ws-accent-soft); font-weight: 550;
+  background: var(--ws-accent-soft); font-weight: 500;
 }
 /* The Contents as a TREE (owner, 2026-09-10): a chevron per section that has
    children, the document's own numbers, indentation by real depth. The jump
@@ -600,8 +611,8 @@
    (`ok`/`warn`/`bad`, see `findingLanguage`). Same three channels either way —
    aliases, never a second colour system. */
 .ws-status--match { color: var(--ws-ok); }
-.ws-status--review { color: var(--ws-warn); }
-.ws-status--missing { color: var(--ws-bad); }
+.ws-status--review { color: var(--c-status-change); }
+.ws-status--missing { color: var(--c-status-missing); }  /* orange, never red (UX Batch 2) */
 .ws-status--ok { color: var(--ws-tone-ok); }
 .ws-status--warn { color: var(--ws-tone-warn); }
 .ws-status--bad { color: var(--ws-tone-bad); }
@@ -664,7 +675,7 @@
 .ws-doccard__zoom { font-size: var(--ws-text-xs); color: var(--ws-ink-500); min-width: 3ch; text-align: center; }
 .ws-doccard__meta {
   margin: 0; padding: var(--ws-s1) var(--ws-s4); border-top: 1px solid var(--ws-ink-100);
-  font-size: 10.5px; color: var(--ws-ink-500); flex: none;
+  font-size: var(--t-label); color: var(--ws-ink-500); flex: none;
   display: flex; justify-content: space-between; gap: var(--ws-s3); align-items: baseline;
 }
 .ws-doccard__meta > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -677,15 +688,17 @@
    HTML article. Centering replaces the earlier left-anchored rule deliberately:
    the sheet's own edges now give the eye its column, the way every PDF viewer
    does. The measure stays bounded by the sheet width (~78ch at 100% zoom). */
-.ws-text { overflow-y: auto; padding: var(--ws-s5) var(--ws-s5) var(--ws-s7); min-height: 0; flex: 1; background: var(--ws-viewer); }
+.ws-text { overflow-y: auto; padding: var(--ws-s5) var(--ws-s5) var(--ws-s7); min-height: 0; flex: 1; background: var(--ws-viewer);
+  /* Contract text: 17px serif at 100% (owner, UX Batch 2). The zoom control sets --ws-zoom;
+     the rows read --ws-legal, so zoom now scales the words, not only the gaps. */
+  --ws-legal: calc(var(--t-legal) * var(--ws-zoom, 1)); font-size: var(--ws-legal); }
 .ws-page {
   position: relative; margin: 0 auto var(--ws-s5); max-width: 800px;
   background: var(--ws-surface); border-radius: 2px;
   padding: 56px 64px;
   box-shadow: 0 1px 3px rgba(14, 20, 32, 0.14), 0 10px 28px rgba(14, 20, 32, 0.10);
 }
-.ws-page__marker {
-  font-family: var(--ws-mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase;
+.ws-page__marker { font-size: var(--t-label);
   color: var(--ws-ink-500); border-bottom: 1px dashed var(--ws-ink-100);
   padding-bottom: var(--ws-s1); margin-bottom: var(--ws-s4);
 }
@@ -705,7 +718,7 @@
    agreement is set upright. Everywhere a document excerpt appears inside
    application chrome (.ws-quote, .ws-evidence__quote, ask citations) the italic
    voice is unchanged. */
-.ws-row__text { margin: 0; font-family: var(--ws-serif); font-size: var(--ws-text-md); line-height: 1.62; color: var(--ws-ink-900); white-space: pre-wrap; }
+.ws-row__text { margin: 0; font-family: var(--ws-serif); font-size: var(--ws-legal, var(--t-legal)); line-height: var(--t-legal-lh); color: var(--ws-ink-900); white-space: pre-wrap; }
 
 /* Structural presentation (DD-14) — shapes RECOGNISED in the extracted text
    (rowPresentation in model.ts), set the way the source sets them. The string
@@ -714,11 +727,12 @@
    rivers across the sheet. */
 .ws-row[data-kind="title"] { margin-top: var(--ws-s3); }
 .ws-row[data-kind="title"] .ws-row__text {
-  text-align: center; font-weight: 700; font-size: 1.28em;
+  /* serif 700: the static bold face (fonts.css); the variable face spaces bold capitals unevenly */
+  text-align: center; font-weight: 700; font-size: calc(var(--t-section) * var(--ws-zoom, 1));
   text-decoration: underline; text-underline-offset: 3px;
 }
 .ws-row[data-kind="heading"] { margin-top: var(--ws-s4); }
-.ws-row[data-kind="heading"] .ws-row__text { font-weight: 700; font-size: 1.05em; }
+.ws-row[data-kind="heading"] .ws-row__text { font-weight: 700; }
 .ws-row[data-kind="subheading"] { margin-top: var(--ws-s2); }
 .ws-row[data-kind="subheading"] .ws-row__text { font-weight: 700; }
 /* Hanging indents now come from `readingLayout` (data-hang, below), for every
@@ -750,7 +764,7 @@
   border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-sm); padding: 6px 8px;
 }
 .ws-annopop__acts { display: flex; gap: var(--ws-s2); }
-.ws-annopop__note { margin: 0; font-size: 10.5px; color: var(--ws-ink-500); }
+.ws-annopop__note { margin: 0; font-size: var(--t-label); color: var(--ws-ink-500); }
 .ws-row--lit { background: var(--ws-accent-soft); border-left-color: var(--ws-accent); }
 .ws-row--lit .ws-row__text { color: var(--ws-ink-900); }
 
@@ -771,8 +785,9 @@
   .ws * { scroll-behavior: auto !important; transition: none !important; }
 }
 .ws-btn {
-  font: inherit; font-size: var(--ws-text-sm); font-weight: 500; padding: 8px 14px; min-height: 36px;
-  border-radius: var(--ws-radius); border: 1px solid var(--ws-ink-300); background: var(--ws-surface);
+  /* UX Batch 2: buttons 14/500, and a secondary button's edge at control strength (3.56:1) */
+  font: inherit; font-size: var(--ws-text-dense); font-weight: 500; padding: 8px 14px; min-height: 36px;
+  border-radius: var(--ws-radius); border: 1px solid var(--ws-input-border); background: var(--ws-surface);
   color: var(--ws-ink-700); cursor: pointer; text-decoration: none; display: inline-block;
   transition: background-color var(--ws-t), border-color var(--ws-t), color var(--ws-t), transform var(--ws-t), box-shadow var(--ws-t);
 }
@@ -851,7 +866,7 @@
 .ws-chip--flag {
   background: var(--ws-outcome-soft); color: var(--ws-outcome); font-weight: 600;
   border: 1px solid color-mix(in srgb, var(--ws-outcome) 30%, transparent);
-  font-family: var(--ws-mono); font-size: 10.5px; letter-spacing: 0.02em;
+  font-family: var(--ws-mono); font-size: var(--t-label); letter-spacing: 0.02em;
   padding: 2px 7px; border-radius: var(--ws-radius-sm); white-space: nowrap;
 }
 
@@ -864,7 +879,7 @@
 .ws-facts dd { margin: 0; }
 .ws-evidence-refs { display: flex; gap: 6px; flex-wrap: wrap; margin: var(--ws-s2) 0; }
 .ws-evidence-refs button {
-  font: inherit; font-family: var(--ws-mono); font-size: 10.5px; padding: 3px 8px;
+  font: inherit; font-family: var(--ws-mono); font-size: var(--t-label); padding: 3px 8px;
   border-radius: var(--ws-radius-sm); border: 1px solid var(--ws-ink-300); background: var(--ws-surface);
   color: var(--ws-accent); cursor: pointer;
   transition: border-color var(--ws-t), background-color var(--ws-t);
@@ -873,7 +888,7 @@
 .ws-evidence-refs button[aria-current="true"] { background: var(--ws-accent-soft); border-color: var(--ws-accent); }
 
 .ws-decision { margin-top: var(--ws-s3); padding-top: var(--ws-s3); border-top: 1px dashed var(--ws-ink-100); }
-.ws-decision__label { font-family: var(--ws-mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ws-decision); margin: 0 0 6px; }
+.ws-decision__label { font-size: var(--t-label); color: var(--ws-decision); margin: 0 0 6px; }
 .ws-decision__form { display: flex; flex-direction: column; gap: var(--ws-s2); max-width: 32rem; }
 .ws-decision__form label { font-size: var(--ws-text-sm); display: flex; flex-direction: column; gap: 4px; }
 .ws-decision__form select, .ws-decision__form textarea {
@@ -920,10 +935,10 @@
 .ws-ask__positions { margin-top: var(--ws-s3); }
 .ws-ask__cite--static { cursor: default; }
 .ws-ask__handoff { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-s3); margin-top: var(--ws-s3); }
-.ws-ask__counts { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--ws-s2) var(--ws-s3); font-size: 12.5px; }
+.ws-ask__counts { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--ws-s2) var(--ws-s3); font-size: var(--t-caption); }
 /* `.ws-ask__answer .ws-ask__routed-label` too: `.ws-ask__answer p` outranked the label
    and set it at body size, so a 10.5px caption read as a heading (AM-109). */
-.ws-ask__routed-label, .ws-ask__answer .ws-ask__routed-label { font-family: var(--ws-mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ws-ink-500) !important; margin-bottom: 4px !important; }
+.ws-ask__routed-label, .ws-ask__answer .ws-ask__routed-label { font-size: var(--t-label); color: var(--ws-ink-500) !important; margin-bottom: 4px !important; }
 .ws-ask__citations { list-style: none; margin: var(--ws-s3) 0 0; padding: var(--ws-s3) 0 0; border-top: 1px dashed var(--ws-ink-100); display: flex; flex-direction: column; gap: var(--ws-s3); }
 .ws-ask__cite {
   font: inherit; font-size: var(--ws-text-sm); color: var(--ws-accent); background: none;
@@ -937,7 +952,7 @@
    Baseline and line-height are inherited so a paragraph of legal prose keeps its
    rhythm with three markers in it or none. */
 .ws-ask__ref {
-  font: inherit; font-family: var(--ws-mono); font-size: 0.86em;
+  font: inherit; font-family: var(--ws-mono); font-size: var(--t-caption);
   color: var(--ws-accent); background: none; border: 0;
   padding: 0 1px; margin: 0; cursor: pointer;
   line-height: inherit; vertical-align: baseline;
@@ -967,9 +982,7 @@
    keyboard-operable with the browser's own focus ring (no focus removal anywhere). */
 .ws-ask__exact { margin: 4px 0; }
 .ws-ask__exact-toggle {
-  cursor: pointer; color: var(--ws-accent);
-  font-family: var(--ws-mono); font-size: 10.5px;
-  letter-spacing: 0.08em; text-transform: uppercase;
+  cursor: pointer; color: var(--ws-accent); font-size: var(--t-label);
 }
 .ws-ask__exact-toggle:hover { color: var(--ws-ink-900); }
 .ws-ask__exact[open] .ws-ask__exact-toggle { margin-bottom: 2px; }
@@ -982,7 +995,7 @@
 .ws-ask__standard-state {
   margin-left: var(--ws-s2); padding: 1px 6px; border-radius: 3px;
   background: var(--ws-warn-soft); color: var(--ws-warn);
-  font-family: var(--ws-mono); font-size: 10.5px; letter-spacing: 0.04em;
+  font-family: var(--ws-mono); font-size: var(--t-label); letter-spacing: 0.04em;
   white-space: nowrap;
 }
 .ws-ask__empty { margin: 0; font-size: var(--ws-text-sm); color: var(--ws-ink-500); max-width: 46ch; }
@@ -1061,7 +1074,7 @@
 .ws-dock__count {
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 19px; height: 19px; padding: 0 5px;
-  font-size: 10.5px; font-weight: 600; line-height: 1;
+  font-size: var(--t-label); font-weight: 600; line-height: 1;
   color: var(--ws-accent); background: #fff; border-radius: 999px;
 }
 
@@ -1127,7 +1140,7 @@
 .ws-dock__note {
   width: 100%; max-width: calc(72ch + var(--ws-s4) + var(--ws-s3));
   flex: none; margin: 0 auto; padding: 0 var(--ws-s4) var(--ws-s3);
-  font-size: 10.5px; color: var(--ws-ink-500);
+  font-size: var(--t-label); color: var(--ws-ink-500);
 }
 
 /* ==========================================================================
@@ -1199,11 +1212,10 @@
 .ws-analysis__section { display: flex; flex-direction: column; gap: var(--ws-s3); }
 .ws-analysis__head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--ws-s2); }
 .ws-analysis__title {
-  font-size: var(--ws-text-xs); font-weight: 650; letter-spacing: 0.09em;
-  text-transform: uppercase; color: var(--ws-ink-700); margin: 0;
+  font-size: var(--ws-text-xs); font-weight: 600; color: var(--ws-ink-700); margin: 0;
 }
 .ws-viewall {
-  font: inherit; font-size: var(--ws-text-xs); font-weight: 550; color: var(--ws-accent);
+  font: inherit; font-size: var(--ws-text-xs); font-weight: 500; color: var(--ws-accent);
   background: none; border: 0; padding: 0; cursor: pointer;
 }
 .ws-viewall:hover { text-decoration: underline; text-underline-offset: 3px; }
@@ -1233,9 +1245,9 @@
 .ws-tile:hover { box-shadow: 0 2px 8px rgba(14, 20, 32, 0.10); }
 .ws-tile:active { transform: scale(0.98); }
 .ws-tile:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
-.ws-tile__n { font-family: var(--ws-mono); font-size: 1.35rem; font-weight: 650; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.ws-tile__n { font-family: var(--ws-mono); font-size: var(--t-page); font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .ws-tile__label {
-  font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em;
+  font-size: var(--t-label); font-weight: 600; letter-spacing: 0.02em;
   /* Wraps at WORD boundaries, never truncates and never mid-word. The old
      `overflow-wrap: anywhere` was the "Requir / es / modific / ation" defect
      (owner, 2026-09-09): with three `minmax(0, 1fr)` columns the browser was
@@ -1269,8 +1281,8 @@
 .ws-ring__seg--ok { stroke: var(--ws-tone-ok); }
 .ws-ring__seg--warn { stroke: var(--ws-tone-warn); }
 .ws-ring__seg--bad { stroke: var(--ws-tone-bad); }
-.ws-ring__total { font-family: var(--ws-mono); font-size: 20px; font-weight: 650; fill: var(--ws-ink-900); }
-.ws-ring__label { font-size: 9px; fill: var(--ws-ink-500); letter-spacing: 0.06em; text-transform: uppercase; }
+.ws-ring__total { font-family: var(--ws-mono); font-size: var(--t-section); font-weight: 600; fill: var(--ws-ink-900); }
+.ws-ring__label { font-size: var(--t-label); fill: var(--ws-ink-500); }
 .ws-ring__legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
 .ws-ring__legend li { display: flex; align-items: center; }
 /* Legend rows are the same control as their tile (DD-14). */
@@ -1351,7 +1363,7 @@
 }
 .ws-obligations__group[data-open="true"] .ws-obligations__party { color: var(--ws-accent); }
 .ws-obligations__more {
-  font: inherit; font-size: var(--ws-text-xs); font-weight: 550; color: var(--ws-accent);
+  font: inherit; font-size: var(--ws-text-xs); font-weight: 500; color: var(--ws-accent);
   background: none; border: 0; padding: 2px 0 0 21px; cursor: pointer;
 }
 .ws-obligations__more:hover { text-decoration: underline; text-underline-offset: 3px; }
@@ -1423,7 +1435,7 @@
 
 .ws-docs__table { background: var(--ws-surface); border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius); overflow-x: auto; }
 .ws-docs__table table { width: 100%; border-collapse: collapse; font-size: var(--ws-text-sm); }
-.ws-docs__table th { text-align: left; font-family: var(--ws-mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ws-ink-500); padding: var(--ws-s3) var(--ws-s4); border-bottom: 1px solid var(--ws-ink-100); }
+.ws-docs__table th { text-align: left; font-size: var(--t-label); color: var(--ws-ink-500); padding: var(--ws-s3) var(--ws-s4); border-bottom: 1px solid var(--ws-ink-100); }
 .ws-docs__table td { padding: var(--ws-s3) var(--ws-s4); border-bottom: 1px solid var(--ws-ink-100); vertical-align: middle; }
 .ws-docs__table tr:last-child td { border-bottom: 0; }
 /* Row hover — orientation across a wide row, matching the legacy table-card
@@ -1465,7 +1477,7 @@
 }
 /* "Counts in the mono voice" (comment above) — now actually set: the mono face
    with tabular numerals, the same voice every other machine-tracked value uses. */
-.ws-stat__n { font-family: var(--ws-mono); font-variant-numeric: tabular-nums; font-weight: 600; font-size: 1.35rem; line-height: 1.2; color: var(--ws-ink-900); }
+.ws-stat__n { font-family: var(--ws-mono); font-variant-numeric: tabular-nums; font-weight: 600; font-size: var(--t-page); line-height: 1.2; color: var(--ws-ink-900); }
 .ws-stat__label { font-size: var(--ws-text-sm); color: var(--ws-ink-500); }
 .ws-stat--attention { box-shadow: inset 3px 0 0 var(--ws-outcome); }
 .ws-report__h { font-size: var(--ws-text-base); margin: 0 0 8px; color: var(--ws-ink-700); }
@@ -1480,7 +1492,7 @@
   border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius);
   padding: var(--ws-s3); background: var(--ws-surface);
 }
-.ws-report__unmatched-item a { font-size: var(--ws-text-sm); font-weight: 550; }
+.ws-report__unmatched-item a { font-size: var(--ws-text-sm); font-weight: 500; }
 /* AM-61 — what was measured, and what was not. A dense reference table in the
    product's own tokens: the requirement, its Constitution section, the engine's
    reason verbatim. Scrolls horizontally on a narrow screen rather than breaking
@@ -1493,8 +1505,8 @@
 .ws-report__table th, .ws-report__table td {
   text-align: left; vertical-align: top; padding: 8px 10px; border-top: 1px solid var(--ws-ink-100);
 }
-.ws-report__table thead th { border-top: 0; color: var(--ws-ink-500); font-weight: 550; white-space: nowrap; }
-.ws-report__table tbody th { font-weight: 550; color: var(--ws-ink-700); min-width: 12rem; }
+.ws-report__table thead th { border-top: 0; color: var(--ws-ink-500); font-weight: 500; white-space: nowrap; }
+.ws-report__table tbody th { font-weight: 500; color: var(--ws-ink-700); min-width: 12rem; }
 .ws-report__table td:nth-child(2) { white-space: nowrap; color: var(--ws-ink-500); }
 .ws-report__code { display: block; font-size: var(--ws-text-xs); font-weight: 450; color: var(--ws-ink-500); margin-top: 2px; }
 .ws-report__unmatched-item .ws-quote {
@@ -1510,15 +1522,13 @@
    cited legal answer keeps its reading measure. */
 .ws-turn--ai { display: flex; flex-direction: column; gap: 6px; }
 .ws-ask__voice {
-  margin: 0; display: inline-flex; align-items: center; gap: 6px;
-  font-family: var(--ws-mono); font-size: var(--ws-text-xs); letter-spacing: 0.04em;
-  text-transform: uppercase; color: var(--ws-ink-500);
+  margin: 0; display: inline-flex; align-items: center; gap: 6px; font-size: var(--ws-text-xs); color: var(--ws-ink-500);
 }
 .ws-ask__voicemark {
   display: inline-flex; align-items: center; justify-content: center;
   width: 20px; height: 20px; border-radius: 50%;
   background: var(--ws-accent-soft); color: var(--ws-accent);
-  font-family: var(--ws-sans); font-size: 11px; font-weight: 700; letter-spacing: 0;
+  font-family: var(--ws-sans); font-size: var(--t-label); font-weight: 600; letter-spacing: 0;
 }
 /* A cited passage, collapsed behind its clause reference; the excerpt keeps its
    quotation styling once opened. */
@@ -1617,7 +1627,7 @@
 .ws-cell-chips { display: flex; gap: 6px; flex-wrap: wrap; }
 
 /* ---- the summary → category → finding → evidence drill (2026-08-31 v2) --- */
-.ws-btn--sm { padding: 3px 9px; font-size: var(--ws-text-xs); }
+.ws-btn--sm { padding: 4px 12px; font-size: var(--ws-text-sm); }
 /* The one step ABOVE the default, for a lone call to action that is the whole
    point of the screen it sits on — the Client Profiles first-run invitation
    today, and nothing else. 44px is the accessibility touch-target floor rather
@@ -1669,9 +1679,7 @@
 
 /* ---- Documents as the work dashboard ------------------------------------- */
 .ws-attend { display: grid; gap: var(--ws-s2); }
-.ws-attend__title {
-  font-family: var(--ws-mono); font-size: 10.5px; letter-spacing: 0.09em;
-  text-transform: uppercase; color: var(--ws-ink-500); margin: 0 0 var(--ws-s1);
+.ws-attend__title { font-size: var(--t-label); color: var(--ws-ink-500); margin: 0 0 var(--ws-s1);
 }
 .ws-docs__table > .ws-attend__title { padding: var(--ws-s3) var(--ws-s4) 0; }
 .ws-attend__list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--ws-s2); }
@@ -1704,8 +1712,8 @@
   border-radius: var(--ws-radius-card); box-shadow: var(--ws-card-shadow);
   padding: var(--ws-s4);
 }
-.ws-docs--index .ws-intake__title { font-weight: 650; letter-spacing: -0.005em; }
-.ws-docs--index .ws-field__label { font-weight: 550; }
+.ws-docs--index .ws-intake__title { font-weight: 600; letter-spacing: -0.005em; }
+.ws-docs--index .ws-field__label { font-weight: 500; }
 .ws-docs--index .ws-field input,
 .ws-docs--index .ws-field select { transition: border-color var(--ws-t), box-shadow var(--ws-t); }
 .ws-docs--index .ws-field input:focus-visible,
@@ -1721,7 +1729,7 @@
 }
 .ws-docs--index .ws-docs__table:has(table) { overflow-x: auto; }
 .ws-docs--index .ws-docs__table th {
-  font-family: inherit; font-weight: 650; padding: 11px var(--ws-s4);
+  font-family: inherit; font-weight: 600; padding: 11px var(--ws-s4);
   background: var(--ws-paper);
 }
 /* Body rows read at the page's own size, not a size below it.
@@ -1737,7 +1745,7 @@
 }
 .ws-docs--index .ws-docs__table tbody tr { transition: background-color var(--ws-t); }
 .ws-docs--index .ws-docs__table tbody tr:hover td { background: var(--ws-accent-soft); }
-.ws-docs--index .ws-docs__table td a { font-weight: 550; color: var(--ws-ink-900); }
+.ws-docs--index .ws-docs__table td a { font-weight: 500; color: var(--ws-ink-900); }
 .ws-docs--index .ws-docs__table td a:hover { color: var(--ws-accent); text-underline-offset: 3px; }
 .ws-docs--index .ws-docs__skel { padding: 13px var(--ws-s4); }
 .ws-docs--index .ws-docs__skel:last-child { border-bottom: 0; }
@@ -1751,12 +1759,12 @@
 .ws-docs--index .ws-attend__row:hover {
   border-color: var(--ws-ink-300); box-shadow: 0 2px 6px rgba(14, 20, 32, 0.07);
 }
-.ws-docs--index .ws-attend__title { font-weight: 650; }
+.ws-docs--index .ws-attend__title { font-weight: 600; }
 
 /* Pager — real button pills instead of bare text links, right-aligned under
  * the table the way pagination reads everywhere else in the product. */
 .ws-docs--index .ws-pager { justify-content: flex-end; }
-.ws-docs--index .ws-pager .ws-mono { color: var(--ws-ink-700); font-weight: 550; }
+.ws-docs--index .ws-pager .ws-mono { color: var(--ws-ink-700); font-weight: 500; }
 
 /* ==========================================================================
  * Documents INDEX — AI Contract Intelligence redesign (owner, 2026-09-01,
@@ -1793,9 +1801,9 @@
 .ws-doctile--active.ws-doctile--analyzed { box-shadow: 0 0 0 2px var(--ws-ok); }
 .ws-doctile--active.ws-doctile--draft { box-shadow: 0 0 0 2px var(--ws-tone-bad); }
 .ws-doctile__head { display: flex; align-items: center; justify-content: space-between; }
-.ws-doctile__label { font-size: var(--ws-text-sm); color: var(--ws-ink-500); font-weight: 550; }
+.ws-doctile__label { font-size: var(--ws-text-sm); color: var(--ws-ink-500); font-weight: 500; }
 .ws-doctile__icon { display: inline-flex; color: var(--ws-ink-300); }
-.ws-doctile__n { font-size: 1.85rem; font-weight: 650; line-height: 1; color: var(--ws-ink-900); }
+.ws-doctile__n { font-size: var(--t-page); font-weight: 600; line-height: 1; color: var(--ws-ink-900); }
 .ws-doctile--needs_attention .ws-doctile__icon { color: var(--ws-warn); }
 .ws-doctile--needs_attention .ws-doctile__n { color: var(--ws-warn); }
 .ws-doctile--analyzed .ws-doctile__icon { color: var(--ws-ok); }
@@ -1839,17 +1847,17 @@
 .ws-doctend__card:hover { border-color: var(--ws-warn); box-shadow: 0 4px 12px rgba(217, 119, 6, 0.12); }
 .ws-doctend__card:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
 .ws-doctend__row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.ws-doctend__name { font-weight: 650; color: var(--ws-ink-900); font-size: 14px; }
+.ws-doctend__name { font-weight: 600; color: var(--ws-ink-900); font-size: var(--t-dense); }
 .ws-doctend__go {
-  display: inline-flex; align-items: center; gap: 4px; font-size: 12px;
-  font-weight: 550; color: var(--ws-accent); margin-top: 0px;
+  display: inline-flex; align-items: center; gap: 4px; font-size: var(--t-label);
+  font-weight: 500; color: var(--ws-accent); margin-top: 0px;
 }
 
 /* Status pills — the four real derived buckets, icon + label, never color
  * alone (rule 12 / accessibility). */
 .ws-status-pill {
   display: inline-flex; align-items: center; gap: 4px;
-  font-size: 10px; font-weight: 600; padding: 2px 8px;
+  font-size: var(--t-label); font-weight: 600; padding: 2px 8px;
   border-radius: 999px; border: 1px solid transparent; white-space: nowrap;
 }
 .ws-status-pill--draft { background: var(--ws-paper); color: var(--ws-ink-500); border-color: var(--ws-ink-100); }
@@ -1869,8 +1877,8 @@
  * never a fabricated zero, when nothing has been analyzed. */
 .ws-findings-cell { display: inline-flex; gap: 4px; }
 .ws-findings-badge {
-  min-width: 22px; text-align: center; font-family: var(--ws-mono); font-size: 11px;
-  font-weight: 650; padding: 2px 6px; border-radius: var(--ws-radius-sm);
+  min-width: 22px; text-align: center; font-family: var(--ws-mono); font-size: var(--t-label);
+  font-weight: 600; padding: 2px 6px; border-radius: var(--ws-radius-sm);
 }
 .ws-findings-badge--ok { background: var(--ws-tone-ok-soft); color: var(--ws-tone-ok); }
 .ws-findings-badge--warn { background: var(--ws-tone-warn-soft); color: var(--ws-tone-warn); }
@@ -1948,7 +1956,7 @@
   flex: 1 1 auto; min-width: 0;
 }
 .ws-dashhero__greeting {
-  margin: 0; font-size: 2rem; font-weight: 700; color: var(--ws-ink-900);
+  margin: 0; font-size: var(--t-page); font-weight: 600; color: var(--ws-ink-900);
   letter-spacing: -0.01em;
 }
 .ws-dashhero__sub { margin: 0; color: var(--ws-ink-700); font-size: var(--ws-text-base); max-width: 42ch; }
@@ -2011,7 +2019,7 @@
   /* Smaller at narrow widths so the greeting wraps onto fewer, more even
      lines instead of stretching across most of the viewport before it ever
      needs to (owner review, 2026-09-24 responsive pass). */
-  .ws-dashhero__greeting { font-size: 1.5rem; }
+  .ws-dashhero__greeting { font-size: var(--t-page); }
 }
 
 /* Recent Contracts card header — title, one line of static supporting copy,
@@ -2027,7 +2035,7 @@
   display: flex; align-items: flex-start; justify-content: space-between; gap: var(--ws-s3);
   padding: var(--ws-s4) var(--ws-s4) var(--ws-s3);
 }
-.ws-doctable__title { margin: 0; display: flex; align-items: center; gap: 8px; font-size: var(--ws-text-md); font-weight: 650; color: var(--ws-ink-900); }
+.ws-doctable__title { margin: 0; display: flex; align-items: center; gap: 8px; font-size: var(--ws-text-md); font-weight: 600; color: var(--ws-ink-900); }
 .ws-doctable__sub { margin: 2px 0 0; font-size: var(--ws-text-sm); color: var(--ws-ink-500); }
 .ws-doctable__viewall { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 /* The pager sits inside the same card and was just as flush against the
@@ -2076,7 +2084,7 @@
 }
 .ws-dashactivity__head h2 {
   margin: 0 0 var(--ws-s3); display: flex; align-items: center; gap: 8px;
-  font-size: var(--ws-text-md); font-weight: 650; color: var(--ws-ink-900);
+  font-size: var(--ws-text-md); font-weight: 600; color: var(--ws-ink-900);
 }
 .ws-dashactivity__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--ws-s4); }
 .ws-dashactivity__item { display: flex; gap: 10px; }
@@ -2087,7 +2095,7 @@
 .ws-dashactivity__icon--uploaded { background: var(--ws-accent-soft); color: var(--ws-accent); }
 .ws-dashactivity__icon--analyzed { background: var(--ws-ok-soft); color: var(--ws-ok); }
 .ws-dashactivity__body { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.ws-dashactivity__title { font-size: var(--ws-text-sm); font-weight: 650; color: var(--ws-ink-900); }
+.ws-dashactivity__title { font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-900); }
 .ws-dashactivity__doc {
   font-size: var(--ws-text-sm); color: var(--ws-ink-700); text-decoration: none;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;
@@ -2113,7 +2121,7 @@
   border-radius: var(--ws-radius-card); box-shadow: var(--ws-card-shadow); overflow: hidden;
 }
 .ws-docs--index .ws-docs__table:has(table) { overflow-x: auto; }
-.ws-docs--index .ws-docs__table th { font-family: inherit; font-weight: 650; background: var(--ws-paper); }
+.ws-docs--index .ws-docs__table th { font-family: inherit; font-weight: 600; background: var(--ws-paper); }
 .ws-docs--index .ws-docs__table tbody tr { transition: background-color var(--ws-t); }
 .ws-docs--index .ws-docs__table tbody tr:hover td { background: var(--ws-accent-soft); }
 /* Row padding deepened to --ws-s4 (16px) vertical (2026-09-02): --ws-s3 (12px)
@@ -2149,7 +2157,7 @@
  * clear 4.5:1 on white as plain text, not only on their own soft tint. */
 .ws-docs--index .ws-findings-badge {
   min-width: 0; background: transparent; padding: 0 3px;
-  font-size: 12.5px; font-weight: 700;
+  font-size: var(--t-caption); font-weight: 600;
 }
 .ws-docs--index .ws-findings-cell { gap: 9px; }
 
@@ -2159,14 +2167,14 @@
   width: 52px; height: 52px; border-radius: 50%; background: var(--ws-accent-soft);
   color: var(--ws-accent); display: flex; align-items: center; justify-content: center;
 }
-.ws-drop__title { margin: 0; font-size: var(--ws-text-md); font-weight: 650; color: var(--ws-ink-900); }
+.ws-drop__title { margin: 0; font-size: var(--ws-text-md); font-weight: 600; color: var(--ws-ink-900); }
 .ws-checklist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .ws-checklist__row {
   display: flex; align-items: center; gap: 9px; font-size: var(--ws-text-sm);
   color: var(--ws-ink-500);
 }
 .ws-checklist__row--done { color: var(--ws-ink-900); }
-.ws-checklist__row--active { color: var(--ws-accent); font-weight: 550; }
+.ws-checklist__row--active { color: var(--ws-accent); font-weight: 500; }
 .ws-checklist__icon { display: inline-flex; flex: none; color: var(--ws-ok); }
 .ws-checklist__row:not(.ws-checklist__row--done) .ws-checklist__icon { color: var(--ws-ink-300); }
 .ws-checklist__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ws-ink-100); display: inline-block; }
@@ -2224,7 +2232,7 @@
 }
 
 .ws-docs--index .ws-doctile__label {
-  font-size: 11.5px;
+  font-size: var(--t-label);
   color: var(--ws-ink-500);
 }
 
@@ -2246,7 +2254,7 @@
 .ws-docs--index .ws-doctile__icon { grid-row: 1 / span 2; align-self: center; }
 /* 2026-09-02: bolder and a step larger than the base rule — the count is the
  * one thing on this tile that must win the eye first; the label is context. */
-.ws-docs--index .ws-doctile__n { font-size: 1.75rem; font-weight: 700; letter-spacing: -0.01em; }
+.ws-docs--index .ws-doctile__n { font-size: var(--t-page); font-weight: 600; letter-spacing: -0.01em; }
 
 /* Status tiles tint their own icon plate, so the row still reads as four
    distinct states without colour being the only signal (each keeps its icon). */
@@ -2345,7 +2353,7 @@
   /* At two columns the tiles are the thing that must stay legible; a 38px
      plate beside a 1.5rem number in a 160px column is too tight. */
   .ws-docs--index .ws-doctile { min-height: 74px; padding: var(--ws-s3); }
-  .ws-docs--index .ws-doctile__n { font-size: 1.3rem; }
+  .ws-docs--index .ws-doctile__n { font-size: var(--t-section); }
 }
 
 
@@ -2658,7 +2666,7 @@
   display: grid; gap: var(--ws-s3);
 }
 .ws-modal__box h2 {
-  margin: 0; font-size: var(--ws-text-md); font-weight: 650;
+  margin: 0; font-size: var(--ws-text-md); font-weight: 600;
 }
 .ws-modal__box form { display: grid; gap: var(--ws-s3); }
 .ws-modal__body { margin: 0; color: var(--ws-ink-700); font-size: var(--ws-text-sm); }
@@ -2679,7 +2687,7 @@
   background: var(--ws-accent-soft); color: var(--ws-accent);
 }
 .ws-upload-dialog__headtext { flex: 1 1 auto; min-width: 0; display: grid; gap: 4px; }
-.ws-upload-dialog__headtext h2 { margin: 0; font-size: var(--ws-text-md); font-weight: 650; }
+.ws-upload-dialog__headtext h2 { margin: 0; font-size: var(--ws-text-md); font-weight: 600; }
 .ws-upload-dialog__close {
   flex: none; display: flex; align-items: center; justify-content: center;
   width: 32px; height: 32px; border-radius: var(--ws-radius-sm);
@@ -2870,7 +2878,7 @@
   gap: var(--ws-s2); font-size: var(--ws-text-sm);
 }
 .ws-compare__clause .ws-mono { color: var(--ws-ink-900); font-weight: 600; }
-.ws-compare__title { color: var(--ws-ink-900); font-weight: 550; }
+.ws-compare__title { color: var(--ws-ink-900); font-weight: 500; }
 /* Sentence case, in the flow beside the clause it describes — the status is the
    ANSWER for this row, not metadata, so it is not tracked-out chrome. */
 .ws-compare__status { color: var(--ws-ink-500); }
@@ -2952,11 +2960,11 @@
 .ws-dt__slothead { display: flex; align-items: flex-start; gap: var(--ws-s3); }
 .ws-dt__stepno {
   flex: none; display: grid; place-items: center; width: 28px; height: 28px;
-  border-radius: 50%; font-size: var(--ws-text-sm); font-weight: 700;
+  border-radius: 50%; font-size: var(--ws-text-sm); font-weight: 600;
   color: var(--ws-accent-strong); background: var(--ws-accent-soft);
 }
 .is-filled .ws-dt__stepno { color: #fff; background: var(--ws-accent-strong); }
-.ws-dt__slotlabel { display: block; margin: 0; font-size: var(--ws-text-lg); font-weight: 650; color: var(--ws-ink-900); }
+.ws-dt__slotlabel { display: block; margin: 0; font-size: var(--ws-text-lg); font-weight: 600; color: var(--ws-ink-900); }
 .ws-dt__hint { margin: 2px 0 0; font-size: var(--ws-text-sm); color: var(--ws-ink-500); }
 .ws-dt__select {
   width: 100%; height: 44px; margin: 0; padding: 0 12px; font: inherit;
@@ -2998,12 +3006,12 @@
 .ws-dt__doc + .ws-dt__doc { margin-left: var(--ws-s4); padding-left: var(--ws-s4); border-left: 1px solid var(--ws-ink-100); }
 .ws-dt__side, .ws-dt__label {
   display: inline-flex; flex: none; align-items: center; gap: 6px;
-  font-size: var(--ws-text-xs); font-weight: 650; color: var(--ws-ink-500);
+  font-size: var(--ws-text-xs); font-weight: 600; color: var(--ws-ink-500);
 }
 .ws-dt__docname { display: grid; min-width: 0; }
 .ws-dt__docname a {
   display: flex; align-items: center; gap: 5px; min-width: 0;
-  font-size: var(--ws-text-md); font-weight: 650; color: var(--ws-ink-900); text-decoration: none;
+  font-size: var(--ws-text-md); font-weight: 600; color: var(--ws-ink-900); text-decoration: none;
 }
 .ws-dt__docname a span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .ws-dt__docname a svg { flex: none; color: var(--ws-ink-300); }
@@ -3099,7 +3107,7 @@
 }
 .ws-dt__filters button:first-child { margin-left: 0; border-radius: var(--ws-radius-sm) 0 0 var(--ws-radius-sm); }
 .ws-dt__filters button:last-child { border-radius: 0 var(--ws-radius-sm) var(--ws-radius-sm) 0; }
-.ws-dt__filters button span { order: -1; font-size: var(--ws-text-md); font-weight: 700; color: var(--ws-ink-900); font-variant-numeric: tabular-nums; }
+.ws-dt__filters button span { order: -1; font-size: var(--ws-text-md); font-weight: 600; color: var(--ws-ink-900); font-variant-numeric: tabular-nums; }
 .ws-dt__filters button:hover { color: var(--ws-ink-900); }
 .ws-dt__filters button.is-on { position: relative; z-index: 1; color: #fff; background: var(--ws-ink-900); border-color: var(--ws-ink-900); }
 .ws-dt__filters button.is-on span { color: #fff; }
@@ -3116,7 +3124,7 @@
 .ws-dt__change-item:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: -2px; }
 .ws-dt__num {
   flex: none; display: grid; place-items: center; min-width: 22px; height: 22px; padding: 0 4px;
-  border-radius: 6px; font-size: var(--ws-text-xs); font-weight: 700; color: var(--ws-ink-700);
+  border-radius: 6px; font-size: var(--ws-text-xs); font-weight: 600; color: var(--ws-ink-700);
   background: var(--ws-paper); font-variant-numeric: tabular-nums;
 }
 .ws-dt__itemtext { display: grid; gap: 1px; min-width: 0; }
@@ -3161,7 +3169,7 @@
 .ws-dt__sheethead {
   position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between;
   padding: var(--ws-s3) 0; margin-bottom: var(--ws-s2); background: var(--ws-surface);
-  font-size: var(--ws-text-md); font-weight: 650; color: var(--ws-ink-900);
+  font-size: var(--ws-text-md); font-weight: 600; color: var(--ws-ink-900);
 }
 
 /* -- review: one difference — flat, divided by a hairline ---------------- */
@@ -3171,7 +3179,7 @@
   display: grid; grid-template-columns: 1fr 1fr;
   padding: var(--ws-s2) var(--ws-s4); background: var(--ws-paper);
   border-bottom: 1px solid var(--ws-ink-100);
-  font-size: var(--ws-text-xs); font-weight: 650; color: var(--ws-ink-500);
+  font-size: var(--ws-text-xs); font-weight: 600; color: var(--ws-ink-500);
 }
 .ws-dt__colhead span { display: inline-flex; align-items: center; gap: 6px; }
 .ws-dt__colhead span + span { padding-left: var(--ws-s5); }
@@ -3194,10 +3202,10 @@
 .ws-dt__cardhead { grid-area: head; display: flex; align-items: flex-start; gap: var(--ws-s3); min-width: 0; }
 .ws-dt__cardhead .ws-dt__num { margin-top: 1px; }
 .ws-dt__cardtitle { display: grid; gap: 4px; min-width: 0; }
-.ws-dt__cardtitle h2 { margin: 0; font-size: var(--ws-text-md); font-weight: 650; line-height: 1.35; color: var(--ws-ink-900); overflow-wrap: break-word; }
+.ws-dt__cardtitle h2 { margin: 0; font-size: var(--ws-text-md); font-weight: 600; line-height: 1.35; color: var(--ws-ink-900); overflow-wrap: break-word; }
 .ws-dt__was { font-weight: 500; color: var(--ws-ink-500); }
 .ws-dt__cardmeta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px var(--ws-s3); margin: 0; font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
-.ws-dt__kind { display: inline-flex; align-items: center; gap: 5px; font-weight: 650; color: var(--ws-ink-700); }
+.ws-dt__kind { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; color: var(--ws-ink-700); }
 .ws-dt__cardbody { grid-area: body; min-width: 0; }
 
 /* The texts: side by side, divided by a hairline, never boxed. */
@@ -3214,8 +3222,8 @@
 .ws-dt__cardbody > :not(.ws-dt__unified) col:nth-child(odd) { width: 0; }
 .ws-dt__cardbody > :not(.ws-dt__unified) tr > td:nth-child(odd) { padding: 0; }
 /* One column (phone): the −/+ marker carries the key's colour. */
-.ws-dt__unified td[class*="-marker"][class*="diff-removed"] { color: var(--ws-diff-ours-rule); font-weight: 700; }
-.ws-dt__unified td[class*="-marker"][class*="diff-added"] { color: var(--ws-diff-client-rule); font-weight: 700; }
+.ws-dt__unified td[class*="-marker"][class*="diff-removed"] { color: var(--ws-diff-ours-rule); font-weight: 600; }
+.ws-dt__unified td[class*="-marker"][class*="diff-added"] { color: var(--ws-diff-client-rule); font-weight: 600; }
 .ws-dt__key { display: flex; flex-wrap: wrap; gap: var(--ws-s1) var(--ws-s4); margin: 0 0 var(--ws-s3); font-size: var(--ws-text-xs); color: var(--ws-ink-700); }
 .ws-dt__key span { display: inline-flex; align-items: center; gap: 6px; }
 .ws-dt__text {
@@ -3263,11 +3271,11 @@
 .ws-dt__card.is-folded { display: block; padding: var(--ws-s2) var(--ws-s4); contain-intrinsic-size: auto 52px; background: var(--ws-surface); }
 .ws-dt__foldrow { display: flex; align-items: center; gap: var(--ws-s3); min-height: 36px; }
 .ws-dt__foldrow h2 { flex: 1 1 auto; min-width: 0; margin: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-700); }
-.ws-dt__pickword { display: inline-flex; flex: none; align-items: center; gap: 5px; font-size: var(--ws-text-sm); font-weight: 650; color: var(--ws-accent-strong); }
+.ws-dt__pickword { display: inline-flex; flex: none; align-items: center; gap: 5px; font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-accent-strong); }
 
 .ws-dt__footnote { margin: var(--ws-s4) 0 0; font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
 .ws-dt__footnote kbd {
-  padding: 0 5px; font-family: var(--ws-sans); font-size: 11px; font-weight: 600; color: var(--ws-ink-700);
+  padding: 0 5px; font-family: var(--ws-sans); font-size: var(--t-label); font-weight: 600; color: var(--ws-ink-700);
   background: var(--ws-surface); border: 1px solid var(--ws-ink-300); border-bottom-width: 2px; border-radius: 4px;
 }
 .ws-dt__empty {
@@ -3350,7 +3358,7 @@
     display: grid; justify-items: center; gap: 1px; min-height: 44px; padding: 2px var(--ws-s2); cursor: pointer;
     font: inherit; color: var(--ws-ink-900); background: var(--ws-paper); border: 0; border-radius: var(--ws-radius-sm);
   }
-  .ws-dt__dockmid .ws-dt__pos { min-width: 0; font-size: var(--ws-text-sm); font-weight: 650; }
+  .ws-dt__dockmid .ws-dt__pos { min-width: 0; font-size: var(--ws-text-sm); font-weight: 600; }
   .ws-dt__dockprogress { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
   .ws-dt__dockmid:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
   .ws-dt__toast { position: fixed; left: var(--ws-s3); right: var(--ws-s3); bottom: calc(76px + env(safe-area-inset-bottom)); z-index: 6; box-shadow: 0 4px 16px rgba(14, 20, 32, 0.12); }
@@ -3386,7 +3394,7 @@
    annexure is. */
 .ws-outline__break {
   margin: var(--ws-s3) 0 var(--ws-s1); padding: 0 12px;
-  font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase;
+  font-size: var(--t-label);
   color: var(--ws-ink-500); border-top: 1px solid var(--ws-ink-100);
   padding-top: var(--ws-s2);
 }
@@ -3465,7 +3473,7 @@
   display: flex; align-items: flex-start; justify-content: space-between;
   gap: var(--ws-s4); flex-wrap: wrap;
 }
-.ws-admin__head h1 { margin: 0 0 2px; font-size: var(--ws-text-lg); font-weight: 600; }
+.ws-admin__head h1 { margin: 0 0 2px; font-size: var(--ws-text-xl); font-weight: 600; }
 .ws-adminnav { margin: 0 calc(-1 * var(--ws-s4)); }
 /* These are `<Link>`s carrying `.ws-tab` + `aria-current`, so the `.ws-tabs`
    child rules — which select `[role="tab"]` and `[aria-pressed]` — never
@@ -3548,7 +3556,6 @@
 .ws-detail__section { display: flex; flex-direction: column; gap: var(--ws-s2);
                       padding-top: var(--ws-s3); border-top: 1px solid var(--ws-ink-100); }
 .ws-detail__section h3 { margin: 0; font-size: var(--ws-text-xs); font-weight: 600;
-                         text-transform: uppercase; letter-spacing: 0.04em;
                          color: var(--ws-ink-500); }
 .ws-detail__acts { display: flex; gap: var(--ws-s2); flex-wrap: wrap; }
 .ws-detail__roles { display: flex; flex-wrap: wrap; gap: var(--ws-s1); }
@@ -3756,7 +3763,6 @@
   .ws-docs--index .ws-docs__table td[data-label]::before {
     content: attr(data-label);
     font-size: var(--ws-text-xs); font-weight: 600;
-    letter-spacing: 0.04em; text-transform: uppercase;
     color: var(--ws-ink-500); flex: none;
   }
   /* Type and Status are self-describing chips; a label beside them is noise. */
@@ -3802,7 +3808,7 @@
   }
   .ws-docs--index .ws-doctile { min-height: 64px; padding: var(--ws-s3); }
   .ws-docs--index .ws-doctile__icon { width: 32px; height: 32px; }
-  .ws-docs--index .ws-doctile__n { font-size: 1.4rem; }
+  .ws-docs--index .ws-doctile__n { font-size: var(--t-page); }
 }
 
 /* Below the width two 128px-min columns can actually hold ("Needs Attention"
@@ -3865,7 +3871,7 @@
    the single most-read piece of text in the table. 11px is the floor for a
    tracked-out chip and 12px for anything read as a sentence; the 2026-09-02
    contrast correction is untouched, this is size only. */
-.ws-status-pill { font-size: 11px; }
+.ws-status-pill { font-size: var(--t-label); }
 .ws-docs--index .ws-doctile__label { font-size: var(--ws-text-xs); }
 
 /* --- 7. A failed refresh is not a failed page -------------------------- */
@@ -3879,7 +3885,7 @@
   padding: var(--ws-s4);
   display: grid; gap: var(--ws-s2); justify-items: start;
 }
-.ws-state--warn h2 { margin: 0; font-size: var(--ws-text-md); font-weight: 650; }
+.ws-state--warn h2 { margin: 0; font-size: var(--ws-text-md); font-weight: 600; }
 .ws-state--warn p { margin: 0; font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
 
 /* --- 8. The primary action moved into the page header ------------------ */
@@ -3935,7 +3941,7 @@
 .ws-finding__title {
   min-width: 0;
   font-size: var(--ws-text-md);
-  font-weight: 650;
+  font-weight: 600;
   line-height: 1.35;
   overflow-wrap: normal;
   word-break: normal;
@@ -3965,8 +3971,7 @@
   /* Set in capitals per the owner's reference (ACCEPTED · NEEDS REVIEW ·
      NOT ACCEPTED); the text node stays sentence case so it reads the same
      to a screen reader and to the tests. */
-  font-family: var(--ws-sans, inherit); font-size: 10.5px; font-weight: 700;
-  letter-spacing: 0.04em; text-transform: uppercase;
+  font-family: var(--ws-sans, inherit); font-size: var(--t-label); font-weight: 600;
 }
 /* All three chips soft-tinted, per the owner's reference (2026-09-09): green,
    orange, indigo — the word, the icon disc beside the title and the card's
@@ -4038,8 +4043,8 @@
 /* A mark AND a word, always — the mark is a second channel, never the only one
    (a red tick and a green tick would read identically in greyscale, and a
    screen reader gets `aria-hidden` on the glyph and the word in the text). */
-.ws-side { display: inline-flex; align-items: baseline; gap: 6px; font-weight: 550; }
-.ws-side__mark { font-weight: 700; }
+.ws-side { display: inline-flex; align-items: baseline; gap: 6px; font-weight: 500; }
+.ws-side__mark { font-weight: 600; }
 .ws-side--present { color: var(--ws-ok); }
 .ws-side--absent { color: var(--ws-bad); }
 .ws-side--unknown { color: var(--ws-ink-500); }
@@ -4084,9 +4089,7 @@
 .ws-determined__label {
   margin: 0;
   font-size: var(--ws-text-xs);
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-weight: 600;
   color: var(--ws-ink-500);
 }
 .ws-determined__steps li span:last-child { color: var(--ws-ink-900); line-height: 1.45; }
@@ -4122,12 +4125,11 @@
 .ws-evidence__group + .ws-evidence__group { margin-top: var(--ws-s3); }
 .ws-evidence__source {
   margin: 0;
-  font-size: var(--ws-text-xs); font-weight: 700;
-  letter-spacing: 0.04em; text-transform: uppercase;
+  font-size: var(--ws-text-xs); font-weight: 600;
   color: var(--ws-ink-500);
 }
 .ws-evidence__more {
-  font: inherit; font-size: var(--ws-text-xs); font-weight: 550;
+  font: inherit; font-size: var(--ws-text-xs); font-weight: 500;
   background: none; border: 0; padding: 2px 0;
   color: var(--ws-accent); cursor: pointer; justify-self: start;
 }
@@ -4208,7 +4210,7 @@
 .ws-side__tabs { justify-content: space-between; align-items: center; }
 .ws-side__tablist { display: flex; gap: var(--ws-s1); }
 .ws-side__doctoggle {
-  font: inherit; font-size: var(--ws-text-sm); font-weight: 550;
+  font: inherit; font-size: var(--ws-text-sm); font-weight: 500;
   margin: 0 var(--ws-s2) var(--ws-s2);
   padding: 6px 11px; min-height: 32px;
   border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm);
@@ -4297,7 +4299,7 @@
 /* The Summary's opening sentence — what the counts mean, above the counts. */
 .ws-analysis__headline {
   margin: 0 0 var(--ws-s3);
-  font-size: var(--ws-text-md); line-height: 1.5; font-weight: 550;
+  font-size: var(--ws-text-md); line-height: 1.5; font-weight: 500;
   color: var(--ws-ink-900); text-wrap: pretty;
 }
 
@@ -4336,7 +4338,7 @@
   padding-bottom: var(--ws-s4); border-bottom: 1px solid var(--ws-ink-100);
 }
 .ws-hero__words { min-width: 0; }
-.ws-hero .ws-analysis__headline { font-size: var(--ws-text-lg); font-weight: 700; letter-spacing: -0.01em; margin: 0; }
+.ws-hero .ws-analysis__headline { font-size: var(--ws-text-lg); font-weight: 600; letter-spacing: -0.01em; margin: 0; }
 .ws-hero__sub { margin: 4px 0 0; font-size: var(--ws-text-xs); color: var(--ws-ink-500); max-width: 60ch; }
 .ws-hero__cta {
   flex: none; display: inline-flex; align-items: center; gap: 8px;
@@ -4363,7 +4365,7 @@
 .ws-hero__right .ws-ring__go { width: 100%; }
 .ws-hero__total { text-align: right; margin: 0; }
 .ws-hero .ws-tile { padding: var(--ws-s4); gap: 4px; }
-.ws-hero .ws-tile__n { font-size: 1.6rem; }
+.ws-hero .ws-tile__n { font-size: var(--t-page); }
 .ws-hero .ws-tile__label { font-size: var(--ws-text-sm); letter-spacing: 0; text-transform: none; padding-right: 24px; }
 @media (max-width: 1100px) {
   .ws-hero__grid { grid-template-columns: 1fr; }
@@ -4374,7 +4376,7 @@
    left rule. No outer frame and no inner cards (2026-09-10): this sat as a
    bordered box holding three bordered boxes inside the bordered hero. */
 .ws-explain { padding: var(--ws-s3) 0 0; border-top: 1px solid var(--ws-ink-100); }
-.ws-explain__title, .ws-explain > summary { margin: 0 0 var(--ws-s2); font-size: var(--ws-text-xs); font-weight: 650; color: var(--ws-ink-700); }
+.ws-explain__title, .ws-explain > summary { margin: 0 0 var(--ws-s2); font-size: var(--ws-text-xs); font-weight: 600; color: var(--ws-ink-700); }
 .ws-explain > summary { cursor: pointer; margin: 0; }
 .ws-explain[open] > summary { margin-bottom: var(--ws-s2); }
 .ws-explain__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--ws-s2); }
@@ -4397,11 +4399,11 @@
 .ws-filter button[data-tone="warn"] .ws-filter__dot { background: var(--ws-tone-warn); }
 .ws-filter button[data-tone="bad"] .ws-filter__dot { background: var(--ws-tone-bad); }
 .ws-filter__n {
-  font-family: var(--ws-mono); font-size: 10px; font-weight: 650; padding: 1px 6px; border-radius: 999px;
+  font-family: var(--ws-mono); font-size: var(--t-label); font-weight: 600; padding: 1px 6px; border-radius: 999px;
   background: var(--ws-paper); color: var(--ws-ink-700); border: 1px solid var(--ws-ink-100);
 }
 .ws-filter button[aria-pressed="true"] .ws-filter__n { background: rgba(255,255,255,0.15); color: #fff; border-color: transparent; }
-.ws-pane__await { font-family: var(--ws-sans); font-size: 10.5px; font-weight: 600; text-transform: none; letter-spacing: 0; }
+.ws-pane__await { font-family: var(--ws-sans); font-size: var(--t-label); font-weight: 600; text-transform: none; letter-spacing: 0; }
 
 /* Finding card: title with its determination beneath, the same tone as the status.
    The shadow is gone (2026-09-10) — a raised card inside the side card was
@@ -4413,7 +4415,7 @@
 .ws-pane__body--pad { padding: var(--ws-s4); }
 .ws-finding__titles { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .ws-finding__det {
-  display: inline-flex; align-self: flex-start; font-size: 10.5px; font-weight: 600;
+  display: inline-flex; align-self: flex-start; font-size: var(--t-label); font-weight: 600;
   padding: 1px 7px; border-radius: var(--ws-radius-sm); border: 1px solid transparent;
 }
 .ws-finding__det--ok { background: var(--ws-tone-ok-soft); color: var(--ws-tone-ok); border-color: color-mix(in srgb, var(--ws-tone-ok) 30%, transparent); }
@@ -4428,7 +4430,7 @@
   grid-template-rows: auto auto; gap: 4px var(--ws-s4); align-items: start;
   padding: var(--ws-s4); border-radius: var(--ws-radius);
 }
-.ws-facts--compare dt { font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ws-ink-500); }
+.ws-facts--compare dt { font-size: var(--t-label); font-weight: 600; color: var(--ws-ink-500); }
 .ws-facts--compare dd { font-size: var(--ws-text-sm); }
 .ws-facts--compare dd + dt { border-left: 1px solid var(--ws-ink-100); }
 @media (max-width: 720px) {
@@ -4449,7 +4451,7 @@
 .ws-point { flex: none; display: flex; flex-direction: column; align-items: flex-start;
   gap: 4px; margin-top: 4px; }
 .ws-point__who { display: inline-flex; align-items: center; gap: 4px;
-  font-size: var(--ws-text-xs); font-weight: 550; color: var(--ws-ink-700);
+  font-size: var(--ws-text-xs); font-weight: 500; color: var(--ws-ink-700);
   white-space: nowrap; }
 .ws-point__who[data-answer="to_decide"] { color: var(--ws-ink-900); font-weight: 600; }
 .ws-point__who svg { color: var(--ws-ink-500); }
@@ -4472,7 +4474,7 @@
      maintain readable proportions") — the column floor gives them ~120px
      each; only the ring moves beneath them and the tiles lose some padding. */
   .ws-hero .ws-tile { padding: var(--ws-s3); }
-  .ws-hero .ws-tile__n { font-size: 1.3rem; }
+  .ws-hero .ws-tile__n { font-size: var(--t-section); }
   .ws-hero .ws-tile__label { font-size: var(--ws-text-xs); padding-right: 18px; }
   .ws-hero .ws-tile .ws-status svg { width: 14px; height: 14px; }
   .ws-explain__grid { grid-template-columns: 1fr; }
@@ -4578,7 +4580,7 @@
    than overflowing the fixed-width column at narrow viewports. */
 .ws-cl__table--docs td:first-child { overflow-wrap: break-word; }
 .ws-cl__table th {
-  text-align: left; font-size: var(--ws-text-xs); font-weight: 650;
+  text-align: left; font-size: var(--ws-text-xs); font-weight: 600;
   letter-spacing: 0.02em; color: var(--ws-ink-500);
   background: var(--ws-paper); white-space: nowrap;
   padding: 10px var(--ws-s4); border-bottom: 1px solid var(--ws-ink-100);
@@ -4610,7 +4612,7 @@
 /* The row's own action: a link, deliberately unadorned. */
 .ws-cl__rowact { text-align: right; white-space: nowrap; }
 .ws-cl__rowact a {
-  font-size: var(--ws-text-sm); font-weight: 550; color: var(--ws-accent);
+  font-size: var(--ws-text-sm); font-weight: 500; color: var(--ws-accent);
   text-decoration: none;
 }
 .ws-cl__rowact a:hover { text-decoration: underline; text-underline-offset: 3px; }
@@ -4632,10 +4634,10 @@
   display: inline-flex; align-items: center; justify-content: center;
   flex: none; border-radius: var(--ws-radius-sm);
   background: var(--ws-ink-100); color: var(--ws-ink-700);
-  font-weight: 650; letter-spacing: 0.01em; font-variant-numeric: tabular-nums;
+  font-weight: 600; letter-spacing: 0.01em; font-variant-numeric: tabular-nums;
 }
-.ws-cl__avatar--sm { width: 24px; height: 24px; font-size: 10px; }
-.ws-cl__avatar--md { width: 30px; height: 30px; font-size: 11px; }
+.ws-cl__avatar--sm { width: 24px; height: 24px; font-size: var(--t-label); }
+.ws-cl__avatar--md { width: 30px; height: 30px; font-size: var(--t-label); }
 .ws-cl__avatar--lg {
   width: 44px; height: 44px; font-size: var(--ws-text-md);
   background: var(--ws-accent-soft); color: var(--ws-accent);
@@ -4684,8 +4686,7 @@
   padding: 0 var(--ws-s1) var(--ws-s2);
 }
 .ws-cl__rail-back {
-  font-size: var(--ws-text-xs); font-weight: 650; letter-spacing: 0.04em;
-  text-transform: uppercase; color: var(--ws-ink-500); text-decoration: none;
+  font-size: var(--ws-text-xs); font-weight: 600; color: var(--ws-ink-500); text-decoration: none;
 }
 .ws-cl__rail-back:hover { color: var(--ws-accent); }
 .ws-cl__rail-total { margin-left: auto; font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
@@ -4719,7 +4720,7 @@
   background: var(--ws-accent-soft); border-left-color: var(--ws-accent);
 }
 .ws-cl__railname {
-  font-size: var(--ws-text-sm); font-weight: 550; color: var(--ws-ink-900);
+  font-size: var(--ws-text-sm); font-weight: 500; color: var(--ws-ink-900);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .ws-cl__railitem--active .ws-cl__railname { color: var(--ws-accent); }
@@ -4736,7 +4737,7 @@
 }
 .ws-cl__crumbs a { color: var(--ws-ink-500); text-decoration: none; }
 .ws-cl__crumbs a:hover { color: var(--ws-accent); text-decoration: underline; }
-.ws-cl__crumbs span[aria-current] { color: var(--ws-ink-700); font-weight: 550; }
+.ws-cl__crumbs span[aria-current] { color: var(--ws-ink-700); font-weight: 500; }
 .ws-cl__crumbs svg { display: block; }
 
 /* The client header. One row, no card: the client IS the page, so putting its
@@ -4757,7 +4758,7 @@
 .ws-cl__headtext { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .ws-cl__headline { display: flex; align-items: center; gap: var(--ws-s3); flex-wrap: wrap; }
 .ws-cl__headline h1 {
-  margin: 0; font-size: var(--ws-text-xl); font-weight: 650;
+  margin: 0; font-size: var(--ws-text-xl); font-weight: 600;
   letter-spacing: -0.012em; color: var(--ws-ink-900);
 }
 .ws-cl__headmeta {
@@ -4805,7 +4806,7 @@
 }
 .ws-cl__tab {
   appearance: none; background: none; border: 0; cursor: pointer;
-  font: inherit; font-size: var(--ws-text-sm); font-weight: 550;
+  font: inherit; font-size: var(--ws-text-sm); font-weight: 500;
   color: var(--ws-ink-500); padding: 9px 2px 10px;
   border-bottom: 2px solid transparent; margin-bottom: -1px;
   transition: color var(--ws-t), border-color var(--ws-t);
@@ -4826,7 +4827,7 @@
 .ws-cl__docs { display: flex; flex-direction: column; gap: var(--ws-s3); }
 .ws-cl__docs-head { display: flex; align-items: center; gap: var(--ws-s2); flex-wrap: wrap; }
 .ws-cl__docs-head h2 {
-  margin: 0; font-size: var(--ws-text-md); font-weight: 650; color: var(--ws-ink-900);
+  margin: 0; font-size: var(--ws-text-md); font-weight: 600; color: var(--ws-ink-900);
 }
 .ws-cl__docs-count {
   font-size: var(--ws-text-xs); color: var(--ws-ink-500);
@@ -4905,7 +4906,7 @@
   background: var(--ws-surface); border: 1px solid var(--ws-ink-100);
 }
 .ws-cl__ver-n {
-  font-size: var(--ws-text-xs); font-weight: 650; color: var(--ws-ink-500);
+  font-size: var(--ws-text-xs); font-weight: 600; color: var(--ws-ink-500);
   font-variant-numeric: tabular-nums;
 }
 .ws-cl__ver-main { display: flex; align-items: center; gap: var(--ws-s2); min-width: 0; flex-wrap: wrap; }
@@ -4925,7 +4926,7 @@
    the rows that have one. */
 .ws-cl__ver-current { min-width: 0; }
 .ws-cl__ver-current .ws-chip {
-  font-size: var(--ws-text-xs); font-weight: 650; white-space: nowrap;
+  font-size: var(--ws-text-xs); font-weight: 600; white-space: nowrap;
   background: var(--ws-ink-100); color: var(--ws-ink-700); border-color: transparent;
 }
 .ws-cl__ver-acts { display: flex; align-items: center; gap: 6px; }
@@ -4961,7 +4962,7 @@
 }
 .ws-cl__form-head { display: flex; flex-direction: column; gap: 4px; }
 .ws-cl__form-head h2, .ws-cl__upload h3, .ws-cl__link-head h3 {
-  margin: 0; font-size: var(--ws-text-md); font-weight: 650; color: var(--ws-ink-900);
+  margin: 0; font-size: var(--ws-text-md); font-weight: 600; color: var(--ws-ink-900);
 }
 .ws-cl__form-grid, .ws-cl__upload-grid {
   display: grid; gap: var(--ws-s3) var(--ws-s4);
@@ -5031,7 +5032,7 @@
 .ws-cl__sect-head { display: flex; align-items: flex-start; gap: var(--ws-s3); }
 .ws-cl__sect-titles { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .ws-cl__sect-titles h3 {
-  margin: 0; font-size: var(--ws-text-base); font-weight: 650; color: var(--ws-ink-900);
+  margin: 0; font-size: var(--ws-text-base); font-weight: 600; color: var(--ws-ink-900);
 }
 /* The step number. Filled accent, because it is the one thing on the card that
    orders the reader through it — not a state, so it borrows no state colour. */
@@ -5040,7 +5041,7 @@
   display: inline-flex; align-items: center; justify-content: center;
   width: 22px; height: 22px; border-radius: 50%;
   background: var(--ws-accent); color: #fff;
-  font-size: var(--ws-text-xs); font-weight: 650; line-height: 1;
+  font-size: var(--ws-text-xs); font-weight: 600; line-height: 1;
 }
 /* THREE columns, fixed, not `auto-fit`. The reference draws three, and the
    sibling `.ws-cl__form-grid` records why the automatic version is wrong here:
@@ -5076,7 +5077,7 @@
   border-radius: var(--ws-radius-card);
 }
 .ws-cl__aside h3 {
-  margin: 0; font-size: var(--ws-text-md); font-weight: 650; color: var(--ws-ink-900);
+  margin: 0; font-size: var(--ws-text-md); font-weight: 600; color: var(--ws-ink-900);
 }
 .ws-cl__aside-art {
   display: flex; align-items: center; justify-content: center;
@@ -5109,7 +5110,7 @@
 }
 .ws-cl__tips-head {
   margin: 0; display: flex; align-items: center; gap: 7px;
-  font-size: var(--ws-text-sm); font-weight: 650; color: var(--ws-accent-strong);
+  font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-accent-strong);
 }
 .ws-cl__tips ul {
   margin: 0; padding-left: 18px;
@@ -5165,7 +5166,7 @@
   border: 1px solid var(--ws-ink-100); background: var(--ws-surface);
 }
 .ws-cl__linklist li:hover { background: var(--ws-paper); }
-.ws-cl__linkname { font-size: var(--ws-text-sm); font-weight: 550; color: var(--ws-ink-900); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-cl__linkname { font-size: var(--ws-text-sm); font-weight: 500; color: var(--ws-ink-900); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ws-cl__linkwhen { font-size: var(--ws-text-xs); color: var(--ws-ink-500); white-space: nowrap; }
 
 /* ---- details / notes / activity ---------------------------------------- */
@@ -5176,7 +5177,7 @@
   display: flex; flex-direction: column; gap: var(--ws-s3);
 }
 .ws-cl__notes h2, .ws-cl__activity h2:not(.ws-visually-hidden) {
-  margin: 0; font-size: var(--ws-text-md); font-weight: 650;
+  margin: 0; font-size: var(--ws-text-md); font-weight: 600;
 }
 .ws-cl__factgrid {
   margin: 0; display: grid; gap: var(--ws-s4) var(--ws-s5);
@@ -5320,9 +5321,11 @@
 }
 .ws a.ws-chat__brandlink {
   display: inline-flex; align-items: center; gap: 8px; min-height: 36px;
-  font-weight: 650; color: var(--ws-ink-900); text-decoration: none;
+  font-weight: 600; color: var(--ws-ink-900); text-decoration: none;
 }
 .ws-chat__brandlink .ws-shell__word-a { color: var(--ws-ink-900); }
+/* on this light header the mark takes the light-surface brand blue (7.29:1), not the shell's */
+.ws-chat__brandlink .ws-shell__word-b { color: var(--ws-brand); }
 .ws-chat__brandmark {
   display: inline-flex; align-items: center; justify-content: center;
   width: 28px; height: 28px; border-radius: 8px;
@@ -5448,8 +5451,8 @@
 .ws-chat__headspacer { flex: 1; }
 /* The demo's welcome line. Set here, not as utilities: the global `h2` rule is unlayered
    and outranks every utility (DD-22). */
-.ws-chat [data-slot="aui_thread-welcome"] { margin: 0 0 var(--ws-s6); font-size: 1.875rem; line-height: 1.2; }
-@media (max-width: 640px) { .ws-chat [data-slot="aui_thread-welcome"] { font-size: 1.5rem; } }
+.ws-chat [data-slot="aui_thread-welcome"] { margin: 0 0 var(--ws-s6); font-size: var(--t-page); line-height: 1.2; }
+@media (max-width: 640px) { .ws-chat [data-slot="aui_thread-welcome"] { font-size: var(--t-page); } }
 /* Normal text flow, not a flex row: as a flex item the icon becomes its own
    wrappable box and ends up alone on a line above the sentence at phone width. */
 .ws-chat__scope {
@@ -5483,7 +5486,7 @@
    as a heading, still quiet beside the answer. */
 .ws-chat__main .ws-ask__section { font-size: var(--ws-text-base); color: var(--ws-ink-900);
   margin-top: var(--ws-s6); }
-.ws-chat__main .ws-ask__heading { font-size: 1.125rem; }
+.ws-chat__main .ws-ask__heading { font-size: var(--t-section); }
 .ws-chat__main h4.ws-ask__heading { font-size: var(--ws-text-md); }
 /* The server's own section labels inside a verified answer (`AM-107`): the direct
    answer reads first, and each further layer — related rules, past negotiated deals,
@@ -5548,7 +5551,7 @@ h4.ws-ask__heading { margin-top: var(--ws-s4); font-size: var(--ws-text-base); }
 /* The agent's ledger keys, `[C1, P8]`: small, quiet and set apart from the sentence, each
    key a reference to its own entry in the Sources legend — a pointer, never a score. */
 .ws-ask__keys {
-  font-size: 0.78em; color: var(--ws-ink-500); white-space: nowrap;
+  font-size: var(--t-label); color: var(--ws-ink-500); white-space: nowrap;
   vertical-align: 0.08em; letter-spacing: 0;
 }
 .ws-ask__key {
@@ -5556,7 +5559,7 @@ h4.ws-ask__heading { margin-top: var(--ws-s4); font-size: var(--ws-text-base); }
   padding: 0 1px; margin: 0; cursor: pointer; line-height: inherit;
 }
 .ws-ask__key:hover { text-decoration: underline; text-underline-offset: 2px; }
-.ws-ask__srckey { font-size: 0.85em; color: var(--ws-ink-500); }
+.ws-ask__srckey { font-size: var(--t-label); color: var(--ws-ink-500); }
 /* The Sources legend: a quiet two-column list — the key in its own column, the
    location wrapping under itself rather than under the key. */
 .ws-ask__legend { list-style: none; padding-left: 0; gap: 6px;
@@ -5591,7 +5594,7 @@ h4.ws-ask__heading { margin-top: var(--ws-s4); font-size: var(--ws-text-base); }
 /* A value is one unit: it never breaks across a line ("₹1 / crore"), and it sits on the
    surface white so it reads as a chip on the paper-toned conversation. */
 .ws-ask__code {
-  font-family: var(--ws-mono); font-size: 0.86em; color: var(--ws-ink-900);
+  font-family: var(--ws-mono); font-size: var(--t-caption); color: var(--ws-ink-900);
   padding: 0.1em 0.38em; border-radius: 4px; white-space: nowrap;
   background: var(--ws-surface); border: 1px solid var(--ws-ink-100);
 }
@@ -5624,7 +5627,7 @@ h4.ws-ask__heading { margin-top: var(--ws-s4); font-size: var(--ws-text-base); }
 }
 .ws-chat__table { width: 100%; border-collapse: collapse; font-size: var(--ws-text-sm); }
 .ws-chat__table th {
-  text-align: left; font-weight: 650; color: var(--ws-ink-500);
+  text-align: left; font-weight: 600; color: var(--ws-ink-500);
   font-size: var(--ws-text-xs); letter-spacing: 0.02em;
   background: var(--ws-paper); padding: 9px var(--ws-s4);
   border-bottom: 1px solid var(--ws-ink-100); white-space: nowrap;
@@ -5680,7 +5683,7 @@ h4.ws-ask__heading { margin-top: var(--ws-s4); font-size: var(--ws-text-base); }
   flex: none; display: flex; align-items: flex-end; justify-content: center;
   width: 36px; height: 44px; padding-bottom: 6px; box-sizing: border-box; border-radius: var(--ws-radius-sm);
   background: var(--ws-accent-soft); color: var(--ws-brand);
-  font-size: 10px; font-weight: 700; letter-spacing: 0.02em;
+  font-size: var(--t-label); font-weight: 600; letter-spacing: 0.02em;
 }
 .ws-chat__card[data-problem] .ws-chat__cardtile { align-items: center; padding: 0; background: var(--ws-surface); color: var(--ws-error); }
 .ws-chat__cardtext { min-width: 0; display: flex; flex-direction: column; line-height: 1.35; }
@@ -5696,7 +5699,7 @@ h4.ws-ask__heading { margin-top: var(--ws-s4); font-size: var(--ws-text-base); }
 .ws-chat__cards--sent { padding: 0 0 6px; }
 .ws-chat__cards--sent > :first-child { margin-left: auto; }
 .ws-chat__cards--sent .ws-chat__card { padding-right: 12px; width: 220px; min-height: 52px; }
-.ws-chat__cards--sent .ws-chat__cardtile { width: 32px; height: 40px; padding-bottom: 5px; font-size: 9px; }
+.ws-chat__cards--sent .ws-chat__cardtile { width: 32px; height: 40px; padding-bottom: 5px; font-size: var(--t-label); }
 /* The reader's rating (`AM-123`) as quiet icons beside Copy (`AM-226` r9): the
    pressed state is the accent, set only once the server has the record. */
 .ws-ask__rate { display: flex; align-items: center; gap: 2px; }
@@ -5794,7 +5797,7 @@ h4.ws-ask__heading { margin-top: var(--ws-s4); font-size: var(--ws-text-base); }
   flex: none; align-self: center; display: inline-flex; align-items: center; gap: 4px;
   height: 36px; padding: 0 8px 0 12px; border: 0; border-radius: 999px;
   background: transparent; cursor: pointer; white-space: nowrap;
-  font: inherit; font-size: var(--ws-text-sm); font-weight: 550; color: var(--ws-ink-700);
+  font: inherit; font-size: var(--ws-text-sm); font-weight: 500; color: var(--ws-ink-700);
   transition: background-color var(--ws-t), color var(--ws-t);
 }
 .ws-chat__model:hover:not(:disabled), .ws-chat__model[data-state="open"] {
@@ -5827,7 +5830,7 @@ h4.ws-ask__heading { margin-top: var(--ws-s4); font-size: var(--ws-text-base); }
   /* QA-025: the keyboard position must be seen, not a 1.1:1 wash */
   background: var(--ws-paper); box-shadow: inset 0 0 0 2px var(--ws-accent);
 }
-.ws-chat__modelname { display: flex; flex-direction: column; gap: 1px; font-weight: 550; }
+.ws-chat__modelname { display: flex; flex-direction: column; gap: 1px; font-weight: 500; }
 .ws-chat__modelnote { font-size: var(--ws-text-xs); font-weight: 400; color: var(--ws-ink-500); }
 .ws-chat__modelcheck { display: inline-flex; color: var(--ws-accent); }
 .ws-chat__modelnote[data-paused] { color: var(--ws-warn); }
@@ -5884,7 +5887,7 @@ h4.ws-ask__heading { margin-top: var(--ws-s4); font-size: var(--ws-text-base); }
    control itself once tabbed to. */
 .ws-obligations__ask {
   margin-left: auto; flex: none; align-self: flex-start;
-  font-size: var(--ws-text-xs); font-weight: 550; color: var(--ws-accent);
+  font-size: var(--ws-text-xs); font-weight: 500; color: var(--ws-accent);
   padding: 2px 6px; border-radius: var(--ws-radius-sm);
   opacity: 0; transition: opacity var(--ws-t), background-color var(--ws-t);
 }
@@ -5940,7 +5943,7 @@ a.ws-askglobal:hover { background: var(--ws-accent-strong); transform: translate
      the question needs. The accessible name comes from the button's aria-label,
      so hiding the text costs a screen reader nothing. */
 @media (max-width: 640px) {
-  :is([data-slot="aui_composer-shell"], [data-slot="aui_edit-composer"]) textarea { font-size: 1rem; }
+  :is([data-slot="aui_composer-shell"], [data-slot="aui_edit-composer"]) textarea { font-size: var(--t-subsection); }
   .ws-chat__attach { width: 40px; height: 40px; }
   .ws-chat__model { height: 40px; padding: 0 6px 0 10px; }
   /* Two cards a row in a strip capped near two rows (it scrolls inside), so the cards
@@ -6132,13 +6135,13 @@ tr.ws-tr--selected .ws-admin__rowact { background: inherit; }
   border: 1px solid var(--ws-ink-100); border-left: 3px solid var(--ws-tone-warn);
   border-radius: var(--ws-radius-card); background: var(--ws-surface);
 }
-.ws-angle__title { margin: 0 0 var(--ws-s2); font-size: var(--ws-text-md); font-weight: 650;
+.ws-angle__title { margin: 0 0 var(--ws-s2); font-size: var(--ws-text-md); font-weight: 600;
   color: var(--ws-ink-900); }
 .ws-angle__lede { margin: 0 0 var(--ws-s3); font-size: var(--ws-text-base); color: var(--ws-ink-900); }
 .ws-angle__sub { margin: 0 0 var(--ws-s2); font-size: var(--ws-text-sm); color: var(--ws-ink-500); }
 .ws-angle__list { margin: 0; padding-left: var(--ws-s5); display: grid; gap: var(--ws-s3); }
 .ws-angle__point p { margin: 0; }
-.ws-angle__headline { font-weight: 650; color: var(--ws-ink-900); font-size: var(--ws-text-sm); }
+.ws-angle__headline { font-weight: 600; color: var(--ws-ink-900); font-size: var(--ws-text-sm); }
 .ws-angle__body, .ws-angle__money { font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
 .ws-angle__money strong { color: var(--ws-ink-900); }
 .ws-angle__where { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
@@ -6149,7 +6152,7 @@ tr.ws-tr--selected .ws-admin__rowact { background: inherit; }
   border: 1px solid var(--ws-accent-soft); border-radius: var(--ws-radius-sm);
   background: var(--ws-paper);
 }
-.ws-counter__title { margin: 0 0 var(--ws-s1); font-size: var(--ws-text-xs); font-weight: 650;
+.ws-counter__title { margin: 0 0 var(--ws-s1); font-size: var(--ws-text-xs); font-weight: 600;
   color: var(--ws-accent); letter-spacing: 0.02em; }
 .ws-counter__text { margin: 0; font-size: var(--ws-text-sm); color: var(--ws-ink-900);
   line-height: 1.55; }
@@ -6192,7 +6195,7 @@ tr.ws-tr--selected .ws-admin__rowact { background: inherit; }
 div.ws-open__go { cursor: default; }
 button.ws-open__go:hover { background: var(--ws-paper); }
 .ws-open__go:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
-.ws-open__name { font-size: var(--ws-text-sm); font-weight: 650; color: var(--ws-ink-900); }
+.ws-open__name { font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-900); }
 .ws-open__gap { font-size: var(--ws-text-sm); color: var(--ws-ink-700); line-height: 1.45; }
 .ws-open__rec { font-size: var(--ws-text-xs); font-weight: 600; color: var(--ws-accent); }
 .ws-open__where { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
@@ -6211,7 +6214,7 @@ button.ws-open__go:hover { background: var(--ws-paper); }
   color: var(--ws-ink-700); line-height: 1.45; }
 .ws-case__contract { margin: var(--ws-s2) 0; }
 .ws-case { display: grid; gap: var(--ws-s3); margin: var(--ws-s3) 0; }
-.ws-case__label { margin: 0 0 var(--ws-s1); font-size: var(--ws-text-xs); font-weight: 650;
+.ws-case__label { margin: 0 0 var(--ws-s1); font-size: var(--ws-text-xs); font-weight: 600;
   color: var(--ws-ink-500); }
 .ws-case__quote { margin: 0; font-size: var(--ws-text-base); line-height: 1.55;
   color: var(--ws-ink-900); }
@@ -6291,14 +6294,14 @@ button.ws-open__go:hover { background: var(--ws-paper); }
 .ws-decision__covers { font-size: var(--ws-text-sm); color: var(--ws-ink-900); }
 .ws-decision__covers p { margin: 0 0 4px; }
 .ws-decision__covers ul { margin: 0 0 4px; padding-left: 1.2em; }
-.ws-status--decided { color: var(--ws-ink-500); }   /* AB-103: decided — neutral, never the match green */
+.ws-status--decided { color: var(--c-status-done); }   /* AB-103: decided — neutral, never the match green */
 
 /* AB-103: the review report, shown as the reader will download it — a sheet of paper
    in the page, the same blocks the PDF/DOCX prints. */
 .ws-reportdoc { max-width: 60rem; margin: 0 auto var(--ws-s5); padding: var(--ws-s4) var(--ws-s5);
   background: var(--ws-surface); border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius);
   line-height: 1.55; color: var(--ws-ink-900); }
-.ws-reportdoc__title { margin: 0 0 var(--ws-s2); font-size: 1.4rem; }
+.ws-reportdoc__title { margin: 0 0 var(--ws-s2); font-size: var(--t-page); }
 .ws-reportdoc__h3 { margin: var(--ws-s4) 0 var(--ws-s1); font-size: var(--ws-text-md); }
 .ws-reportdoc__kv { margin: 2px 0; font-size: var(--ws-text-sm); }
 .ws-reportdoc__note { margin: var(--ws-s2) 0; font-size: var(--ws-text-sm); font-style: italic; color: var(--ws-ink-700); }
@@ -6321,13 +6324,13 @@ button.ws-open__go:hover { background: var(--ws-paper); }
 }
 .ws-reportdoc__cover div { min-width: 0; }
 .ws-reportdoc__cover dt { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
-.ws-reportdoc__cover dd { margin: 0; font-size: var(--ws-text-sm); font-weight: 550; }
+.ws-reportdoc__cover dd { margin: 0; font-size: var(--ws-text-sm); font-weight: 500; }
 .ws-reportdoc__section { margin: 0 0 var(--ws-s4); }
 .ws-reportdoc__section > .ws-report__h {
   font-size: var(--ws-text-md); color: var(--ws-ink-900); margin: 0 0 var(--ws-s2);
 }
 .ws-reportdoc__section > p { margin: 0 0 var(--ws-s2); max-width: 70ch; }
-.ws-reportdoc__status { gap: 4px; align-items: center; white-space: nowrap; font-size: 11px; }
+.ws-reportdoc__status { gap: 4px; align-items: center; white-space: nowrap; font-size: var(--t-label); }
 .ws-reportdoc__point, .ws-reportdoc__more {
   border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-sm); margin: 0 0 6px;
 }
@@ -6347,7 +6350,7 @@ button.ws-open__go:hover { background: var(--ws-paper); }
 .ws-reportdoc__point > summary:focus-visible,
 .ws-reportdoc__more > summary:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: -2px; }
 .ws-reportdoc__point > summary { flex-wrap: wrap; row-gap: 2px; }
-.ws-reportdoc__pointname { flex: 1; min-width: 0; font-weight: 550; }
+.ws-reportdoc__pointname { flex: 1; min-width: 0; font-weight: 500; }
 .ws-reportdoc__clause { font-size: var(--ws-text-xs); color: var(--ws-ink-500); white-space: nowrap; }
 .ws-reportdoc__gap {
   flex-basis: 100%; padding-left: 16px; color: var(--ws-ink-700); font-size: var(--ws-text-sm);
@@ -6357,7 +6360,7 @@ button.ws-open__go:hover { background: var(--ws-paper); }
 }
 .ws-reportdoc__point[open], .ws-reportdoc__more[open] { padding-bottom: 6px; }
 .ws-reportdoc__more { margin-top: var(--ws-s2); }
-.ws-reportdoc__more > summary { color: var(--ws-ink-700); font-weight: 550; }
+.ws-reportdoc__more > summary { color: var(--ws-ink-700); font-weight: 500; }
 /* a long list reads in columns; a cell of names wraps, never runs off the sheet */
 .ws-reportdoc__section .ws-reportdoc__list { columns: 2 16rem; column-gap: var(--ws-s5); }
 .ws-reportdoc .ws-report__table td:nth-child(2) { white-space: normal; }
@@ -6395,7 +6398,7 @@ button.ws-open__go:hover { background: var(--ws-paper); }
 }
 .ws-change:first-of-type { border-top: 0; }
 .ws-change__where { color: var(--ws-ink-500); font-variant-numeric: tabular-nums; }
-.ws-change__kind { color: var(--ws-ink-700); font-weight: 550; }
+.ws-change__kind { color: var(--ws-ink-700); font-weight: 500; }
 .ws-change__text { min-width: 0; color: var(--ws-ink-900); }
 /* removed words grey and struck (the status hues mean something else here), added words
    dark and underlined — readable in print and without colour */
@@ -6405,7 +6408,7 @@ button.ws-open__go:hover { background: var(--ws-paper); }
   text-decoration-color: var(--ws-tone-ok); text-decoration-thickness: 1.5px;
 }
 .ws-change__read {
-  font-size: 11px; font-weight: 600; white-space: nowrap; padding: 1px 7px;
+  font-size: var(--t-label); font-weight: 600; white-space: nowrap; padding: 1px 7px;
   border-radius: var(--ws-radius-sm); color: var(--ws-tone-warn);
   background: var(--ws-tone-warn-soft);
   border: 1px solid color-mix(in srgb, var(--ws-tone-warn) 30%, transparent);
@@ -6426,10 +6429,10 @@ button.ws-open__go:hover { background: var(--ws-paper); }
 .ws-risk__where { font-variant-numeric: tabular-nums; margin-right: 6px; }
 .ws-risk__list { margin: 2px 0 0; padding: 0; list-style: none; }
 .ws-risk__list li { margin-top: 4px; color: var(--ws-ink-700); }
-.ws-risk__reason { display: block; font-weight: 550; color: var(--ws-ink-900); }
+.ws-risk__reason { display: block; font-weight: 500; color: var(--ws-ink-900); }
 .ws-risk__list q { color: var(--ws-ink-700); }
 .ws-reportdoc__theirs {
-  font-size: 11px; font-weight: 600; white-space: nowrap; padding: 1px 7px;
+  font-size: var(--t-label); font-weight: 600; white-space: nowrap; padding: 1px 7px;
   border-radius: var(--ws-radius-sm); color: var(--ws-ink-700);
   background: var(--ws-paper); border: 1px solid var(--ws-ink-100);
 }
@@ -6578,7 +6581,7 @@ button.ws-open__go:hover { background: var(--ws-paper); }
 /* H2/H3: one way forward under a reply that is not an answer */
 /* M9: the first paragraph is the answer's bottom line; a long answer folds after its
    opening, fading out, with "Read the full answer" under it */
-.ws-answer-body > .ws-ask__text:first-child { font-size: 1.04em; color: var(--ws-ink-900); }
+.ws-answer-body > .ws-ask__text:first-child { font-size: var(--t-subsection); color: var(--ws-ink-900); }
 .ws-answer-body[data-folded] { max-height: 22rem; overflow: hidden; position: relative;
   -webkit-mask-image: linear-gradient(to bottom, #000 70%, transparent);
   mask-image: linear-gradient(to bottom, #000 70%, transparent); }
@@ -6624,14 +6627,14 @@ button.ws-open__go:hover { background: var(--ws-paper); }
   background: var(--ws-paper); border-radius: var(--ws-radius-sm); }
 .ws-collab__toggle { display: inline-flex; align-items: center; gap: 6px; }
 .ws-collab__add { display: grid; gap: 6px; margin-top: var(--ws-s4); padding-top: var(--ws-s3); border-top: 1px solid var(--ws-ink-100); font-size: var(--ws-text-sm); }
-.ws-collab__add label { font-size: var(--ws-text-sm); font-weight: 550; color: var(--ws-ink-900); }
+.ws-collab__add label { font-size: var(--ws-text-sm); font-weight: 500; color: var(--ws-ink-900); }
 .ws-collab__add div { display: flex; gap: var(--ws-s2); flex-wrap: wrap; }
 .ws-collab__add select { flex: 1 1 220px; min-height: 36px; border: 1px solid var(--ws-input-border); border-radius: var(--ws-radius-sm); padding: 0 var(--ws-s2); font: inherit; background: var(--ws-surface); }
 .ws-collab__foot { display: flex; justify-content: flex-end; margin-top: var(--ws-s4); }
 
 /* AM-269 r2 (AB-150): file a chat attachment into a contract */
 .ws-chat__file { grid-column: 2; display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-s2); font-size: var(--ws-text-xs); }
-.ws-chat__filelabel { font-weight: 550; color: var(--ws-ink-700); }
+.ws-chat__filelabel { font-weight: 500; color: var(--ws-ink-700); }
 .ws-chat__file select { min-height: 32px; max-width: 100%; border: 1px solid var(--ws-input-border); border-radius: var(--ws-radius-sm); font: inherit; background: var(--ws-surface); }
 
 /* --------------------------------------------------------------------------
@@ -6647,8 +6650,8 @@ button.ws-open__go:hover { background: var(--ws-paper); }
 }
 .ws-dealstage--turn { font-weight: 600; color: var(--ws-ink-900); border-left-color: var(--ws-ink-900); }
 .ws-dealstage--none { border-color: transparent; color: var(--ws-ink-500); }
-.ws-dealstage__days { font-size: 10.5px; color: var(--ws-ink-500); font-weight: 400; }
-.ws-dealstage__age { display: block; margin-top: 3px; font-size: 10.5px; color: var(--ws-ink-500); }
+.ws-dealstage__days { font-size: var(--t-label); color: var(--ws-ink-500); font-weight: 400; }
+.ws-dealstage__age { display: block; margin-top: 3px; font-size: var(--t-label); color: var(--ws-ink-500); }
 /* Stage pills: a stage that holds deals reads in full ink; an empty one stays quiet. */
 .ws-stagefilter button:not([data-empty]):not([aria-pressed="true"]) { color: var(--ws-ink-700); }
 .ws-stagefilter button[data-empty] .ws-filter__n { opacity: 0.6; }
@@ -6661,7 +6664,7 @@ button.ws-open__go:hover { background: var(--ws-paper); }
   align-items: center; padding: var(--ws-s3) var(--ws-s4); border-top: 1px solid var(--ws-ink-100); }
 .ws-todo__item:first-child { border-top: 0; }
 .ws-todo__what { display: grid; gap: 2px; min-width: 0; }
-.ws-todo__sentence { font-size: var(--ws-text-sm); font-weight: 550; color: var(--ws-ink-900); }
+.ws-todo__sentence { font-size: var(--ws-text-sm); font-weight: 500; color: var(--ws-ink-900); }
 .ws-todo__doc { font-size: var(--ws-text-xs); color: var(--ws-ink-700); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ws-todo__since { justify-self: end; font-size: var(--ws-text-xs); color: var(--ws-ink-500); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .ws-todo__act { justify-self: end; white-space: nowrap; display: inline-flex; align-items: center; }
@@ -6710,7 +6713,7 @@ button.ws-open__go:hover { background: var(--ws-paper); }
 .cx-bar__open { color: var(--ws-ink-700); }
 .cx-bar__reply { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--ws-s2); }
 .cx-bar a.ws-btn { display: inline-flex; align-items: center; gap: 6px; }
-.cx-bar__sent { display: inline-flex; align-items: center; gap: 4px; color: var(--ws-ink-700); font-weight: 550; }
+.cx-bar__sent { display: inline-flex; align-items: center; gap: 4px; color: var(--ws-ink-700); font-weight: 500; }
 .cx-bar__manual { flex-basis: 100%; margin: 0; text-align: right; font-size: var(--ws-text-xs); color: var(--ws-ink-700); }
 .cx-bar .cx-error { flex-basis: 100%; text-align: right; margin: 0; }
 
@@ -6752,7 +6755,7 @@ button.ws-open__go:hover { background: var(--ws-paper); }
 .cx-row:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: -2px; }
 .cx-row__where { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
 .cx-row[data-answered] .cx-row__where { color: var(--ws-ink-500); font-weight: 400; }
-.cx-row__meta { display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: center; font-size: 11.5px; color: var(--ws-ink-500); }
+.cx-row__meta { display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: center; font-size: var(--t-label); color: var(--ws-ink-500); }
 .cx-row__tag { color: var(--ws-ink-900); font-weight: 600; }
 .cx-row__done { display: inline-flex; align-items: center; gap: 3px; color: var(--ws-ink-700); }
 
@@ -6761,7 +6764,7 @@ button.ws-open__go:hover { background: var(--ws-paper); }
 
 .cx-legend { margin: 0 0 var(--ws-s3); font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
 .cx-legend__keys { margin-left: var(--ws-s2); white-space: nowrap; }
-.cx-legend kbd, .cx kbd { font-family: var(--ws-mono); font-size: 10.5px; padding: 0 4px; border: 1px solid var(--ws-ink-300);
+.cx-legend kbd, .cx kbd { font-family: var(--ws-mono); font-size: var(--t-label); padding: 0 4px; border: 1px solid var(--ws-ink-300);
   border-bottom-width: 2px; border-radius: 4px; color: var(--ws-ink-700); background: var(--ws-surface); }
 .cx-passage { padding: var(--ws-s2) var(--ws-s3); margin: 0 calc(-1 * var(--ws-s3)); border-left: 3px solid transparent;
   border-radius: var(--ws-radius-sm); cursor: pointer; }
@@ -6802,12 +6805,12 @@ button.ws-open__go:hover { background: var(--ws-paper); }
 .cx-section > .ws-pane__note { margin: 0 0 var(--ws-s2); }
 .cx-review ul, .cx-reasons, .cx-explain ul { margin: 0; padding-left: 1.1em; font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
 .cx-explain { font-size: var(--ws-text-sm); border-top: 1px solid var(--ws-ink-100); padding-top: var(--ws-s2); }
-.cx-explain summary { cursor: pointer; color: var(--ws-accent); font-weight: 550; }
+.cx-explain summary { cursor: pointer; color: var(--ws-accent); font-weight: 500; }
 .cx-explain ul { margin-top: 4px; }
 .cx-history { font-size: var(--ws-text-xs); color: var(--ws-ink-700); }
 .cx-favour { margin: 0 0 var(--ws-s2); font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
 .cx-acts { display: flex; flex-wrap: wrap; gap: var(--ws-s2); align-items: center; margin-bottom: var(--ws-s3); }
-.cx-reason { display: grid; gap: 4px; font-size: var(--ws-text-xs); font-weight: 550; color: var(--ws-ink-700); }
+.cx-reason { display: grid; gap: 4px; font-size: var(--ws-text-xs); font-weight: 500; color: var(--ws-ink-700); }
 .cx-reason__opt { font-weight: 400; color: var(--ws-ink-500); }
 .cx-reason input { width: 100%; font: inherit; font-size: var(--ws-text-sm); font-weight: 400; padding: 6px 8px; min-height: 34px;
   border: 1px solid var(--ws-input-border); border-radius: var(--ws-radius-sm); background: var(--ws-surface); color: var(--ws-ink-900); }
@@ -6859,16 +6862,16 @@ button.ws-open__go:hover { background: var(--ws-paper); }
 .ws-record .ws-context__meta { gap: var(--ws-s2); }
 .ws-record .ws-btn {
   display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
-  min-height: 34px; padding: 6px 12px; font-size: var(--ws-text-sm); font-weight: 550;
+  min-height: 34px; padding: 6px 12px; font-size: var(--ws-text-sm); font-weight: 500;
 }
-.ws-record .ws-menu__toggle { padding: 6px 10px; font-size: 1rem; letter-spacing: 0.05em; }
+.ws-record .ws-menu__toggle { padding: 6px 10px; font-size: var(--t-subsection); letter-spacing: 0.05em; }
 .ws-record__bar {
   display: flex; align-items: center; gap: var(--ws-s2) var(--ws-s4); flex-wrap: wrap;
   padding: 0 var(--ws-s4);
 }
 .ws-record__tabs { display: flex; gap: var(--ws-s1); align-self: stretch; }
 .ws-record__tabs [role="tab"] {
-  font: inherit; font-size: var(--ws-text-sm); font-weight: 550;
+  font: inherit; font-size: var(--ws-text-sm); font-weight: 500;
   display: inline-flex; align-items: center; gap: 6px; min-height: 42px; padding: 0 var(--ws-s3);
   border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px;
   background: transparent; color: var(--ws-ink-500); cursor: pointer;
@@ -6902,7 +6905,7 @@ button.ws-open__go:hover { background: var(--ws-paper); }
   border-left: 3px solid var(--ws-accent); border-radius: var(--ws-radius);
 }
 .ws-replynote__text { min-width: 0; flex: 1 1 28rem; }
-.ws-replynote__title { margin: 0; font-size: var(--ws-text-sm); font-weight: 650; color: var(--ws-ink-900); }
+.ws-replynote__title { margin: 0; font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-900); }
 .ws-replynote__sub { margin: 2px 0 0; font-size: var(--ws-text-sm); color: var(--ws-ink-700); line-height: 1.5; }
 .ws-replynote__sub strong { font-weight: 600; color: var(--ws-ink-900); }
 .ws-replynote__acts { display: flex; gap: var(--ws-s2); flex-wrap: wrap; }
@@ -6936,7 +6939,7 @@ button.ws-open__go:hover { background: var(--ws-paper); }
  * One rhythm: 1.55 leading, a paragraph space of 0.55em, a heading's space before
  * three times its space after. */
 .ws-row { padding: 2px var(--ws-s3); margin: 0 0 0.55em calc(-1 * var(--ws-s3)); }
-.ws-row__text { line-height: 1.55; text-align: left; margin-left: var(--indent, 0); max-width: 74ch; }
+.ws-row__text { line-height: var(--t-legal-lh); text-align: left; margin-left: var(--indent, 0); max-width: 68ch; }
 .ws-row__text[data-hang] { padding-left: var(--hang); text-indent: calc(-1 * var(--hang)); }
 .ws-row__num, .ws-row__text[data-num]::before {
   display: inline-block; min-width: var(--hang); text-indent: 0;
@@ -6944,8 +6947,11 @@ button.ws-open__go:hover { background: var(--ws-paper); }
 }
 .ws-row__text[data-num]::before { content: attr(data-num); }
 .ws-row__term { font-weight: 700; font-variant-ligatures: no-common-ligatures; }
+/* the file's own bold, in every contract text: the static serif 700 face, never the
+   app-wide 600 (globals.css b/strong), which Source Serif draws from its variable face */
+:is(.ws-row__text, .tpl-sheet__body, .nc-sheet) :is(b, strong) { font-weight: 700; }
 .ws-row[data-kind="heading"] { margin-top: 1.5em; margin-bottom: 0.5em; break-after: avoid; }
-.ws-row[data-kind="heading"] .ws-row__text { font-weight: 700; font-size: 1em; letter-spacing: 0.01em; }
+.ws-row[data-kind="heading"] .ws-row__text { font-weight: 700; }
 .ws-row[data-kind="subheading"] { margin-top: 0.9em; margin-bottom: 0.35em; break-after: avoid; }
 .ws-row[data-kind="title"] { margin-bottom: 1.2em; }
 /* A contract LegalMind generated (`data-house`, its paragraph's house style): set as
@@ -6957,7 +6963,7 @@ button.ws-open__go:hover { background: var(--ws-paper); }
 /* a narrow column cannot justify without rivers of space: ragged-right there */
 @container (max-width: 620px) { .ws-row[data-house] .ws-row__text { text-align: start; } }
 .ws-row[data-house][data-kind="title"] .ws-row__text {
-  text-align: center; text-decoration: none; font-size: 1.05em;
+  text-align: center; text-decoration: none; font-size: calc(var(--t-section) * var(--ws-zoom, 1));
 }
 .ws-row[data-house="connector"] .ws-row__text,
 .ws-row[data-house="plain heading"] .ws-row__text { font-weight: 700; }
@@ -7020,7 +7026,7 @@ button.ws-open__go:hover { background: var(--ws-paper); }
 .ws-summary__part { display: flex; flex-direction: column; gap: var(--ws-s2); }
 .ws-summary__part > .ws-angle, .ws-summary__part > .ws-stage { margin: 0; }
 .ws-summary__title { margin: 0; padding-bottom: var(--ws-s2); font-size: var(--ws-text-sm);
-  font-weight: 650; color: var(--ws-ink-700); border-bottom: 1px solid var(--ws-ink-100); }
+  font-weight: 600; color: var(--ws-ink-700); border-bottom: 1px solid var(--ws-ink-100); }
 .ws-summary__legal { border-top: 1px solid var(--ws-ink-100); padding-top: var(--ws-s3); }
 .ws-summary__legal > summary { cursor: pointer; font-size: var(--ws-text-sm); font-weight: 600;
   color: var(--ws-accent); min-height: 32px; display: flex; align-items: center; }
@@ -7045,12 +7051,12 @@ button.ws-open__go:hover { background: var(--ws-paper); }
    queue this person works (when they work one), then the list. No banner, no tiles. */
 .ws-home__head { display: flex; align-items: center; justify-content: space-between;
   gap: var(--ws-s3); flex-wrap: wrap; padding-top: var(--ws-s2); }
-.ws-home__title { margin: 0; font-size: var(--ws-text-xl); font-weight: 650;
+.ws-home__title { margin: 0; font-size: var(--ws-text-xl); font-weight: 600;
   letter-spacing: -0.01em; color: var(--ws-ink-900); }
 .ws-home__new { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; }
 .ws-home__queue { display: flex; flex-direction: column; gap: var(--ws-s2); }
 .ws-home__qtitle { margin: 0; display: flex; align-items: baseline; gap: var(--ws-s2);
-  font-size: var(--ws-text-md); font-weight: 650; color: var(--ws-ink-900); }
+  font-size: var(--ws-text-md); font-weight: 600; color: var(--ws-ink-900); }
 .ws-home__qn { font-size: var(--ws-text-sm); font-weight: 500; color: var(--ws-ink-500);
   font-variant-numeric: tabular-nums; }
 .ws-home__clear { margin: 0; padding: var(--ws-s3) var(--ws-s4); font-size: var(--ws-text-sm);
@@ -7163,7 +7169,7 @@ button.ws-open__go:hover { background: var(--ws-paper); }
   .ws-home__chips button { min-height: 36px; }
 }
 /* S1 — a change row's review word: its own slot, ruled off from who answers, no hue. */
-.cx-row__word { color: var(--ws-ink-700); font-weight: 550; padding-right: 8px;
+.cx-row__word { color: var(--ws-ink-700); font-weight: 500; padding-right: 8px;
   border-right: 1px solid var(--ws-ink-100); }
 
 /* ==========================================================================
@@ -7196,8 +7202,10 @@ button.ws-open__go:hover { background: var(--ws-paper); }
 }
 
 /* header: one status, said as words — no chip, no one-sided rule */
-.ws-record h1 { font-family: var(--ws-sans); font-size: var(--ws-text-lg); font-weight: 650;
+/* UX Batch 2: the contract page's h1 is the one page size; it steps down on a phone (below) */
+.ws-record h1 { font-family: var(--ws-sans); font-size: var(--ws-text-xl); font-weight: 600;
   letter-spacing: -0.005em; }
+@media (max-width: 760px) { .ws-record h1 { font-size: var(--ws-text-lg); } }
 .ws-record .ws-dealstage { padding: 0; border: 0; background: transparent;
   font-size: var(--ws-text-sm); color: var(--ws-ink-900); font-weight: 600; }
 .ws-record .ws-dealstage__days { font-family: inherit; font-size: var(--ws-text-sm);
@@ -7205,7 +7213,7 @@ button.ws-open__go:hover { background: var(--ws-paper); }
 
 /* Summary: the panel's heading is the H2; the stage is the header's, said once */
 .ws-analysis { gap: var(--ws-s4); }
-.ws-summary__h2 { margin: 0; font-size: var(--ws-text-lg); font-weight: 650; color: var(--ws-ink-900);
+.ws-summary__h2 { margin: 0; font-size: var(--ws-text-lg); font-weight: 600; color: var(--ws-ink-900);
   letter-spacing: -0.005em; }
 .ws-attn { display: grid; gap: 6px; justify-items: start; }
 .ws-attn__count, .ws-attn__changes { margin: 0; font-size: var(--ws-text-sm); color: var(--ws-ink-700);
@@ -7250,7 +7258,7 @@ button.ws-open__go:hover { background: var(--ws-paper); }
   text-transform: none; letter-spacing: 0; font-family: var(--ws-sans);
 }
 .ws-recordpage .ws-facts--compare dt { font-size: var(--ws-text-xs); font-weight: 600; color: var(--ws-ink-500); }
-.ws-recordpage .ws-outline__title { font-size: var(--ws-text-sm); font-weight: 650; color: var(--ws-ink-900); }
+.ws-recordpage .ws-outline__title { font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-900); }
 .ws-recordpage .ws-evidence__source { font-size: var(--ws-text-xs); font-weight: 600; color: var(--ws-ink-500); }
 .ws-recordpage .ws-evaluation__provenance { font-family: var(--ws-sans); }
 .ws-case__quote + .ws-case__where { margin: 4px 0 0; }
@@ -7266,7 +7274,7 @@ button.ws-open__go:hover { background: var(--ws-paper); }
 .ws-recordpage .ws-outline__list button[aria-current="true"],
 .ws-recordpage .ws-outline__node:has(> .ws-outline__jump[aria-current="true"]) {
   background: transparent; }
-.ws-recordpage .ws-outline__list button[aria-current="true"] { font-weight: 650; color: var(--ws-ink-900); }
+.ws-recordpage .ws-outline__list button[aria-current="true"] { font-weight: 600; color: var(--ws-ink-900); }
 
 /* the reading column: a cited passage is marked in the margin, not banded like a list
    selection; the page marker is a quiet line, not a mono eyebrow */
@@ -7289,7 +7297,7 @@ button.ws-open__go:hover { background: var(--ws-paper); }
 .ws-doc[data-sheet] .ws-outline { border: 0; box-shadow: none; }
 .ws-doc[data-sheet] > .ws-doc__scrim { display: block; position: absolute; inset: 0; z-index: 2;
   border: 0; border-radius: var(--ws-radius-card); background: rgba(14, 20, 32, 0.24); cursor: default; }
-.ws-doccard__contents { display: inline-flex; align-items: center; gap: 6px; font-weight: 550;
+.ws-doccard__contents { display: inline-flex; align-items: center; gap: 6px; font-weight: 500;
   color: var(--ws-ink-900); }
 /* phone: the same Contents as a sheet from the bottom of the screen */
 @media (max-width: 639px) {
@@ -7346,10 +7354,10 @@ button.ws-open__go:hover { background: var(--ws-paper); }
 .lm-ph__back:hover { color: var(--ws-ink-900); text-decoration: underline; }
 .lm-ph__row { display: flex; align-items: flex-start; gap: var(--ws-s3) var(--ws-s5); min-width: 0; }
 .lm-ph__id { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-.lm-ph__title { margin: 0; font-family: var(--ws-sans); font-size: var(--ws-text-xl); font-weight: 650;
+.lm-ph__title { margin: 0; font-family: var(--ws-sans); font-size: var(--ws-text-xl); font-weight: 600;
   line-height: 1.25; letter-spacing: -0.005em; color: var(--ws-ink-900);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lm-ph--wide .lm-ph__title { font-size: var(--ws-text-lg); }
+/* UX Batch 2: every page title is the one --t-page size, the contract page included */
 .lm-ph__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px var(--ws-s4);
   font-size: var(--ws-text-sm); color: var(--ws-ink-500); min-width: 0; }
 .lm-ph__meta strong { color: var(--ws-ink-900); font-weight: 600; }
@@ -7360,6 +7368,8 @@ button.ws-open__go:hover { background: var(--ws-paper); }
 @media (max-width: 760px) {
   .lm-ph__row { flex-direction: column; align-items: stretch; }
   .lm-ph__title { white-space: normal; }
+  /* a contract name wraps on a phone: there it steps down one size, never off the scale */
+  .lm-ph--wide .lm-ph__title { font-size: var(--ws-text-lg); }
   .lm-ph__acts { flex-wrap: wrap; }
   .lm-ph__acts > .ws-btn--primary, .lm-ph__acts > .lm-sendlegal { flex: 1 1 auto; justify-content: center; }
   .lm-ph__acts .ws-btn { min-height: 44px; }
@@ -7400,7 +7410,7 @@ button.ws-open__go:hover { background: var(--ws-paper); }
 .ws-hometable th:nth-child(3) { width: 15rem; }
 .cx-dialog__foot--start { justify-content: flex-start; flex-wrap: wrap; }
 .ws-record > .lm-ph--wide { border-bottom: 0; padding-bottom: 0; }
-.ws-record .lm-ph__acts .ws-btn { min-height: 34px; font-weight: 550; }
+.ws-record .lm-ph__acts .ws-btn { min-height: 34px; font-weight: 500; }
 .lm-ph__meta .ws-linkbtn { font-size: inherit; }
 .ws-legend .lm-legend { flex-direction: column; gap: 6px; }
 
@@ -7468,7 +7478,7 @@ a.ws-askglobal[data-away]:not(:focus-visible) {
 .ws-phonebar__tabs > button, .ws-phonebar__ask {
   flex: 1 1 0; min-width: 0; min-height: 56px; padding: 6px 2px 4px;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
-  font: inherit; font-size: var(--ws-text-xs); font-weight: 550; color: var(--ws-ink-500);
+  font: inherit; font-size: var(--ws-text-xs); font-weight: 500; color: var(--ws-ink-500);
   background: transparent; border: 0; border-radius: var(--ws-radius); cursor: pointer;
 }
 .ws-phonebar__ask { flex: 0 0 20%; }
@@ -7477,20 +7487,20 @@ a.ws-askglobal[data-away]:not(:focus-visible) {
   width: 48px; height: 28px; border-radius: 999px; transition: background-color var(--ws-t);
 }
 .ws-phonebar__label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-.ws-phonebar [aria-selected="true"], .ws-phonebar__ask[aria-expanded="true"] { color: var(--ws-ink-900); font-weight: 650; }
+.ws-phonebar [aria-selected="true"], .ws-phonebar__ask[aria-expanded="true"] { color: var(--ws-ink-900); font-weight: 600; }
 .ws-phonebar [aria-selected="true"] .ws-phonebar__icon,
 .ws-phonebar__ask[aria-expanded="true"] .ws-phonebar__icon { background: var(--ws-accent-soft); color: var(--ws-accent); }
 .ws-phonebar button:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: -2px; }
 .ws-phonebar__badge {
   position: absolute; top: -3px; right: 2px; min-width: 18px; height: 18px; padding: 0 5px;
   display: inline-flex; align-items: center; justify-content: center;
-  font-size: 10.5px; font-weight: 650; line-height: 1; font-variant-numeric: tabular-nums;
+  font-size: var(--t-label); font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums;
   color: #fff; background: var(--ws-accent); border: 2px solid var(--ws-surface); border-radius: 999px;
 }
 /* ⋯ on a phone: the version as a group of radio items above the other actions */
 .ws-menu__group { display: flex; flex-direction: column; border-bottom: 1px solid var(--ws-ink-100);
   padding-bottom: 4px; margin-bottom: 4px; }
-.ws-menu__group [aria-checked="true"] { font-weight: 650; color: var(--ws-ink-900); }
+.ws-menu__group [aria-checked="true"] { font-weight: 600; color: var(--ws-ink-900); }
 .ws-menu__group [aria-checked="true"]::after { content: "✓"; margin-left: auto; padding-left: var(--ws-s3); color: var(--ws-accent); }
 /* below 760px ⋯ is the first action at the left edge: its menu opens rightwards, on screen */
 @media (max-width: 760px) {

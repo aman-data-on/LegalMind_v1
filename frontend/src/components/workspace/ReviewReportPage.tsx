@@ -26,10 +26,10 @@ import type { ReportBlock, Review, ReviewReport } from "@/lib/types";
 
 import { STAGE_LABELS } from "@/lib/labels";
 
-import { StatusIcon } from "./AnalysisPanel";
 import { ExportControl } from "./ExportControl";
-import { USER_STATUS_LABELS, USER_STATUS_TONE, type UserStatus } from "./findingLanguage";
+import { USER_STATUS_LABELS, type UserStatus } from "./findingLanguage";
 import { IconArrowLeft } from "./icons";
+import { StatusChip, chipStatus } from "@/components/StatusChip";
 
 type Load =
   | { kind: "loading" }
@@ -155,11 +155,7 @@ const STATUS_OF_WORD = Object.fromEntries(
 function StatusWord({ text }: { text: string }) {
   const status = STATUS_OF_WORD[text];
   if (!status) return <>{text}</>;
-  return (
-    <span className={`ws-finding__det ws-finding__det--${USER_STATUS_TONE[status]} ws-reportdoc__status`}>
-      <StatusIcon status={status} size={12} />{text}
-    </span>
-  );
+  return <StatusChip status={chipStatus(status)} />;
 }
 
 /** Plain blocks, as the download carries them. */

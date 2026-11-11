@@ -14,6 +14,7 @@ import { api, describeError } from "@/lib/api";
 import type { Contract, WebsiteDocument } from "@/lib/types";
 import { Review } from "./Review";
 import { Setup } from "./Setup";
+import { toastFailure } from "@/components/Toast";
 
 /** Every document the reader may pick, not just the first page.
  *  ponytail: capped at 2,000 in a native select; add a search box beyond that. */
@@ -70,7 +71,7 @@ export function DiffTalkPage({ left, right, onChange }: {
       <Setup left={left} right={right} website={website} documents={documents}
              listError={listError} onChange={onChange}
              onUploaded={async (side, ref) => {
-               await refresh().catch(() => undefined);
+               await refresh().catch(toastFailure("The document list could not be refreshed"));
                if (ref) onChange(side === "left" ? ref : left, side === "right" ? ref : right);
              }} />
     </div>

@@ -96,6 +96,7 @@ import { findingsSummary } from "./model";
 import { POINT_CHIP, POINT_STATUS, POINT_STATUS_ORDER, PointStatusMark } from "./PointStatus";
 import type { StatusBucket } from "./model";
 import { useSideTabs } from "./WorkspaceLayout";
+import { StatusChip, chipStatus } from "@/components/StatusChip";
 
 /* `requiresDecision` is the workflow field (`finding.requires_decision`), NOT one
    of the three reader words — the Summary's "Review pending decisions" counts
@@ -783,10 +784,7 @@ export function FindingCard({ finding, onChanged, prepared, qualify, explanation
             word against our standard, then who answers the point or what was
             answered. A decided point keeps the review's word on line one. */}
         <span className="ws-point">
-          <span className={`ws-chip ws-chip--fill ws-chip--status-${status.toLowerCase()}`}
-                data-status={status}>
-            {USER_STATUS_LABELS[status]}
-          </span>
+          <StatusChip status={chipStatus(status)} />
           {answer ? (
             <span className="ws-point__who" data-answer={pointState(finding)}>
               {pointState(finding) === "decided" ? <IconCheckCircle size={13} /> : null}

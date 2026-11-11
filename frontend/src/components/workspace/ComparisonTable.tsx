@@ -32,12 +32,11 @@ import {
   requirementTitle,
   sideOf,
   standardSideOf,
-  USER_STATUS_LABELS,
   USER_STATUS_ORDER,
-  USER_STATUS_TONE,
   userStatus,
 } from "./findingLanguage";
 import { clauseFromText } from "./model";
+import { StatusChip, chipStatus } from "@/components/StatusChip";
 
 /** The clause a Finding read: the parser's number, else the number the row's own text
  *  states (`AM-57` r3 — derived for display, nothing re-extracted), else its passage. */
@@ -218,12 +217,7 @@ export function ComparisonTable({
                   </td>
                 ) : null}
                 <td data-label="Result">
-                  <span
-                    className={`ws-chip ws-chip--fill ws-chip--status-${status.toLowerCase()}`}
-                    data-tone={USER_STATUS_TONE[status]}
-                  >
-                    {USER_STATUS_LABELS[status]}
-                  </span>
+                  <StatusChip status={chipStatus(status)} />
                   {/* what it means and who acts — a Legal decision where one is needed */}
                   <span className="ws-chat__rowsub">{nextStep(finding, evaluation, status)}</span>
                 </td>

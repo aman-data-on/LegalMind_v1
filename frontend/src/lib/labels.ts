@@ -424,3 +424,38 @@ export function contractDisplayName(name: string): string {
       at > 0 && SMALL_WORDS.has(w) ? w : w[0]!.toUpperCase() + w.slice(1));
   }).join("");
 }
+
+/** The shared states and components' own words (UX Batch 2; PLAIN-LANGUAGE.md §2.6, §5):
+ *  an error says what failed and the fix, never an apology; a button is a verb. */
+export const FEEDBACK_COPY = {
+  retry: "Try again",
+  dismiss: "Dismiss",
+  defaultFix: "Check your connection and try again. If it keeps failing, tell your administrator.",
+  reference: (id: string) => `Error reference for support: ${id}`,
+  loading: "Loading…",
+  chooseFile: "Choose file",
+  chooseAnother: "Choose another file",
+  dropTitle: "Drag and drop your file here",
+  dropOr: "or choose one from your computer",
+  fileHint: "PDF, Word, Markdown or text, up to 25 MB",
+  preview: "Preview",
+  preparingPreview: "Preparing preview…",
+  previewFailed: "The preview could not be shown",
+  downloadPdf: "Download PDF",
+  downloadWord: "Download Word",
+  openPdf: "Open the PDF in a new tab",
+  noInlinePdf: "This browser can’t show the PDF here",
+  noInlinePdfFix: "Open it in a new tab, or download it below. It is the same file.",
+  close: "Close",
+} as const;
+
+/** The point-status chip's words: exactly these, on every screen (PLAIN-LANGUAGE §2.1).
+ *  "Decided" is a second line beside a status, never instead of it (rule 14). */
+export const STATUS_CHIP_WORDS = {
+  MATCHES: "Matches",
+  CHANGE_NEEDED: "Change needed",
+  MISSING: "Missing",
+  NEEDS_DECISION: "Needs a decision",
+  IN_OUR_FAVOUR: "In our favour",
+  decided: "Decided",
+} as const;

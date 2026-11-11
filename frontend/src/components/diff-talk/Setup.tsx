@@ -8,13 +8,14 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { IconCheck, IconUploadCloud } from "@/components/workspace/icons";
+import { IconCheck } from "@/components/workspace/icons";
 import { api, describeError, uploadFirstDocument } from "@/lib/api";
 import { documentTypeChip, nameFromFilename } from "@/lib/documentTypes";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { Contract, WebsiteDocument } from "@/lib/types";
 import { formatDate } from "@/lib/dates";
+import { FilePicker } from "@/components/FilePicker";
 
 type Option = { value: string; label: string };
 
@@ -106,7 +107,6 @@ function Slot({ step, label, hint, placeholder, value, source, side, groups, onC
   const { can } = useSession();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [over, setOver] = useState(false);
   const id = `dt-pick-${step}`;
   const chosen = groups.flatMap((g) => g.options).find((o) => o.value === value);
   // The wait below can outlive the slot, and the reader may choose another document
@@ -185,32 +185,9 @@ function Slot({ step, label, hint, placeholder, value, source, side, groups, onC
         ))}
       </select>
       {can(P.CONTRACT_CREATE) && can(P.DOCUMENT_UPLOAD) ? (
-        <label className={`ws-dt__drop${over ? " is-over" : ""}${busy ? " is-busy" : ""}`}
-               onDragOver={(e) => { e.preventDefault(); setOver(true); }}
-               // Only when the pointer leaves the zone itself, not one of its children.
-               onDragLeave={(e) => {
-                 if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(false);
-               }}
-               onDrop={(e) => {
-                 e.preventDefault();
-                 setOver(false);
-                 const file = e.dataTransfer.files?.[0];
-                 if (file && !busy) void upload(file);
-               }}>
-          <IconUploadCloud size={20} />
-          <span>
-            {busy ? "Uploading and reading the file — a scanned PDF takes up to a minute…" : (
-              <><strong>Upload a file</strong> — drop a PDF or DOCX here, or click to browse</>
-            )}
-          </span>
-          <input type="file" accept=".pdf,.docx,.md,.txt" disabled={busy}
-                 className="ws-visually-hidden"
-                 onChange={(e) => {
-                   const file = e.target.files?.[0];
-                   e.target.value = "";
-                   if (file) void upload(file);
-                 }} />
-        </label>
+        <FilePicker compact disabled={busy} title="Upload a file"
+                    busyText={busy ? "Uploading and reading the file. A scanned PDF takes up to a minute." : undefined}
+                    hint="PDF or Word, up to 25 MB" onFile={(file) => { if (file && !busy) void upload(file); }} />
       ) : null}
       {error ? <p className="ws-dt__msg is-error" role="alert">{error}</p> : null}
     </div>

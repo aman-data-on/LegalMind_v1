@@ -28,7 +28,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import {
-  requirementTitle, USER_STATUS_LABELS, userStatus,
+  requirementTitle, userStatus,
 } from "@/components/workspace/findingLanguage";
 
 import { api, describeError } from "@/lib/api";
@@ -37,6 +37,7 @@ import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import { TodoViews } from "@/components/workspace/TodoViews";
 import type { Finding, Review } from "@/lib/types";
+import { StatusChip, chipStatus } from "@/components/StatusChip";
 
 /** Step 30 statuses under which undecided Findings can still exist. LEGAL_REVIEW
  *  first: it is the explicitly-escalated lane. RESOLVED/CLOSED reviews cannot
@@ -238,10 +239,8 @@ export default function LegalQueuePage() {
                     <td>
                       {/* the reader's three words, as on every other screen (owner,
                           2026-10-21) — the engine's own word stays in the tooltip */}
-                      <span className={`ws-chip ws-chip--fill ws-chip--status-${userStatus(finding).toLowerCase()}`}
-                            title={classificationLabel(finding.classification)}>
-                        {USER_STATUS_LABELS[userStatus(finding)]}
-                      </span>
+                      <StatusChip status={chipStatus(userStatus(finding))}
+                                  title={classificationLabel(finding.classification)} />
                     </td>
                     <td>
                       {review.document_accessible ? (

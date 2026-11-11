@@ -281,8 +281,8 @@ describe("Write our wording (AM-284) and the notes (AM-285)", () => {
 
   it("keeps line 1 (the review's word) apart from line 2 (who answers)", () => {
     const html = card(change(), list());
-    // the one status set's icon, then the review's word (AM-291 r1)
-    expect(html).toMatch(/class="cx-line1"><span class="ws-status ws-status--review"[^>]*>.*?<\/span><strong>Change needed<\/strong>/);
+    // the review's word as the one StatusChip (AM-291 r1; UX Batch 2: same hue and icon as Points)
+    expect(html).toMatch(/class="cx-line1"><span class="lm-chip lm-chip--change" data-status="CHANGE_NEEDED"[^>]*>.*?<\/svg>Change needed<\/span>/);
     expect(html).toMatch(/class="cx-line2"[^>]*><strong>With Legal<\/strong>/);
     expect(whoLine(change(), list(LAWYER))).toBe("Yours to answer");
   });

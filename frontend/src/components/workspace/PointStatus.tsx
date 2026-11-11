@@ -8,7 +8,7 @@
  */
 
 import type { StatusBucket } from "./model";
-import { IconAlertCircle, IconCheck, IconCheckCircle, IconFileMinus } from "./icons";
+import { IconAlertCircle, IconCheck, IconCheckCircle, IconFilePlus } from "./icons";
 
 export const POINT_STATUS_ORDER: readonly StatusBucket[] = ["match", "review", "decided", "missing"];
 
@@ -34,7 +34,7 @@ export function PointStatusIcon({ bucket, size = 16, label = true }: {
   label?: boolean;
 }) {
   const Icon = bucket === "match" ? IconCheckCircle : bucket === "decided" ? IconCheck
-    : bucket === "review" ? IconAlertCircle : IconFileMinus;
+    : bucket === "review" ? IconAlertCircle : IconFilePlus;
   return (
     <span className={`ws-status ws-status--${bucket}`}
           {...(label ? { title: POINT_STATUS[bucket], "aria-label": POINT_STATUS[bucket], role: "img" } : {})}>

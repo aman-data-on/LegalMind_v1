@@ -45,8 +45,9 @@ import { useEffect, useState } from "react";
 
 import { api, describeError } from "@/lib/api";
 import { sectionRef } from "@/lib/documentTypes";
-import { USER_STATUS_LABELS, requirementTitle, userStatus } from "./findingLanguage";
+import { requirementTitle, userStatus } from "./findingLanguage";
 import type { ClauseChange, DocumentVersion, VersionComparison as Comparison } from "@/lib/types";
+import { StatusChip, chipStatus } from "@/components/StatusChip";
 
 type Load =
   | { kind: "loading" }
@@ -218,12 +219,9 @@ function Result({
                     /* The reader's word in the reader's colour: this chip wore
                        `--ws-classify` while every other surface showing the
                        same word wore ok/warn/bad (2026-09-09). */
-                    <span
-                      key={finding.finding_id}
-                      className={`ws-chip ws-chip--fill ws-chip--status-${userStatus(finding).toLowerCase()}`}
-                    >
-                      {USER_STATUS_LABELS[userStatus(finding)]}
-                      {finding.requirement_code ? ` · ${requirementTitle({ code: finding.requirement_code })}` : ""}
+                    <span key={finding.finding_id} className="ws-compare__finding">
+                      <StatusChip status={chipStatus(userStatus(finding))} />
+                      {finding.requirement_code ? ` ${requirementTitle({ code: finding.requirement_code })}` : ""}
                     </span>
                   ))}
                 </p>

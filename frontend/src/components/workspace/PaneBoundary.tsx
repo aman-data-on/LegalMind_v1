@@ -7,6 +7,8 @@
  */
 import { Component } from "react";
 
+import { ErrorState } from "@/components/Feedback";
+
 export class PaneBoundary extends Component<{ what: string; children: React.ReactNode }, { failed: boolean }> {
   override state = { failed: false };
 
@@ -17,12 +19,8 @@ export class PaneBoundary extends Component<{ what: string; children: React.Reac
   override render() {
     if (!this.state.failed) return this.props.children;
     return (
-      <div className="ws-state" role="alert">
-        <p>{this.props.what} could not be shown. The rest of the page still works.</p>
-        <button type="button" className="ws-btn ws-btn--sm" onClick={() => this.setState({ failed: false })}>
-          Try again
-        </button>
-      </div>
+      <ErrorState title={`${this.props.what} could not be shown`} fix="The rest of the page still works."
+                  onRetry={() => this.setState({ failed: false })} />
     );
   }
 }

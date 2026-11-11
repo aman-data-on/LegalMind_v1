@@ -19,7 +19,6 @@ import type { Metadata } from "next";
 
 import { WorkspaceShell } from "@/components/workspace/WorkspaceShell";
 
-import "./fonts.css";
 import "./workspace.css";
 
 export const metadata: Metadata = {

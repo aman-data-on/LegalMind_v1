@@ -44,6 +44,7 @@ import {
   hasProfileDetail,
   mergeProfile,
 } from "./model";
+import { ErrorState } from "@/components/Feedback";
 
 const TABS = [
   { key: "documents", label: "Documents" },
@@ -307,11 +308,9 @@ export function ClientWorkspace({ clientId }: { clientId: string }) {
 
   if (error) {
     return (
-      <div className="ws-state ws-state--error" role="alert">
-        <h2>This client could not be opened.</h2>
-        <p>{describeError(error)}</p>
-        <Link className="ws-btn" href="/dashboard/clients">All clients</Link>
-      </div>
+      <ErrorState title="This client could not be opened" error={error} fix={null}>
+        <p className="lm-state__acts"><Link className="ws-btn" href="/dashboard/clients">All clients</Link></p>
+      </ErrorState>
     );
   }
 

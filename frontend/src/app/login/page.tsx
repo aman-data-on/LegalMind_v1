@@ -91,9 +91,10 @@ export default function LoginPage() {
 
       <div className="login__main">
         <div className="login__card">
-          {/* Owner-directed heading (DD-4 addendum): the mock's tagline replaces
-              the plain task heading. */}
-          <h1>Smart legal review, built in.</h1>
+          {/* GP-21 (WCAG 2.4.6): the heading a screen reader lands on names the task; the
+              owner-directed tagline (DD-4 addendum) stays the visible line. */}
+          <h1 className="lm-visually-hidden">Sign in to LegalMind</h1>
+          <p className="login__tagline">Smart legal review, built in.</p>
 
           <form onSubmit={submit} className="login__form">
             <Field id="login-email" label="Work email">

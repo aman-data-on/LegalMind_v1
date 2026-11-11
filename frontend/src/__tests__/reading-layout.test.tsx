@@ -115,8 +115,9 @@ describe("the version switcher says what each version is", () => {
     const html = renderToStaticMarkup(<ReplyNotice version={withCounts} versions={all} canSend />);
     expect(html).toContain("Version 3 is our reply to the client’s version 2");
     expect(html).toContain("81 of our changes are in it as tracked changes; 1 to restore by hand in Word (Support)");
-    expect(html).toMatch(/Download <\/span>Word/);
-    expect(html).toMatch(/Download <\/span>PDF/);   // fetched on click: AM-293 may refuse it
+    // UX Batch 2: one Preview opens the exact PDF, with Download PDF and Word inside it;
+    // fetched on click, so AM-293 may still refuse it there
+    expect(html).toMatch(/<\/svg> Preview<\/button>/);
     const sent = renderToStaticMarkup(
       <ReplyNotice version={{ ...withCounts, sent_at: "2026-11-02T10:00:00Z" }} versions={all} canSend={false} />);
     expect(sent).toContain("Sent to the client on 2 Nov 2026");

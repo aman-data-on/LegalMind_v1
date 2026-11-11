@@ -48,7 +48,7 @@ import { STAGE_LABELS, changesWords, contractOutcomeLabel, decidedWords, pointsW
          type StageViewer } from "@/lib/labels";
 
 import { useHighlight } from "./highlight";
-import { IconAlertCircle, IconCheckCircle, IconFileMinus, IconRefresh, IconScale } from "./icons";
+import { IconAlertCircle, IconCheckCircle, IconFilePlus, IconPencilLine, IconRefresh, IconScale } from "./icons";
 import {
   classificationBucket,
   findingsSummary,
@@ -82,7 +82,9 @@ export function ToneIcon({ tone, size }: { tone: StatusTone; size: number }) {
 /** One icon per WORD (AB-104): "Missing" shares the change's amber, so its own icon
  *  (a page with a minus) tells the two apart without colour. */
 export function StatusIcon({ status, size }: { status: UserStatus; size: number }) {
-  if (status === "MISSING") return <IconFileMinus size={size} />;
+  // the fixed set (UX Batch 2): one icon per word, the same on every screen
+  if (status === "MISSING") return <IconFilePlus size={size} />;
+  if (status === "REQUIRES_MODIFICATION") return <IconPencilLine size={size} />;
   return <ToneIcon tone={USER_STATUS_TONE[status]} size={size} />;
 }
 
@@ -239,6 +241,7 @@ export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner
                                          : undefined}
                         words={new Map(state.findings.map((f) => [f.id, {
                           reader: USER_STATUS_LABELS[userStatus(f)],
+                          status: userStatus(f),
                           answer: pointAnswer(f, can(P.LEGAL_DECISION),
                                               state.progress?.stage !== "NOT_SENT") }]))} />}
           </section>

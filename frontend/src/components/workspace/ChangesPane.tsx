@@ -18,11 +18,15 @@
  */
 
 import { finalLine } from "@/lib/package";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Dialog } from "@/components/Dialog";
 import { useStep } from "@/lib/nextStep";
-import { saveBlob, usePdfDownload } from "@/lib/pdfDownload";
+import { saveBlob } from "@/lib/pdfDownload";
+import { ErrorState, LoadingState } from "@/components/Feedback";
+import { PreviewPanel } from "@/components/PreviewPanel";
+import { StatusChip, chipStatus } from "@/components/StatusChip";
+import { FEEDBACK_COPY } from "@/lib/labels";
 import { PointStatusIcon } from "./PointStatus";
 import { ApiError, api, describeError } from "@/lib/api";
 import * as P from "@/lib/permissions";
@@ -32,7 +36,7 @@ import { displayTitle } from "@/lib/templates";
 import {
   ACCEPTABLE_EFFECTS, ACTION_LABEL, ANSWER_LABEL, EFFECT_LABEL, EFFECT_SENTENCE, KIND_LABEL, ROUTE_REASON, acceptable, actionsFor,
   type AcceptableEffect,
-  answersAsLegal, explanation, formattingOnly, changeBucket, historyLine, matches, readerWord, replyBlockers,
+  answersAsLegal, explanation, formattingOnly, changeBucket, historyLine, matches, readerStatus, readerWord, replyBlockers,
   oursLabel, whoLine, where,
   type Answer, type ChangeList, type ClientChange, type EffectForUs, type Filter, type ManualRow, type ReplyGate,
 } from "@/lib/changes";
@@ -43,7 +47,7 @@ import { AnswerComposer, DiffText } from "./ChangeComposer";
 import { EscalateControl } from "./EscalateControl";
 import { USER_STATUS_LABELS, requirementTitle } from "./findingLanguage";
 import {
-  IconArrowLeft, IconBetter, IconCheck, IconChevronRight, IconClock, IconDownload, IconLock, IconSame, IconWorse, IconFallback,
+  IconArrowLeft, IconBetter, IconCheck, IconChevronRight, IconClock, IconFile, IconLock, IconSame, IconWorse, IconFallback,
 } from "./icons";
 import { OfferLine } from "./OfferPlaybook";
 import { formatDate } from "@/lib/dates";
@@ -197,22 +201,16 @@ export function ChangesPane({
   }, [list]));
 
   if (state.kind === "loading") {
-    return <div className="ws-state" aria-busy="true"><p role="status">Reading the client&rsquo;s changes…</p></div>;
+    return <LoadingState label="Loading the client’s changes…" rows={5} />;
   }
   if (state.kind === "error") {
     // P1 (owner, 2026-11-09): a version nobody declared is no one's — ask, never guess
     const undeclared = state.error instanceof ApiError && state.error.code === "VERSION_ROLE_UNDECLARED";
-    return (
-      <div className="ws-state ws-state--error" role="alert">
-        <h2>{undeclared ? "Whose paper is this version?" : "The changes could not be listed."}</h2>
-        <p>{describeError(state.error)}</p>
-        {undeclared ? (
-          <DeclareRoles versions={versions.filter((v) => !v.version_role && !v.source)} onDone={reload} />
-        ) : (
-          <button type="button" className="ws-btn ws-btn--sm" onClick={reload}>Try again</button>
-        )}
-      </div>
-    );
+    return undeclared ? (
+      <ErrorState title="Whose paper is this version?" error={state.error} fix={null}>
+        <DeclareRoles versions={versions.filter((v) => !v.version_role && !v.source)} onDone={reload} />
+      </ErrorState>
+    ) : <ErrorState title="The changes could not be listed" error={state.error} onRetry={reload} />;
   }
   const data = state.list;
   const focusSoon = (id: string) => window.requestAnimationFrame(() => document.getElementById(id)?.focus());
@@ -603,11 +601,10 @@ function ChangeIndex({ rows, current, onPick, allUntracked, reader, formatting, 
                             when it asks for a person, else what the change does for us. The
                             effect and our offer are said in the answer panel, never stacked
                             here beside a contradicting word (two-line rule) */}
-                        {changeBucket(c) && c.route === "holder"
-                          ? <PointStatusIcon bucket={changeBucket(c)!} size={14} /> : null}
-                        {readerWord(c) && changeBucket(c) !== "decided" && c.route === "holder"
-                          ? <span className="cx-row__word">{readerWord(c)}</span>
-                          : <ForUs effect={c.effect_for_us} />}
+                        {readerStatus(c) && changeBucket(c) !== "decided" && c.route === "holder"
+                          ? <StatusChip status={chipStatus(readerStatus(c)!)} />
+                          : <>{changeBucket(c) && c.route === "holder"
+                            ? <PointStatusIcon bucket={changeBucket(c)!} size={14} /> : null}<ForUs effect={c.effect_for_us} /></>}
                         {/* "Wording changed" is most rows; only a different kind is said */}
                         {c.kind !== "MODIFIED" && c.kind !== "THEIRS" ? <span>{KIND_LABEL[c.kind]}</span> : null}
                         {c.untracked && !allUntracked ? <span className="cx-row__tag">Untracked</span> : null}
@@ -715,11 +712,13 @@ export function AnswerCard({ change, list, contractId, onAnswered, onReload, inP
         <h3 title={where(change)}>{rowLabel(change, "")}</h3>
         {/* AM-291 r1: two lines, never one status — the review's word, then who answers */}
         <p className="cx-line1">
-          {changeBucket(change) ? <PointStatusIcon bucket={changeBucket(change)!} /> : null}
           {/* one message (verifier item 7): a clause our standard covers is never also
               "no finding" — the route line says Legal decides it */}
-          {word ? <strong>{word}</strong> : change.route_reason === "MEASURED_BY_A_STANDARD"
-            ? <span>Our standard covers this clause</span> : <span>No finding against our standard here</span>}
+          {word ? <StatusChip status={chipStatus(readerStatus(change)!)} /> : <>
+            {changeBucket(change) ? <PointStatusIcon bucket={changeBucket(change)!} /> : null}
+            {change.route_reason === "MEASURED_BY_A_STANDARD"
+              ? <span>Our standard covers this clause</span> : <span>No finding against our standard here</span>}
+          </>}
           {point ? <span> · {requirementTitle({ code: point.requirement_code })}</span> : null}
           {formattingOnly(change) ? <span className="cx-tag">Formatting only</span>
             : change.kind !== "MODIFIED" ? <span className="cx-tag">{KIND_LABEL[change.kind]}</span> : null}
@@ -901,9 +900,9 @@ function firstWords(change: ClientChange): string {
 }
 
 
-/** Our prepared reply's two files. Fetched, not navigated: a reply whose review still
- *  has an undecided point is refused (`AM-293` r1, 409 REPLY_UNDECIDED), and the refusal
- *  lists what is open — each point a link to it on the reply — instead of a raw error. */
+/** Our reply's files, previewed first (UX Batch 2): "Preview" opens the exact PDF with
+ *  Download PDF and Word inside. A reply with an undecided point is refused (`AM-293` r1,
+ *  409 REPLY_UNDECIDED); the refusal lists what is open, each point a link to it. */
 export function ReplyDownloads({ version, pdf = "reply-pdf", word: hasWord = true }: {
   version: Pick<DocumentVersion, "id">;
   /** our reply's PDF, or — a contract made from our template — the contract's */
@@ -911,9 +910,10 @@ export function ReplyDownloads({ version, pdf = "reply-pdf", word: hasWord = tru
   /** false for a final copy of the client's own PDF: there is no Word file (`AM-318`) */
   word?: boolean;
 }) {
+  const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [refused, setRefused] = useState<{ message: string; gate?: ReplyGate | undefined } | null>(null);
-  const file = usePdfDownload(`/document-versions/${encodeURIComponent(version.id)}/${pdf}`);
+  const trigger = useRef<HTMLButtonElement | null>(null);   // focus returns here (WCAG 2.4.3)
   async function word() {
     setBusy(true);
     setRefused(null);
@@ -926,22 +926,20 @@ export function ReplyDownloads({ version, pdf = "reply-pdf", word: hasWord = tru
       setBusy(false);
     }
   }
-  const gate = file.error instanceof ApiError ? file.error.gate : undefined;
   return (
     <>
-      {hasWord ? (
-        <button type="button" className="ws-btn ws-btn--sm" disabled={busy} onClick={() => void word()}>
-          <IconDownload size={14} /> <span className="ws-dlverb">Download </span>Word
-        </button>
-      ) : null}
-      <button type="button" className="ws-btn ws-btn--sm" disabled={file.busy} aria-busy={file.busy}
-              onClick={() => void file.download()}>
-        <IconDownload size={14} /> {file.label ?? <><span className="ws-dlverb">Download </span>PDF</>}
+      <button ref={trigger} type="button" className="ws-btn ws-btn--sm" onClick={() => { setRefused(null); setOpen(true); }}>
+        <IconFile size={14} /> {FEEDBACK_COPY.preview}
       </button>
-      {file.waiting ? <span className="ws-visually-hidden" role="status">Preparing the PDF…</span> : null}
+      {open ? (
+        <PreviewPanel title={pdf === "reply-pdf" ? "Our reply" : "The contract"}
+                      pdfPath={`/document-versions/${encodeURIComponent(version.id)}/${pdf}`}
+                      onWord={hasWord ? () => void word() : undefined} wordBusy={busy}
+                      onClose={() => setOpen(false)} returnFocus={() => trigger.current}
+                      renderError={(cause) => (cause instanceof ApiError && cause.gate
+                        ? <GateList message={describeError(cause)} gate={cause.gate} /> : null)} />
+      ) : null}
       {refused ? <GateList message={refused.message} gate={refused.gate} /> : null}
-      {file.message && !refused ? (gate ? <GateList message={file.message} gate={gate} />
-        : <p className="cx-error" role="alert">{file.message}</p>) : null}
     </>
   );
 }

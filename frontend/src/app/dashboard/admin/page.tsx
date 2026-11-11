@@ -41,6 +41,7 @@ import {
   dateTime,
 } from "@/components/admin/AdminShell";
 import { UserDetail } from "@/components/admin/UserDetail";
+import { toastFailure } from "@/components/Toast";
 
 const PAGE_SIZE = 25;
 
@@ -125,9 +126,11 @@ function UsersScreen() {
   // note instead of a grant control — the server would refuse the grant anyway.
   useEffect(() => {
     if (!canManageUsers) return;
-    api.departments({ page_size: 100 }).then((r) => setDepartments(r.items)).catch(() => {});
+    api.departments({ page_size: 100 }).then((r) => setDepartments(r.items))
+      .catch(toastFailure("Departments could not be loaded for the filters"));
     if (canGrant) {
-      api.roles({ page_size: 100 }).then((r) => setRoles(r.items)).catch(() => {});
+      api.roles({ page_size: 100 }).then((r) => setRoles(r.items))
+        .catch(toastFailure("Roles could not be loaded"));
     }
   }, [canGrant, canManageUsers]);
 

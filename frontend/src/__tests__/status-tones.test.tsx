@@ -158,8 +158,9 @@ describe("the four reader words wear one tone each, in one order", () => {
     // The chip class carries the status, and the stylesheet gives
     // `--status-needs_decision` the solid red fill. Asserted as the class the
     // card renders, since a static render cannot read the stylesheet.
-    expect(card(FINDINGS[0]!)).toContain("ws-chip--status-needs_decision");
-    expect(card(FINDINGS[2]!)).toContain("ws-chip--status-requires_modification");
+    // UX Batch 2: the one StatusChip, its tone named by the status it carries
+    expect(card(FINDINGS[0]!)).toContain('lm-chip lm-chip--decision" data-status="NEEDS_DECISION"');
+    expect(card(FINDINGS[2]!)).toContain('lm-chip lm-chip--change" data-status="CHANGE_NEEDED"');
   });
 
   it("never shows a tone without its word", () => {

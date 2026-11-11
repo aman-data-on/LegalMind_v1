@@ -418,7 +418,7 @@ describe("the five required real-world cases (owner, 2026-09-08, third pass)", (
     expect(before).toMatch(/60 days/);
     // The approved zero-tolerance rule ruled this deviation UNACCEPTABLE, so the
     // reader sees Not accepted (owner's own example, 2026-09-09: 12 vs 6 months).
-    expect(before).toMatch(/data-status="REQUIRES_MODIFICATION"[^>]*>Change needed</);
+    expect(before).toMatch(/data-status="CHANGE_NEEDED"[^>]*>(?:<svg[\s\S]*?<\/svg>)Change needed</);
     expect(before).toMatch(/needs to change/);
     expect(before).not.toMatch(/Not acceptable/);
     expect(before).not.toMatch(/>!=</);
@@ -522,21 +522,21 @@ describe("the four-word status on the card face", () => {
                       { classification: "DEVIATION" });
     // S1 — two lines: the review's word stays ("Change needed"), and line two says
     // what was answered; a decided point never reads "Matches" (rule 14).
-    expect(html).toMatch(/data-status="REQUIRES_MODIFICATION"[^>]*>Change needed</);
+    expect(html).toMatch(/data-status="CHANGE_NEEDED"[^>]*>(?:<svg[\s\S]*?<\/svg>)Change needed</);
     expect(html).toMatch(/ws-point__who[^>]*data-answer="decided"[^>]*>.*Answered</);
     expect(html).not.toMatch(/Matches our standard/);
     expect(html).not.toMatch(/>Acceptable</);
   });
 
   it("maps MATCH to Matches our standard, DEVIATION to Change needed, MISSING to Missing, the rest to Needs a decision (AB-104)", () => {
-    expect(face({ classification: "MATCH" }, { classification: "MATCH" })).toMatch(/data-status="ACCEPTABLE"[^>]*>Matches our standard</);
+    expect(face({ classification: "MATCH" }, { classification: "MATCH" })).toMatch(/data-status="MATCHES"[^>]*>(?:<svg[\s\S]*?<\/svg>)Matches</);
     expect(face({ classification: "DEVIATION" }, { classification: "DEVIATION" }))
-      .toMatch(/data-status="REQUIRES_MODIFICATION"[^>]*>Change needed</);
+      .toMatch(/data-status="CHANGE_NEEDED"[^>]*>(?:<svg[\s\S]*?<\/svg>)Change needed</);
     expect(face({ classification: "MISSING" }, { classification: "MISSING" }))
-      .toMatch(/data-status="MISSING"[^>]*>Missing</);
+      .toMatch(/data-status="MISSING"[^>]*>(?:<svg[\s\S]*?<\/svg>)Missing</);
     for (const classification of ["CONFLICT", "UNABLE_TO_EVALUATE"]) {
       const html = face({ classification }, { classification });
-      expect(html, classification).toMatch(/data-status="NEEDS_DECISION"[^>]*>Needs a decision</);
+      expect(html, classification).toMatch(/data-status="NEEDS_DECISION"[^>]*>(?:<svg[\s\S]*?<\/svg>)Needs a decision</);
       expect(html, classification).not.toMatch(/Change needed/);
     }
   });
@@ -554,10 +554,10 @@ describe("the four-word status on the card face", () => {
       for (const rule_outcome of ["UNACCEPTABLE", "NOT_APPLICABLE"]) {
         const html = face({ classification, requires_decision: true }, { classification, rule_outcome });
         if (classification === "DEVIATION") {
-          expect(html, classification).toMatch(/data-status="REQUIRES_MODIFICATION"[^>]*>Change needed</);
+          expect(html, classification).toMatch(/data-status="CHANGE_NEEDED"[^>]*>(?:<svg[\s\S]*?<\/svg>)Change needed</);
           expect(html, classification).toMatch(/needs to change/);
         } else {
-          expect(html, classification).toMatch(/data-status="MISSING"[^>]*>Missing</);
+          expect(html, classification).toMatch(/data-status="MISSING"[^>]*>(?:<svg[\s\S]*?<\/svg>)Missing</);
           expect(html, classification).toMatch(/has no clause on this/);
         }
       }
@@ -579,7 +579,7 @@ describe("the four-word status on the card face", () => {
       },
     );
     const { before, inside } = splitAtDetails(html);
-    expect(before).toMatch(/data-status="REQUIRES_MODIFICATION"[^>]*>Change needed</);
+    expect(before).toMatch(/data-status="CHANGE_NEEDED"[^>]*>(?:<svg[\s\S]*?<\/svg>)Change needed</);
     // Amber, not red: a cited prohibition still means the clause has to change,
     // and red belongs to the word that says nobody could determine acceptance
     // (owner, 2026-09-09).
@@ -779,9 +779,9 @@ describe("the approved plain-English description (owner, 2026-09-09)", () => {
       classification: "DEVIATION",
       constitution_prohibition: { section: "9", quote: "An uncapped/unlimited liability term […]" },
     });
-    expect(accepted).toMatch(/data-status="ACCEPTABLE"/);
-    expect(review).toMatch(/data-status="REQUIRES_MODIFICATION"/);
-    expect(notAccepted).toMatch(/data-status="REQUIRES_MODIFICATION"/);
+    expect(accepted).toMatch(/data-status="MATCHES"/);
+    expect(review).toMatch(/data-status="CHANGE_NEEDED"/);
+    expect(notAccepted).toMatch(/data-status="CHANGE_NEEDED"/);
     for (const html of [accepted, review, notAccepted]) expect(html).toContain(text);
   });
 
@@ -826,7 +826,7 @@ describe("the grounded explanation (AM-49, owner 2026-09-09) — language only",
   });
 
   it("never decides the status — the same sentence sits under every status", () => {
-    for (const [classification, status] of [["MATCH", "ACCEPTABLE"], ["DEVIATION", "REQUIRES_MODIFICATION"], ["UNABLE_TO_EVALUATE", "NEEDS_DECISION"]] as const) {
+    for (const [classification, status] of [["MATCH", "MATCHES"], ["DEVIATION", "CHANGE_NEEDED"], ["UNABLE_TO_EVALUATE", "NEEDS_DECISION"]] as const) {
       const html = card({ classification, requirement: req }, { classification }, accepted);
       expect(html, classification).toMatch(new RegExp(`data-status="${status}"`));
       expect(html, classification).toContain(accepted.text);
@@ -870,7 +870,7 @@ describe("S1 — two lines per point, and Legal details only for Legal", () => {
   // the static render; the point's state is read from `status`, as the server sets it.
   it("keeps the review's word on line one and who answers on line two, never merged", () => {
     const open = owner({ status: "DECISION_REQUIRED" });
-    expect(open).toMatch(/data-status="REQUIRES_MODIFICATION"[^>]*>Change needed<\/span>/);
+    expect(open).toMatch(/data-status="CHANGE_NEEDED"[^>]*>(?:<svg[\s\S]*?<\/svg>)Change needed<\/span>/);
     expect(open).toMatch(/ws-point__who[^>]*>With Legal</);
     // the lawyer reading the same point owns it
     const legal = card({ classification: "DEVIATION", status: "DECISION_REQUIRED" },

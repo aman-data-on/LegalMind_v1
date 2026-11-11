@@ -69,8 +69,9 @@ export function TaskRow({ item, contract, client }: {
 
 /** The person's tasks, ONE per contract, loaded once — the home's queue and the To-do page
  *  render the same list, so the two can never disagree on a count. */
-export function useTasks(): { tasks: TodoItem[] | null; contracts: Map<string, Contract>; error: unknown } {
+export function useTasks(): { tasks: TodoItem[] | null; contracts: Map<string, Contract>; error: unknown; reload: () => void } {
   const [tasks, setTasks] = useState<TodoItem[] | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const [contracts, setContracts] = useState<Map<string, Contract>>(new Map());
   const [error, setError] = useState<unknown>(null);
   useEffect(() => {
@@ -88,8 +89,9 @@ export function useTasks(): { tasks: TodoItem[] | null; contracts: Map<string, C
       }
     })();
     return () => { cancelled = true; };
-  }, []);
-  return { tasks, contracts, error };
+  }, [attempt]);
+  const reload = () => { setError(null); setTasks(null); setAttempt((n) => n + 1); };
+  return { tasks, contracts, error, reload };
 }
 
 export function TaskList({ tasks, contracts, companies = [] }: {

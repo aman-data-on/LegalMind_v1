@@ -65,7 +65,14 @@ describe("52.3 — restricted sections and hidden controls", () => {
     // there is nothing to name — the server returned a byte-identical 404.
     const html = renderToStaticMarkup(<AccessRestricted />);
     expect(html).not.toMatch(/\d+ (contract|review|finding)/i);
-    expect(html).toContain("checked on the server");
+  });
+
+  it("says plainly why access is blocked and what the reader can do (GP-23)", () => {
+    const html = renderToStaticMarkup(<AccessRestricted what="legal configuration" />);
+    expect(html).toContain("Your account doesn’t include access to legal configuration.");
+    expect(html).toContain("Ask your administrator if you need it.");
+    // the engineer's sentence is gone; no route, server or permission jargon
+    expect(html).not.toMatch(/checked on the server|any other route|permission/i);
   });
 
   it("renders nothing for a control the user cannot invoke", () => {

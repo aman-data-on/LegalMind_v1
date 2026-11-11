@@ -47,7 +47,7 @@ import { AccessRestricted, PermissionGate } from "@/components/AccessRestricted"
 import { PageHeader } from "@/components/page/PageHeader";
 import { StandardForm } from "@/components/configuration/StandardForm";
 import { Checkbox } from "@/components/ui/checkbox";
-import { EmptyState, ErrorBanner, Loading } from "@/components/Feedback";
+import { ErrorBanner, ErrorState, Loading, LoadingState } from "@/components/Feedback";
 import { Field, formatDate } from "@/components/Primitives";
 import { api } from "@/lib/api";
 import * as P from "@/lib/permissions";
@@ -171,7 +171,7 @@ export default function ConfigurationPage() {
                     </PermissionGate>
                   )} />
 
-      <ErrorBanner error={error} />
+      {requirements !== null ? <ErrorBanner error={error} /> : null}{/* GP-3: a failed list load is said below */}
 
       {/* The same inline-create shape Administration uses (`ws-intake`), so a
           reader who has added an account already knows this form. */}
@@ -358,7 +358,7 @@ export default function ConfigurationPage() {
           </section>
         </PermissionGate>
       ) : null}
-      <div className="ws-filter-bar">
+      {requirements === null ? null : <div className="ws-filter-bar">{/* GP-3: filters wait for the list */}
         <label className="ws-field">
           <span className="ws-field__label">Search</span>
           <input
@@ -412,13 +412,13 @@ export default function ConfigurationPage() {
             ))}
           </select>
         </label>
-      </div>
+      </div>}
 
       <div className="ws-admin__body">
         <div className="ws-admin__main">
-          {requirements === null ? (
-            <Loading what="standards" />
-          ) : shown.length === 0 ? (
+          {requirements === null && error ? <ErrorState title="Standards could not be loaded" error={error} onRetry={() => void load()} />
+          : requirements === null ? <LoadingState label="Loading standards…" rows={6} />
+          : shown.length === 0 ? (
             <div className="ws-state">
               <h2>{filtering ? "No standard matches." : "No standards are configured."}</h2>
               <p>

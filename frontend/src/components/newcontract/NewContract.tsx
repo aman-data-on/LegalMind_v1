@@ -32,6 +32,7 @@ import { ClientPicker } from "./ClientPicker";
 import { ContractPreview } from "./ContractPreview";
 import { QuestionField, questionId, type ProfileLink } from "./QuestionField";
 import "./newcontract.css";
+import { toastFailure } from "@/components/Toast";
 
 type Step = 1 | 2 | 3;
 
@@ -303,7 +304,7 @@ function Drafting({ draftId, step, published, setStep }: {
   const questions = useMemo(() => template?.questions ?? [], [template]);
 
   const refreshPreview = useCallback(() => {
-    api.draftPreview(draftId).then(setPreview).catch(() => undefined);
+    api.draftPreview(draftId).then(setPreview).catch(toastFailure("The preview could not be updated"));
   }, [draftId]);
 
   const apply = useCallback((d: Draft) => {
@@ -312,7 +313,7 @@ function Drafting({ draftId, step, published, setStep }: {
     localRef.current = d.answers;
     setDraft(d); setLocal(d.answers); setSave("idle");
     refreshPreview();
-    if (d.counterparty_id) api.counterparty(d.counterparty_id).then(setClient).catch(() => undefined);
+    if (d.counterparty_id) api.counterparty(d.counterparty_id).then(setClient).catch(toastFailure("The client’s details could not be loaded"));
     if (d.template_status !== "PUBLISHED") setReplaced(true);
   }, [refreshPreview]);
 
@@ -629,7 +630,7 @@ export function NewContract() {
 
   useEffect(() => {
     api.publishedTemplates().then(setPublished).catch((e) => { setPublished([]); setFailure(describeError(e)); });
-    api.templates().then((rows) => setAwaiting(rows.filter((t) => t.awaiting_approval))).catch(() => undefined);
+    api.templates().then((rows) => setAwaiting(rows.filter((t) => t.awaiting_approval))).catch(toastFailure("Templates waiting for approval could not be loaded"));
   }, []);
 
   const setStep = useCallback((s: Step) => {

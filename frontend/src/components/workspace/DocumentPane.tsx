@@ -66,6 +66,7 @@ import {
   type ClauseStatus,
   type StatusBucket,
 } from "./model";
+import { ErrorState } from "@/components/Feedback";
 
 const CONTENTS_KEY = "legalmind.workspace.contentsOpen";
 const ZOOM_KEY = "legalmind.workspace.zoom";
@@ -520,13 +521,8 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
   if (error) {
     return (
       <div className="ws-card ws-card--pad">
-        <div className="ws-state ws-state--error" role="alert">
-          <h3>The document text could not be loaded.</h3>
-          <p>{describeError(error)}</p>
-          {error instanceof ApiError ? (
-            <p className="ws-mono ws-readiness">reference {error.requestId}</p>
-          ) : null}
-        </div>
+        <ErrorState heading="h3" title="The document text could not be loaded" error={error}
+                    onRetry={() => window.location.reload()} />
       </div>
     );
   }
@@ -985,7 +981,7 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
           <div
             className="ws-text"
             ref={textRef}
-            style={{ fontSize: `${zoom}%` }}
+            style={{ "--ws-zoom": zoom / 100 } as React.CSSProperties}
             onMouseUp={onTextSelect}
             onKeyUp={onTextSelect}
           >

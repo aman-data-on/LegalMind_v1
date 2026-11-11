@@ -25,7 +25,7 @@
 .cx .cx-waiting strong { color: var(--ws-ink-900); font-weight: 600; }
 .cx-row__done[data-waiting] { color: var(--ws-ink-900); font-weight: 600; }
 /* AM-308 U2: what the final contract does to the row — quiet, except where it cannot */
-.cx-row__final { font-size: 11.5px; color: var(--ws-ink-500); }
+.cx-row__final { font-size: var(--t-label); color: var(--ws-ink-500); }
 .cx-row__final[data-in="cannot"] { color: var(--ws-ink-900); font-weight: 600; }
 
 /* ---- the four actions: one radio group, the choice's panel under it ---- */
@@ -33,7 +33,7 @@
 .cx-compose > .cx-label, .cx-compose > .ws-pane__note { margin: 0; }
 .cx-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
 .cx-choice { position: relative; display: flex; align-items: center; justify-content: center; min-height: 34px; padding: 0 10px;
-  font-size: var(--ws-text-sm); font-weight: 550; color: var(--ws-ink-700); cursor: pointer;
+  font-size: var(--ws-text-sm); font-weight: 500; color: var(--ws-ink-700); cursor: pointer;
   background: var(--ws-surface); border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm);
   transition: background var(--ws-t), border-color var(--ws-t), color var(--ws-t); }
 .cx-choice:hover { border-color: var(--ws-ink-500); color: var(--ws-ink-900); }
@@ -53,7 +53,7 @@
 .cx-wording { display: grid; gap: var(--ws-s2); }
 .cx-wording__ref { max-height: 22vh; overflow-y: auto; padding: var(--ws-s2) var(--ws-s3);
   background: var(--ws-paper); border-radius: var(--ws-radius-sm); }
-.cx-field { font-size: var(--ws-text-xs); font-weight: 550; color: var(--ws-ink-700); }
+.cx-field { font-size: var(--ws-text-xs); font-weight: 500; color: var(--ws-ink-700); }
 .cx-wording__input { width: 100%; min-height: 9em; resize: vertical; padding: 8px 10px;
   font-family: var(--ws-serif); font-size: var(--ws-text-base); line-height: 1.6; color: var(--ws-ink-900);
   background: var(--ws-surface); border: 1px solid var(--ws-input-border); border-radius: var(--ws-radius-sm); }
@@ -62,7 +62,7 @@
 .cx-wording__preview .ws-pane__note { margin: 0; }
 
 /* the notes: "goes out" vs "stays in", by shape and by the words in each label */
-.cx-note { display: grid; gap: 4px; font-size: var(--ws-text-xs); font-weight: 550; color: var(--ws-ink-700); }
+.cx-note { display: grid; gap: 4px; font-size: var(--ws-text-xs); font-weight: 500; color: var(--ws-ink-700); }
 .cx-note textarea { width: 100%; resize: vertical; padding: 7px 10px; font: inherit; font-size: var(--ws-text-sm);
   font-weight: 400; line-height: 1.5; color: var(--ws-ink-900); }
 .cx-note textarea:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 1px; }
@@ -77,7 +77,7 @@
 /* ---- the reply: what is still open, each a link to it (AM-293 for the files) ---- */
 .cx-bar { position: relative; }
 button.cx-bar__open { display: inline-flex; align-items: center; gap: 4px; padding: 4px 2px; font: inherit;
-  font-weight: 550; color: var(--ws-ink-900); background: none; border: 0; border-bottom: 1px solid var(--ws-ink-300);
+  font-weight: 500; color: var(--ws-ink-900); background: none; border: 0; border-bottom: 1px solid var(--ws-ink-300);
   cursor: pointer; }
 button.cx-bar__open:hover { border-bottom-color: var(--ws-ink-900); }
 button.cx-bar__open:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
@@ -123,7 +123,7 @@ button.cx-bar__open[aria-expanded="true"] svg { transform: rotate(-90deg); }
 
 .cx { position: relative; }
 .cx .cx-skip { position: absolute; left: var(--ws-s4); top: var(--ws-s2); z-index: 6; padding: var(--ws-s2) var(--ws-s3);
-  font-size: var(--ws-text-sm); font-weight: 550; color: var(--ws-ink-900); background: var(--ws-surface);
+  font-size: var(--ws-text-sm); font-weight: 500; color: var(--ws-ink-900); background: var(--ws-surface);
   border: 2px solid var(--ws-accent); border-radius: var(--ws-radius-sm); }
 .cx .cx-skip:not(:focus) { width: 1px; height: 1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); }
 .cx .cx-list:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: -2px; }
@@ -241,7 +241,7 @@ button.cx-bar__open[aria-expanded="true"] svg { transform: rotate(-90deg); }
 .cx-together { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-s2);
   margin: 0 0 var(--ws-s2); padding: var(--ws-s2) 0; border-bottom: 1px solid var(--ws-ink-100); }
 .cx-together .ws-btn { display: inline-flex; align-items: center; gap: 6px; }
-.cx-together .cx-forus { color: inherit; font-weight: 550; }
+.cx-together .cx-forus { color: inherit; font-weight: 500; }
 .cx-together__note { font-size: var(--ws-text-xs); color: var(--ws-ink-500); }
 
 /* ---- the final contract (AM-307): Annexure A's entries, or what stops it ---- */
@@ -250,7 +250,7 @@ button.cx-bar__open[aria-expanded="true"] svg { transform: rotate(-90deg); }
   border-radius: var(--ws-radius-sm); }
 .lm-pkg[data-state="blocked"] { border-left-color: var(--ws-ink-900); }
 .lm-pkg > * { margin: 0; min-width: 0; }
-.lm-pkg__title { font-size: var(--ws-text-base); font-weight: 650; color: var(--ws-ink-900); }
+.lm-pkg__title { font-size: var(--ws-text-base); font-weight: 600; color: var(--ws-ink-900); }
 .lm-pkg__lead { font-size: var(--ws-text-sm); color: var(--ws-ink-700); max-width: 72ch; }
 .lm-pkg__alt { font-size: var(--ws-text-sm); }
 .lm-pkg__entries { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; max-width: 44rem; }
@@ -263,7 +263,7 @@ button.cx-bar__open[aria-expanded="true"] svg { transform: rotate(-90deg); }
 .lm-pkg__what span { color: var(--ws-ink-700); }
 .lm-pkg__text { grid-column: 2 / -1; }
 .lm-pkg__text summary, .lm-pkgtrace > summary { cursor: pointer; width: fit-content; font-size: var(--ws-text-sm);
-  font-weight: 550; color: var(--ws-ink-900); }
+  font-weight: 500; color: var(--ws-ink-900); }
 .lm-pkg__text summary:focus-visible, .lm-pkgtrace > summary:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
 .lm-pkg__text blockquote { margin: 6px 0 0; padding: 4px 0 4px var(--ws-s3); border-left: 2px solid var(--ws-ink-300);
   font-family: var(--ws-serif); font-size: var(--ws-text-base); line-height: 1.55;
@@ -339,7 +339,7 @@ button.cx-bar__open[aria-expanded="true"] svg { transform: rotate(-90deg); }
   .lm-terms__well .ws-page { padding: 24px 16px; }
   .ws .ws-replynote.lm-terms__stopped { display: block; }
 }
-.lm-terms__head { font-weight: 700; margin-bottom: 0.35em; }
+.lm-terms__head { font-weight: 700; margin-bottom: 0.35em; }  /* serif contract heading: the static 700 face */
 .lm-terms__head--title { text-align: center; max-width: none; margin-bottom: 0.9em; }
 /* the note's indent is in the clause text's em, so it lines up under the text */
 .ws-row__notes.lm-terms__note { font-size: var(--ws-text-md); }
