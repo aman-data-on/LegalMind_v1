@@ -78,7 +78,11 @@ from legalmind.ingestion.validation import validate_upload
 # numbers put back on their clauses; ligature glyphs as letters; a DOCX with no Word
 # pagination record paginated by LibreOffice when configured. New readings only —
 # existing evidence is never re-parsed by this bump ("Re-read" re-reads on request).
-PROCESSOR_VERSION = "legalmind-ingest-v10"
+# v11 (2026-11-09, UX Batch 1 slice A): a Markdown upload (never .txt) loses a Word->
+# Markdown export's marks — a heading mark after the clause number ("12. ## **TITLE**"),
+# ``**`` emphasis and backslash escapes — so its clause numbers and headings are read.
+# New readings only — existing evidence is never re-parsed by this bump.
+PROCESSOR_VERSION = "legalmind-ingest-v11"
 
 
 @dataclass(frozen=True)

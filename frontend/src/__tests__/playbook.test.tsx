@@ -6,13 +6,13 @@ import { grouped, offerFor, OFFER_WORDS, type PlaybookPoint } from "@/lib/playbo
 const CAP: PlaybookPoint = {
   requirement_code: "LIABILITY-MSA-001", kind: "RANGE",
   opening: { value: 6, unit: "MONTHS", basis: "FEES_PAID_FOR_AFFECTED_SERVICES" },
-  line: "We start at 6 months of fees for the affected services. You can agree up to 12 months of total fees, the same for both sides. Anything more goes to Legal.",
+  line: "Our paper says 6 months of fees for the affected services. You can agree up to 12 months of total fees, the same for both sides. Anything more goes to Legal.",
   room: true,
 };
 const LAW: PlaybookPoint = { requirement_code: "GOVLAW-MSA-001", kind: "LEGAL_ONLY", opening: null, line: "Legal decides any change.", room: false };
 
 const change = (code: string, effect: ClientChange["effect_for_us"]) => ({
-  effect_for_us: effect, after: { evidence_ids: ["e"], text: "t" },
+  effect_for_us: effect, ...(effect === "NEGATIVE" ? { measured: "WORSE" } : {}), after: { evidence_ids: ["e"], text: "t" },
   review: { before: [], after: [{ finding_id: "f", requirement_code: code, classification: "MATCH",
                                   user_status: "ACCEPTABLE", evaluation_ids: [] }] },
 }) as unknown as ClientChange;

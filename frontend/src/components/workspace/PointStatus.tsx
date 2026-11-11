@@ -1,5 +1,5 @@
 /**
- * Where a point stands — ONE set of four (cross-page pass, `AM-291` r5): the document's
+ * Where a point stands — ONE set of five (cross-page pass, `AM-291` r5): the document's
  * marks and legend, the Points filters and the Changes rows all use these words, icons
  * and tones. Each has its own icon, so colour never carries the meaning alone (WCAG 1.4.1).
  *
@@ -8,12 +8,14 @@
  */
 
 import type { StatusBucket } from "./model";
-import { IconAlertCircle, IconCheck, IconCheckCircle, IconFilePlus } from "./icons";
+import { IconAlertCircle, IconBetter, IconCheck, IconCheckCircle, IconFilePlus } from "./icons";
 
-export const POINT_STATUS_ORDER: readonly StatusBucket[] = ["match", "review", "decided", "missing"];
+export const POINT_STATUS_ORDER: readonly StatusBucket[] = ["match", "favour", "review", "decided", "missing"];
 
 export const POINT_STATUS: Record<StatusBucket, string> = {
   match: "Matches our standard",
+  // Batch 1 (d): differs from our standard, accepted by the approved rule in our favour
+  favour: "In our favour",
   review: "Open point",
   decided: "Decided",
   missing: "Missing",
@@ -23,6 +25,7 @@ export const POINT_STATUS: Record<StatusBucket, string> = {
  *  word stays the chip's accessible name. */
 export const POINT_CHIP: Record<StatusBucket, string> = {
   match: "Matches",
+  favour: "In our favour",
   review: "Open",
   decided: "Decided",
   missing: "Missing",
@@ -33,10 +36,11 @@ export function PointStatusIcon({ bucket, size = 16, label = true }: {
   /** false where the word is printed beside it (the icon is then decorative) */
   label?: boolean;
 }) {
-  const Icon = bucket === "match" ? IconCheckCircle : bucket === "decided" ? IconCheck
-    : bucket === "review" ? IconAlertCircle : IconFilePlus;
+  const Icon = bucket === "match" ? IconCheckCircle : bucket === "favour" ? IconBetter
+    : bucket === "decided" ? IconCheck : bucket === "review" ? IconAlertCircle : IconFilePlus;
   return (
-    <span className={`ws-status ws-status--${bucket}`}
+    // favour wears the match tone until Batch 2 gives it its own (no restyle here)
+    <span className={`ws-status ws-status--${bucket}${bucket === "favour" ? " ws-status--match" : ""}`}
           {...(label ? { title: POINT_STATUS[bucket], "aria-label": POINT_STATUS[bucket], role: "img" } : {})}>
       <Icon size={size} />
     </span>

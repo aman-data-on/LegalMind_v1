@@ -622,7 +622,7 @@ export function uploadedAt(iso: string): string {
 }
 
 /** What tells two contracts apart (MED 5): client, type, which version and when it was
- *  uploaded, and the record's reference. Parts, laid out by the caller — never one
+ *  uploaded (Batch 1 f: no "Ref" id — it told a reader nothing). Parts, laid out by the caller — never one
  *  "A · B · C" string; a missing fact is left out, never "—". */
 export function contractFacts(contract: Contract, client?: string | null): string[] {
   const version = contract.latest_version ?? contract.document_versions?.[0] ?? null;
@@ -631,7 +631,6 @@ export function contractFacts(contract: Contract, client?: string | null): strin
     who,
     contract.contract_type ? documentTypeChip(contract.contract_type) : null,
     version ? `Version ${version.version_number}${version.created_at ? `, uploaded ${uploadedAt(version.created_at)}` : ""}` : null,
-    `Ref ${contract.id.slice(0, 6).toUpperCase()}`,
   ].filter((x): x is string => !!x);
 }
 
@@ -861,8 +860,9 @@ export function findingsNeedingDecision<T extends { requires_decision: boolean }
  *            "needs review", never toward calm)
  */
 /** `decided` (AB-103): every point on the passage has a person's decision — it no longer
- *  reads as needing review, and never as a match (rule 14). */
-export type StatusBucket = "match" | "decided" | "review" | "missing";
+ *  reads as needing review, and never as a match (rule 14). `favour` (Batch 1 d): a
+ *  deviation the recorded rule outcome accepted in our favour — the server's flag. */
+export type StatusBucket = "match" | "favour" | "decided" | "review" | "missing";
 
 export function classificationBucket(classification: string): StatusBucket {
   if (classification === "MATCH") return "match";
@@ -870,7 +870,7 @@ export function classificationBucket(classification: string): StatusBucket {
   return "review";
 }
 
-const BUCKET_RANK: Record<StatusBucket, number> = { match: 0, decided: 1, review: 2, missing: 3 };
+const BUCKET_RANK: Record<StatusBucket, number> = { match: 0, favour: 1, decided: 2, review: 3, missing: 4 };
 
 export function worseBucket(a: StatusBucket, b: StatusBucket): StatusBucket {
   return BUCKET_RANK[b] > BUCKET_RANK[a] ? b : a;
@@ -894,6 +894,7 @@ type MarkedFinding = {
   requires_decision: boolean;
   status?: string;
   user_status?: string;
+  in_our_favour?: boolean;
   evidence: Array<{ id: string }>;
   alsoMeasuredAgainst?: MarkedFinding[];
 };
@@ -909,6 +910,7 @@ function markBucket(f: MarkedFinding): { bucket: StatusBucket; open: boolean } {
     return { bucket: kind === "match" ? "review" : kind, open: true };
   }
   if (statuses.has("RESOLVED") && f.classification !== "MATCH") return { bucket: "decided", open: false };
+  if (f.in_our_favour) return { bucket: "favour", open: false };
   if (f.user_status === "ACCEPTABLE") return { bucket: "match", open: false };
   return { bucket: kind, open: f.requires_decision || kind !== "match" };
 }

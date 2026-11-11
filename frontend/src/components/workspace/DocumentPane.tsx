@@ -19,7 +19,7 @@
 import { POINT_STATUS, PointStatusIcon, PointStatusLegend } from "./PointStatus";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
-import { USER_STATUS_LABELS, pointAnswer, pointState, userStatus } from "./findingLanguage";
+import { pointAnswer, pointState, readerWord } from "./findingLanguage";
 
 import { ApiError, api, describeError } from "@/lib/api";
 import * as P from "@/lib/permissions";
@@ -1037,7 +1037,7 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                                   onClick={() => sideTabs.openFindings({ findingId: finding.id })}>
                             {/* B7: a decided point says its answer, as the Points pane does */}
                             {(pointState(finding) === "decided" ? pointAnswer(finding, false) : null)
-                              ?? USER_STATUS_LABELS[userStatus(finding)]} · {requirementHeading(finding.requirement)}
+                              ?? readerWord(finding)} · {requirementHeading(finding.requirement)}
                           </button>
                         ))}
                       </p>

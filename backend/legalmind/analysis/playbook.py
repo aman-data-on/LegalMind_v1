@@ -68,8 +68,11 @@ def _standard_side(standard: dict) -> dict | None:
 
 
 def entry(code: str, standard: dict, legal_rule: dict | None, opening: dict | None,
-          *, provider: bool, fallbacks: list[dict] | None = None) -> dict[str, Any]:
-    """One point's playbook line, from the standard and our paper's figure alone."""
+          *, provider: bool, fallbacks: list[dict] | None = None,
+          whose: str = "Our paper") -> dict[str, Any]:
+    """One point's playbook line, from the standard and our paper's figure alone.
+    ``whose`` names where the opening figure comes from (Batch 1 c): our paper, or —
+    the paper not provably ours — our standard."""
     preferred, unit = standard.get("preferred"), standard.get("unit")
     allowed = standard.get("allowed_values") or []
     out: dict[str, Any] = {"requirement_code": code, "opening": opening,
@@ -93,7 +96,7 @@ def entry(code: str, standard: dict, legal_rule: dict | None, opening: dict | No
             (words.get(v) or [v.replace("_", " ")])[0].title() for v in allowed]}
     else:
         out["kind"] = LEGAL_ONLY
-    out["line"] = _line(out)
+    out["line"] = _line(out, whose)
     # room: something lies between our opening and our limit for the deal owner
     out["room"] = "value" in (out["limit"] or {}) and not _same(out)
     return out
@@ -136,7 +139,7 @@ def _same(e: dict) -> bool:
         (lim["value"], lim["unit"], lim["basis"])
 
 
-def _line(e: dict) -> str:
+def _line(e: dict, whose: str = "Our paper") -> str:
     """The playbook line in a salesperson's words — no codes, no engine vocabulary."""
     limit, opening = e["limit"], e["opening"]
     if e["kind"] == LEGAL_ONLY:
@@ -149,8 +152,8 @@ def _line(e: dict) -> str:
     start = (_amount(opening["value"], opening["unit"], opening["basis"])
              if opening else None)
     same = _same(e)
-    said = [("" if not start else f"We start at {start}, which is also our limit."
-             if same and e["kind"] == RANGE else f"We start at {start}.")]
+    said = [("" if not start else f"{whose} says {start}, which is also our limit."
+             if same and e["kind"] == RANGE else f"{whose} says {start}.")]
     lower = e["direction"] == "LOWER"
     if e["kind"] == EXACT:
         said.append("Any change goes to Legal." if same else
@@ -204,5 +207,6 @@ def from_review(db: DBSession, review: M.Review | None, *, provider: bool,
         opening = (r["sides"][0] if len(sides) == 1 else None) if openings \
             else _standard_side(r["standard"])
         out.append(entry(code, r["standard"], r["rule"], opening, provider=provider,
-                         fallbacks=(fallbacks or {}).get(code, [])))
+                         fallbacks=(fallbacks or {}).get(code, []),
+                         whose="Our paper" if openings else "Our standard"))
     return out

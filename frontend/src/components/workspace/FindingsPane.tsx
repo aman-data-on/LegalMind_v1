@@ -81,6 +81,9 @@ import {
   pointAnswer,
   pointDecision,
   pointState,
+  readerWord,
+  figureOf,
+  IN_OUR_FAVOUR,
 } from "./findingLanguage";
 
 /** The filter words for where a point stands (AM-179). */
@@ -110,21 +113,22 @@ export type View =
   | { requiresDecision: true }
   | { open: true }
   /** AM-179 — where the points stand, and the points decided one way */
-  | { state: "to_decide" | "clarification" | "decided" | "matches" }
+  | { state: "to_decide" | "clarification" | "decided" | "matches" | "favour" }
   /** the one status set (`PointStatus`) — the document's legend, word for word */
   | { bucket: StatusBucket }
   | { decision: string };
 
-/** Which of the four marks a point carries. "Open point" is every point neither matching
- *  nor decided (under the zero-tolerance rule, the server's `to_decide`, so the count is
- *  the header's); "Missing" is a kind, so a missing open point is counted under both. */
+/** Which of the five marks a point carries — exactly one, so the chips add up to All
+ *  (Batch 1 c): matches, in our favour, decided, missing (not yet decided), and "Open
+ *  point" for every other point — never hidden in no mark (fails toward attention). */
 export function inBucket(f: Finding, bucket: StatusBucket): boolean {
   const st = pointState(f);
   if (bucket === "match") return st === "matches";
+  if (bucket === "favour") return st === "favour";
   if (bucket === "decided") return st === "decided";
-  // every point neither matching nor decided — never hidden in no mark (fails toward attention)
-  if (bucket === "review") return st !== "matches" && st !== "decided";
-  return userStatus(f) === "MISSING" && st !== "decided";
+  const missing = userStatus(f) === "MISSING" && st !== "decided";
+  if (bucket === "missing") return missing;
+  return !missing && st !== "matches" && st !== "favour" && st !== "decided";
 }
 
 /** Open = not Acceptable and not yet decided by a reviewer (AM-173/174) — the one
@@ -549,7 +553,8 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
               {/* deep links (Summary, report) land on their own subset, shown pressed */}
               {typeof view === "object" && ("state" in view || "open" in view || "status" in view) ? (
                 <button type="button" aria-pressed onClick={() => setView("all")}>
-                  {"state" in view ? POINT_STATE_LABELS[view.state as keyof typeof POINT_STATE_LABELS] ?? "Matches"
+                  {"state" in view ? POINT_STATE_LABELS[view.state as keyof typeof POINT_STATE_LABELS]
+                    ?? (view.state === "favour" ? IN_OUR_FAVOUR : "Matches")
                     : "status" in view ? USER_STATUS_LABELS[view.status] : "Open"} ({shown.length})
                 </button>
               ) : null}
@@ -698,8 +703,13 @@ export function FindingCard({ finding, onChanged, prepared, qualify, explanation
   // for reference (a signed contract): no "With Legal" / "Yours to decide" line — nobody acts on it now
   const answer = useFindingsStateOptional()?.reference ? null : pointAnswer(finding, canDecide, sent);
   // the server's case for this finding (owner, 2026-10-21, Step 3) — one fetch per Review
-  const kase = useReviewAngles(finding.review_id)?.legal.items
+  const angles = useReviewAngles(finding.review_id);
+  const kase = angles?.legal.items
     ?.find((item) => item.finding_id === finding.id)?.case ?? null;
+  const state = pointState(finding);
+  const cites = new Set(finding.evidence.map((e) => e.id));
+  const noted = [...(angles?.observations?.structural ?? []), ...(angles?.observations?.additional ?? [])]
+    .filter((o) => o.evidence_ids.some((id) => cites.has(id))).map((o) => o.text);
   const prohibition = constitutionProhibition(finding);
   const evidenceById = new Map(finding.evidence.map((e) => [e.id, e]));
   const { point } = useHighlight();
@@ -784,7 +794,7 @@ export function FindingCard({ finding, onChanged, prepared, qualify, explanation
             word against our standard, then who answers the point or what was
             answered. A decided point keeps the review's word on line one. */}
         <span className="ws-point">
-          <StatusChip status={chipStatus(status)} />
+          <StatusChip status={chipStatus(status, finding.in_our_favour)} />
           {answer ? (
             <span className="ws-point__who" data-answer={pointState(finding)}>
               {pointState(finding) === "decided" ? <IconCheckCircle size={13} /> : null}
@@ -795,7 +805,7 @@ export function FindingCard({ finding, onChanged, prepared, qualify, explanation
       </header>
       {/* the contract's own words first (owner, 2026-10-21): a missing clause says so,
           and the standard's description never reads as the contract's text */}
-      {kase ? <CaseContract kase={kase} /> : meaning ? (
+      {kase ? <CaseContract kase={kase} focus={figureOf(lead?.actual_value)} /> : meaning ? (
         <p className="ws-finding__lede">{meaning}</p>
       ) : null}
       {prohibition ? (
@@ -805,8 +815,14 @@ export function FindingCard({ finding, onChanged, prepared, qualify, explanation
           Our standards: “{prohibition.quote}”
         </p>
       ) : null}
-      {/* `AM-152` — the Constitution's own wording to send back, on a deviation. */}
-      <FindingCounterProposal reviewId={finding.review_id} findingId={finding.id} />
+      {/* Batch 1 (c): what a careful reader noticed across the document on this clause */}
+      {noted.length > 0 ? (
+        <p className="ws-pane__note">Also noted across the document: {noted.join(" ")}</p>
+      ) : null}
+      {/* `AM-152` — the Constitution's own wording to send back, on a deviation; never
+          on a point that matches or differs in our favour (Batch 1 d) */}
+      {state === "matches" || state === "favour" ? null
+        : <FindingCounterProposal reviewId={finding.review_id} findingId={finding.id} />}
       {finding.evaluations.map((evaluation, index) => (
         <EvaluationCard
           key={evaluation.id}
@@ -1085,6 +1101,7 @@ function EvaluationCard({
                 <EvidenceItem
                   key={row.id}
                   row={row}
+                  focus={figureOf(evaluation.actual_value)}
                   index={index}
                   current={target === row.id}
                   onPoint={() => point(row.id, "the cited")}
@@ -1250,11 +1267,13 @@ function EvaluationCard({
  *  that exact spot. A long passage is cut at a sentence boundary with an
  *  explicit control to see the rest — never silently truncated, and never a
  *  hover-only reveal. */
-function EvidenceItem({ row, index, current, onPoint }: {
+function EvidenceItem({ row, index, current, onPoint, focus = null }: {
   row: Evidence; index: number; current: boolean; onPoint: () => void;
+  /** the card's own figure: the cut starts at the sentence that states it */
+  focus?: string | null;
 }) {
   const [full, setFull] = useState(false);
-  const short = excerpt(row.content);
+  const short = excerpt(row.content, 320, focus);
   const truncated = short !== row.content.trim();
   const note = evidenceNote(row.source_type);
   return (
@@ -1285,14 +1304,14 @@ function EvidenceItem({ row, index, current, onPoint }: {
 
 /** The contract's own words for this point — clause, page and the passage, cut at a
  *  sentence with an explicit way to read the rest; a missing clause says so. */
-export function CaseContract({ kase }: { kase: FindingCase }) {
+export function CaseContract({ kase, focus = null }: { kase: FindingCase; focus?: string | null }) {
   const [full, setFull] = useState(false);
   // a missing clause is said once — by the reason line and the comparison below
   if (!kase.contract) return null;
-  const { quote, clause, page } = kase.contract;
-  const short = excerpt(quote);
-  const where = [clause ? `Clause ${clause.replace(/\.$/, "")}` : null, page ? `page ${page}` : null]
-    .filter(Boolean).join(", ").replace(/^p/, "P");
+  const { quote, clause, page, name } = kase.contract;
+  const short = excerpt(quote, 320, focus);
+  const where = clause || page ? clauseAndPage({ section_number: clause, page_number: page, ...(name ? { name } : {}) }, 0)
+    : null;
   return (
     <div className="ws-case__contract">
       <blockquote className="ws-case__quote ws-quote">{full ? quote : short}</blockquote>

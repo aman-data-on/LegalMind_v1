@@ -80,7 +80,7 @@ function EntryList({ entries, showText = false }: { entries: PackageEntry[]; sho
             <strong>{clauseName(e.target, e.new_number)}</strong>
             <span>{entryAction(e)}</span>
           </span>
-          {e.effect ? <ForUs effect={e.effect} /> : null}
+          {e.effect ? <ForUs effect={e.effect} measured={e.measured} /> : null}
           {showText && e.text ? (
             <details className="lm-pkg__text">
               <summary>Wording</summary>
@@ -348,7 +348,7 @@ export function TraceList({ sc }: { sc: SpecialConditions }) {
             <p className="lm-pkgtrace__head">
               <span className="lm-pkg__n" aria-hidden="true">{e.n}</span>
               <strong>{clauseName(e.target, e.new_number)}</strong>
-              {t?.effect ? <ForUs effect={t.effect} /> : null}
+              {t?.effect ? <ForUs effect={t.effect} measured={t.measured} /> : null}
             </p>
             <p className="lm-pkgtrace__line">
               {entryAction(t?.answer ? { ...e, answer: t.answer as Answer } : e)}

@@ -372,6 +372,8 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
 
     matches = [f for f in points
                if f.get("user_status") == "ACCEPTABLE" and not decided(f)]
+    # Batch 1 (d): an accepted deviation in our favour is said apart from a match
+    favour = [f for f in matches if f.get("in_our_favour")]
     # worst first — a person decides, then what must change, then what is missing —
     # and one number per point across every table and the detail
     severity = {"NEEDS_DECISION": 0, "REQUIRES_MODIFICATION": 1, "MISSING": 2}
@@ -447,8 +449,9 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
                          if counts.get(w))   # the chips' own words, so nothing disagrees
         whose = f"{contract['owner_name']}'s contract" if contract.get("owner_name") \
             else "The contract"
-        match = counts.get("ACCEPTABLE", 0)
+        match = counts.get("ACCEPTABLE", 0) - len(favour)
         parts = ([f"{match} match"] if match else []) + (
+            [f"{len(favour)} in our favour"] if favour else []) + (
             [f"{act} need{'s' * (act == 1)} action: {said}"] if act else [])
         blocks.append(Block("p", f"{whose} was checked against our standard terms "
                                  f"on {total} point{'s' * (total != 1)}: "
@@ -643,12 +646,14 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
                     rows=((where, c["kind"], removed, added,
                            "read" if not c["measured_by"] and unread < many else ""),)))
 
-    # ---- 8. matches ------------------------------------------------------------------
-    if matches:
-        blocks.append(Block("h2", f"Matches our standards ({len(matches)})"))
-        for f in matches:
-            where = _clause(first_evidence(f)) if first_evidence(f) else ""
-            blocks.append(Block("bullet", f"{_title(f)} — {where}".rstrip(" —")))
+    # ---- 8. matches, then what differs in our favour ---------------------------------
+    plain = [f for f in matches if f not in favour]
+    for title, group in (("Matches our standards", plain), ("In our favour", favour)):
+        if group:
+            blocks.append(Block("h2", f"{title} ({len(group)})"))
+            for f in group:
+                where = _clause(first_evidence(f)) if first_evidence(f) else ""
+                blocks.append(Block("bullet", f"{_title(f)} — {where}".rstrip(" —")))
 
     # ---- 9. detail of what still needs action ----------------------------------------
     sources: list[str] = []      # our standards cited below, by section (audit appendix)

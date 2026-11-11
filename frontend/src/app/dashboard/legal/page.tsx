@@ -239,7 +239,7 @@ export default function LegalQueuePage() {
                     <td>
                       {/* the reader's three words, as on every other screen (owner,
                           2026-10-21) — the engine's own word stays in the tooltip */}
-                      <StatusChip status={chipStatus(userStatus(finding))}
+                      <StatusChip status={chipStatus(userStatus(finding), finding.in_our_favour)}
                                   title={classificationLabel(finding.classification)} />
                     </td>
                     <td>

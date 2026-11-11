@@ -30,6 +30,7 @@ from sqlalchemy.orm import Session as DBSession
 from legalmind import config
 from legalmind.analysis import change_triage, consistency, reading
 from legalmind.analysis.client_changes import client_changes
+from legalmind.analysis.negotiation import unit_names
 from legalmind.analysis.service import _review_document_type
 from legalmind.assist.knowledge import constitution
 from legalmind.db import models as M
@@ -581,7 +582,7 @@ def _unread(actual: dict, theirs: str | None, where: str = "") -> str:
 
 
 def _case(r, item: dict, point: dict | None, source: dict | None,
-          legal_position: bool) -> dict[str, Any]:
+          legal_position: bool, names: dict[str, str] | None = None) -> dict[str, Any]:
     """One finding as a careful reviewer states it (owner, 2026-10-21, Step 3): what the
     contract says, what our standard says and where it comes from, the gap, the business
     impact the figures support, the related clauses, and the recommended action. Built by
@@ -597,7 +598,10 @@ def _case(r, item: dict, point: dict | None, source: dict | None,
     return {
         "contract": None if r["classification"] == "MISSING" or passage is None else {
             "quote": " ".join((passage.content or "").split()),
-            "clause": passage.section_number, "page": passage.page_number},
+            "clause": passage.section_number, "page": passage.page_number,
+            # a number the paper uses twice, by the clause's own words (slice A)
+            **({"name": names[str(passage.id)]} if names and str(passage.id) in names
+               else {})},
         "standard": standard,
         "gap": _gap(r, legal_position),
         "business": ({"headline": point["headline"], "body": point["body"],
@@ -726,6 +730,7 @@ def review_angles(db: DBSession, review: M.Review, *, legal_position: bool) -> d
     for r in rows:
         r["document_type"] = document_type     # whose roles "provider"/"customer" name
     clauses = load_clauses(db, review.document_version_id)
+    names = unit_names(clauses)
     facts = commercial.read(clauses)
     notice = next(((r["actual"]["cap_value"], _days(r["actual"])) for r in rows
                    if _stem(r["code"]) == "CONVENIENCE-NOTICE"
@@ -784,7 +789,7 @@ def review_angles(db: DBSession, review: M.Review, *, legal_position: bool) -> d
         item["decided"] = item["finding_id"] in resolved
         section = str((r["standard"].get("constitution") or {}).get("section") or "")
         item["case"] = _case(r, item, by_finding.get(item["finding_id"]),
-                             by_section.get(section), legal_position)
+                             by_section.get(section), legal_position, names)
     observed = consistency.observe(clauses, document_type)
     # what the client changed, each change beside the standard that measured its clause
     measured: dict[str, list[str]] = {}

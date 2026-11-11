@@ -65,8 +65,12 @@ export function documentTypeChip(code: string | null | undefined): string | null
  * original_filename, not on this display name.
  */
 export function nameFromFilename(filename: string): string {
-  const stem = filename.replace(/\.[A-Za-z0-9]{1,5}$/, "");
-  const tidied = stem.replace(/[_\-.]+/g, " ").replace(/\s+/g, " ").trim();
+  // a Word→Markdown export stacks its extensions ("….docx.md"); else one is taken off
+  const known = filename.replace(/(\.(docx?|pdf|md|txt|rtf))+$/i, "");
+  const stem = known !== filename ? known : filename.replace(/\.[A-Za-z0-9]{1,5}$/, "");
+  // a leading date stamp ("26 10 26 - ") is the file's, never the contract's name
+  const undated = stem.replace(/^\d{1,2}[ .\-_]\d{1,2}[ .\-_]\d{2,4}\s*[-–]?\s*/, "");
+  const tidied = undated.replace(/[_\-.]+/g, " ").replace(/\s+/g, " ").trim();
   return tidied || filename;
 }
 
@@ -108,6 +112,16 @@ export function sectionRef(sectionNumber: string | null | undefined): string | n
   // document carries stays; none is ever added.
   const trimmed = (sectionNumber ?? "").trim();
   return trimmed || null;
+}
+
+/** "2 Fees", or — a number the paper uses twice — "2 — Invoicing and Payment" by the
+ *  clause's own words (the server's `name`); "" when the clause has neither number nor
+ *  heading. */
+export function clauseName({ number, heading, name }: {
+  number: string | null; heading: string | null; name?: string | null | undefined;
+}): string {
+  const ref = sectionRef(number);
+  return ref && name ? `${ref} — ${name}` : [ref, heading].filter(Boolean).join(" ");
 }
 
 /**

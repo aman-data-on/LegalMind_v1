@@ -37,6 +37,7 @@ import {
   USER_STATUS_TONE,
   pointAnswer,
   pointState,
+  readerWord,
   reviewHeadline,
   statusCounts,
   userStatus,
@@ -44,7 +45,7 @@ import {
   type UserStatus,
 } from "./findingLanguage";
 import { useFindingsState } from "./findingsState";
-import { STAGE_LABELS, changesWords, contractOutcomeLabel, decidedWords, pointsWords, stageWords, withoutSectionRefs,
+import { STAGE_LABELS, changesWords, contractOutcomeLabel, decidedWords, pointsWords, stageWords, waitingWords, withoutSectionRefs,
          type StageViewer } from "@/lib/labels";
 
 import { useHighlight } from "./highlight";
@@ -60,6 +61,7 @@ import { useSession } from "@/lib/session";
 import { ObligationsPanel } from "./ObligationsPanel";
 import { OfferSection } from "./OfferPlaybook";
 import { useSideTabs } from "./WorkspaceLayout";
+import { chipStatus } from "@/components/StatusChip";
 
 /** The Summary speaks the card's three words (owner, 2026-09-09 — reversing
  *  the 2026-09-01 tile correction; AM-50 r4), in the one order and the one set
@@ -240,8 +242,8 @@ export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner
                         onOpen={sideTabs ? (id) => sideTabs.openFindings({ findingId: id })
                                          : undefined}
                         words={new Map(state.findings.map((f) => [f.id, {
-                          reader: USER_STATUS_LABELS[userStatus(f)],
-                          status: userStatus(f),
+                          reader: readerWord(f),
+                          status: chipStatus(userStatus(f), f.in_our_favour),
                           answer: pointAnswer(f, can(P.LEGAL_DECISION),
                                               state.progress?.stage !== "NOT_SENT") }]))} />}
           </section>
@@ -437,7 +439,7 @@ export function summaryCount({ points, open, canDecide, mine = false, notSent, a
     : `${points} ${one ? "is" : "are"} with ${assignee ?? "Legal"}`
       + (canDecide ? `. You can also decide ${one ? "it" : "them"}` : "");
   return [lead,
-          waiting ? `${waiting} waiting for the client` : null,
+          waitingWords(waiting),
           decided && open ? `${decided} of ${required} decided` : null,
   ].filter(Boolean).join(". ") + ".";
 }

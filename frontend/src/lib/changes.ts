@@ -6,7 +6,7 @@
  */
 
 import { USER_STATUS_LABELS, requirementTitle, type UserStatus } from "@/components/workspace/findingLanguage";
-import { sectionRef } from "@/lib/documentTypes";
+import { clauseName } from "@/lib/documentTypes";
 import { formatDate } from "@/lib/dates";
 
 /** THEIRS: the client's paper came first (`AM-290`) — one row per point the review
@@ -48,11 +48,27 @@ export interface AnswerEntry {
   internal_note?: string | null;
 }
 
+/** A clause as the server names it; ``name``: only where the paper uses this number for
+ *  two or more clauses — the clause's OWN heading or first words, never a parent's. */
+export interface ClauseName {
+  number: string | null; heading: string | null; name?: string | null;
+  /** its top-level number is used twice: the parent unit it sits in (`key`) and that
+   *  parent's own words — null when the number is unique */
+  group?: { key: string; name: string | null } | null;
+}
+
+/** Why a NEGATIVE row goes to Legal — only on NEGATIVE rows (proposed AM-299 r1 split). */
+export type Measured = "WORSE" | "ABSENT" | "REVIEW" | "NOT_MEASURED";
+
 export interface ClientChange {
   row_key: string;
   kind: ChangeKind;
   moved: boolean;
-  clause: { number: string | null; heading: string | null };
+  clause: ClauseName;
+  /** client paper first: every clause the point was CONFIRMED in */
+  clauses?: ClauseName[];
+  /** client paper first, nothing confirmed: the clauses that MAY hold it — unranked */
+  candidates?: ClauseName[];
   page: number | null;
   before: { evidence_ids: string[]; text: string } | null;
   after: { evidence_ids: string[]; text: string } | null;
@@ -70,6 +86,7 @@ export interface ClientChange {
   route: ChangeRoute;
   route_reason: string;
   effect_for_us: EffectForUs;
+  measured?: Measured;
   favour_reason?: string;
   /** holder route only: an EFFECTIVE Legal Decision accepts every Evaluation — or, where
    *  none exists, a holder recorded "accept theirs" as their answer (`AM-281`) */
@@ -189,6 +206,28 @@ export const EFFECT_LABEL: Record<EffectForUs, string> = {
   FALLBACK: "Fallback",
   NEGATIVE: "Worse for us",
 };
+/** A NEGATIVE row's words by why it goes to Legal. Without ``measured`` (a caller that
+ *  does not carry it) the effect's own word stands. */
+const MEASURED_LABEL: Record<Measured, string> = {
+  WORSE: "Worse for us",
+  NOT_MEASURED: "Not measured — Legal checks",
+  ABSENT: "Not in their paper",
+  // a standard measured it and nothing says worse (a settled deviation, changed words)
+  REVIEW: "Legal checks",
+};
+const MEASURED_SENTENCE: Record<Measured, string> = {
+  WORSE: "Legal reviews it.",
+  NOT_MEASURED: "Our standards could not measure this, so Legal reviews it.",
+  ABSENT: "Their paper does not have this point, so Legal reviews it.",
+  REVIEW: "Legal reviews this change.",
+};
+export function effectLabel(effect: EffectForUs, measured?: Measured): string {
+  return effect === "NEGATIVE" && measured ? MEASURED_LABEL[measured] : EFFECT_LABEL[effect];
+}
+export function effectSentence(effect: EffectForUs, measured?: Measured): string {
+  return effect === "NEGATIVE" && measured ? MEASURED_SENTENCE[measured] : EFFECT_SENTENCE[effect];
+}
+
 export const EFFECT_SENTENCE: Record<EffectForUs, string> = {
   POSITIVE: "The deal owner can accept it without Legal.",
   NEUTRAL: "The deal owner can accept it without Legal.",
@@ -212,9 +251,12 @@ export const ROUTE_LABEL: Record<ChangeRoute, string> = {
   favour: "In our favour",
 };
 
+// "2 Fees" / "2 — Invoicing and Payment": one helper, beside `sectionRef`, so the Points
+// passages say a clause exactly as the Changes rows do (slice C)
+export { clauseName };
+
 export function where(change: ClientChange): string {
-  const { number, heading } = change.clause;
-  const head = [sectionRef(number), heading].filter(Boolean).join(" ");
+  const head = clauseName(change.clause);
   if (head) return head;
   // a point on the client's paper the review found nowhere in the text (MISSING)
   const point = change.kind === "THEIRS" ? change.review.after[0]?.requirement_code : undefined;
@@ -325,10 +367,12 @@ export function matches(change: ClientChange, filter: Filter, list: Pick<ChangeL
         && (change.route !== "holder" || !!change.holder_accepted);
     case "answered":
       return change.answer !== null;
+    case "NEGATIVE":
+      // "Worse for us" only where the server says worse — never an unmeasured row
+      return change.effect_for_us === "NEGATIVE" && change.measured === "WORSE";
     case "POSITIVE":
     case "NEUTRAL":
     case "FALLBACK":
-    case "NEGATIVE":
       return change.effect_for_us === filter;
     default:
       return true;
