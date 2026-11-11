@@ -27,10 +27,11 @@ import { PointStatusIcon } from "./PointStatus";
 import { ApiError, api, describeError } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
-import { sectionRef } from "@/lib/documentTypes";
+import { isOurs, sectionRef } from "@/lib/documentTypes";
 import { displayTitle } from "@/lib/templates";
 import {
-  ACCEPTABLE_EFFECTS, ACTION_LABEL, ANSWER_LABEL, EFFECT_LABEL, EFFECT_SENTENCE, KIND_LABEL, ROUTE_REASON, acceptable, actionsFor,
+  ACCEPTABLE_EFFECTS, ACTION_LABEL, ANSWER_LABEL, EFFECT_LABEL, KIND_LABEL, ROUTE_REASON, acceptable, actionsFor,
+  clauseName, effectLabel, effectSentence, type Measured,
   type AcceptableEffect,
   answersAsLegal, explanation, formattingOnly, changeBucket, historyLine, matches, readerWord, replyBlockers,
   oursLabel, whoLine, where,
@@ -43,7 +44,7 @@ import { AnswerComposer, DiffText } from "./ChangeComposer";
 import { EscalateControl } from "./EscalateControl";
 import { USER_STATUS_LABELS, requirementTitle } from "./findingLanguage";
 import {
-  IconArrowLeft, IconBetter, IconCheck, IconChevronRight, IconClock, IconDownload, IconLock, IconSame, IconWorse, IconFallback,
+  IconAlertCircle, IconArrowLeft, IconBetter, IconFileMinus, IconCheck, IconChevronRight, IconClock, IconDownload, IconLock, IconSame, IconWorse, IconFallback,
 } from "./icons";
 import { OfferLine } from "./OfferPlaybook";
 import { formatDate } from "@/lib/dates";
@@ -69,14 +70,22 @@ export function clientVersion(versions: DocumentVersion[]): number | undefined {
     ? latest.version_number - 1 : undefined;
 }
 
+/** One version only: a tab exactly when the server lists it — not ours (`is_ours`: an
+ *  undeclared version is no one's, so its paper is listed and asked about), or made
+ *  from our blank template (`AM-290`, `AM-302`). */
+export function changesEnabled(versions: DocumentVersion[]): boolean {
+  const only = versions.length === 1 ? versions[0] : undefined;
+  // a signed copy alone has nothing to answer
+  return versions.length > 1 || (!!only && only.version_role !== "FINAL_SIGNED"
+    && (!isOurs(only) || !!only.made_from_template));
+}
+
 /** One fetch for the tab label and the pane, owned by the workspace page. */
 export function useClientChanges(contractId: string, versions: DocumentVersion[]) {
   const toVersion = clientVersion(versions);
   // one version only: a tab exactly when it is the client's paper (`AM-290`, client
   // paper first — the server's `is_ours`, read the other way round)
-  const only = versions.length === 1 ? versions[0] : undefined;
-  const enabled = versions.length > 1 || only?.source === "COUNTERPARTY"
-    || only?.version_role === "CLIENT_MODIFIED" || !!only?.made_from_template;
+  const enabled = changesEnabled(versions);
   const [state, setState] = useState<Load>({ kind: "loading" });
   const [seq, setSeq] = useState(0);
   const reload = useCallback(() => setSeq((n) => n + 1), []);
@@ -101,12 +110,15 @@ export const EFFECT_FILTERS: FilterDef[] = [
 ];
 
 const EFFECT_ICON: Record<EffectForUs, typeof IconBetter> = { POSITIVE: IconBetter, NEUTRAL: IconSame, FALLBACK: IconFallback, NEGATIVE: IconWorse };
+/** a NEGATIVE row not measured worse never wears the "worse" arrow */
+const MEASURED_ICON: Record<Measured, typeof IconBetter> = { WORSE: IconWorse, NOT_MEASURED: IconAlertCircle, ABSENT: IconFileMinus, REVIEW: IconAlertCircle };
 
 /** "For us": an icon AND the words — the shape tells the three apart without colour, the
  *  words say it (WCAG 1.4.1). Its own slot, never merged with the review's word. */
-export function ForUs({ effect, size = 13 }: { effect: EffectForUs; size?: number }) {
-  const Icon = EFFECT_ICON[effect];
-  return <span className="cx-forus" data-effect={effect}><Icon size={size} />{EFFECT_LABEL[effect]}</span>;
+export function ForUs({ effect, measured, size = 13 }: { effect: EffectForUs; measured?: Measured | undefined; size?: number }) {
+  const Icon = effect === "NEGATIVE" && measured ? MEASURED_ICON[measured] : EFFECT_ICON[effect];
+  return <span className="cx-forus" data-effect={effect} data-measured={effect === "NEGATIVE" ? measured : undefined}>
+    <Icon size={size} />{effectLabel(effect, measured)}</span>;
 }
 const ANSWERED: FilterDef = { id: "answered", label: "Answered", empty: "No change has been answered yet." };
 const ALL: FilterDef = { id: "all", label: "All", empty: "The client changed nothing." };
@@ -532,6 +544,13 @@ function RowWho({ change, reader }: { change: ClientChange; reader: ChangeList }
   return who === "Yours to answer" ? null : <span className="cx-row__tag">{who}</span>;
 }
 
+/** A row's clause group: its top-level number; a point on the client's paper no clause
+ *  was confirmed for (MISSING included) is not placed, never "opening text". */
+export function groupHead(c: ClientChange): string {
+  return sectionRef(c.clause.number?.split(".")[0])
+    ?? (c.kind === "THEIRS" && !c.after ? "Not placed in a clause" : "Opening text");
+}
+
 function ChangeIndex({ rows, current, onPick, allUntracked, reader, formatting, onKeepAllFormatting, place, packageLine }: {
   rows: ClientChange[]; current: ClientChange | null; onPick: (key: string) => void;
   allUntracked: boolean; reader: ChangeList; place?: string | undefined;
@@ -545,15 +564,21 @@ function ChangeIndex({ rows, current, onPick, allUntracked, reader, formatting, 
   // the formatting-only rows are one group, first and closed (a heading's capitals or
   // colon, 19 of them on a returned MSA, are not 19 things to read)
   const [closed, setClosed] = useState<ReadonlySet<string>>(new Set([`${FMT}-fmt`]));
-  const groups: { key: string; head: string; title: string | null; rows: ClientChange[]; fmt?: boolean }[] = [];
+  const groups: { key: string; head: string; title: string | null; name?: string | null; unit?: string | null; rows: ClientChange[]; fmt?: boolean }[] = [];
   const fmtRows = rows.filter(formattingOnly);
   if (fmtRows.length) groups.push({ key: `${FMT}-fmt`, head: FMT, title: null, rows: fmtRows, fmt: true });
   // grouped by top-level clause: "9", "9.1", "9.2" sit under 9 (the document's own number)
   for (const c of rows) {
     if (formattingOnly(c)) continue;
     const top = c.clause.number?.split(".")[0];
-    const head = sectionRef(top) ?? "Opening text";
-    if (groups.at(-1)?.head !== head || groups.at(-1)?.fmt) groups.push({ key: `${head}-${groups.length}`, head, title: null, rows: [] });
+    const head = groupHead(c);
+    // a number the paper uses twice is two clauses: each row sits in its own parent
+    // unit (the server's `group`), told apart by that unit's own words
+    const unit = c.clause.group?.key ?? null;
+    const last = groups.at(-1);
+    if (last?.head !== head || (last?.unit ?? null) !== unit || last?.fmt) {
+      groups.push({ key: `${head}-${groups.length}`, head, title: null, name: c.clause.group?.name ?? null, unit, rows: [] });
+    }
     const g = groups.at(-1)!;
     g.rows.push(c);
     if (!g.title && c.clause.number === top && c.clause.heading) g.title = c.clause.heading;
@@ -574,7 +599,7 @@ function ChangeIndex({ rows, current, onPick, allUntracked, reader, formatting, 
                     aria-controls={`cx-group-${gi}`} onClick={() => toggle(g.key)}>
               <span className="cx-index__chev"><IconChevronRight size={12} /></span>
               <span className="cx-index__title">
-                {g.head}{g.title ? <span> {g.title}</span> : null}
+                {g.head}{g.name ? <span> — {g.name}</span> : g.title ? <span> {g.title}</span> : null}
               </span>
               <span className="cx-index__n">
                 {open ? `${open} open` : "done"}<span className="ws-visually-hidden"> of {g.rows.length}</span>
@@ -597,7 +622,7 @@ function ChangeIndex({ rows, current, onPick, allUntracked, reader, formatting, 
                             onClick={() => onPick(c.row_key)}>
                       {/* the group already says the clause: a row that would only repeat
                           it, or say a bare number, says its own first words */}
-                      <span className="cx-row__where">{rowLabel(c, [g.head, g.title].filter(Boolean).join(" "))}</span>
+                      <span className="cx-row__where">{rowLabel(c, groupLabel(g))}</span>
                       <span className="cx-row__meta">
                         {/* S1 — ONE status on line 1: the review's word against our standard
                             when it asks for a person, else what the change does for us. The
@@ -607,7 +632,7 @@ function ChangeIndex({ rows, current, onPick, allUntracked, reader, formatting, 
                           ? <PointStatusIcon bucket={changeBucket(c)!} size={14} /> : null}
                         {readerWord(c) && changeBucket(c) !== "decided" && c.route === "holder"
                           ? <span className="cx-row__word">{readerWord(c)}</span>
-                          : <ForUs effect={c.effect_for_us} />}
+                          : <ForUs effect={c.effect_for_us} measured={c.measured} />}
                         {/* "Wording changed" is most rows; only a different kind is said */}
                         {c.kind !== "MODIFIED" && c.kind !== "THEIRS" ? <span>{KIND_LABEL[c.kind]}</span> : null}
                         {c.untracked && !allUntracked ? <span className="cx-row__tag">Untracked</span> : null}
@@ -725,8 +750,13 @@ export function AnswerCard({ change, list, contractId, onAnswered, onReload, inP
             : change.kind !== "MODIFIED" ? <span className="cx-tag">{KIND_LABEL[change.kind]}</span> : null}
           {change.moved ? <span className="cx-tag">Also moved</span> : null}
         </p>
-        <p className="cx-line-forus"><ForUs effect={change.effect_for_us} size={15} />
-          <span>{EFFECT_SENTENCE[change.effect_for_us]}</span></p>
+        <p className="cx-line-forus"><ForUs effect={change.effect_for_us} measured={change.measured} size={15} />
+          <span>{effectSentence(change.effect_for_us, change.measured)}</span></p>
+        {/* nothing confirmed which clause holds this point: say so, never pick one */}
+        {!change.after && change.candidates?.length ? (
+          <p className="ws-pane__note">We could not tell which clause covers this. Clauses that may:{" "}
+            {change.candidates.map(clauseName).filter(Boolean).join("; ")}.</p>
+        ) : null}
         {/* AM-305: the playbook line this change is measured by */}
         <OfferLine change={change} contractId={contractId} />
         <p className="cx-line2" data-route={change.route} data-waiting={waiting || undefined}>
@@ -881,13 +911,20 @@ function GivenAnswer({ change, waiting }: { change: ClientChange; waiting: boole
   );
 }
 
-/** A row's label in its clause group: where it is, or — when that only repeats the
- *  group's own heading — the changed passage's first words. */
+/** A clause group's label, said as a clause is (`clauseName`): "2 — Invoicing and
+ *  Payment" for a number the paper uses twice, else "9 Limitation of Liability". */
+export function groupLabel(g: { head: string; title: string | null; name?: string | null }): string {
+  return g.name ? `${g.head} — ${g.name}` : [g.head, g.title].filter(Boolean).join(" ");
+}
+
+/** THE label of a change — row, card and lists alike: where it is, or — when that only
+ *  repeats the group's own label — the changed passage's first words. */
 export function rowLabel(change: ClientChange, groupLabel: string): string {
   const label = where(change);
   const words = firstWords(change);
-  // a bare number ("1.2") says nothing: the number, then the clause's first words
-  if (!change.clause.heading && change.clause.number && words) return `${label} ${words}`;
+  // a bare number ("1.2") says nothing: the number, then the clause's first words —
+  // unless its name (a repeated number) already says its own words
+  if (!change.clause.heading && !change.clause.name && change.clause.number && words) return `${label} ${words}`;
   return label !== groupLabel ? label : words || label;
 }
 

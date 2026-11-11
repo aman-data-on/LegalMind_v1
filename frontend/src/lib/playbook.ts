@@ -36,7 +36,8 @@ export function grouped(points: PlaybookPoint[]) {
  *  as within (Better or No change for us). Null: no line with a figure covers it. */
 export function offerFor(change: ClientChange, points: PlaybookPoint[] | null):
     { point: PlaybookPoint; within: boolean; fallback: boolean } | null {
-  if (!points) return null;
+  // a NEGATIVE row not measured worse (unmeasured, absent) is never "beyond" our offer
+  if (!points || (change.effect_for_us === "NEGATIVE" && change.measured !== "WORSE")) return null;
   const codes = new Set([...change.review.after, ...(change.after ? [] : change.review.before)]
     .map((f) => f.requirement_code));
   const point = points.find((p) => p.kind !== "LEGAL_ONLY" && codes.has(p.requirement_code));

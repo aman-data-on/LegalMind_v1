@@ -57,6 +57,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from collections import Counter
 from collections.abc import Callable
 from typing import Any
 from uuid import UUID
@@ -71,7 +72,12 @@ from legalmind.analysis.version_comparison import _normalize as _spacing
 from legalmind.db import models as M
 from legalmind.domain.deal_stage import final_of
 from legalmind.domain.document_types import DOCUMENT_SOURCES
-from legalmind.domain.enums import FindingClassification, FindingStatus, ReviewStatus
+from legalmind.domain.enums import (
+    FindingClassification,
+    FindingStatus,
+    MappingState,
+    ReviewStatus,
+)
 from legalmind.evaluation.constitution_boundaries import constitution_prohibition_for
 from legalmind.evaluation.user_status import ACCEPTABLE, by_finding
 from legalmind.evaluation.workflow import derive_finding_status
@@ -315,7 +321,12 @@ def _units(clauses: list[Clause]) -> list[dict[str, Any]]:
     """The clauses as negotiated: a numbered row starts one (its own number again is a
     continuation), so does an unnumbered heading or a schedule's own heading line; any
     other unnumbered row belongs to the clause above it. Text before the first is the
-    opening."""
+    opening. ``name``: only where one number belongs to two or more units (a paper that
+    restarts its numbering), each such unit's OWN heading or first words (`_own_name`)
+    — never a heading inferred from another row; else None. ``group``: where the
+    unit's top-level number is used by two or more units, ``{key, name}`` of its parent
+    — the nearest unit before it (itself included) numbered that top-level number —
+    keyed by the parent's name, or its first evidence row when it has none; else None."""
     units: list[dict[str, Any]] = []
     for row in clauses:
         first = (row.content or "").strip().split("\n", 1)[0]
@@ -338,7 +349,45 @@ def _units(clauses: list[Clause]) -> list[dict[str, Any]]:
         unit["original"] = "\n".join(r.content or "" if (r.marks or {}).get("original")
                                      is None else r.marks["original"] for r in rows)
         unit["changes"] = [c for r in rows for c in (r.marks or {}).get("changes") or ()]
+    numbers = Counter(_num(u["number"]) for u in units if u["number"])
+    parents: dict[str, dict] = {}
+    for unit in units:
+        number = _num(unit["number"])
+        unit["name"] = _own_name(unit) if number and numbers[number] > 1 else None
+        if number and "." not in number:
+            parents[number] = unit
+        parent = parents.get(number.split(".")[0]) if number else None
+        unit["group"] = None if parent is None or numbers[_num(parent["number"])] < 2 \
+            else {"key": parent["name"] or parent["evidence_ids"][0],
+                  "name": parent["name"]}
     return units
+
+
+def _num(number: str | None) -> str:
+    return (number or "").rstrip(".")
+
+
+#: how many of a unit's own first words name it when it has no heading
+_NAME_WORDS = 8
+_NAME_MARKUP = " \t*#\\_:.-\u2013\u2014"
+_ZERO_WIDTH = dict.fromkeys(map(ord, "\u200b\u200c\u200d\u2060\ufeff"))
+
+
+def _own_name(unit: dict) -> str | None:
+    """A unit's own heading, else its first words with its number and markup left out —
+    only ever this unit's text (two "2"s told apart, never a guessed parent)."""
+    if (unit["heading"] or "").translate(_ZERO_WIDTH).strip():
+        return unit["heading"].strip()
+    text = unit["text"].translate(_ZERO_WIDTH).strip()
+    number = unit["number"] or ""
+    if number and text.startswith(number):
+        text = text[len(number):]
+    for line in text.split("\n"):          # the first line with words of its own
+        words = line.strip(_NAME_MARKUP).replace("**", "").split()
+        if words:
+            return " ".join(words[:_NAME_WORDS]) + ("…" if len(words) > _NAME_WORDS
+                                                    else "")
+    return None
 
 
 #: `AM-317` r3: a definition's own term — "Business Day" shall mean / means / has the
@@ -596,6 +645,51 @@ def _tracked(kind: str, old: dict | None, new: dict | None,
     return tracked, _spacing(new["original"]) != _spacing(old["text"])
 
 
+def _clause(unit: dict) -> dict:
+    return {"number": unit["number"], "heading": unit["heading"], "name": unit["name"],
+            "group": unit["group"]}
+
+
+def clause_label(clause: dict, heading: bool = True) -> str | None:
+    """A clause in words, as the Changes tab says it (`clauseName`): "2 — Invoicing
+    and Payment" for a number the paper uses twice, else "7 Fees" (or "7" without
+    ``heading``) / the heading."""
+    number, name = clause["number"], clause.get("name")
+    if number and name:
+        return f"{number} — {name}"
+    return " ".join(t for t in (number, heading and clause["heading"]) if t) or None
+
+
+#: `AM-299` r1 split (Batch 1, proposed): why a NEGATIVE row goes to Legal, in three
+#: words — never a routing input; `effect_for_us` and the route stay as they are
+WORSE, ABSENT, REVIEW, NOT_MEASURED = "WORSE", "ABSENT", "REVIEW", "NOT_MEASURED"
+_MEASURED_AGAINST = (FindingClassification.DEVIATION.value,
+                     FindingClassification.CONFLICT.value)
+_COMPARED = (FindingClassification.MATCH.value, *_MEASURED_AGAINST)
+
+
+def _measured(effect: str, kind: str, before: list[dict], after: list[dict],
+              triage: dict | None) -> dict[str, str]:
+    """``{"measured": …}`` on a NEGATIVE row, else nothing (omitted, never nulled).
+    WORSE only where something says so: a DEVIATION or CONFLICT not accepted in our
+    favour on the returned clause, an `AM-224` reason it moves risk onto us, or our
+    measured clause deleted. ABSENT: the client's paper lacks the point (MISSING).
+    REVIEW: a standard did measure the clause and nothing says worse (a settled deviation,
+    `AM-317` r1's changed words still matching). Anything else — unable to evaluate,
+    nothing measures it — is NOT_MEASURED; neither is ever "worse" (rule 15)."""
+    if effect != NEGATIVE:
+        return {}
+    if (any(f["classification"] in _MEASURED_AGAINST and not _settled(f) for f in after)
+            or (triage or {}).get("reasons") or (kind == "DELETED" and before)):
+        return {"measured": WORSE}
+    if kind == THEIRS_KIND and any(
+            f["classification"] == FindingClassification.MISSING.value for f in after):
+        return {"measured": ABSENT}
+    if any(f["classification"] in _COMPARED for f in (*before, *after)):
+        return {"measured": REVIEW}
+    return {"measured": NOT_MEASURED}
+
+
 def _side(unit: dict | None) -> dict | None:
     return {"evidence_ids": unit["evidence_ids"], "text": unit["text"]} if unit else None
 
@@ -716,7 +810,7 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
             "row_key": key, "kind": kind,
             # a clause both moved and reworded is MODIFIED, and says it moved
             "moved": moved and kind == "MODIFIED",
-            "clause": {"number": here["number"], "heading": here["heading"]},
+            "clause": _clause(here),
             "page": here["page"],
             "before": _side(o), "after": _side(n),
             "tracked": tracked, "untracked": untracked,
@@ -724,6 +818,7 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
             "review_delta": _delta(f_before, f_after),
             "triage": triage, "route": route, "route_reason": why,
             "effect_for_us": effect,
+            **_measured(effect, kind, f_before, f_after, triage),
             # AM-302: an answer's left side is the template it was compared with
             **({"anchor": {
                 "left_key": f"{TEMPLATE_ANCHOR}{template['template_version'].id}",
@@ -848,14 +943,19 @@ def answer_line(db: DBSession, contract: M.Contract, before: M.DocumentVersion |
 # ------------------------------------------- `AM-290`: client paper first
 def _review_findings(db: DBSession, review: M.Review | None) -> list[dict]:
     """Every Finding of the Review with its Evaluations and the evidence rows they read
-    (none for a MISSING clause), the reader word quoted from `by_finding`."""
+    (none for a MISSING clause), the reader word quoted from `by_finding`.
+    ``confirmed_evidence``: the rows of the Evaluations whose recorded Mapping State
+    (D-2, ``result.evaluated_facts.mapping_state``) is CONFIRMED — an UNRESOLVED or
+    AMBIGUOUS mapping's rows are only its unranked candidates, and an Evaluation with
+    no stamp is not confirmed (fail closed)."""
     if review is None:
         return []
     statuses = by_finding(db, [review.id]).get(review.id, {})
     out: dict[UUID, dict] = {}
-    for finding_id, cls, code, evaluation_id, evidence_id in db.execute(
+    for finding_id, cls, code, evaluation_id, evidence_id, result in db.execute(
             select(M.Finding.id, M.Finding.classification, M.Requirement.code,
-                   M.Evaluation.id, M.EvaluationEvidence.evidence_id)
+                   M.Evaluation.id, M.EvaluationEvidence.evidence_id,
+                   M.Evaluation.result)
             .join(M.RequirementVersion,
                   M.RequirementVersion.id == M.Finding.requirement_version_id)
             .join(M.Requirement, M.Requirement.id == M.RequirementVersion.requirement_id)
@@ -868,9 +968,12 @@ def _review_findings(db: DBSession, review: M.Review | None) -> list[dict]:
             "finding_id": str(finding_id), "requirement_code": code,
             "classification": cls.value,
             "user_status": statuses.get(finding_id, "NEEDS_DECISION"),
-            "evaluation_ids": [], "evidence_ids": []})
+            "evaluation_ids": [], "evidence_ids": [], "confirmed_evidence": []})
+        confirmed = ((result or {}).get("evaluated_facts") or {}).get(
+            "mapping_state") == MappingState.CONFIRMED.value
         for key, value in (("evaluation_ids", evaluation_id),
-                           ("evidence_ids", evidence_id)):
+                           ("evidence_ids", evidence_id),
+                           ("confirmed_evidence", evidence_id if confirmed else None)):
             if value is not None and str(value) not in f[key]:
                 f[key].append(str(value))
     return list(out.values())
@@ -895,6 +998,12 @@ def realising_clause(db: DBSession, codes: set[str]) -> M.ClauseVersion | None:
     return found[0] if len(found) == 1 else None
 
 
+def _holding(units: list[dict], at: dict[str, dict], evidence: list[str]) -> list[dict]:
+    """The units holding any of ``evidence``, in document order."""
+    mine = {id(at[e]) for e in evidence if e in at}
+    return [u for u in units if id(u) in mine]
+
+
 def paper_first(db: DBSession, contract: M.Contract, after: M.DocumentVersion, *,
                 legal_position: bool) -> dict[str, Any]:
     """`AM-290` r1/r2: the contract's first version is the client's paper, so there is
@@ -910,23 +1019,29 @@ def paper_first(db: DBSession, contract: M.Contract, after: M.DocumentVersion, *
     for f in _review_findings(db, _latest_review(db, after)):
         if f["user_status"] == ACCEPTABLE:
             continue
-        mine = list(dict.fromkeys(id(at[e]) for e in f["evidence_ids"] if e in at))
-        here = [u for u in units if id(u) in mine]
+        here = _holding(units, at, f["confirmed_evidence"])
         clause = realising_clause(db, {f["requirement_code"]})
         first = f["evidence_ids"][0] if f["evidence_ids"] else ""
         key = f"{THEIRS_PREFIX}{f['requirement_code']}|{first}"
         side = {"evidence_ids": [e for u in here for e in u["evidence_ids"]],
                 "text": "\n".join(u["text"] for u in here)} if here else None
+        review = {k: v for k, v in f.items()
+                  if k not in ("evidence_ids", "confirmed_evidence")}
         out.append({
             "row_key": key, "kind": THEIRS_KIND, "moved": False,
-            "clause": {"number": here[0]["number"] if here else None,
-                       "heading": here[0]["heading"] if here else None},
+            "clause": _clause(here[0]) if here else
+            {"number": None, "heading": None, "name": None, "group": None},
+            # every clause the point was read in; none confirmed — the clauses that
+            # may hold it, unranked and without a passage (nothing chose among them)
+            "clauses": [_clause(u) for u in here],
+            **({} if here else {"candidates": [
+                _clause(u) for u in _holding(units, at, f["evidence_ids"])]}),
             "page": here[0]["page"] if here else None,
             "before": None, "after": side, "tracked": False, "untracked": False,
-            "review": {"before": [], "after": [
-                {k: v for k, v in f.items() if k != "evidence_ids"}]},
+            "review": {"before": [], "after": [review]},
             "review_delta": [], "triage": None,
             "route": HOLDER, "route_reason": MEASURED, "effect_for_us": NEGATIVE,
+            **_measured(NEGATIVE, THEIRS_KIND, [], [review], None),
             "anchor": {"left_key": f"{CLAUSE_ANCHOR}{clause.clause_key}" if clause
                        else None,
                        "clause_version_id": str(clause.id) if clause else None},
