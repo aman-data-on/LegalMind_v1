@@ -72,6 +72,8 @@ test.describe("52.7 — the decision shown is the decision recorded", () => {
 
     // Step 31 r11 / AM-15 — a justification is mandatory, and the field says so.
     await evaluation.getByRole("button", { name: "Decide" }).click();
+    // LA-1: nothing is preselected — the decider picks the type
+    await evaluation.locator(".ws-decision__form select").selectOption("ACCEPT_DEVIATION");
     await evaluation.getByLabel("Justification (required)").fill(JUSTIFICATION);
     await evaluation.getByRole("button", { name: "Record decision" }).click();
 
@@ -120,6 +122,8 @@ test.describe("52.7 — the decision shown is the decision recorded", () => {
 
     // Now submit from the page, which still believes version 0 is current.
     await evaluation.getByRole("button", { name: "Decide" }).click();
+    // LA-1: nothing is preselected — the decider picks the type
+    await evaluation.locator(".ws-decision__form select").selectOption("ACCEPT_DEVIATION");
     await evaluation.getByLabel("Justification (required)").fill(JUSTIFICATION);
     await evaluation.getByRole("button", { name: "Record decision" }).click();
 

@@ -54,7 +54,8 @@ export function DecisionControl({
 }) {
   const { identity } = useSession();
   const available = submittableDecisionTypes(identity?.permissions ?? []);
-  const [decisionType, setDecisionType] = useState<string>(available[0] ?? DECISION_TYPES[0]);
+  // LA-1 (owner, 2026-11-09): nothing is preselected — the decider picks a type
+  const [decisionType, setDecisionType] = useState<string>("");
   const [justification, setJustification] = useState("");
   // QA-026: the reader chose a type by hand — a stray shortcut never overrides it
   const [chosen, setChosen] = useState(false);
@@ -123,7 +124,7 @@ export function DecisionControl({
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (frozen || outcome.kind === "submitting") return;     // never twice in flight
+    if (frozen || outcome.kind === "submitting" || !decisionType) return;  // never twice in flight
     setOutcome({ kind: "submitting" });
     try {
       if (grouped && reviewId) {
@@ -147,6 +148,7 @@ export function DecisionControl({
                      isEffective: result.is_effective, count: 1 });
       }
       setJustification("");
+      setDecisionType("");
       setOpen(false);
       onRecorded();
     } catch (error) {
@@ -192,7 +194,8 @@ export function DecisionControl({
       <form className="ws-decision__form" onSubmit={submit}>
         <label>
           Decision
-          <select value={decisionType} onChange={(event) => { setDecisionType(event.target.value); setChosen(true); }}>
+          <select required value={decisionType} onChange={(event) => { setDecisionType(event.target.value); setChosen(true); }}>
+            <option value="" disabled>Choose a decision</option>
             {available.map((type) => (
               <option key={type} value={type}>
                 {decisionLabel(type)}
@@ -228,7 +231,7 @@ export function DecisionControl({
             onChange={(event) => setJustification(event.target.value)}
           />
         </label>
-        <button type="submit" className="ws-btn ws-btn--primary" disabled={outcome.kind === "submitting" || frozen}>
+        <button type="submit" className="ws-btn ws-btn--primary" disabled={outcome.kind === "submitting" || frozen || !decisionType}>
           {outcome.kind === "submitting" ? "Recording…"
             : grouped ? `Record for all ${pending.length + 1}` : "Record decision"}
         </button>
