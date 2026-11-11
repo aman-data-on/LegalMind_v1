@@ -449,9 +449,11 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
                          if counts.get(w))   # the chips' own words, so nothing disagrees
         whose = f"{contract['owner_name']}'s contract" if contract.get("owner_name") \
             else "The contract"
-        match = counts.get("ACCEPTABLE", 0) - len(favour)
+        # every favour point, decided or not — the same set "ACCEPTABLE" counts
+        favoured = sum(bool(f.get("in_our_favour")) for f in points)
+        match = counts.get("ACCEPTABLE", 0) - favoured
         parts = ([f"{match} match"] if match else []) + (
-            [f"{len(favour)} in our favour"] if favour else []) + (
+            [f"{favoured} in our favour"] if favoured else []) + (
             [f"{act} need{'s' * (act == 1)} action: {said}"] if act else [])
         blocks.append(Block("p", f"{whose} was checked against our standard terms "
                                  f"on {total} point{'s' * (total != 1)}: "

@@ -38,7 +38,7 @@ import {
   ACCEPTABLE_EFFECTS, ACTION_LABEL, ANSWER_LABEL, EFFECT_LABEL, KIND_LABEL, ROUTE_REASON, acceptable, actionsFor,
   clauseName, effectLabel, effectSentence, type Measured,
   type AcceptableEffect,
-  answersAsLegal, explanation, formattingOnly, changeBucket, historyLine, matches, readerStatus, readerWord, replyBlockers,
+  answersAsLegal, explanation, formattingOnly, changeBucket, historyLine, matches, readerFavour, readerStatus, readerWord, replyBlockers,
   oursLabel, whoLine, where,
   type Answer, type ChangeList, type ClientChange, type EffectForUs, type Filter, type ManualRow, type ReplyGate,
 } from "@/lib/changes";
@@ -47,7 +47,7 @@ import type { DocumentVersion, Evaluation, Finding } from "@/lib/types";
 import "./changes.css";
 import { AnswerComposer, DiffText } from "./ChangeComposer";
 import { EscalateControl } from "./EscalateControl";
-import { USER_STATUS_LABELS, requirementTitle } from "./findingLanguage";
+import { USER_STATUS_LABELS, readerWord as pointWord, requirementTitle } from "./findingLanguage";
 import {
   IconAlertCircle, IconArrowLeft, IconBetter, IconCheck, IconChevronRight, IconClock, IconFile, IconFileMinus, IconLock, IconSame, IconWorse, IconFallback,
 } from "./icons";
@@ -628,7 +628,7 @@ function ChangeIndex({ rows, current, onPick, allUntracked, reader, formatting, 
                             here beside a contradicting word (two-line rule) */}
                         {/* rule 14: a decided change keeps its status chip, with "Decided" beside it */}
                         {readerStatus(c) && c.route === "holder"
-                          ? <StatusChip status={chipStatus(readerStatus(c)!)} decided={changeBucket(c) === "decided" || null} />
+                          ? <StatusChip status={chipStatus(readerStatus(c)!, readerFavour(c))} decided={changeBucket(c) === "decided" || null} />
                           : <>{changeBucket(c) && c.route === "holder"
                             ? <PointStatusIcon bucket={changeBucket(c)!} size={14} /> : null}<ForUs effect={c.effect_for_us} measured={c.measured} /></>}
                         {/* "Wording changed" is most rows; only a different kind is said */}
@@ -740,7 +740,7 @@ export function AnswerCard({ change, list, contractId, onAnswered, onReload, inP
         <p className="cx-line1">
           {/* one message (verifier item 7): a clause our standard covers is never also
               "no finding" — the route line says Legal decides it */}
-          {word ? <StatusChip status={chipStatus(readerStatus(change)!)} decided={changeBucket(change) === "decided" || null} /> : <>
+          {word ? <StatusChip status={chipStatus(readerStatus(change)!, readerFavour(change))} decided={changeBucket(change) === "decided" || null} /> : <>
             {changeBucket(change) ? <PointStatusIcon bucket={changeBucket(change)!} /> : null}
             {change.route_reason === "MEASURED_BY_A_STANDARD"
               ? <span>Our standard covers this clause</span> : <span>No finding against our standard here</span>}
@@ -778,7 +778,7 @@ export function AnswerCard({ change, list, contractId, onAnswered, onReload, inP
               <span className="cx-label">From the review of version {versions.to}</span>
               <ul>
                 {change.review.after.map((f) => (
-                  <li key={f.finding_id}><StatusChip status={chipStatus(f.user_status)} /> {requirementTitle({ code: f.requirement_code })}</li>
+                  <li key={f.finding_id}><StatusChip status={chipStatus(f.user_status, f.in_our_favour)} /> {requirementTitle({ code: f.requirement_code })}</li>
                 ))}
               </ul>
             </>
@@ -848,7 +848,7 @@ export function AnswerCard({ change, list, contractId, onAnswered, onReload, inP
                 {/* named only when there are several — one point is the card's line 1 */}
                 {open.length > 1 ? (
                   <p className="cx-decide__name">
-                    <StatusChip status={chipStatus(read.user_status)} /> {requirementTitle({ code: read.requirement_code })}
+                    <StatusChip status={chipStatus(read.user_status, read.in_our_favour)} /> {requirementTitle({ code: read.requirement_code })}
                   </p>
                 ) : null}
                 <EscalateControl finding={finding} onChanged={onReload} />

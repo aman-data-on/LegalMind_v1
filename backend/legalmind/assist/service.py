@@ -904,7 +904,12 @@ def _findings_for_standards(db: DBSession, document_version_id: UUID | None,
         return {}
     from legalmind.domain.constitution_boundaries import constitution_prohibition_for
     from legalmind.domain.enums import FindingClassification, RuleOutcome
-    from legalmind.domain.user_status import NEEDS_DECISION, user_status, worst
+    from legalmind.domain.user_status import (
+        NEEDS_DECISION,
+        in_our_favour,
+        user_status,
+        worst,
+    )
 
     review = db.execute(text("""
         SELECT r.id FROM reviews r
@@ -933,9 +938,15 @@ def _findings_for_standards(db: DBSession, document_version_id: UUID | None,
             FindingClassification(e_cls), RuleOutcome(outcome) if outcome else None,
             prohibited=constitution_prohibition_for(code, actual) is not None)
             if e_cls else user_status(FindingClassification(cls)))
-    return {code: {"finding_id": e["finding_id"], "classification": e["classification"],
-                   "user_status": worst(e["statuses"], NEEDS_DECISION)}
-            for code, e in found.items()}
+    out = {}
+    for code, e in found.items():
+        word = worst(e["statuses"], NEEDS_DECISION)
+        out[code] = {"finding_id": e["finding_id"], "classification": e["classification"],
+                     "user_status": word,
+                     # the card's own flag, so Ask says "In our favour" too (Batch 1 d)
+                     "in_our_favour": in_our_favour(FindingClassification(
+                         e["classification"]), word)}
+    return out
 
 
 # `AM-25` r5 permits no generated general knowledge, so this says what the system can

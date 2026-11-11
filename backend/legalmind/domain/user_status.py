@@ -58,6 +58,13 @@ def user_status(classification: C, rule_outcome: R | None = None,
     return NEEDS_DECISION
 
 
+def in_our_favour(classification: C, word: str) -> bool:
+    """Batch 1 (d): a deviation the evaluator's recorded rule outcome accepted (AM-239
+    r1, AM-303) — the folded reader word, never AM-301 dominance. One rule, every
+    surface: the Points card, Ask, the Changes read, the comparison and the angles."""
+    return classification is C.DEVIATION and word == ACCEPTABLE
+
+
 def worst(statuses: list[str], fallback: str) -> str:
     """A Finding's status is its worst Evaluation's; with none, the fallback."""
     return max(statuses, key=_RANK.__getitem__) if statuses else fallback

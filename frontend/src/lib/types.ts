@@ -921,6 +921,8 @@ interface AssistPositionFinding {
   finding_id: string;
   classification: string;
   user_status: "ACCEPTABLE" | "REQUIRES_MODIFICATION" | "MISSING" | "NEEDS_DECISION";
+  /** Batch 1 (d): the server's flag, the same as on the Points card */
+  in_our_favour?: boolean;
 }
 
 /** The evaluator handoff on a comparison question (`AM-25` r4): the latest Review
@@ -1236,7 +1238,7 @@ export interface ClauseChange {
   section_title: string | null;
   before: ClauseSide | null;
   after: ClauseSide | null;
-  findings: { finding_id: string; classification: string; user_status?: UserStatusWord; requirement_code: string | null }[];
+  findings: { finding_id: string; classification: string; user_status?: UserStatusWord; in_our_favour?: boolean; requirement_code: string | null }[];
 }
 
 export interface VersionComparison {

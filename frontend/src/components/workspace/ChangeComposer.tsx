@@ -187,7 +187,7 @@ export function AnswerComposer({ change, list, actions, contractId, details, onA
               {/* named only when there are several — one point is the card's line 1 */}
               {several ? (
                 <p className="cx-decide__name">
-                  <StatusChip status={chipStatus(read.user_status)} /> {requirementTitle({ code: read.requirement_code })}
+                  <StatusChip status={chipStatus(read.user_status, read.in_our_favour)} /> {requirementTitle({ code: read.requirement_code })}
                 </p>
               ) : null}
               {evaluations.map((evaluation) => (

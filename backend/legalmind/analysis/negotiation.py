@@ -78,6 +78,7 @@ from legalmind.domain.enums import (
     MappingState,
     ReviewStatus,
 )
+from legalmind.domain.user_status import in_our_favour
 from legalmind.evaluation.constitution_boundaries import constitution_prohibition_for
 from legalmind.evaluation.user_status import ACCEPTABLE, by_finding
 from legalmind.evaluation.workflow import derive_finding_status
@@ -538,7 +539,8 @@ def _findings(db: DBSession, review: M.Review | None,
         entry = out.setdefault(str(evidence_id), {}).setdefault(str(finding_id), {
             "finding_id": str(finding_id), "requirement_code": code,
             "classification": cls.value,
-            "user_status": statuses.get(finding_id, "NEEDS_DECISION"),
+            "user_status": (word := statuses.get(finding_id, "NEEDS_DECISION")),
+            "in_our_favour": in_our_favour(cls, word),
             "evaluation_ids": [], "lower_cap_ours": provider, "figure": _figure(actual)})
         if entry["figure"] != _figure(actual):    # two figures: none to compare (AM-306)
             entry["figure"] = None

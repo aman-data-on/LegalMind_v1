@@ -220,7 +220,7 @@ function Result({
                        `--ws-classify` while every other surface showing the
                        same word wore ok/warn/bad (2026-09-09). */
                     <span key={finding.finding_id} className="ws-compare__finding">
-                      <StatusChip status={chipStatus(userStatus(finding))} />
+                      <StatusChip status={chipStatus(userStatus(finding), finding.in_our_favour)} />
                       {finding.requirement_code ? ` ${requirementTitle({ code: finding.requirement_code })}` : ""}
                     </span>
                   ))}

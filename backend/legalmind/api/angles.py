@@ -37,9 +37,15 @@ from legalmind.db import models as M
 from legalmind.domain.document_types import DOCUMENT_TYPES
 from legalmind.domain.enforceability import note_for
 from legalmind.domain.enums import FindingStatus
+from legalmind.domain.user_status import in_our_favour as favoured_word
 from legalmind.evaluation.constitution_boundaries import constitution_prohibition_for
 from legalmind.evaluation.rule_config import FAVOURABLE_COUNSEL_CHECK, in_our_favour
-from legalmind.evaluation.user_status import _requirement_title, group_ids
+from legalmind.evaluation.user_status import (
+    _requirement_title,
+    group_ids,
+    user_status,
+    worst,
+)
 from legalmind.extraction import commercial, parties
 from legalmind.mapping.service import load_clauses
 
@@ -164,7 +170,14 @@ def _rows(db: DBSession, review: M.Review) -> list[dict[str, Any]]:
     for f in findings:
         rv, req = versions.get(f.requirement_version_id, (None, None))
         ev = _governing(evaluations[f.id], f.classification)
-        out.append({"finding": f, "code": req.code if req else "",
+        code = req.code if req else ""
+        # the folded reader word, as `by_finding` projects it (AM-56/AM-63/AM-239)
+        word = worst([user_status(e.classification, e.rule_outcome,
+                                  constitution_prohibition_for(code, e.actual_value)
+                                  is not None) for e in evaluations[f.id]],
+                     user_status(f.classification))
+        out.append({"finding": f, "code": code,
+                    "in_our_favour": favoured_word(f.classification, word),
                     "evidence_ids": linked[f.id],
                     "title": ((rv.description if rv else None)
                               or (req.code if req else "")),
@@ -751,7 +764,10 @@ def review_angles(db: DBSession, review: M.Review, *, legal_position: bool) -> d
     wording: dict[str, dict[str, str]] = {}
     for r in actionable:
         section = str((r["standard"].get("constitution") or {}).get("section") or "")
-        if section in by_section and r["classification"] in ("DEVIATION", "MISSING"):
+        # never wording to send back on a point the approved rule accepted in our
+        # favour (Batch 1 d): there is nothing to counter
+        if section in by_section and r["classification"] in ("DEVIATION", "MISSING") \
+                and not r.get("in_our_favour"):
             wording[str(r["finding"].id)] = by_section[section]
     # the action is the same for every reader; only the wording is position-gated (SEC-07)
     proposals = wording if legal_position else {}

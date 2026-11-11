@@ -5,7 +5,7 @@
  * (`GET /contracts/{id}/changes`), and the screen only shows it (rule 18).
  */
 
-import { USER_STATUS_LABELS, requirementTitle, type UserStatus } from "@/components/workspace/findingLanguage";
+import { USER_STATUS_LABELS, readerWord as pointWord, requirementTitle, type UserStatus } from "@/components/workspace/findingLanguage";
 import { clauseName } from "@/lib/documentTypes";
 import { formatDate } from "@/lib/dates";
 
@@ -27,6 +27,8 @@ export interface ChangeFinding {
   requirement_code: string;
   classification: string;
   user_status: UserStatus;
+  /** Batch 1 (d): the server's flag — line 1 reads "In our favour" (one word everywhere) */
+  in_our_favour?: boolean;
   evaluation_ids: string[];
 }
 
@@ -299,13 +301,23 @@ export function actionsFor(change: ClientChange, list: Reader): Answer[] {
 /** Line 1 of a point (`AM-291` r1): the review's word against our standard, when the
  *  clause is not simply a match. Never merged with line 2. */
 export function readerWord(change: ClientChange): string | null {
-  const status = readerStatus(change);
-  return status ? USER_STATUS_LABELS[status] : null;
+  // a point in our favour is not "simply a match": it says so (Batch 1 d)
+  const f = readerFinding(change);
+  return f ? pointWord(f) : null;
 }
 
-/** The server's reader status behind `readerWord` — what the one StatusChip shows. */
+/** The point behind line 1: the first not simply a match, or one in our favour. */
+function readerFinding(change: ClientChange) {
+  return change.review.after.find((x) => x.user_status !== "ACCEPTABLE" || x.in_our_favour) ?? null;
+}
+
+/** The server's reader status behind `readerWord`, with its favour flag — what the one
+ *  StatusChip shows (UX Batch 2). */
 export function readerStatus(change: ClientChange): UserStatus | null {
-  return change.review.after.find((x) => x.user_status !== "ACCEPTABLE")?.user_status ?? null;
+  return readerFinding(change)?.user_status ?? null;
+}
+export function readerFavour(change: ClientChange): boolean {
+  return !!readerFinding(change)?.in_our_favour;
 }
 
 /** Which of the four marks a change carries (the one status set, `PointStatus`): the
@@ -398,7 +410,7 @@ export function historyLine(history: AnswerEntry[]): string {
 export function explanation(change: ClientChange, versions: { from: number; to: number }): string[] {
   const out: string[] = [];
   for (const f of change.review.after) {
-    out.push(`The review of version ${versions.to} reads ${requirementTitle({ code: f.requirement_code })}: ${USER_STATUS_LABELS[f.user_status]}.`);
+    out.push(`The review of version ${versions.to} reads ${requirementTitle({ code: f.requirement_code })}: ${pointWord(f)}.`);
   }
   for (const d of change.review_delta) {
     if (d.before && d.after) {
