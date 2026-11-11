@@ -348,6 +348,7 @@ def test_create_records_the_libreoffice_pdf(db, api, published, staff, answers,
     rec = version.doc_metadata["pdf"]
     assert rec["status"] == "READY" and rec["kind"] == "contract"
     assert rec["libreoffice_version"].startswith("LibreOffice ")
+    assert rec["pdf_export"]["SelectPdfVersion"] == 2         # PDF/A-2b, recorded
     got = api.get(f"{V1}{made.json()['data']['pdf']}")
     assert got.status_code == 200 and got.content.startswith(b"%PDF")
     assert __import__("hashlib").sha256(got.content).hexdigest() == rec["pdf_sha256"]

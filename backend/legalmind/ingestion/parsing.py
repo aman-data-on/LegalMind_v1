@@ -3192,7 +3192,7 @@ def _docx_revision(p) -> dict | None:
     return {"original": normalize_text(_docx_text(p, original=True)), "changes": changes}
 
 
-def _docx_list_numbers(document, paragraphs) -> dict:
+def _docx_list_numbers(document, paragraphs, labels: bool = False) -> dict:
     """The clause number Word DISPLAYS for each paragraph its automatic list numbering
     numbers — the document's own numbering (34.12 preserves it; AM-185, owner
     2026-10-26: a Word MSA read 0 of 219 numbered clauses while its PDF read 213).
@@ -3203,7 +3203,12 @@ def _docx_list_numbers(document, paragraphs) -> dict:
     numbering a paragraph style carries (a numbered "Heading 1") counts too. Only a label
     made of DECIMAL levels becomes a clause number ("6", "6.1"); a bullet or an (a)/(i)
     item is part of the clause above it, never a number of its own. Every paragraph of
-    the document is counted, table cells included, in document order."""
+    the document is counted, table cells included, in document order.
+
+    ``labels``: instead, EVERY numbered paragraph's whole label as printed ("1.1.", "A.",
+    "(a)") — the text a PDF of the file shows before the paragraph (preflight
+    ``TEXT_EQUAL``). ponytail: decimal and letters only, any other format prints its
+    number — add roman when a rendered file uses it."""
     try:
         numbering = document.part.numbering_part.element
     except (AttributeError, KeyError, NotImplementedError):
@@ -3257,10 +3262,23 @@ def _docx_list_numbers(document, paragraphs) -> dict:
         count[ilvl] = count.get(ilvl, defs[ilvl][0] - 1) + 1
         for deeper in [lv for lv in count if lv > ilvl]:
             del count[deeper]
+        if labels:                          # "%1.%2." → "4.1.", "(%1)" → "(a)"
+            shown = {lv: _label(count.get(lv, d[0]), d[1]) for lv, d in defs.items()}
+            out[p] = "".join(shown.get(int(t) - 1, "") if i % 2 else t for i, t in
+                             enumerate(re.split(r"%(\d)", defs[ilvl][2])))
+            continue
         used = [int(m) - 1 for m in re.findall(r"%(\d)", defs[ilvl][2])]
         if used and all(defs.get(lv, (1, "", ""))[1] == "decimal" for lv in used):
             out[p] = ".".join(str(count.get(lv, defs[lv][0])) for lv in used)
     return out
+
+
+def _label(n: int, fmt: str) -> str:
+    """One level's number as Word prints it: a, b … z, aa … for the letter formats."""
+    if fmt in ("lowerLetter", "upperLetter"):
+        letter = chr(ord("a") + (n - 1) % 26) * ((n - 1) // 26 + 1)
+        return letter.upper() if fmt == "upperLetter" else letter
+    return str(n)
 
 
 def _docx_children(el, *tags):

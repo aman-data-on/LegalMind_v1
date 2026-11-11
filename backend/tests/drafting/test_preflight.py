@@ -97,25 +97,43 @@ def test_cross_reference_to_no_clause(rendered):
     assert "CROSS_REFERENCE" in _codes(data)
 
 
-def _pdf(*pages: str, furniture: str = "") -> bytes:
+def _pdf(*pages: str, furniture: str = "", unicode: bool = False) -> bytes:
     """Each text in the page body (inside the house margins); ``furniture`` in the
-    header and footer of every page."""
+    header and footer of every page (``{n}``/``{total}``: the page and the page count).
+    ``unicode``: in an embedded font that has “ ” — (the base font has not)."""
     doc = pymupdf.open()
-    for text in pages:
+    for n, text in enumerate(pages, 1):
         page = doc.new_page()
-        page.insert_textbox(pymupdf.Rect(40, 110, 560, 760), text, fontsize=9)
+        font = "helv"
+        if unicode:
+            font = "U"
+            page.insert_font(fontname=font, fontbuffer=pymupdf.Font("tiro").buffer)
+        assert page.insert_textbox(pymupdf.Rect(40, 110, 560, 760), text, fontsize=6,
+                                   fontname=font) >= 0, "the text does not fit"
         if furniture:
-            page.insert_text((72, 45), furniture, fontsize=9)
-            page.insert_text((72, 800), furniture, fontsize=9)
+            shown = furniture.format(n=n, total=len(pages))
+            page.insert_text((72, 45), shown, fontsize=9)
+            page.insert_text((72, 800), shown, fontsize=9)
+    doc.subset_fonts()
     return doc.tobytes()
+
+
+def _body_text(data: bytes) -> str:
+    """The DOCX body as the PDF prints it: each paragraph after its list label."""
+    import docx
+    document = docx.Document(io.BytesIO(data))
+    paras = document.element.body.xpath(".//w:p[not(ancestor::w:txbxContent)]")
+    labels = preflight._docx_list_numbers(document, paras, labels=True)
+    return " ".join(f"{labels.get(p, '')} {preflight._docx_text(p)}" for p in paras)
 
 
 def test_pdf_checks_fire(rendered):
     model, _, data = rendered
     codes = _codes(data, model=model, pdf=_pdf(
-        "Clause B text, subject to clause 9.9 and clause 2.1.1.1.1. LM-T-v1-0123abcd 1",
-        "Signatory Details By LM-T-v1-0123abcd 3"))
-    assert {"EXECUTION_SPLIT", "XREF_PDF", "PAGE_NUMBERS"} <= codes
+        "Clause B text, subject to clause 9.9 and clause 2.1.1.1.1.",
+        "Signatory Details By", furniture="LM-T-v1-0123abcd Page {n} of 3"))
+    assert {"EXECUTION_SPLIT", "XREF_PDF", "PAGE_NUMBERS", "TEXT_EQUAL", "PDFA",
+            "FONT_NOT_EMBEDDED"} <= codes
     past = pymupdf.open()
     past.new_page().insert_text((560, 100), "past the margin", fontsize=9)
     assert "MARGIN" in _codes(data, model=model, pdf=past.tobytes())
@@ -153,9 +171,92 @@ def test_xref_pdf_reads_a_paragraph_across_a_page_break(rendered):
     half = len(words) // 2
     pages = (" ".join(words[:half]), " ".join(words[half:]))
     flagged = [p.detail for p in preflight.check(
-        data, model=model, pdf=_pdf(*pages, furniture="DRAFT LM-T-v1-0123abcd 2"))
+        data, model=model, pdf=_pdf(*pages, furniture="DRAFT LM-T-v1-0123abcd Page {n} "
+                                    "of {total}"))
         if p.code == "XREF_PDF"]
     assert not [t for t in texts if any(t[:40] in d for d in flagged)], flagged
+
+
+def test_text_equal(rendered):
+    """`TEXT_EQUAL`: the whole body, list labels included, reads the same in the PDF —
+    however its lines break, its spaces fall or its headings are capitalised; one word
+    changed, or a paragraph lost, is refused and the place quoted."""
+    model, _, data = rendered
+    text = _body_text(data)
+    # the labels Word prints, computed from the numbering part (not by the code tested)
+    assert "A. Party One Placeholder Limited" in text and "(a) Second list item one." \
+        in text and "4.1. Clause C.1 text" in text
+    page = "LM-T-v1-0123abcd Page {n} of {total}"
+
+    def text_equal(body: str) -> list[str]:
+        return [p.detail for p in preflight.check(
+            data, model=model, pdf=_pdf(body, furniture=page, unicode=True))
+            if p.code == "TEXT_EQUAL"]
+    loose = "  ".join(text.upper().split()).replace(":", " :")   # wrapped by the box
+    assert text_equal(loose) == []
+    changed = text_equal(text.replace("Clause C.1 text", "Clause C.1 test"))
+    assert len(changed) == 1 and "c.1 test" in changed[0] and "c.1 text" in changed[0]
+    assert text_equal(text.replace("Second list item one.", ""))
+
+
+def test_page_x_of_y(rendered):
+    """Footers read "Page 1 of N" … "Page N of N": once each, in order, N the count."""
+    model, _, data = rendered
+
+    def pages(furniture: str, n: int = 3) -> list[str]:
+        return [p.detail for p in preflight.check(
+            data, model=model, pdf=_pdf(*["Body."] * n, furniture=furniture))
+            if p.code == "PAGE_NUMBERS"]
+    assert pages("LM-T-v1-0123abcd Page {n} of {total}") == []
+    assert pages("LM-T-v1-0123abcd Page {n} of 4")            # Y is not the page count
+    assert pages("LM-T-v1-0123abcd Page 1 of {total}")        # a restart
+    assert pages("LM-T-v1-0123abcd {n}")                      # the old bare number
+    assert pages("") == ["pages read ['no number', 'no number', 'no number'], a file "
+                         "of 3 pages"]
+
+
+def test_signature_split_refused(rendered):
+    """The execution table across a page break is refused; on one page it passes."""
+    model, _, data = rendered
+    body = zipfile.ZipFile(io.BytesIO(data)).read("word/document.xml")
+    sdt = next(s for s in preflight.parse_xml(body).iter(preflight._W + "sdt")
+               if s.find(f"{preflight._W}sdtPr/{preflight._W}tag").get(
+                   preflight._W + "val") == "lm:execution")
+    words = preflight._norm(" ".join(preflight._docx_text(p)
+                                     for p in sdt.iter(preflight._W + "p"))).split()
+    half = len(words) // 2
+
+    def split(*pages: str) -> bool:
+        return "EXECUTION_SPLIT" in _codes(data, model=model, pdf=_pdf(*pages))
+    assert split(" ".join(words[:half]), " ".join(words[half:]))
+    assert not split("Clause text.", " ".join(words))
+
+
+def test_pdf_file_checks_fire():
+    """What a signing input must never carry, each refused by its own code."""
+    doc = pymupdf.open()
+    page = doc.new_page()
+    page.insert_text((72, 120), "Body.", fontsize=9)            # helv: not embedded
+    page.add_text_annot((72, 200), "a note")
+    widget = pymupdf.Widget()
+    widget.field_name, widget.field_type = "f", pymupdf.PDF_WIDGET_TYPE_TEXT
+    widget.rect = pymupdf.Rect(72, 300, 200, 320)
+    page.add_widget(widget)                                      # an AcroForm
+    doc.embfile_add("source.docx", b"PK")
+    doc.add_ocg("layer")
+    doc.xref_set_key(doc.pdf_catalog(), "OpenAction",
+                     "<</S/JavaScript/JS(app.alert(1))>>")
+    data = doc.tobytes()
+    codes = {p.code for p in preflight.pdf_file(data)}
+    assert codes == {"PDFA", "FONT_NOT_EMBEDDED", "ANNOTATION", "ACROFORM", "JAVASCRIPT",
+                     "EMBEDDED_FILE", "OPTIONAL_CONTENT"}
+    locked = pymupdf.open()
+    locked.new_page()
+    sealed = locked.tobytes(encryption=pymupdf.PDF_ENCRYPT_AES_256, owner_pw="o",
+                            permissions=0)
+    assert "ENCRYPTED" in {p.code for p in preflight.pdf_file(sealed)}
+    big = {p.code for p in preflight.pdf_file(sealed + b"%" * preflight.MAX_PDF_BYTES)}
+    assert "PDF_TOO_LARGE" in big
 
 
 def test_require_raises_with_every_problem(rendered):

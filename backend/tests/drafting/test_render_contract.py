@@ -53,7 +53,8 @@ def test_sections_content_controls_and_furniture(rendered):
     model, digest, data = rendered
     d = docx.Document(io.BytesIO(data))
     assert len(d.sections) == 3                                   # main + two schedules
-    assert all(s._sectPr.find(f"{W}pgNumType") is not None for s in d.sections[1:])
+    # page numbers never restart: one "Page X of Y" run (`FINAL-PACKAGE-SPEC` S1)
+    assert all(s._sectPr.find(f"{W}pgNumType") is None for s in d.sections)
     tags = [t.get(f"{W}val") for t in d.element.body.iter(f"{W}tag")]
     assert "lm:CLAUSE_A@1" in tags and "lm:execution" in tags and "lm:parties" in tags
     ids = [i.get(f"{W}val") for i in d.element.body.iter(f"{W}id")]
@@ -62,6 +63,8 @@ def test_sections_content_controls_and_furniture(rendered):
     assert d.element.body.find(f".//{W}sdtPr/{W}lock").get(f"{W}val") == "sdtContentLocked"
     footer = d.sections[1].footer._element.xml
     assert f"LM-TEST-v1-{digest[:8]}" in footer and 'w:instr=" PAGE "' in footer
+    assert 'w:instr=" NUMPAGES "' in footer and ">Page <" in footer and "> of <" in footer
+    assert '<w:lang w:val="en-IN"' in _part(data, "word/styles.xml")
     core = _part(data, "docProps/core.xml")
     assert "LegalMind" in core and "2001-01-01" in core
 

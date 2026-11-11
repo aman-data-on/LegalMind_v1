@@ -9,10 +9,10 @@ Word-native, so the file behaves in Word as the lawyer expects (ECMA-376 / MS-OI
 * **Cross-references** — the target paragraph is bookmarked and the reference is a
   ``REF _LM_<key> \\w \\h`` field whose cached result is the number we computed, so the
   file reads right before Word ever updates a field. No ``w:updateFields`` is set.
-* **Sections** — each schedule is its own ``w:sectPr``: a new page, page numbers
-  restarting at 1, its own header and footer. Footers read the document ID, small at
-  the left (a signed copy traces back to its record), and the page number at the right,
-  as the approved format sets it.
+* **Sections** — each schedule is its own ``w:sectPr``: a new page, its own header and
+  footer, page numbers running on (one "Page X of Y" run for the whole file). Footers
+  read the document ID, small at the left (a signed copy traces back to its record), and
+  ``Page {PAGE} of {NUMPAGES}`` at the right (``house.json`` ``footer.page_format``).
 * **Content controls** — each clause sits in a ``w:sdt`` (unique ``w:id``, ``w:tag``
   ``lm:<key>@<version>``, ``w:lock sdtContentLocked``). The lock is ADVISORY: Word
   honours it, any editor can remove it. The real protection is server-side — a contract
@@ -51,7 +51,7 @@ from docx.shared import Cm, Mm, Pt, RGBColor, Twips
 from legalmind.api.export_render import _field
 from legalmind.drafting.model import text_of
 
-RENDERER_VERSION = "lm-render-contract-2"
+RENDERER_VERSION = "lm-render-contract-3"
 HOUSE_PATH = (Path(__file__).resolve().parents[2] / "config" / "templates" / "house"
               / "house.json")
 #: numbering ids: the clause list, the recitals, and the first restart instance
@@ -252,6 +252,8 @@ def house_shell() -> Any:
         _spacing(fmt, [0, 0])
     footer = doc.styles["Footer"].font
     footer.name, footer.size = h["footer"]["font"], Pt(h["footer"]["size_pt"])
+    for lang in doc.styles.element.iterfind(f"{qn('w:docDefaults')}//{qn('w:lang')}"):
+        lang.set(qn("w:val"), h["language"])         # the PDF's /Lang
     settings = doc.settings.element
     for el in [*settings.findall(qn("w:updateFields")),
                *settings.findall(qn("w:trackRevisions"))]:
@@ -473,7 +475,11 @@ class _Builder:
             foot = footer.paragraphs[0]
             foot.add_run(doc_identifier).font.size = Pt(h["footer"]["id_size_pt"])
             foot.add_run("\t\t")
-            _field(foot, " PAGE ")
+            for part in re.split(r"(\{\w+\})", h["footer"]["page_format"]):
+                if part.startswith("{"):
+                    _field(foot, f" {part[1:-1]} ")
+                elif part:
+                    foot.add_run(part)
         if logo:
             first = section.first_page_header
             mark = first.paragraphs[0]
@@ -482,9 +488,6 @@ class _Builder:
             mark.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.RIGHT
             self.picture(mark, f"logo:{self.model['brand']}", h["logo_width_cm"],
                          logo["alt"])
-
-    def new_section(self) -> Any:
-        return restart_pages(self.doc.add_section(WD_SECTION.NEW_PAGE))
 
 
 def render(model: Mapping[str, Any], assets: Mapping[str, Any], *, contract_ref: str,
@@ -557,7 +560,7 @@ def render(model: Mapping[str, Any], assets: Mapping[str, Any], *, contract_ref:
     if special and special["position"] != "before_execution":
         _special_conditions(b, special, model, identifier)
     for schedule in model["schedules"]:
-        section = b.new_section()
+        section = b.doc.add_section(WD_SECTION.NEW_PAGE)    # page numbers run on
         b.furniture(section, f"{model['short_title']} — {schedule['title']}", identifier)
         b.para("LM Schedule Title", [{"t": schedule["title"]}])
         if schedule.get("note"):
@@ -656,20 +659,6 @@ def _signature_lines(b: _Builder, parties: list[dict]) -> None:
         tr.height = Twips(height)
 
 
-def restart_pages(section: Any) -> Any:
-    """Page numbers restart at 1 in this section (``w:pgNumType`` in schema order,
-    before ``w:cols``)."""
-    sect = section._sectPr
-    if sect.find(qn("w:pgNumType")) is None:
-        el = OxmlElement("w:pgNumType", {qn("w:start"): "1"})
-        cols = sect.find(qn("w:cols"))
-        if cols is not None:
-            cols.addprevious(el)
-        else:
-            sect.append(el)
-    return section
-
-
 def _unique_drawing_ids(doc: Any) -> None:
     """``wp:docPr/@id`` unique across the whole package (python-docx counts per part,
     so a header logo and a body figure would both be 1)."""
@@ -745,7 +734,7 @@ def append_annexure(main: bytes, annexure: bytes, title: str) -> bytes:
     if refused:
         raise RenderError("annexure needs docxcompose to be appended: it carries "
                           + "; ".join(refused))
-    section = restart_pages(doc.add_section(WD_SECTION.NEW_PAGE))
+    section = doc.add_section(WD_SECTION.NEW_PAGE)        # page numbers run on
     section.header.is_linked_to_previous = False
     section.header.paragraphs[0].text = title
     doc.add_paragraph(title, style="LM Schedule Title")

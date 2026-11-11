@@ -26,8 +26,36 @@ def test_contract_pdf_matches_its_docx(rendered):
     assert preflight.check(fixed, model=model, pdf=result.pdf) == []
     pages = _text(result.pdf)
     ident = f"LM-TEST-v1-{digest[:8]}"
-    assert [p.split(ident)[1].split()[0] for p in pages] == ["1", "2", "1", "1"]
+    # one run for the whole file: the schedules continue it (`FINAL-PACKAGE-SPEC` S1)
+    assert [" ".join(p.split(ident)[1].split()[:4]) for p in pages] == [
+        f"Page {n} of 4" for n in range(1, 5)]
     assert any("subject to clause 2.1 and clause 2.1.1.1.1." in p for p in pages)
+
+
+def test_pdfa2b_clean(rendered):
+    """`FINAL-PACKAGE-SPEC` c1/(g)7: the file a signing tool gets is PDF/A-2b, tagged,
+    in en-IN, every font embedded, nothing but links, no form, script, attachment,
+    encryption or layer, under 10 MB — and the export options are recorded."""
+    fixed, result = pdf.convert_contract(rendered[2])
+    data = result.pdf
+    assert preflight.pdf_file(data) == []
+    assert preflight.pdf_problems(fixed, data) == []
+    assert len(data) <= 10_000_000
+    with pymupdf.open(stream=data, filetype="pdf") as doc:
+        xmp = doc.get_xml_metadata()
+        assert "<pdfaid:part>2</pdfaid:part>" in xmp
+        assert "<pdfaid:conformance>B</pdfaid:conformance>" in xmp
+        cat = doc.pdf_catalog()
+        assert doc.xref_get_key(cat, "OutputIntents")[0] == "array"
+        assert doc.xref_get_key(cat, "Lang") == ("string", "en-IN")
+        assert doc.xref_get_key(cat, "StructTreeRoot")[0] == "xref"      # tagged
+        for key in ("AcroForm", "Names", "OCProperties", "OpenAction"):
+            assert doc.xref_get_key(cat, key)[0] == "null", key
+        assert not doc.metadata.get("encryption") and doc.embfile_count() == 0
+        for page in doc:
+            assert {t[1] for t in page.annot_xrefs()} <= {pymupdf.mupdf.PDF_ANNOT_LINK}
+            assert all(f[1] != "n/a" for f in page.get_fonts(full=True))
+    assert pdf.EXPORT["SelectPdfVersion"] == 2 and pdf.EXPORT["ExportFormFields"] is False
 
 
 def test_the_pdf_never_prints_tracked_changes():

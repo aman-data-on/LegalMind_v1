@@ -89,6 +89,38 @@ def test_the_client_accepted_our_draft_unchanged(api, db, owner, tmp_path):
     assert again.json()["error"]["code"] == "FINAL_COPY_NOT_READY"
 
 
+SOFFICE = __import__("os").environ.get(
+    "LEGALMIND_SOFFICE",
+    "/root/legalmind-clm-local/lo/root/opt/libreoffice26.2/program/soffice")
+
+
+@pytest.mark.skipif(not __import__("os").path.exists(SOFFICE), reason="no LibreOffice")
+def test_a_final_copy_pdf_is_checked_before_it_is_stored(api, db, owner, tmp_path,
+                                                         monkeypatch):
+    """`FINAL-PACKAGE-SPEC` (e), S1: a final copy's PDF passes the PDF checks a created
+    contract's does (PDF/A-2b, fonts, nothing but links …) and records its export
+    options; a refused check stores nothing and says why. Paper without our footer gets
+    the PDF-file checks only: our margins and page footer are not its layout."""
+    from legalmind.drafting import pdf, preflight
+    monkeypatch.setenv("LEGALMIND_SOFFICE", SOFFICE)
+
+    def final() -> dict:
+        c = _contract(db, owner)
+        _ingest(db, tmp_path, c, _docx(*OURS), "ours.docx")
+        r = api.post(FINAL.format(c.id))
+        assert r.status_code == 201, r.text
+        return db.get(M.DocumentVersion, uuid.UUID(
+            r.json()["data"]["document_version"]["id"])).doc_metadata["pdf"]
+    rec = final()
+    assert (rec["status"], rec["kind"], rec["pdf_export"]) == ("READY", "final",
+                                                             pdf.EXPORT)
+    monkeypatch.setattr(preflight, "pdf_file",
+                        lambda data: [preflight.Problem("PDFA", "not PDF/A-2b")])
+    rec = final()                  # the same file, the check refusing
+    assert rec["status"] == "FAILED" and "not PDF/A-2b" in rec["error"]
+    assert "storage_key" not in rec
+
+
 def test_a_counter_proposal_goes_to_the_client_before_the_final_copy(
         api, db, owner, tmp_path, monkeypatch):
     """Verifier item 1: answers that keep or propose our wording go back as our reply

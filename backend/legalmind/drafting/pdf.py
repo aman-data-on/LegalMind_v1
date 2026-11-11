@@ -4,13 +4,13 @@ LibreOffice prints tracked changes and comments as markup, so it only ever conve
 CLEAN copy: `convert` runs `clean.clean` first, whatever it is handed. The binary is the
 operator's (``LEGALMIND_SOFFICE``), run with an argv list (no shell), a throwaway user
 profile and a timeout; its version string is returned so it is recorded with each
-output (`contract_drafts.libreoffice_version`).
+output with the export filter options (`EXPORT`: PDF/A-2b, tagged, PDF/UA).
 
 Entry point for the worker: `render_version` (`AM-293` r2), dispatched by
 `worker.dispatch.dispatch_pdf` after a reply or a created contract version is ingested.
-It records ``{status, kind, libreoffice_version, pdf_sha256, storage_key, rendered_at}``
-(or ``error``) under ``pdf`` in the version's 42.4 ``metadata`` JSONB — not on
-``contract_drafts``, which is append-only, and no new column. There is no PyMuPDF
+It records ``{status, kind, libreoffice_version, pdf_export, pdf_sha256, storage_key,
+rendered_at}`` (or ``error``) under ``pdf`` in the version's 42.4 ``metadata`` JSONB —
+not on ``contract_drafts``, which is append-only, and no new column. There is no PyMuPDF
 fallback for a client copy (`AM-293` r3): no LibreOffice is a recorded failure.
 
 Fonts: the house font (``config/templates/house/house.json``) must be installed on the
@@ -20,6 +20,7 @@ worker host, or LibreOffice substitutes one and the pagination moves.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import subprocess
 import tempfile
@@ -35,6 +36,15 @@ from legalmind.drafting import clean
 #: ponytail: one minute per conversion; a pool of warm LibreOffice processes if the
 #: worker ever converts in volume
 TIMEOUT_S = 60
+#: the export filter (`FINAL-PACKAGE-SPEC` c1): PDF/A-2b, tagged and PDF/UA, no form
+#: widgets from locked content controls, no notes, no encryption or restrictions, no
+#: embedded source file — recorded with each output beside the LibreOffice version
+EXPORT = {"SelectPdfVersion": 2, "UseTaggedPDF": True, "PDFUACompliance": True,
+          "ExportFormFields": False, "ExportNotes": False, "EncryptFile": False,
+          "RestrictPermissions": False, "IsAddStream": False}
+_FILTER = "pdf:writer_pdf_Export:" + json.dumps({
+    k: {"type": "long", "value": str(v)} if type(v) is int else
+    {"type": "boolean", "value": str(v).lower()} for k, v in EXPORT.items()})
 
 
 class PdfError(RuntimeError):
@@ -73,7 +83,7 @@ def convert(docx_bytes: bytes, *, timeout: int = TIMEOUT_S) -> PdfResult:
         try:
             subprocess.run(  # noqa: S603 — argv list, the operator's binary
                 [binary, f"-env:UserInstallation=file://{tmp}/profile", "--headless",
-                 "--norestore", "--convert-to", "pdf", "--outdir", tmp, str(source)],
+                 "--norestore", "--convert-to", _FILTER, "--outdir", tmp, str(source)],
                 check=True, timeout=timeout, capture_output=True)
             pdf = Path(tmp, "contract.pdf").read_bytes()
         except (OSError, subprocess.SubprocessError) as exc:
@@ -128,7 +138,9 @@ def render_version(db: Any, storage: Any, document_version_id: UUID,
     """Make the client PDF of one stored version, store it and record it; the caller
     commits. A contract (`kind="contract"`) gets its page totals filled and the PDF
     checks of the preflight (a problem fails closed, nothing stored); a reply is its
-    CLEAN copy as converted. `PdfError` is a recorded FAILED, never a fallback."""
+    CLEAN copy as converted. A final contract (`kind="final"`, a ``final_copy_of``
+    version) is checked as a contract is. `PdfError` is a recorded FAILED, never a
+    fallback."""
     from legalmind.db import models as M
     from legalmind.db.session import on_rollback
     from legalmind.drafting import preflight
@@ -141,7 +153,7 @@ def render_version(db: Any, storage: Any, document_version_id: UUID,
     failed = None
     try:
         source = storage.get(version.storage_key)
-        if kind == "contract":
+        if kind in ("contract", "final"):
             fixed, result = convert_contract(source)
             problems = preflight.pdf_problems(fixed, result.pdf)
             if problems:
@@ -159,7 +171,7 @@ def render_version(db: Any, storage: Any, document_version_id: UUID,
     key = storage.put(result.pdf, suggested_name=f"{kind}.pdf")
     on_rollback(db, lambda: storage.discard(key))    # no record, no orphan file
     return mark(version, kind, READY, storage_key=key,
-                libreoffice_version=result.libreoffice_version,
+                libreoffice_version=result.libreoffice_version, pdf_export=EXPORT,
                 pdf_sha256=hashlib.sha256(result.pdf).hexdigest(), rendered_at=_now())
 
 
@@ -217,6 +229,6 @@ def render_blank(db: Any, storage: Any, template_version_id: UUID,
                           rendered_at=_now())
     key = storage.put(result.pdf, suggested_name=f"{kind}.pdf")
     return mark_blank(db, tv.id, digest, kind, READY, storage_key=key,
-                      libreoffice_version=result.libreoffice_version,
+                      libreoffice_version=result.libreoffice_version, pdf_export=EXPORT,
                       pdf_sha256=hashlib.sha256(result.pdf).hexdigest(),
                       rendered_at=_now())

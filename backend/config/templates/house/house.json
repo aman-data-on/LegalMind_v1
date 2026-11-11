@@ -140,9 +140,13 @@
   },
   "min_image_dpi": 150,
   "front_gap_pt": 12,
+  "_language_note": "The document language (docDefaults w:lang), which the PDF carries as its /Lang (FINAL-PACKAGE-SPEC b, S1).",
+  "language": "en-IN",
   "footer": {
     "font": "Calibri",
     "size_pt": 11,
-    "id_size_pt": 8
+    "id_size_pt": 8,
+    "_page_format_note": "The right of every footer: {PAGE} and {NUMPAGES} are Word fields, the rest is text. One run across the whole file, schedules included (FINAL-PACKAGE-SPEC b, S1).",
+    "page_format": "Page {PAGE} of {NUMPAGES}"
   }
 }
