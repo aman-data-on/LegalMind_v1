@@ -39,7 +39,7 @@ def test_pdfa2b_clean(rendered):
     fixed, result = pdf.convert_contract(rendered[2])
     data = result.pdf
     assert preflight.pdf_file(data) == []
-    assert preflight.pdf_problems(fixed, data) == []
+    assert preflight.pdf_problems(fixed, data, ours=True) == []
     assert len(data) <= 10_000_000
     with pymupdf.open(stream=data, filetype="pdf") as doc:
         xmp = doc.get_xml_metadata()
@@ -56,6 +56,17 @@ def test_pdfa2b_clean(rendered):
             assert {t[1] for t in page.annot_xrefs()} <= {pymupdf.mupdf.PDF_ANNOT_LINK}
             assert all(f[1] != "n/a" for f in page.get_fonts(full=True))
     assert pdf.EXPORT["SelectPdfVersion"] == 2 and pdf.EXPORT["ExportFormFields"] is False
+
+
+def test_a_contract_made_before_s1_still_passes(rendered):
+    """H1: a version rendered by lm-render-contract-2 (bare page numbers restarting in
+    each schedule) converts, with the S1 export, to a PDF its own page rule passes —
+    its final copy is a PDF for signature, not a refusal."""
+    from tests.drafting.test_preflight import renderer2
+    fixed, result = pdf.convert_contract(renderer2(rendered[2]))
+    assert preflight.pdf_problems(fixed, result.pdf, ours=True) == []
+    ident = f"LM-TEST-v1-{rendered[1][:8]}"
+    assert [p.split(ident)[1].split()[0] for p in _text(result.pdf)] == ["1", "2", "1", "1"]
 
 
 def test_the_pdf_never_prints_tracked_changes():

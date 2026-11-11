@@ -2,12 +2,14 @@
 
 import copy
 import io
+import re
 import zipfile
 
 import pymupdf
 import pytest
 
-from legalmind.drafting import preflight
+from legalmind.drafting import model as model_
+from legalmind.drafting import preflight, render_contract
 from legalmind.drafting.preflight import PreflightRefused
 from tests.drafting.test_clean import _tracked_docx
 
@@ -119,12 +121,53 @@ def _pdf(*pages: str, furniture: str = "", unicode: bool = False) -> bytes:
 
 
 def _body_text(data: bytes) -> str:
-    """The DOCX body as the PDF prints it: each paragraph after its list label."""
+    """The DOCX body as the PDF prints it: each paragraph after its list label, in
+    capitals where its style prints them."""
     import docx
     document = docx.Document(io.BytesIO(data))
     paras = document.element.body.xpath(".//w:p[not(ancestor::w:txbxContent)]")
-    labels = preflight._docx_list_numbers(document, paras, labels=True)
-    return " ".join(f"{labels.get(p, '')} {preflight._docx_text(p)}" for p in paras)
+    labels = preflight._docx_list_numbers(document, paras, labels=preflight._label)
+    upper = preflight._capitals(document)
+    return " ".join(f"{labels.get(p, '')} {preflight._docx_text(p, upper=upper)}"
+                    for p in paras)
+
+
+#: the bytes the renderer before S1 (lm-render-contract-2, f2d62c7b) made of the
+#: placeholder with contract_ref "T", version 1, model_hash "0"*64 — the baseline it
+#: was measured by (`render_baseline.json` before S1), recomputed from a `git archive`
+#: of f2d62c7b
+RENDERER2_SHA256 = "8dc04304538edf3b6adc9a7827aaa0fcc2991739dcf0a3de223d413949ca9c3e"
+
+
+def renderer2(data: bytes) -> bytes:
+    """A contract as the renderer before S1 made it — today's render with S1's three
+    changes undone: a bare PAGE field in each footer, page numbers restarting in each
+    schedule, en-US. (A binary fixture cannot be committed: *.docx is blocked.)"""
+    src, out = zipfile.ZipFile(io.BytesIO(data)), io.BytesIO()
+    with zipfile.ZipFile(out, "w") as z:
+        for n in src.namelist():
+            body = src.read(n)
+            if re.fullmatch(r"word/footer\d*\.xml", n):
+                body = re.sub(rb'<w:r><w:t xml:space="preserve">Page </w:t></w:r>|<w:r>'
+                              rb'<w:t xml:space="preserve"> of </w:t></w:r><w:fldSimple '
+                              rb'w:instr=" NUMPAGES ">.*?</w:fldSimple>', b"", body)
+            elif n == "word/document.xml":          # every section but the first
+                head, first, *later = body.split(b"<w:cols")
+                body = b"<w:cols".join([head, first]) + b"".join(
+                    b'<w:pgNumType w:start="1"/><w:cols' + x for x in later)
+            elif n == "word/styles.xml":
+                body = body.replace(b'<w:lang w:val="en-IN"', b'<w:lang w:val="en-US"')
+            z.writestr(n, body)
+    return render_contract.deterministic_zip(out.getvalue())
+
+
+def test_renderer2_is_the_old_renderers_bytes(placeholder, answers):
+    """The pre-S1 contract the tests below use is byte for byte the old renderer's."""
+    import hashlib
+    plain = model_.resolve(*placeholder, answers)
+    data = render_contract.render(plain, placeholder[0]["assets"], contract_ref="T",
+                                  version_number=1, model_hash="0" * 64)
+    assert hashlib.sha256(renderer2(data)).hexdigest() == RENDERER2_SHA256
 
 
 def test_pdf_checks_fire(rendered):
@@ -179,23 +222,28 @@ def test_xref_pdf_reads_a_paragraph_across_a_page_break(rendered):
 
 def test_text_equal(rendered):
     """`TEXT_EQUAL`: the whole body, list labels included, reads the same in the PDF —
-    however its lines break, its spaces fall or its headings are capitalised; one word
-    changed, or a paragraph lost, is refused and the place quoted."""
+    however its lines break or its spaces fall; one word changed, two words run
+    together, a defined term's capitals lost or a paragraph lost is refused, the place
+    quoted."""
     model, _, data = rendered
     text = _body_text(data)
-    # the labels Word prints, computed from the numbering part (not by the code tested)
+    # the labels Word prints and the capitals the heading style prints, as the
+    # renderer wrote them (the code tested reads them from the numbering and styles)
     assert "A. Party One Placeholder Limited" in text and "(a) Second list item one." \
-        in text and "4.1. Clause C.1 text" in text
+        in text and "4.1. Clause C.1 text" in text and "4. CLAUSE C HEADING" in text
     page = "LM-T-v1-0123abcd Page {n} of {total}"
 
     def text_equal(body: str) -> list[str]:
         return [p.detail for p in preflight.check(
             data, model=model, pdf=_pdf(body, furniture=page, unicode=True))
             if p.code == "TEXT_EQUAL"]
-    loose = "  ".join(text.upper().split()).replace(":", " :")   # wrapped by the box
+    loose = "  ".join(text.split()).replace(":", " :")     # wrapped by the box
     assert text_equal(loose) == []
     changed = text_equal(text.replace("Clause C.1 text", "Clause C.1 test"))
-    assert len(changed) == 1 and "c.1 test" in changed[0] and "c.1 text" in changed[0]
+    assert len(changed) == 1 and "C.1 test" in changed[0] and "C.1 text" in changed[0]
+    assert text_equal(text.replace("Clause C.1 text", "Clause C.1text"))
+    assert text_equal(text.replace("Placeholder Term Two", "placeholder term two"))
+    assert text_equal(text.replace("4. CLAUSE C HEADING", "4. Clause C Heading"))
     assert text_equal(text.replace("Second list item one.", ""))
 
 
@@ -213,6 +261,34 @@ def test_page_x_of_y(rendered):
     assert pages("LM-T-v1-0123abcd {n}")                      # the old bare number
     assert pages("") == ["pages read ['no number', 'no number', 'no number'], a file "
                          "of 3 pages"]
+
+
+def test_page_numbers_of_a_contract_made_before_s1(rendered):
+    """H1: a version rendered before S1 keeps its file — a bare number per page,
+    restarting in each schedule — so its final copy is checked by THAT rule, not
+    refused for lacking "of N"."""
+    data = renderer2(rendered[2])
+    assert b"NUMPAGES" not in data
+
+    def pages(*numbers: int) -> list[str]:
+        body = _pdf(*["Body."] * len(numbers))
+        doc = pymupdf.open(stream=body, filetype="pdf")
+        for page, n in zip(doc, numbers, strict=True):
+            page.insert_text((72, 800), f"LM-TEST-v1-{rendered[1][:8]} {n}", fontsize=9)
+        return [p.detail for p in preflight.pdf_problems(data, doc.tobytes(), ours=True)
+                if p.code == "PAGE_NUMBERS"]
+    assert pages(1, 2, 1, 1) == []                 # body 1-2, then each schedule
+    assert pages(1, 3, 1, 1) == ["pages read [1, 3], a section of 2 pages"]
+
+
+def test_list_labels_print_as_word_prints_them():
+    """L4: every numbering format the counter can take, as Word prints it."""
+    label = preflight._label
+    assert [label(n, "lowerLetter") for n in (1, 26, 27)] == ["a", "z", "aa"]
+    assert [label(n, "upperLetter") for n in (2, 28)] == ["B", "BB"]
+    assert [label(n, "lowerRoman") for n in (1, 4, 9)] == ["i", "iv", "ix"]
+    assert label(14, "upperRoman") == "XIV" and label(7, "decimal") == "7"
+    assert label(3, "none") == "" and label(30, "lowerRoman") == "30"
 
 
 def test_signature_split_refused(rendered):
@@ -257,6 +333,18 @@ def test_pdf_file_checks_fire():
     assert "ENCRYPTED" in {p.code for p in preflight.pdf_file(sealed)}
     big = {p.code for p in preflight.pdf_file(sealed + b"%" * preflight.MAX_PDF_BYTES)}
     assert "PDF_TOO_LARGE" in big
+    assert [p.code for p in preflight.pdf_file(b"%PDF-1.7 x")] == ["PDF_UNREADABLE"]
+    # L1: a password to open it is a refusal, never an error
+    opened = locked.tobytes(encryption=pymupdf.PDF_ENCRYPT_AES_256, owner_pw="o",
+                            user_pw="u")
+    assert [p.code for p in preflight.pdf_file(opened)] == ["ENCRYPTED"]
+    # L2: names are checked, not text — a link's URI with "/JS/" in it is a link
+    linked = pymupdf.open()
+    page = linked.new_page()
+    page.insert_link({"kind": pymupdf.LINK_URI, "from": pymupdf.Rect(72, 72, 200, 90),
+                      "uri": "https://example.test/JS/JavaScript/EmbeddedFiles"})
+    codes = {p.code for p in preflight.pdf_file(linked.tobytes())}
+    assert not codes & {"JAVASCRIPT", "EMBEDDED_FILE", "ANNOTATION"}, codes
 
 
 def test_require_raises_with_every_problem(rendered):

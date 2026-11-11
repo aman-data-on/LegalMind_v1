@@ -17,7 +17,7 @@ from sqlalchemy import select
 
 from legalmind.db import models as M
 from legalmind.domain import enums as E
-from legalmind.drafting import blank, library, pdf
+from legalmind.drafting import blank, library, pdf, preflight
 from legalmind.drafting import model as model_
 from legalmind.ingestion.service import ingest_document
 from legalmind.ingestion.storage import LocalFilesystemStorage
@@ -129,6 +129,7 @@ def test_the_pdf_is_made_by_the_worker_path(db, api, published, staff, monkeypat
     assert waiting.status_code == 202 and waiting.headers["Retry-After"] == "3"
     # once made, served as stored and audited
     monkeypatch.setattr(pdf, "convert", lambda data: pdf.PdfResult(b"%PDF-1.7 x", "LO"))
+    monkeypatch.setattr(preflight, "pdf_file", lambda data: [])    # a stand-in file
     monkeypatch.setattr(pdf, "STALE_S", -1)
     made = api.get(url, params={"format": "pdf"})
     assert made.status_code == 200 and made.content == b"%PDF-1.7 x"

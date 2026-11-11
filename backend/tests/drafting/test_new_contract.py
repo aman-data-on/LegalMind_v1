@@ -354,6 +354,32 @@ def test_create_records_the_libreoffice_pdf(db, api, published, staff, answers,
     assert __import__("hashlib").sha256(got.content).hexdigest() == rec["pdf_sha256"]
 
 
+#: read before the `published` fixture unsets it for its synchronous publish check
+LO = __import__("os").environ.get("LEGALMIND_SOFFICE")
+
+
+@pytest.mark.skipif(not LO, reason="LEGALMIND_SOFFICE is not set: no LibreOffice here")
+def test_a_final_copy_of_our_contract_gets_the_house_checks(db, api, published, staff,
+                                                            answers, monkeypatch):
+    """S1 M1/L5: the final copy of a contract WE generated (its ContractDraft, by
+    provenance) is checked on the house layout — margin and "Page X of Y" too — and the
+    record says which checks ran."""
+    monkeypatch.setenv("LEGALMIND_SOFFICE", LO)
+    sign_in(api, db, staff)
+    draft = _start(api, published, answers=answers).json()["data"]
+    made = api.post(f"{V1}/drafts/{draft['id']}/create", json={"expected_version": 0})
+    assert made.status_code == 201, made.text
+    v1 = db.get(M.DocumentVersion, uuid.UUID(made.json()["data"]["document_version_id"]))
+    assert v1.doc_metadata["pdf"]["checks"] == ["pdf_file", "text_equal", "house_layout"]
+    final = api.post(f"{V1}/contracts/{v1.contract_id}/final-copy")
+    assert final.status_code == 201, final.text
+    v2 = db.get(M.DocumentVersion,
+                uuid.UUID(final.json()["data"]["document_version"]["id"]))
+    rec = v2.doc_metadata["pdf"]
+    assert (rec["kind"], rec["status"]) == ("final", "READY"), rec
+    assert rec["checks"] == ["pdf_file", "text_equal", "house_layout"]
+
+
 # ---------------------------------------------------------------- AM-316
 @pytest.fixture
 def named(db, api, user, seeded, placeholder, monkeypatch):

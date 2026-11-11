@@ -3117,7 +3117,7 @@ _VISIBLE_RUN = f"not(ancestor::w:moveFrom) and not(ancestor::w:del) and not({_HI
 _ORIGINAL_RUN = f"not(ancestor::w:moveTo) and not(ancestor::w:ins) and not({_HIDDEN})"
 
 
-def _docx_text(p, original: bool = False) -> str:
+def _docx_text(p, original: bool = False, upper=None) -> str:
     """A ``w:p``'s text in the ACCEPTED view of its tracked changes: python-docx's
     run text PLUS the runs it skips — inside a tracked insertion (w:ins) or an
     inline content control. Deleted text is w:delText, which a run's text never
@@ -3132,15 +3132,20 @@ def _docx_text(p, original: bool = False) -> str:
     A page or column break is a line break here: python-docx reads it as "", which
     fused "…calendar days." and "Issued within…" into "days.Issued" across a break.
 
-    ``original``: the text before its tracked changes instead (`_ORIGINAL_RUN`)."""
+    ``original``: the text before its tracked changes instead (`_ORIGINAL_RUN`).
+    ``upper``: a test on a ``w:r`` — its text upper-cased where it holds (a run printed
+    in capitals by its formatting, for a comparison with the printed text)."""
     depth = len(p.xpath("ancestor-or-self::w:p"))
     runs = _ORIGINAL_RUN if original else _VISIBLE_RUN
-    # python-docx gives w:t (and w:tab, w:cr …) a text form; w:delText it does not.
-    return "".join("\n" if el.tag == _W + "br" else el.text or "" if el.tag == _W +
-                   "delText" else str(el) for r in p.xpath(
-        f".//w:r[count(ancestor::w:p) = {depth} and {runs}]")
-        for el in r.xpath("w:br | w:cr | w:noBreakHyphen | w:ptab | w:t | w:delText"
-                          " | w:tab"))
+
+    def text(r) -> str:
+        # python-docx gives w:t (and w:tab, w:cr …) a text form; w:delText it does not.
+        t = "".join("\n" if el.tag == _W + "br" else el.text or "" if el.tag == _W +
+                    "delText" else str(el) for el in r.xpath(
+            "w:br | w:cr | w:noBreakHyphen | w:ptab | w:t | w:delText | w:tab"))
+        return t.upper() if upper is not None and upper(r) else t
+    return "".join(text(r) for r in p.xpath(
+        f".//w:r[count(ancestor::w:p) = {depth} and {runs}]"))
 
 
 def _docx_emphasis(p) -> list[list]:
@@ -3192,7 +3197,7 @@ def _docx_revision(p) -> dict | None:
     return {"original": normalize_text(_docx_text(p, original=True)), "changes": changes}
 
 
-def _docx_list_numbers(document, paragraphs, labels: bool = False) -> dict:
+def _docx_list_numbers(document, paragraphs, labels=None) -> dict:
     """The clause number Word DISPLAYS for each paragraph its automatic list numbering
     numbers — the document's own numbering (34.12 preserves it; AM-185, owner
     2026-10-26: a Word MSA read 0 of 219 numbered clauses while its PDF read 213).
@@ -3205,10 +3210,10 @@ def _docx_list_numbers(document, paragraphs, labels: bool = False) -> dict:
     item is part of the clause above it, never a number of its own. Every paragraph of
     the document is counted, table cells included, in document order.
 
-    ``labels``: instead, EVERY numbered paragraph's whole label as printed ("1.1.", "A.",
-    "(a)") — the text a PDF of the file shows before the paragraph (preflight
-    ``TEXT_EQUAL``). ponytail: decimal and letters only, any other format prints its
-    number — add roman when a rendered file uses it."""
+    ``labels``: a function ``(n, numFmt) -> str`` — instead, EVERY numbered paragraph's
+    whole label as printed ("1.1.", "A.", "(a)", a bullet's glyph), each level's counter
+    printed by it: the text a PDF of the file shows before the paragraph (preflight
+    ``TEXT_EQUAL``)."""
     try:
         numbering = document.part.numbering_part.element
     except (AttributeError, KeyError, NotImplementedError):
@@ -3262,8 +3267,8 @@ def _docx_list_numbers(document, paragraphs, labels: bool = False) -> dict:
         count[ilvl] = count.get(ilvl, defs[ilvl][0] - 1) + 1
         for deeper in [lv for lv in count if lv > ilvl]:
             del count[deeper]
-        if labels:                          # "%1.%2." → "4.1.", "(%1)" → "(a)"
-            shown = {lv: _label(count.get(lv, d[0]), d[1]) for lv, d in defs.items()}
+        if labels is not None:              # "%1.%2." → "4.1.", "(%1)" → "(a)"
+            shown = {lv: labels(count.get(lv, d[0]), d[1]) for lv, d in defs.items()}
             out[p] = "".join(shown.get(int(t) - 1, "") if i % 2 else t for i, t in
                              enumerate(re.split(r"%(\d)", defs[ilvl][2])))
             continue
@@ -3271,14 +3276,6 @@ def _docx_list_numbers(document, paragraphs, labels: bool = False) -> dict:
         if used and all(defs.get(lv, (1, "", ""))[1] == "decimal" for lv in used):
             out[p] = ".".join(str(count.get(lv, defs[lv][0])) for lv in used)
     return out
-
-
-def _label(n: int, fmt: str) -> str:
-    """One level's number as Word prints it: a, b … z, aa … for the letter formats."""
-    if fmt in ("lowerLetter", "upperLetter"):
-        letter = chr(ord("a") + (n - 1) % 26) * ((n - 1) // 26 + 1)
-        return letter.upper() if fmt == "upperLetter" else letter
-    return str(n)
 
 
 def _docx_children(el, *tags):

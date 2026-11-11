@@ -1656,18 +1656,32 @@ def blanks(db, version: M.DocumentVersion) -> str | None:
             + ". Fill them in the contract first.")
 
 
-def _final_plan(guard: Guard, contract: M.Contract) -> dict:
+def _final_plan(guard: Guard, contract: M.Contract, storage: StorageBackend) -> dict:
     """The dry run of the final copy (`AM-318`, owner 2026-11-06: the deal cycle ends at
     the final clean copy). Its source is the agreed text: our latest version as the
     client accepted it, or the client's latest version when every change is accepted —
     any other answer goes back to the client as our reply first (REPLY_FIRST). Then every
-    tracked change accepted and every comment removed (`drafting.clean`). Nothing
+    tracked change accepted and every comment removed (`drafting.clean`). A client's
+    own PDF is the final copy as it came, so it must carry nothing a signing tool
+    refuses or a signer cannot see (`preflight.CLIENT_PDF`, S1 M2). Nothing
     written."""
     db = guard.db
     out: dict = {"available": False, "blockers": [], "mode": None, "agreed": []}
 
     def stop(code: str, message: str) -> dict:
         out["blockers"].append({"code": code, "message": message})
+        return out
+
+    def ready(source: M.DocumentVersion) -> dict:
+        if source.mime_type == PDF_MIME:
+            found = {p.code for p in preflight.pdf_file(storage.get(source.storage_key))}
+            for code in sorted(found & preflight.CLIENT_PDF.keys()):
+                stop("CLIENT_PDF", f"The client's PDF {preflight.CLIENT_PDF[code]}; ask "
+                     "for a clean PDF or upload the Word file.")
+            if out["blockers"]:
+                return out
+        out.update(mode="copy", available=True)
+        out["_source"] = source
         return out
 
     versions = list(db.execute(
@@ -1705,9 +1719,7 @@ def _final_plan(guard: Guard, contract: M.Contract) -> dict:
                                  for c in round_["changes"] if c.get("answer")]
             except (BusinessRuleRejected, negotiation.VersionRoleUndeclared):
                 pass                       # the list is a courtesy; the copy stands
-        out.update(mode="copy", available=True)
-        out["_source"] = latest
-        return out
+        return ready(latest)
     package = _package_plan(guard, contract)
     if not {b["code"] for b in package["blockers"]} & _FINAL_COPY_ROUTES:
         return stop("USE_PACKAGE", "This contract's final copy is made with Annexure A — "
@@ -1731,18 +1743,17 @@ def _final_plan(guard: Guard, contract: M.Contract) -> dict:
         return stop("BLANKS", gap)
     out["agreed"] = [{"where": _where(c), "answer": c["answer"]["answer"]}
                      for c in changes]
-    out.update(mode="copy", available=True)
-    out["_source"] = latest
-    return out
+    return ready(latest)
 
 
 @router.get("/contracts/{contract_id}/final-copy")
-def final_copy_preview(contract_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
+def final_copy_preview(contract_id: UUID, guard: Guard = Depends(get_guard),
+                       storage: StorageBackend = Depends(get_storage)) -> dict:
     """The dry run of "Prepare final contract" where no Annexure package applies
     (`AM-318`): ``available``, ``blockers[{code, message}]``, ``mode`` (copy),
     ``of_version`` and what was ``agreed`` (each change's place and answer)."""
     contract = guard.contract_readable(contract_id, P.DOCUMENT_VIEW)
-    return data(_public_plan(_final_plan(guard, contract)))
+    return data(_public_plan(_final_plan(guard, contract, storage)))
 
 
 @router.post("/contracts/{contract_id}/final-copy", status_code=201)
@@ -1755,7 +1766,7 @@ def prepare_final_copy(contract_id: UUID, guard: Guard = Depends(get_guard),
     it; Sign as is makes the deal Final. 409 FINAL_COPY_NOT_READY with ``blockers``."""
     contract = guard.contract_negotiable(contract_id, P.CONTRACT_UPDATE)
     _lock(guard, contract)
-    plan = _final_plan(guard, contract)
+    plan = _final_plan(guard, contract, storage)
     if plan["blockers"]:
         raise FinalCopyNotReady("The final contract cannot be prepared yet.",
                                 plan["blockers"])

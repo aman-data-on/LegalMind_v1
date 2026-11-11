@@ -8,9 +8,10 @@ output with the export filter options (`EXPORT`: PDF/A-2b, tagged, PDF/UA).
 
 Entry point for the worker: `render_version` (`AM-293` r2), dispatched by
 `worker.dispatch.dispatch_pdf` after a reply or a created contract version is ingested.
-It records ``{status, kind, libreoffice_version, pdf_export, pdf_sha256, storage_key,
-rendered_at}`` (or ``error``) under ``pdf`` in the version's 42.4 ``metadata`` JSONB —
-not on ``contract_drafts``, which is append-only, and no new column. There is no PyMuPDF
+It records ``{status, kind, checks, libreoffice_version, pdf_export, pdf_sha256,
+storage_key, rendered_at}`` (or ``error``) under ``pdf`` in the version's 42.4
+``metadata`` JSONB — not on ``contract_drafts``, which is append-only, and no new
+column. There is no PyMuPDF
 fallback for a client copy (`AM-293` r3): no LibreOffice is a recorded failure.
 
 Fonts: the house font (``config/templates/house/house.json``) must be installed on the
@@ -92,6 +93,13 @@ def convert(docx_bytes: bytes, *, timeout: int = TIMEOUT_S) -> PdfResult:
     return PdfResult(pdf, version(binary))
 
 
+def refuse(problems: list) -> None:
+    """A failed PDF check is a `PdfError` naming each problem (code: detail)."""
+    if problems:
+        raise PdfError("the PDF did not pass its check: "
+                       + "; ".join(f"{p.code}: {p.detail}" for p in problems))
+
+
 def convert_contract(docx_bytes: bytes) -> tuple[bytes, PdfResult]:
     """A generated contract's clean DOCX and the PDF of exactly that file."""
     fixed = clean.clean(docx_bytes)
@@ -136,11 +144,18 @@ def mark(version: Any, kind: str, status: str, **fields: Any) -> dict:
 def render_version(db: Any, storage: Any, document_version_id: UUID,
                    kind: str) -> dict | None:
     """Make the client PDF of one stored version, store it and record it; the caller
-    commits. A contract (`kind="contract"`) gets its page totals filled and the PDF
-    checks of the preflight (a problem fails closed, nothing stored); a reply is its
-    CLEAN copy as converted. A final contract (`kind="final"`, a ``final_copy_of``
-    version) is checked as a contract is. `PdfError` is a recorded FAILED, never a
-    fallback."""
+    commits. Every PDF is checked and a problem fails closed (nothing stored), the
+    record saying which checks ran (``checks``, `preflight.pdf_checks`):
+
+    * a contract (`kind="contract"`) or a final contract (`kind="final"`, a
+      ``final_copy_of`` version) gets its page totals filled and the PDF checks against
+      its DOCX — on our house layout where WE generated the file (a ``ContractDraft``
+      row: provenance, not the file's content), as paper otherwise;
+    * a reply is its CLEAN copy as converted, checked as a file (`preflight.pdf_file`).
+
+    `PdfError` is a recorded FAILED, never a fallback."""
+    from sqlalchemy import select
+
     from legalmind.db import models as M
     from legalmind.db.session import on_rollback
     from legalmind.drafting import preflight
@@ -151,26 +166,29 @@ def render_version(db: Any, storage: Any, document_version_id: UUID,
     if (record(version) or {}).get("status") == READY:
         return record(version)
     failed = None
+    ours = db.execute(select(M.ContractDraft.id).where(
+        M.ContractDraft.document_version_id == version.id)).first() is not None
+    contract = kind in ("contract", "final")
+    checks = preflight.pdf_checks(ours) if contract else [preflight.FILE]
     try:
         source = storage.get(version.storage_key)
-        if kind in ("contract", "final"):
+        if contract:
             fixed, result = convert_contract(source)
-            problems = preflight.pdf_problems(fixed, result.pdf)
-            if problems:
-                raise PdfError("the PDF did not pass its check: "
-                               + "; ".join(p.detail for p in problems))
+            refuse(preflight.pdf_problems(fixed, result.pdf, ours=ours))
         else:
             result = convert(source)
+            refuse(preflight.pdf_file(result.pdf))
     except PdfError as exc:
         failed = str(exc)
     db.refresh(version, with_for_update=True)  # the lock only around the write
     if (record(version) or {}).get("status") == READY:
         return record(version)                 # another render finished first
     if failed is not None:
-        return mark(version, kind, FAILED, error=failed, rendered_at=_now())
+        return mark(version, kind, FAILED, error=failed, checks=checks,
+                    rendered_at=_now())
     key = storage.put(result.pdf, suggested_name=f"{kind}.pdf")
     on_rollback(db, lambda: storage.discard(key))    # no record, no orphan file
-    return mark(version, kind, READY, storage_key=key,
+    return mark(version, kind, READY, storage_key=key, checks=checks,
                 libreoffice_version=result.libreoffice_version, pdf_export=EXPORT,
                 pdf_sha256=hashlib.sha256(result.pdf).hexdigest(), rendered_at=_now())
 
@@ -209,8 +227,8 @@ def mark_blank(db: Any, template_version_id: UUID, model_hash: str, kind: str,
 
 def render_blank(db: Any, storage: Any, template_version_id: UUID,
                  kind: str = "blank") -> dict | None:
-    """Make, store and record the blank template's (or its review copy's) PDF; the
-    caller commits."""
+    """Make, store and record the blank template's (or its review copy's) PDF, checked
+    as a file (`preflight.pdf_file`, fails closed); the caller commits."""
     from legalmind.db import models as M
     from legalmind.drafting import blank
 
@@ -222,13 +240,16 @@ def render_blank(db: Any, storage: Any, template_version_id: UUID,
     done = blank_record(db, tv.id, digest, kind)
     if (done or {}).get("status") == READY:
         return done
+    from legalmind.drafting import preflight
     try:
         result = convert(docx)
+        refuse(preflight.pdf_file(result.pdf))
     except PdfError as exc:
         return mark_blank(db, tv.id, digest, kind, FAILED, error=str(exc),
                           rendered_at=_now())
     key = storage.put(result.pdf, suggested_name=f"{kind}.pdf")
     return mark_blank(db, tv.id, digest, kind, READY, storage_key=key,
+                      checks=[preflight.FILE],
                       libreoffice_version=result.libreoffice_version, pdf_export=EXPORT,
                       pdf_sha256=hashlib.sha256(result.pdf).hexdigest(),
                       rendered_at=_now())
