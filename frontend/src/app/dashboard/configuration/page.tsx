@@ -668,7 +668,7 @@ function RequirementRow({
 
       <PermissionGate granted={can(P.CONFIGURATION_DRAFT)}>
         {open ? (
-          <form onSubmit={submit}>
+          <form className="ws-stackform" onSubmit={submit}>
             <ErrorBanner error={error} />
             <label>
               Name

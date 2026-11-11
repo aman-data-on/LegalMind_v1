@@ -7620,3 +7620,10 @@ a.ws-askglobal[data-away]:not(:focus-visible) {
   .ws-std__detail .ws-docs__table td[data-label]::before {
     content: attr(data-label); display: block; font-size: var(--t-label); color: var(--ws-ink-500); }
 }
+/* a plain form of bare labels (the legacy draft-version form): each label over its field,
+   full width, so it fits a phone (round 2, the Standards overflow at 390) */
+.ws-stackform { display: grid; gap: var(--ws-s3); max-width: 40rem; }
+.ws-stackform > label { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--ws-s1); font-size: var(--ws-text-sm); color: var(--ws-ink-700); min-width: 0; }
+.ws-stackform > label :is(input, select, textarea) { width: 100%; max-width: 100%; min-width: 0; }
+.ws-stackform > label > * { min-width: 0; }
+.ws-stackform > .ws-btn { justify-self: start; }
