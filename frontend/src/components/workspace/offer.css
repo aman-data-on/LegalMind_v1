@@ -13,7 +13,7 @@
   max-width: 68ch; }
 .lm-offer__line [data-room] { font-weight: 600; color: var(--ws-ink-900); }
 .lm-offer__legal { font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
-.lm-offer__legal > summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; gap: 6px;
+.lm-offer__legal > summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; gap: 8px;
   color: var(--ws-accent); font-weight: 600; list-style: none; }
 .lm-offer__legal > summary::-webkit-details-marker { display: none; }
 .lm-offer__legal > summary::before { content: ""; width: 6px; height: 6px; border: solid currentColor;
@@ -26,10 +26,10 @@
 @media (pointer: coarse) { .lm-offer__legal > summary { min-height: 44px; } }
 
 /* On a client change: the phrase, then the playbook line it is measured by. */
-.lm-offer-hit { margin: 0 0 var(--ws-s2); padding: var(--ws-s2) var(--ws-s3); border-radius: 6px;
+.lm-offer-hit { margin: 0 0 var(--ws-s2); padding: var(--ws-s2) var(--ws-s3); border-radius: 8px;
   background: var(--ws-paper); border-left: 3px solid var(--ws-ink-700); }
 .lm-offer-hit[data-within] { background: var(--ws-ok-soft); border-left-color: var(--ws-ok); }
-.lm-offer-hit__said { display: flex; align-items: center; gap: 6px; margin: 0; font-size: var(--ws-text-sm);
+.lm-offer-hit__said { display: flex; align-items: center; gap: 8px; margin: 0; font-size: var(--ws-text-sm);
   font-weight: 600; color: var(--ws-ink-900); }
 .lm-offer-hit[data-within] .lm-offer-hit__said svg { color: var(--ws-ok); }
 /* a fallback is a concession, not a win: the attention tone, its own icon (AM-306) */

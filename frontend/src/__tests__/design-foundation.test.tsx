@@ -8,7 +8,8 @@ import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { EmptyState, ErrorBanner, ErrorState, LoadingState } from "@/components/Feedback";
+import { EmptyState, ErrorBanner, ErrorState, LoadingState, NoticeState } from "@/components/Feedback";
+import { SegmentedFilter } from "@/components/SegmentedFilter";
 import { StatusChip, chipStatus } from "@/components/StatusChip";
 import { ApiError } from "@/lib/api";
 
@@ -39,9 +40,17 @@ describe("one type scale, through tokens only", () => {
     }
   });
 
-  it("uses only the loaded weights, and no uppercase labels", () => {
-    expect(declarations(/font-weight:\s*(550|650)\b/g)).toEqual([]);
+  it("uses only the loaded weights, and no uppercase or tracked labels", () => {
+    expect(declarations(/font-weight:\s*(450|550|650)\b/g)).toEqual([]);
     expect(declarations(/text-transform:\s*uppercase/g)).toEqual([]);
+    // round 2: tracking was for capitals; on sentence case it reads as stretched type
+    expect(declarations(/letter-spacing:\s*0?\.\d+/g)).toEqual([]);
+  });
+
+  it("never aliases the old small tokens down (round 2): rows read at 14, metadata at 13", () => {
+    const ws = readFileSync("src/app/dashboard/workspace.css", "utf8");
+    expect(ws).toMatch(/--ws-text-sm: var\(--t-dense\);/);
+    expect(ws).toMatch(/--ws-text-xs: var\(--t-caption\);/);
   });
 });
 
@@ -91,5 +100,33 @@ describe("the one status chip", () => {
     expect(decided).toContain("Change needed");
     expect(decided).toContain("Decided: We accepted their wording");
     expect(decided).not.toContain("Matches");
+  });
+});
+
+describe("round 2 components", () => {
+  it("a filter offers no zero-count choice, and one choice is no control at all", () => {
+    const html = renderToStaticMarkup(<SegmentedFilter label="Show" value="all" onChange={() => {}} segments={[
+      { id: "all", label: "All", text: "All", count: 3, always: true },
+      { id: "a", label: "Change needed", text: "Change needed", count: 3 },
+      { id: "b", label: "Missing", text: "Missing", count: 0 },
+    ]} />);
+    expect(html).toContain('role="group" aria-label="Show"');
+    expect(html).not.toContain("Missing");
+    expect(html).not.toMatch(/lm-chip|border-radius: 999/);
+    expect(renderToStaticMarkup(<SegmentedFilter label="Show" value="all" onChange={() => {}}
+      segments={[{ id: "all", label: "All", text: "All", count: 0, always: true }]} />)).toBe("");
+  });
+
+  it("a question is a notice, never an alert or an error", () => {
+    const html = renderToStaticMarkup(<NoticeState title="Whose paper is this version?" />);
+    expect(html).toContain("lm-state--notice");
+    expect(html).not.toMatch(/role="alert"|lm-state--error|reference/i);
+  });
+
+  it("a server failure says the fix, never the server's raw word", () => {
+    const html = renderToStaticMarkup(<ErrorState title="Contracts could not be loaded"
+      error={new ApiError(500, "INTERNAL", "Internal error", "-")} onRetry={() => {}} />);
+    expect(html).not.toContain("Internal error");
+    expect(html).toContain("Check your connection and try again.");
   });
 });

@@ -17,7 +17,8 @@ import {
 
 export type ChipStatus = "MATCHES" | "CHANGE_NEEDED" | "MISSING" | "NEEDS_DECISION" | "IN_OUR_FAVOUR";
 
-const LOOK: Record<ChipStatus, { tone: string; Icon: typeof IconCheck }> = {
+/** One word, icon and hue per status — the Contents marks, legend and filters read this too. */
+export const LOOK: Record<ChipStatus, { tone: string; Icon: typeof IconCheck }> = {
   MATCHES: { tone: "match", Icon: IconCheckCircle },
   CHANGE_NEEDED: { tone: "change", Icon: IconPencilLine },
   MISSING: { tone: "missing", Icon: IconFilePlus },

@@ -38,6 +38,7 @@ import { useSession } from "@/lib/session";
 import { TodoViews } from "@/components/workspace/TodoViews";
 import type { Finding, Review } from "@/lib/types";
 import { StatusChip, chipStatus } from "@/components/StatusChip";
+import { ErrorState } from "@/components/Feedback";
 
 /** Step 30 statuses under which undecided Findings can still exist. LEGAL_REVIEW
  *  first: it is the explicitly-escalated lane. RESOLVED/CLOSED reviews cannot
@@ -133,7 +134,7 @@ export default function LegalQueuePage() {
       <div className="ws-context">
         <h1>Legal</h1>
         {state.kind === "ready" ? (
-          <span className="ws-context__meta ws-mono">
+          <span className="ws-context__meta">
             {!mine ? `${plural(pointCount(rows), "point")} awaiting a decision`
               : !mine.points && !mine.changes ? "Nothing awaits your decision"
               : `${plural(mine.points, "point")}${mine.changes ? ` and ${plural(mine.changes, "change")}` : ""} await your decision`}
@@ -157,10 +158,7 @@ export default function LegalQueuePage() {
         </p>
 
         {state.kind === "error" ? (
-          <div className="ws-state ws-state--error" role="alert">
-            <h2>The queue could not be loaded.</h2>
-            <p>{describeError(state.error)}</p>
-          </div>
+          <ErrorState title="The Legal queue could not be loaded" error={state.error} onRetry={() => void load()} />
         ) : null}
 
         {state.kind === "ready" && state.failed > 0 ? (
@@ -254,7 +252,7 @@ export default function LegalQueuePage() {
                       )}
                     </td>
                     <td>
-                      <span className={`ws-chip${review.status === "LEGAL_REVIEW" ? " ws-chip--fill ws-chip--outcome-fill" : ""}`}
+                      <span className={`ws-chip${review.status === "LEGAL_REVIEW" ? " lm-lozenge" : ""}`}
                             title={review.status}>
                         {reviewStatusLabel(review.status)}
                       </span>{" "}

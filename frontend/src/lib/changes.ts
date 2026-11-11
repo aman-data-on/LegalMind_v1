@@ -311,12 +311,13 @@ export function readerStatus(change: ClientChange): UserStatus | null {
 /** Which of the four marks a change carries (the one status set, `PointStatus`): the
  *  review's word on the client's clause, "Decided" once answered or accepted by Legal;
  *  null when no standard measures it. */
-export function changeBucket(change: ClientChange): "match" | "review" | "decided" | "missing" | null {
+export function changeBucket(change: ClientChange): "match" | "change" | "decision" | "decided" | "missing" | null {
   const after = change.review.after;
   if (!after.length) return null;
   if (change.answer || change.holder_accepted) return "decided";
   if (after.every((f) => f.user_status === "ACCEPTABLE")) return "match";
-  return after.some((f) => f.user_status === "MISSING") ? "missing" : "review";
+  if (after.some((f) => f.user_status === "MISSING")) return "missing";
+  return after.some((f) => f.user_status === "NEEDS_DECISION") ? "decision" : "change";
 }
 
 /** Line 2 of a point: what was answered, or who answers it — the server's route and

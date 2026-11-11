@@ -93,7 +93,8 @@ describe("(c) the Points chips add up to All", () => {
       finding(),
     ];
     const n = (b: StatusBucket) => points.filter((f) => inBucket(f, b)).length;
-    expect(POINT_STATUS_ORDER.map(n)).toEqual([9, 1, 12, 0, 2]);
+    // order: match, favour, change, missing, decision, decided (UX Batch 2: the server words)
+    expect(POINT_STATUS_ORDER.map(n)).toEqual([9, 1, 0, 2, 12, 0]);
     for (const f of points) expect(POINT_STATUS_ORDER.filter((b) => inBucket(f, b))).toHaveLength(1);
   });
 });

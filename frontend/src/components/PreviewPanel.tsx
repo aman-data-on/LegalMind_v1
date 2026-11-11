@@ -9,13 +9,14 @@
  * checked and audited on the server (rule 18).
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Dialog } from "@/components/Dialog";
 import { EmptyState, ErrorState, LoadingState } from "@/components/Feedback";
 import { FEEDBACK_COPY } from "@/lib/labels";
-import { fetchPdf, saveBlob } from "@/lib/pdfDownload";
-import { IconDownload, IconX } from "@/components/workspace/icons";
+import { downloadWord, fetchPdf, saveBlob } from "@/lib/pdfDownload";
+import { toastFailure } from "@/components/Toast";
+import { IconDownload, IconFile, IconX } from "@/components/workspace/icons";
 
 type Shown =
   | { kind: "loading"; waiting: boolean }
@@ -95,5 +96,40 @@ export function PreviewPanel({ title, pdfPath, onWord, wordBusy = false, onClose
         </span>
       </footer>
     </Dialog>
+  );
+}
+
+/** A file the server makes on request (`?format=pdf|docx`: a blank template, a draft, a
+ *  review copy), previewed before it is saved — the one way to download it. */
+export function PreviewButton({ path, title, text = FEEDBACK_COPY.preview, label }: {
+  /** the API path without `?format=` (`/templates/{key}/blank`) */
+  path: string;
+  /** the panel's title: which file, which version */
+  title: string;
+  /** the button's words ("Preview blank") */
+  text?: string;
+  /** the accessible name, where the words alone are ambiguous on a list of cards */
+  label?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const trigger = useRef<HTMLButtonElement | null>(null);
+  const join = path.includes("?") ? "&" : "?";
+  async function word() {
+    setBusy(true);
+    try { await downloadWord(`${path}${join}format=docx`); }
+    catch (cause) { toastFailure("The Word file could not be downloaded")(cause); }
+    finally { setBusy(false); }
+  }
+  return (
+    <>
+      <button ref={trigger} type="button" className="ws-btn ws-btn--sm" aria-label={label} onClick={() => setOpen(true)}>
+        <IconFile size={14} /> {text}
+      </button>
+      {open ? (
+        <PreviewPanel title={title} pdfPath={`${path}${join}format=pdf`} onWord={() => void word()} wordBusy={busy}
+                      onClose={() => setOpen(false)} returnFocus={() => trigger.current} />
+      ) : null}
+    </>
   );
 }

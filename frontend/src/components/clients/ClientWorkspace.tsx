@@ -188,7 +188,7 @@ function ClientRail({
           All clients
         </Link>
         {total !== null ? (
-          <span className="ws-cl__rail-total ws-mono">{total}</span>
+          <span className="ws-cl__rail-total ws-num">{total}</span>
         ) : null}
       </div>
       <div className="ws-cl__rail-tools">
@@ -337,7 +337,7 @@ export function ClientWorkspace({ clientId }: { clientId: string }) {
         {/* Breadcrumb, so a reader arriving from a document knows where they
             are and can get back to the list in one click. */}
         <nav className="ws-cl__crumbs" aria-label="Breadcrumb">
-          <Link href="/dashboard/clients">Client profiles</Link>
+          <Link href="/dashboard/clients">Clients</Link>
           <span aria-hidden="true"><IconChevronRight size={12} /></span>
           <span aria-current="page">{adding ? "Add client" : client.name}</span>
         </nav>

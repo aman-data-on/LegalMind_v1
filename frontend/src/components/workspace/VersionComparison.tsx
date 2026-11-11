@@ -191,7 +191,7 @@ function Result({
           {shown.map((clause) => (
             <li key={`${clause.status}-${clause.section_number}`} className="ws-compare__row">
               <p className="ws-compare__clause">
-                <span className="ws-mono">{sectionRef(clause.section_number) ?? "—"}</span>
+                <span className="ws-num">{sectionRef(clause.section_number) ?? "—"}</span>
                 {clause.section_title ? (
                   <span className="ws-compare__title">{clause.section_title}</span>
                 ) : null}
@@ -267,7 +267,7 @@ function Side({ side, was = false }: { side: NonNullable<ClauseChange["before"]>
         {side.truncated_end ? <span className="ws-compare__cut">…</span> : null}
       </blockquote>
       {side.page_number !== null ? (
-        <span className="ws-compare__page ws-mono">p. {side.page_number}</span>
+        <span className="ws-compare__page ws-num">p. {side.page_number}</span>
       ) : null}
     </div>
   );

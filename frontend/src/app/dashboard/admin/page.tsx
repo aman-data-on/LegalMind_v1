@@ -42,6 +42,9 @@ import {
 } from "@/components/admin/AdminShell";
 import { UserDetail } from "@/components/admin/UserDetail";
 import { toastFailure } from "@/components/Toast";
+import { ErrorState } from "@/components/Feedback";
+import { AccessRestricted } from "@/components/AccessRestricted";
+import { PageHeader } from "@/components/page/PageHeader";
 
 const PAGE_SIZE = 25;
 
@@ -145,9 +148,10 @@ function UsersScreen() {
 
   if (!canManageUsers) {
     return (
-      <div className="ws-state" role="note">
-        <h2>Access restricted</h2>
-        <p>Your account does not include user administration.</p>
+      // one restricted state everywhere (GP-23): the page keeps its h1, the note is AccessRestricted
+      <div className="lm-page">
+        <PageHeader title="Administration" />
+        <AccessRestricted what="user administration" />
       </div>
     );
   }
@@ -263,10 +267,7 @@ function UsersScreen() {
       <div className="ws-admin__body">
         <div className="ws-admin__main">
           {error ? (
-            <div className="ws-state ws-state--error" role="alert">
-              <h2>Accounts could not be loaded.</h2>
-              <p>{describeError(error)}</p>
-            </div>
+            <ErrorState title="Accounts could not be loaded" error={error} onRetry={() => void load()} />
           ) : null}
 
           {users === null && !error ? (
@@ -331,7 +332,7 @@ function UsersScreen() {
                           {user.name}
                         </button>
                       </td>
-                      <td className="ws-mono">{user.email}</td>
+                      <td>{user.email}</td>
                       <td>
                         {user.roles.length === 0 ? (
                           <span className="ws-pane__note">no roles</span>
@@ -345,10 +346,10 @@ function UsersScreen() {
                       </td>
                       <td className="ws-admin__dept">{user.department?.name ?? <span className="ws-pane__note">—</span>}</td>
                       <td><AccountStatus status={user.status} /></td>
-                      <td className="ws-mono">
+                      <td className="ws-num">
                         {user.last_login_at ? dateTime(user.last_login_at) : "Never"}
                       </td>
-                      <td className="ws-mono">{dateOnly(user.created_at)}</td>
+                      <td className="ws-num">{dateOnly(user.created_at)}</td>
                       <td className="ws-admin__rowact">
                         <button
                           type="button"
@@ -381,7 +382,7 @@ function UsersScreen() {
               >
                 Previous
               </button>
-              <span className="ws-mono">
+              <span className="ws-num">
                 Page {pagination.page} of {pageCount} · {pagination.total} accounts
               </span>
               <button

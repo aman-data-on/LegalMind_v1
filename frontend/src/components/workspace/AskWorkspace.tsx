@@ -1164,8 +1164,9 @@ export function AskWorkspace() {
                                  onSwitch={chooseModel} />,
             end: (
               <>
-                <ModelPicker models={models} value={shownModel} disabled={busy}
-                             onChange={chooseModel} />
+                {/* the model is Admin's and Developer's choice; Sales answers with the default (owner, 2026-11-11) */}
+                {can(P.PLATFORM_MANAGE) ? <ModelPicker models={models} value={shownModel} disabled={busy}
+                             onChange={chooseModel} /> : null}
                 {files.length ? (
                   <span className="ws-chat__hint">
                     <button type="button" className="ws-chat__iconbtn" aria-describedby="ws-chat-filehint"

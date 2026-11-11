@@ -20,31 +20,15 @@ test.describe("the reviews queue and the report", () => {
   }) => {
     const { contractId, reviewId } = await createAnalysedReview(page);
 
+    // UX Batch 2 (owner, 2026-11-11 "go with your recommendation"): the legacy Reviews
+    // QUEUE is Legal's. A contract owner (this account, no `legal.review`) asking for it
+    // lands on Contracts; the report itself still opens by its link (the contract's ⋯).
     await page.goto("/dashboard/reviews");
-    await expect(page.getByRole("heading", { name: "Reviews" })).toBeVisible();
-    /*
-     * The SCREEN is reachable for any `review.view` holder — a Report is read
-     * from it. The NAV ITEM is not: since the 2026-09-04 audit, Reviews is
-     * offered only to callers who hold `legal.review`, because for a contract
-     * owner (this account) the queue restated what the Dashboard already lists.
-     * `legal-access.spec.ts` covers the counsel side of the same rule.
-     */
+    await expect(page).toHaveURL(/\/contracts$/);
     await expect(page.locator('nav a[href="/dashboard/reviews"]')).toHaveCount(0);
-    // AM-262 (CLM R7): the list is "Contracts" at /contracts now — /dashboard is its old address
-    await expect(page.locator('nav a[href="/contracts"]')).toBeVisible();
-    // And nothing legacy is ever offered as a click (`/contracts?id=` is the retired form).
     await expect(page.locator('a[href^="/contracts?"], a[href^="/reviews"]')).toHaveCount(0);
 
-    const row = page.locator(`tr[data-review-id="${reviewId}"]`);
-    await expect(row).toBeVisible();
-    // The document is named, not a bare id, and links into its workspace.
-    await expect(row.getByRole("link", { name: /Structural MSA/ })).toHaveAttribute(
-      "href",
-      `/dashboard?id=${contractId}`,
-    );
-
-    await row.getByRole("link", { name: "Report" }).click();
-    await expect(page).toHaveURL(`/dashboard/reviews?id=${reviewId}`);
+    await page.goto(`/dashboard/reviews?id=${reviewId}`);
     // AB-103: the page shows the report the download contains — the summary and
     // next steps first, the audit record last
     const report = page.getByRole("article", { name: "Review report" });
@@ -68,9 +52,12 @@ test.describe("the reviews queue and the report", () => {
     await expect(page).toHaveURL(new RegExp(`/contracts/${contractId}$`));
   });
 
-  test("the status filter narrows through the API's allow-list", async ({ page }) => {
-    await createAnalysedReview(page);
+  test("the status filter narrows through the API's allow-list", async ({ browser }) => {
+    // the queue is Legal's since UX Batch 2: read it as counsel (legal.review)
+    const context = await browser.newContext({ storageState: storageStatePath("counsel") });
+    const page = await context.newPage();
     await page.goto("/dashboard/reviews");
+    await expect(page.getByRole("heading", { name: "Reviews" })).toBeVisible();
     await expect(page.locator("tbody tr").first()).toBeVisible();
 
     // Since AM-174 a decision on the contract CLOSES a Review, so other specs may leave
@@ -81,7 +68,9 @@ test.describe("the reviews queue and the report", () => {
       .or(page.getByText("Nothing visible to your account has this status."))).toBeVisible();
     await expect(page.locator("tbody tr").filter({ hasNotText: "Closed" })).toHaveCount(0);
     await page.getByRole("button", { name: "All" }).click();
-    await expect(page.locator("tbody tr").first()).toBeVisible();
+    await expect(page.locator("tbody tr").first()
+      .or(page.getByText(/Nothing visible to your account/))).toBeVisible();
+    await context.close();
   });
 });
 

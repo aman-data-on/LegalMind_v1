@@ -58,7 +58,7 @@ export function DiffTalkPage({ left, right, onChange }: {
   if (left && right) {
     return (
       <>
-        <PageHeader wide title="Diff-Talk" />
+        <PageHeader wide title="Compare two contracts" />
         <Review key={`${left}|${right}`} left={left} right={right}
                 onChange={(side) => (side === "left" ? onChange("", right) : onChange(left, ""))} />
       </>
@@ -66,7 +66,7 @@ export function DiffTalkPage({ left, right, onChange }: {
   }
   return (
     <div className="lm-page">
-      <PageHeader title="Diff-Talk"
+      <PageHeader title="Compare two contracts"
                   meta={<span>Compare our document with a client contract, clause by clause. Colours mark wording changes, not whether they are acceptable.</span>} />
       <Setup left={left} right={right} website={website} documents={documents}
              listError={listError} onChange={onChange}

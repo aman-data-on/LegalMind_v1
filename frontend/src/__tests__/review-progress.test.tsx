@@ -68,8 +68,9 @@ describe("the document marks follow the decisions (AB-103)", () => {
     const marks = clauseStatusByEvidenceId([decided, open, { ...open, evidence: [{ id: "e1" }] }]);
     expect(clauseStatusByEvidenceId([decided]).get("e1"))
       .toEqual({ covered: true, attention: false, bucket: "decided" });
-    expect(marks.get("e2")?.bucket).toBe("review");
-    expect(marks.get("e1")).toEqual({ covered: true, attention: true, bucket: "review" });
+    // a DEVIATION with no reader word is a change (UX Batch 2: the open mark is the server's word)
+    expect(marks.get("e2")?.bucket).toBe("change");
+    expect(marks.get("e1")).toEqual({ covered: true, attention: true, bucket: "change" });
   });
 
   it("marks a passage as the Points pane reads it: Acceptable is a match, a decided member decides it (B7)", async () => {

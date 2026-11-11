@@ -100,7 +100,7 @@ export interface FindingsPoint {
   /** Every point not Acceptable — the Summary's "open" count (owner, 2026-10-21). */
   open?: true;
   /** Where the points stand (AM-179) — what the Summary's stage line points with. */
-  state?: "to_decide" | "clarification" | "decided" | "matches";
+  state?: "to_decide" | "clarification" | "decided" | "matches" | "favour";
   /** The points decided this way — what the Summary's "What was decided" points with. */
   decision?: string;
   findingId?: string;

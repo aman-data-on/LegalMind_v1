@@ -678,14 +678,14 @@ export function navItemsFor(can: (permission: string) => boolean): NavItem[] {
    * sees rather than the nav hiding the section.
    */
   if (can(P.CONTRACT_VIEW)) {
-    items.push({ href: "/dashboard/clients", label: "Client Profiles" });
+    items.push({ href: "/dashboard/clients", label: "Clients" });
   }
   /*
    * Diff-Talk — two documents side by side (owner, 2026-10-12). `document.view`,
    * the permission the comparison itself needs; the server scopes which documents
    * each caller may pick.
    */
-  if (can(P.DOCUMENT_VIEW)) items.push({ href: "/dashboard/diff", label: "Diff-Talk" });
+  if (can(P.DOCUMENT_VIEW)) items.push({ href: "/dashboard/diff", label: "Compare" });
   if (can(P.ASSIST_ASK)) items.push({ href: "/dashboard/ask", label: "Ask" });
   /*
    * Legal configuration — Requirements, Company Standards and the published
@@ -862,15 +862,29 @@ export function findingsNeedingDecision<T extends { requires_decision: boolean }
 /** `decided` (AB-103): every point on the passage has a person's decision — it no longer
  *  reads as needing review, and never as a match (rule 14). `favour` (Batch 1 d): a
  *  deviation the recorded rule outcome accepted in our favour — the server's flag. */
-export type StatusBucket = "match" | "favour" | "decided" | "review" | "missing";
+/*  Round 2 (UX Batch 2): the open mark is the server's own word, never one "Open point"
+ *  for two statuses — `change` (Change needed) and `decision` (Needs a decision), the same
+ *  words, icons and hues as StatusChip. Without a reader word the classification decides:
+ *  DEVIATION is a change, everything else unrecognised fails toward a decision. */
+export type StatusBucket = "match" | "favour" | "decided" | "change" | "decision" | "missing";
 
 export function classificationBucket(classification: string): StatusBucket {
   if (classification === "MATCH") return "match";
   if (classification === "MISSING") return "missing";
-  return "review";
+  if (classification === "DEVIATION") return "change";
+  return "decision";
 }
 
-const BUCKET_RANK: Record<StatusBucket, number> = { match: 0, favour: 1, decided: 2, review: 3, missing: 4 };
+/** The server's reader word as a bucket; absent, the classification decides. */
+export function readerBucket(userStatus: string | undefined, classification: string): StatusBucket {
+  if (userStatus === "ACCEPTABLE") return "match";
+  if (userStatus === "REQUIRES_MODIFICATION") return "change";
+  if (userStatus === "MISSING") return "missing";
+  if (userStatus === "NEEDS_DECISION") return "decision";
+  return classificationBucket(classification);
+}
+
+const BUCKET_RANK: Record<StatusBucket, number> = { match: 0, favour: 1, decided: 2, change: 3, missing: 4, decision: 5 };
 
 export function worseBucket(a: StatusBucket, b: StatusBucket): StatusBucket {
   return BUCKET_RANK[b] > BUCKET_RANK[a] ? b : a;
@@ -905,9 +919,9 @@ type MarkedFinding = {
  *  older payload) the classification decides, as before. */
 function markBucket(f: MarkedFinding): { bucket: StatusBucket; open: boolean } {
   const statuses = new Set([f, ...(f.alsoMeasuredAgainst ?? [])].map((m) => m.status));
-  const kind = classificationBucket(f.classification);
+  const kind = readerBucket(f.user_status, f.classification);
   if (statuses.has("AWAITING_CLARIFICATION") || statuses.has("DECISION_REQUIRED")) {
-    return { bucket: kind === "match" ? "review" : kind, open: true };
+    return { bucket: kind === "match" ? "decision" : kind, open: true };
   }
   if (statuses.has("RESOLVED") && f.classification !== "MATCH") return { bucket: "decided", open: false };
   if (f.in_our_favour) return { bucket: "favour", open: false };

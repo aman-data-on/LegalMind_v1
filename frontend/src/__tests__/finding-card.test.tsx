@@ -429,24 +429,16 @@ describe("the five required real-world cases (owner, 2026-09-08, third pass)", (
 });
 
 describe("the status mark and the merged three-part comparison (owner, 2026-09-08, fourth pass)", () => {
-  it("gives every classification a status mark with the right tone, before any click", () => {
-    // One tone per user-facing status — owner, 2026-09-09: Acceptable green,
-    // Requires modification AMBER, Needs a decision RED. The amber and the red
-    // were the other way round until that instruction; `USER_STATUS_TONE` is
-    // now the only place the pairing lives (see `status-tones.test.tsx`).
+  it("says each status once on the card face: one StatusChip, no second icon tile (UX Batch 2)", () => {
     const cases: Array<[string, string]> = [
-      ["MATCH", "ws-finding__mark--ok"],
-      ["DEVIATION", "ws-finding__mark--warn"],
-      ["MISSING", "ws-finding__mark--warn"],
-      ["CONFLICT", "ws-finding__mark--bad"],
-      ["UNABLE_TO_EVALUATE", "ws-finding__mark--bad"],
+      ["MATCH", "MATCHES"], ["DEVIATION", "CHANGE_NEEDED"], ["MISSING", "MISSING"],
+      ["CONFLICT", "NEEDS_DECISION"], ["UNABLE_TO_EVALUATE", "NEEDS_DECISION"],
     ];
-    for (const [classification, markClass] of cases) {
+    for (const [classification, chip] of cases) {
       const html = card({ classification }, { classification });
       const { before } = splitAtDetails(html);
-      expect(before, classification).toContain(markClass);
-      // aria-hidden: the chip right beside it already carries the word.
-      expect(before).toMatch(/ws-finding__mark[^>]*aria-hidden="true"/);
+      expect(before, classification).toContain(`data-status="${chip}"`);
+      expect(before, classification).not.toContain("ws-finding__mark");
     }
   });
 
@@ -583,7 +575,7 @@ describe("the four-word status on the card face", () => {
     // Amber, not red: a cited prohibition still means the clause has to change,
     // and red belongs to the word that says nobody could determine acceptance
     // (owner, 2026-09-09).
-    expect(before).toContain("ws-finding__mark--warn");
+    expect(before).toContain('lm-chip lm-chip--change" data-status="CHANGE_NEEDED"');
     // S1: "our standards" on the face; the § is a Legal detail
     expect(before).toMatch(/Our standards: “Unlimited liability is Unacceptable\.”/);
     expect(before).not.toMatch(/§9/);

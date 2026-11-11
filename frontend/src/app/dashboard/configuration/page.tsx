@@ -434,7 +434,7 @@ export default function ConfigurationPage() {
                   ? `Showing ${shown.length} of ${requirements.length} standards.`
                   : `${requirements.length} standard${requirements.length === 1 ? "" : "s"}.`}
               </p>
-              <div className="ws-docs__table">
+              <div className="ws-docs__table ws-stdtable">
                 <table>
                   <thead>
                     <tr>
@@ -569,7 +569,7 @@ function RequirementRow({
           {/* Same rule as the account roster: ACTIVE is the resting state and gets
               no emphasis — a list where every row shouts is a list nobody scans.
               Draft and Retired both mean "not in force", so both carry it. */}
-          <span className={`ws-chip${requirement.status === ACTIVE ? "" : " ws-chip--fill ws-chip--outcome-fill"}`}>
+          <span className={`ws-chip${requirement.status === ACTIVE ? "" : " lm-lozenge"}`}>
             {statusLabel(requirement.status)}
           </span>
         </td>
@@ -601,15 +601,15 @@ function RequirementRow({
             <tbody>
               {versions.map((version) => (
                 <tr key={version.id}>
-                  <td>
+                  <td data-label="Version">
                     v{version.version_number}
                     {current && version.id === current.id ? " (current)" : ""}
                   </td>
-                  <td>{version.name}</td>
-                  <td>{evaluatorLabel(version.evaluator_type)}</td>
-                  <td>{formatDate(version.created_at)}</td>
+                  <td data-label="Name">{version.name}</td>
+                  <td data-label="Evaluator">{evaluatorLabel(version.evaluator_type)}</td>
+                  <td data-label="Created">{formatDate(version.created_at)}</td>
                   {showValues ? (
-                    <td>
+                    <td data-label="Stored values">
                       <ValueCell version={version} />
                       <PermissionGate granted={can(P.CONFIGURATION_DRAFT)}>
                         {version.company_standard ? (

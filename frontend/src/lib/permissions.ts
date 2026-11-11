@@ -55,6 +55,8 @@ export const ASSIST_ASK = "assist.ask";
 export const AUDIT_VIEW = "audit.view";
 export const USER_MANAGE = "user.manage";
 export const ROLE_MANAGE = "role.manage";
+/** Platform Admin and Developer (break-glass): the only readers who choose the AI model (owner, 2026-11-11). */
+export const PLATFORM_MANAGE = "platform.manage";
 
 /**
  * The decision types the API accepts — locked Step 31, `DecisionType`.

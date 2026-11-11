@@ -390,10 +390,13 @@ describe("P1 — a version nobody declared (owner, 2026-11-09)", () => {
                    changes={{ state: { kind: "error", error }, setState: () => {},
                               reload: () => {}, enabled: true }} />);
     expect(html).toContain("Whose paper is this version?");
-    expect(html).toContain("Version 2 (client-v2.docx) is");
+    expect(html).toContain("Version 2 (client-v2.docx)");
     expect(html).not.toContain("Version 1");
-    expect(html).toContain(">ours</button>");
+    expect(html).toContain(">Mark as ours</button>");
     expect(html).not.toContain("Try again");
+    // UX Batch 2 round 2: a question, not a failure — no alert, no red rule, no reference
+    expect(html).toContain("lm-state--notice");
+    expect(html).not.toMatch(/role="alert"|lm-state--error|reference/i);
   });
 
   it("offers the declaration only to those who may make it, and confirms it is final", () => {
@@ -406,9 +409,9 @@ describe("P1 — a version nobody declared (owner, 2026-11-09)", () => {
     viewer.canUpload = false;
     const reader = render();
     viewer.canUpload = true;
-    expect(reader).not.toContain(">ours</button>");
+    expect(reader).not.toContain(">Mark as ours</button>");
     expect(reader).toContain("Ask the deal owner to say whose paper it is.");
-    expect(render()).toContain(">ours</button>");
+    expect(render()).toContain(">Mark as ours</button>");
     expect(declareConfirmLine(2, "CLIENT_MODIFIED"))
       .toBe("Declare version 2 the client\u2019s? This can\u2019t be changed later.");
     expect(declareConfirmLine(3, "COMPANY_DRAFT")).toContain("version 3 ours?");

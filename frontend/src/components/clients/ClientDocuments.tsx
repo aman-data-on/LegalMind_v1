@@ -360,7 +360,7 @@ function VersionRow({
 
   return (
     <li className="ws-cl__ver">
-      <span className="ws-cl__ver-n ws-mono">v{version.version_number}</span>
+      <span className="ws-cl__ver-n ws-num">v{version.version_number}</span>
       <span className="ws-cl__ver-main">
         {role ? (
           <span className={`ws-cl__role ws-cl__role--${versionRoleTone(version.version_role)}`}>
@@ -572,7 +572,7 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
             <span className="ws-cl__absent">No file yet</span>
           )}
         </td>
-        <td data-label="Last updated" className="ws-mono">{relativeTime(contract.updated_at)}</td>
+        <td data-label="Last updated" className="ws-num">{relativeTime(contract.updated_at)}</td>
         <td className="ws-cl__rowacts">
           {/* Analyze where there is a document and no analysis; Review where
               there is one. One control, saying which it is. */}
@@ -727,7 +727,7 @@ export function ClientDocuments({ client, onChanged }: {
       <header className="ws-cl__docs-head">
         <h2 id="ws-cl-docs-title">Legal documents</h2>
         {contracts.length > 0 ? (
-          <span className="ws-cl__docs-count ws-mono">
+          <span className="ws-cl__docs-count ws-num">
             {contracts.length}
           </span>
         ) : null}

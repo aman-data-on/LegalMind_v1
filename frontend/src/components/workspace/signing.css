@@ -19,7 +19,7 @@
 .lm-sign__sechead { display: flex; align-items: baseline; justify-content: space-between; gap: var(--ws-s3); }
 .lm-sign__sechead h3 { margin: 0; font-size: var(--ws-text-md); font-weight: 600; }
 .lm-sign__mark {
-  display: inline-flex; align-items: center; gap: 4px; font-size: var(--ws-text-xs);
+  display: inline-flex; align-items: center; gap: 4px; font-size: var(--t-caption);
   color: var(--ws-ink-500); white-space: nowrap;
 }
 .lm-sign__mark--done { color: var(--ws-ok); font-weight: 600; }
@@ -34,10 +34,10 @@
   padding: var(--ws-s2) var(--ws-s3); border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-sm);
 }
 .lm-sign__opt input, .lm-sign__ack input {
-  width: 16px; height: 16px; min-height: 0; padding: 0; flex: none; margin: 3px 0 0; accent-color: var(--ws-accent);
+  width: 16px; height: 16px; min-height: 0; padding: 0; flex: none; margin: 4px 0 0; accent-color: var(--ws-accent);
 }
 .lm-sign__opt span { display: grid; gap: 2px; font-size: var(--ws-text-sm); }
-.lm-sign__opt small { color: var(--ws-ink-500); font-size: var(--ws-text-xs); }
+.lm-sign__opt small { color: var(--ws-ink-500); font-size: var(--t-caption); }
 .lm-sign__opt--on { border-color: var(--ws-accent); background: var(--ws-accent-soft); }
 .lm-sign__opt:focus-within { outline: 2px solid var(--ws-accent); outline-offset: 1px; }
 
@@ -45,7 +45,7 @@
 .lm-sign__ack { display: flex; align-items: flex-start; gap: var(--ws-s2); font-size: var(--ws-text-sm); line-height: 1.5; }
 
 .lm-sign__party { border: 0; margin: 0; padding: 0; }
-.lm-sign__party legend { font-size: var(--ws-text-sm); font-weight: 600; margin-bottom: var(--ws-s2); }
+.lm-sign__party legend { font-size: var(--t-caption); font-weight: 600; margin-bottom: var(--ws-s2); }
 .lm-sign__party + .lm-sign__party { padding-top: var(--ws-s3); border-top: 1px dashed var(--ws-ink-100); }
 .lm-sign__more summary { cursor: pointer; font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
 .lm-sign__more[open] { display: grid; gap: var(--ws-s3); }
@@ -94,7 +94,8 @@ p.lm-sign__verdict { display: flex; align-items: center; gap: var(--ws-s2); }
 .lm-sign__dl dd { margin: 0; }
 .lm-sign__dl dd small { display: block; color: var(--ws-ink-500); }
 .lm-sign__dlrow { display: contents; }
-.lm-signed-on { color: var(--ws-ok); font-weight: 600; }
+/* signed is lifecycle, not Matches: ink with a check, never the status green */
+.lm-signed-on { display: inline-flex; align-items: center; gap: var(--s-1); color: var(--c-state); font-weight: 600; }
 
 @media (max-width: 640px) {
   .ws-modal.lm-sign .ws-modal__box { max-width: none; }

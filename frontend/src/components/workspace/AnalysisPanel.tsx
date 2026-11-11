@@ -37,6 +37,7 @@ import {
   USER_STATUS_TONE,
   pointAnswer,
   pointState,
+  IN_OUR_FAVOUR,
   readerWord,
   reviewHeadline,
   statusCounts,
@@ -49,7 +50,7 @@ import { STAGE_LABELS, changesWords, contractOutcomeLabel, decidedWords, pointsW
          type StageViewer } from "@/lib/labels";
 
 import { useHighlight } from "./highlight";
-import { IconAlertCircle, IconCheckCircle, IconFilePlus, IconPencilLine, IconRefresh, IconScale } from "./icons";
+import { IconAlertCircle, IconBetter, IconCheckCircle, IconFilePlus, IconPencilLine, IconRefresh, IconScale } from "./icons";
 import {
   classificationBucket,
   findingsSummary,
@@ -119,6 +120,10 @@ export function StatusExplainer({ collapsible = false }: { collapsible?: boolean
           in the finding's own state and the pending-decision count. This line
           now names what actually reaches this word: unreadable, conflicting, or
           a position the Constitution itself calls unacceptable (`AM-63`). */}
+      <div className="ws-explain__card ws-explain__card--favour">
+        <b>In our favour</b>
+        <span>The clause differs from our approved position, but our approved rules accept it because it is better for us. Nothing to do.</span>
+      </div>
       <div className="ws-explain__card ws-explain__card--bad">
         <b>Needs a decision</b>
         <span>A person must choose, and each card says what: a figure left blank, two clauses that say different things, a figure that could not be confirmed, a standard written for another type of document, or a point our standards say is not negotiable. Never a rejection.</span>
@@ -128,14 +133,14 @@ export function StatusExplainer({ collapsible = false }: { collapsible?: boolean
   if (!collapsible) {
     return (
       <div className="ws-explain">
-        <p className="ws-explain__title">What the four statuses mean</p>
+        <p className="ws-explain__title">What the statuses mean</p>
         {cards}
       </div>
     );
   }
   return (
     <details className="ws-explain ws-explain--collapsible">
-      <summary>What the four statuses mean</summary>
+      <summary>What the statuses mean</summary>
       {cards}
     </details>
   );
@@ -274,7 +279,10 @@ export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner
 function AnalysisSummary({ findings }: { findings: Finding[] }) {
   const sideTabs = useSideTabs();
   const total = findings.length;
-  const statuses = statusCounts(findings);
+  // round 2: a point in our favour is its own tile, as on Points — never counted again under
+  // its reader word (the server's flag, `in_our_favour`; Points shows the same split)
+  const favour = findings.filter((f) => f.in_our_favour).length;
+  const statuses = statusCounts(findings.filter((f) => !f.in_our_favour));
 
   if (total === 0) {
     return (
@@ -309,6 +317,15 @@ function AnalysisSummary({ findings }: { findings: Finding[] }) {
             </span>
           </button>
         ))}
+        {favour ? (
+          <button type="button" className="ws-tile ws-tile--favour"
+                  aria-label={`Show the ${favour} ${IN_OUR_FAVOUR} finding${favour === 1 ? "" : "s"}`}
+                  onClick={() => sideTabs?.openFindings({ state: "favour" })}>
+            <span className="ws-tile__n">{favour}</span>
+            <span className="ws-tile__label">{IN_OUR_FAVOUR}</span>
+            <span className="ws-status lm-mark--favour"><IconBetter size={18} /></span>
+          </button>
+        ) : null}
       </div>
     </section>
   );

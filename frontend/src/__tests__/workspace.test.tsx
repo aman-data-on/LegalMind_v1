@@ -111,7 +111,7 @@ describe("navigation by absence AND by existence (52.3 + the 2026-08-30 cleanup)
     expect(items).toEqual([
       { href: "/contracts", label: "Contracts" },
       { href: "/todo", label: "To-do", also: ["/dashboard/reviews", "/dashboard/legal"] },
-      { href: "/dashboard/clients", label: "Client Profiles" },
+      { href: "/dashboard/clients", label: "Clients" },
       { href: "/dashboard/ask", label: "Ask" },
     ]);
   });

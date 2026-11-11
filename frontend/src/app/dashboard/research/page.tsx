@@ -10,10 +10,11 @@
 
 import { AskDock } from "@/components/workspace/AskDock";
 import { HighlightProvider } from "@/components/workspace/highlight";
+import { LegalOnly } from "@/components/RetiredFor";
 
 export default function ResearchPage() {
   return (
-    <>
+    <LegalOnly>
       <div className="ws-context">
         <h1>Research</h1>
       </div>
@@ -28,6 +29,6 @@ export default function ResearchPage() {
           <AskDock contractId={null} documentVersionId={null} versionNumber={null} isLatest />
         </HighlightProvider>
       </div>
-    </>
+    </LegalOnly>
   );
 }

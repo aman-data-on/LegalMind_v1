@@ -29,6 +29,9 @@ import { useSession } from "@/lib/session";
 import type { AuditEvent, Pagination } from "@/lib/types";
 
 import { AdminNav, dateTime } from "@/components/admin/AdminShell";
+import { ErrorState } from "@/components/Feedback";
+import { AccessRestricted } from "@/components/AccessRestricted";
+import { PageHeader } from "@/components/page/PageHeader";
 
 const PAGE_SIZE = 50;
 
@@ -88,9 +91,10 @@ export default function AuditPage() {
 
   if (!allowed) {
     return (
-      <div className="ws-state" role="note">
-        <h2>Access restricted</h2>
-        <p>Your account does not include audit access.</p>
+      // one restricted state everywhere (GP-23): the page keeps its h1, the note is AccessRestricted
+      <div className="lm-page">
+        <PageHeader title="Administration" />
+        <AccessRestricted what="the audit trail" />
       </div>
     );
   }
@@ -155,10 +159,7 @@ export default function AuditPage() {
       </form>
 
       {error ? (
-        <div className="ws-state ws-state--error" role="alert">
-          <h2>The audit trail could not be loaded.</h2>
-          <p>{describeError(error)}</p>
-        </div>
+        <ErrorState title="The audit trail could not be loaded" error={error} onRetry={() => void load()} />
       ) : null}
 
       {events === null && !error ? (
@@ -203,7 +204,7 @@ export default function AuditPage() {
                 const open = expanded === event.id;
                 return (
                   <tr key={event.id}>
-                    <td className="ws-mono">{dateTime(event.timestamp)}</td>
+                    <td className="ws-num">{dateTime(event.timestamp)}</td>
                     <td>
                       {event.actor
                         ? <span title={event.actor.email}>{event.actor.name}</span>
@@ -251,7 +252,7 @@ export default function AuditPage() {
                   onClick={() => setPage((p) => p - 1)}>
             Previous
           </button>
-          <span className="ws-mono">
+          <span className="ws-num">
             Page {pagination.page} of {pageCount} · {pagination.total} events
           </span>
           <button type="button" className="ws-btn" disabled={pagination.page >= pageCount}

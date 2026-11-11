@@ -33,6 +33,8 @@ import type { Pagination, Review } from "@/lib/types";
 
 import { ReviewReportPage } from "@/components/workspace/ReviewReportPage";
 import { formatDate } from "@/lib/dates";
+import { ErrorState } from "@/components/Feedback";
+import { LegalOnly } from "@/components/RetiredFor";
 
 const PAGE_SIZE = 25;
 
@@ -88,7 +90,7 @@ function ReviewsQueueView() {
       <div className="ws-context">
         <h1>Reviews</h1>
         {pagination ? (
-          <span className="ws-context__meta ws-mono">{pagination.total} total</span>
+          <span className="ws-context__meta">{pagination.total} total</span>
         ) : null}
       </div>
       {/* `--queue` scopes the fixed column widths in workspace.css to this
@@ -116,10 +118,7 @@ function ReviewsQueueView() {
         </div>
 
         {error ? (
-          <div className="ws-state ws-state--error" role="alert">
-            <h2>Reviews could not be loaded.</h2>
-            <p>{describeError(error)}</p>
-          </div>
+          <ErrorState title="Reviews could not be loaded" error={error} onRetry={() => void load()} />
         ) : null}
 
         {reviews === null && !error ? (
@@ -185,12 +184,12 @@ function ReviewsQueueView() {
                         ) : null}
                       </td>
                       <td>
-                        <span className={`ws-chip${attention ? " ws-chip--fill ws-chip--outcome-fill" : ""}`}
+                        <span className={`ws-chip${attention ? " lm-lozenge" : ""}`}
                               title={review.status}>
                           {reviewStatusLabel(review.status)}
                         </span>
                       </td>
-                      <td className="ws-mono">{formatDate(review.created_at) || "—"}</td>
+                      <td className="ws-num">{formatDate(review.created_at) || "—"}</td>
                       <td>
                         <Link href={`/dashboard/reviews?id=${review.id}`}>Report</Link>
                       </td>
@@ -207,7 +206,7 @@ function ReviewsQueueView() {
             <button type="button" className="ws-btn" disabled={pagination.page <= 1} onClick={() => setPage((p) => p - 1)}>
               Previous
             </button>
-            <span className="ws-mono">
+            <span className="ws-num">
               Page {pagination.page} of {Math.ceil(pagination.total / pagination.page_size)}
             </span>
             <button
@@ -230,7 +229,8 @@ function ReviewsRouteInner() {
   return reviewId ? (
     <ReviewReportPage key={reviewId} reviewId={reviewId} />
   ) : (
-    <ReviewsQueueView />
+    // the queue is Legal's (UX Batch 2); a report still opens by its own link
+    <LegalOnly><ReviewsQueueView /></LegalOnly>
   );
 }
 

@@ -8,7 +8,7 @@
 .tpl-quiet { margin: 0; color: var(--ws-ink-500); font-size: var(--ws-text-sm); line-height: 1.5; }
 .tpl-error { margin: 0; color: var(--ws-error); font-size: var(--ws-text-sm); }
 .tpl-ok { margin: 0; color: var(--ws-ink-900); font-weight: 600; font-size: var(--ws-text-sm); }
-.tpl-help { margin: 0; color: var(--ws-ink-500); font-size: var(--ws-text-sm); line-height: 1.5; }
+.tpl-help { margin: 0; color: var(--ws-ink-500); font-size: var(--t-caption); line-height: 1.5; }
 .tpl-help code { font-family: var(--ws-mono); font-size: var(--t-caption); }
 .tpl-link { font: inherit; font-size: var(--ws-text-sm); background: none; border: 0; padding: 2px 0; color: var(--ws-accent);
   text-decoration: underline; text-underline-offset: 2px; cursor: pointer; text-align: left; min-height: 24px; }
@@ -27,8 +27,8 @@
 .tpl-card h4 a:hover, .tpl-card h2 a:hover { text-decoration: underline; }
 .tpl-card__title { margin: 2px 0 0; font-family: var(--ws-serif); font-size: var(--ws-text-sm); color: var(--ws-ink-500);
   overflow-wrap: anywhere; }
-.tpl-card__sc { display: inline-flex; align-items: center; gap: 3px; margin: var(--ws-s1) 0 0; padding: 0 6px;
-  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-sm); font-size: var(--t-label); line-height: 18px;
+.tpl-card__sc { display: inline-flex; align-items: center; gap: 4px; margin: var(--ws-s1) 0 0; padding: 0 8px;
+  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-sm); font-size: var(--t-caption); line-height: 18px;
   color: var(--ws-ink-500); }
 .tpl-card__sc[data-ready] { color: var(--ws-ink-700); }
 .tpl-card__status { margin: 0; font-weight: 600; font-size: var(--ws-text-sm); color: var(--ws-ink-900); }
@@ -66,7 +66,7 @@
   background: var(--ws-surface); font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-900); }
 .tpl-group__title span { color: var(--ws-ink-500); font-weight: 500; font-variant-numeric: tabular-nums; margin-left: 4px; }
 .tpl-row { display: grid; gap: 2px; width: 100%; text-align: left; font: inherit; background: none; border: 0; cursor: pointer;
-  padding: var(--ws-s2) var(--ws-s4) var(--ws-s2) calc(var(--ws-s4) + 3px); border-left: 3px solid transparent; min-height: 44px; }
+  padding: var(--ws-s2) var(--ws-s4) var(--ws-s2) calc(var(--ws-s4) + 4px); border-left: 3px solid transparent; min-height: 44px; }
 .tpl-row:hover { background: var(--ws-paper); }
 .tpl-row[aria-current] { background: var(--ws-accent-soft); }
 .tpl-row[data-fails] { border-left-color: var(--ws-ink-900); }
@@ -79,16 +79,16 @@
 .tpl-row[data-done] .tpl-row__l2 { color: var(--ws-ink-500); }
 .tpl-row--publish { border-bottom: 1px solid var(--ws-ink-100); padding-bottom: var(--ws-s3); }
 .tpl-row--publish .tpl-row__l2 { padding-left: 0; }
-.tpl-keys { margin: var(--ws-s3) var(--ws-s4) var(--ws-s2); font-size: var(--ws-text-xs); color: var(--ws-ink-700); }
-.tpl-keys kbd { font-family: var(--ws-mono); font-size: var(--t-label); padding: 0 5px; border: 1px solid var(--ws-ink-300); border-radius: 4px; }
+.tpl-keys { margin: var(--ws-s3) var(--ws-s4) var(--ws-s2); font-size: var(--t-caption); color: var(--ws-ink-700); }
+.tpl-keys kbd { font-family: var(--ws-mono); font-size: var(--t-label); padding: 0 4px; border: 1px solid var(--ws-ink-300); border-radius: 4px; }
 
-.tpl-group__why { margin: 0; padding: 0 var(--ws-s4) var(--ws-s2); font-size: var(--ws-text-xs); line-height: 1.45; color: var(--ws-ink-700); }
+.tpl-group__why { margin: 0; padding: 0 var(--ws-s4) var(--ws-s2); font-size: var(--t-caption); line-height: 1.45; color: var(--ws-ink-700); }
 
 /* the clause as contract text */
 .tpl-centre { background: var(--ws-viewer); border-radius: var(--ws-radius-card); padding: var(--ws-s5); }
 .tpl-phoneback { display: none; }
 /* our wording, previewed: the same sheet, a new or changed line carried by an accent rule */
-.tpl-sheet__note { margin: -24px 0 24px; display: grid; gap: 4px; font-family: var(--ws-sans); font-size: var(--ws-text-sm);
+.tpl-sheet__note { margin: -24px 0 24px; display: grid; gap: 4px; font-family: var(--ws-sans); font-size: var(--t-caption);
   line-height: 1.45; color: var(--ws-ink-700); }
 .tpl-sheet__note p { margin: 0; }
 
@@ -97,7 +97,7 @@
 .tpl-removed summary { cursor: pointer; min-height: 32px; display: list-item; }
 .tpl-removed ul { margin: var(--ws-s2) 0 0; padding-left: 1.1em; font-family: var(--ws-serif); text-decoration: line-through;
   text-decoration-color: var(--ws-ink-500); color: var(--ws-ink-700); display: grid; gap: 4px; }
-.tpl-sheet { max-width: 46rem; margin: 0 auto; background: var(--ws-surface); border-radius: 2px; padding: 48px 56px 40px;
+.tpl-sheet { max-width: 46rem; margin: 0 auto; background: var(--ws-surface); border-radius: 4px; padding: 48px 64px 48px;
   box-shadow: 0 1px 3px rgba(14, 20, 32, 0.14), 0 10px 28px rgba(14, 20, 32, 0.10); }
 .tpl-sheet__title { position: relative; margin: 0 0 0.9em; padding-left: 2.6em; font-family: var(--ws-serif);
   font-size: var(--t-section); font-weight: 600; color: var(--ws-ink-900); line-height: 1.4; }
@@ -170,8 +170,8 @@
 .tpl-history__what { font-weight: 600; color: var(--ws-ink-900); }
 .tpl-history__who { color: var(--ws-ink-700); }
 .tpl-history__why { color: var(--ws-ink-700); font-family: var(--ws-serif); }
-.tpl-tag { margin-left: var(--ws-s2); padding: 0 6px; border: 1px solid var(--ws-ink-300); border-radius: 4px;
-  font-size: var(--ws-text-xs); font-weight: 500; color: var(--ws-ink-700); white-space: nowrap; }
+.tpl-tag { margin-left: var(--ws-s2); padding: 0 8px; border: 1px solid var(--ws-ink-300); border-radius: 4px;
+  font-size: var(--t-caption); font-weight: 500; color: var(--ws-ink-700); white-space: nowrap; }
 .tpl-publish__sum { margin: 0; font-size: var(--ws-text-sm); line-height: 1.5; color: var(--ws-ink-700); }
 .tpl-publish__sum strong { color: var(--ws-ink-900); }
 .tpl-form { display: grid; gap: var(--ws-s2); }
@@ -225,7 +225,7 @@
   .tpl-phoneback { display: inline-flex; align-self: flex-start; min-height: 44px; align-items: center; margin-bottom: var(--ws-s3); }
   .tpl:not([data-detail]) .tpl-phoneback { display: none; }
   .tpl-centre { padding: var(--ws-s3); }
-  .tpl-sheet { padding: 28px 20px 24px; }
+  .tpl-sheet { padding: 32px 24px 24px; }
   .tpl-sheet__title, .tpl-para { padding-left: 1.9em; }
   .tpl-sheet__body > .tpl-para { padding-left: 0; }
   /* the three actions stay in reach under a long clause */
@@ -246,7 +246,7 @@
 }
 .tpl-card__what, .tpl-card__state { min-width: 0; }
 .tpl-actions { gap: var(--ws-s3); }
-.tpl-pubrow__where { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--ws-s3); font-size: var(--ws-text-sm); color: var(--ws-ink-500); }
+.tpl-pubrow__where { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--ws-s3); font-size: var(--t-caption); color: var(--ws-ink-500); }
 /* Ask has no part in approving a template, and its launcher would cover the side column's actions */
 .ws:has(.tpl-grid) .ws-askglobal { display: none; }
 
@@ -269,12 +269,12 @@
 .tpl-card__acts { display: inline-flex; align-items: center; gap: var(--ws-s2); justify-self: end; }
 @media (max-width: 760px) { .tpl-card__acts { justify-self: start; } }
 .tpl-approval-ref { width: min(100%, 44ch); }
-.tpl-approval-ref .tpl-reason { min-height: 38px; padding: 8px 10px; }
+.tpl-approval-ref .tpl-reason { min-height: 38px; padding: 8px 12px; }
 /* one action column on every card, so the status and the download icons line up */
 @media (min-width: 761px) { .tpl-card { grid-template-columns: minmax(14rem, 1fr) minmax(0, 1.4fr) 15rem; } }
 @media (min-width: 761px) {
   .tpl-card__acts { justify-self: stretch; justify-content: flex-end; }
-  .tpl-card__acts > .tpl-dl { margin-right: auto; }
+  .tpl-card__acts > .ws-btn:first-child { margin-right: auto; }
 }
 
 /* the check's skeleton (it takes seconds): the sheet at its final size, one line saying what runs */
@@ -304,8 +304,3 @@
   .tpl-lib__none .ws-btn { width: 100%; min-height: 44px; justify-content: center; }
 }
 
-/* the awaiting template's text, read in a dialog: the contract's serif, never a usable copy */
-.tpl-preview .ws-modal__box { width: min(52rem, calc(100vw - 32px)); max-width: none; }
-.tpl-preview__text { max-height: 60vh; overflow-y: auto; margin: var(--ws-s3) 0; padding: var(--ws-s4);
-  background: var(--ws-paper); border-radius: var(--ws-radius); }
-.tpl-preview__clause + .tpl-preview__clause { margin-top: var(--ws-s4); }

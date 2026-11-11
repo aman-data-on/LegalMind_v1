@@ -23,7 +23,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Dialog } from "@/components/Dialog";
 import { useStep } from "@/lib/nextStep";
 import { saveBlob } from "@/lib/pdfDownload";
-import { ErrorState, LoadingState } from "@/components/Feedback";
+import { EmptyState, ErrorState, LoadingState, NoticeState } from "@/components/Feedback";
+import { SegmentedFilter } from "@/components/SegmentedFilter";
 import { PreviewPanel } from "@/components/PreviewPanel";
 import { StatusChip, chipStatus } from "@/components/StatusChip";
 import { FEEDBACK_COPY } from "@/lib/labels";
@@ -219,9 +220,13 @@ export function ChangesPane({
     // P1 (owner, 2026-11-09): a version nobody declared is no one's — ask, never guess
     const undeclared = state.error instanceof ApiError && state.error.code === "VERSION_ROLE_UNDECLARED";
     return undeclared ? (
-      <ErrorState title="Whose paper is this version?" error={state.error} fix={null}>
-        <DeclareRoles versions={versions.filter((v) => !v.version_role && !v.source)} onDone={reload} />
-      </ErrorState>
+      // round 2: a question for the reader, never drawn as a failure (no red, no reference)
+      <div className="lm-page">
+        <NoticeState title="Whose paper is this version?"
+                     body="Say whose wording each version is, so the changes are read the right way round.">
+          <DeclareRoles versions={versions.filter((v) => !v.version_role && !v.source)} onDone={reload} />
+        </NoticeState>
+      </div>
     ) : <ErrorState title="The changes could not be listed" error={state.error} onRetry={reload} />;
   }
   const data = state.list;
@@ -295,24 +300,13 @@ export function ChangesPane({
     <div className="cx" data-testid="changes-pane" data-view={detail ? "detail" : "list"}>
       <a className="cx-skip" href="#cx-list">Skip to the list of changes</a>
       <div className="cx-bar">
-        <div className="ws-filter cx-filter" role="group" aria-label="Show changes">
-          {FILTERS.filter((f) => !EFFECT_FILTERS.includes(f)).map((f) => (
-            <button key={f.id} type="button" aria-pressed={filter === f.id}
-                    onClick={() => setPicked(f.id)}>
-              {f.label}
-              <span className="ws-filter__n">{counts[f.id]}</span>
-            </button>
-          ))}
-        </div>
-        <div className="ws-filter cx-filter" role="group" aria-label="For us">
-          {EFFECT_FILTERS.map((f) => (
-            <button key={f.id} type="button" aria-pressed={filter === f.id}
-                    onClick={() => setPicked(f.id)}>
-              <ForUs effect={f.id as EffectForUs} />
-              <span className="ws-filter__n">{counts[f.id]}</span>
-            </button>
-          ))}
-        </div>
+        {/* round 2: the one filter control — zero counts hidden, never clipped */}
+        <SegmentedFilter label="Show changes" value={filter} onChange={setPicked}
+                         segments={FILTERS.filter((f) => !EFFECT_FILTERS.includes(f)).map((f) => (
+                           { id: f.id, label: f.label, text: f.label, count: counts[f.id], always: f.id === "all" }))} />
+        <SegmentedFilter label="For us" value={filter} onChange={setPicked}
+                         segments={EFFECT_FILTERS.map((f) => ({ id: f.id, label: <ForUs effect={f.id as EffectForUs} />,
+                           text: effectLabel(f.id as EffectForUs), count: counts[f.id] }))} />
         <ReplyBar contractId={contractId} versions={versions} list={data}
                   onVersionCreated={onVersionCreated} onPick={pick} />
       </div>
@@ -358,7 +352,12 @@ export function ChangesPane({
           <span className="cx-together__note">Only changes worse for us go to Legal.</span>
         </div>
       ) : null}
-      <div className="cx-grid">
+      {/* round 2: nothing changed — one message where the three panes would be; the bar
+          above (reply, final contract) and any banner stay (PLAIN-LANGUAGE §2.6) */}
+      {data.changes.length === 0 && !data.template ? (
+        <EmptyState heading="h2" icon={<IconCheck size={24} />} title="No changes from the client"
+                    body="This version matches what we sent." />
+      ) : <div className="cx-grid">
         <nav className="cx-list" id="cx-list" tabIndex={-1} aria-label="Client changes">
           {shown.length ? (
             <ChangeIndex rows={shown} current={current} onPick={open} allUntracked={allUntracked} reader={data} place={place}
@@ -381,7 +380,8 @@ export function ChangesPane({
               <>Version {data.to.version_number} is the client&rsquo;s own paper — no version of ours
                 comes before it. Each row is a clause our review found differs from our standard.</>
             )}{" "}
-            <span className="cx-legend__keys"><kbd>j</kbd> <kbd>k</kbd> next and previous change</span>
+            {/* the j/k keys are Legal's working tool; a Sales reader never sees the hint */}
+            {data.can_decide ? <span className="cx-legend__keys"><kbd>j</kbd> <kbd>k</kbd> next and previous change</span> : null}
           </p>
           {shown.map((c) => (
             <article key={c.row_key} id={`cx-passage-${c.row_key}`} className="cx-passage"
@@ -405,7 +405,7 @@ export function ChangesPane({
           ) : <p className="ws-pane__note">No change is selected.</p>}
         </aside>
         <div id="cx-editor-slot" className="cx-editor-slot" />
-      </div>
+      </div>}
       {accepting ? (
         <AcceptTogether effect={accepting} rows={together[accepting]} list={data} contractId={contractId}
                         onClose={() => setAccepting(null)} onReload={reload}
@@ -626,8 +626,9 @@ function ChangeIndex({ rows, current, onPick, allUntracked, reader, formatting, 
                             when it asks for a person, else what the change does for us. The
                             effect and our offer are said in the answer panel, never stacked
                             here beside a contradicting word (two-line rule) */}
-                        {readerStatus(c) && changeBucket(c) !== "decided" && c.route === "holder"
-                          ? <StatusChip status={chipStatus(readerStatus(c)!)} />
+                        {/* rule 14: a decided change keeps its status chip, with "Decided" beside it */}
+                        {readerStatus(c) && c.route === "holder"
+                          ? <StatusChip status={chipStatus(readerStatus(c)!)} decided={changeBucket(c) === "decided" || null} />
                           : <>{changeBucket(c) && c.route === "holder"
                             ? <PointStatusIcon bucket={changeBucket(c)!} size={14} /> : null}<ForUs effect={c.effect_for_us} measured={c.measured} /></>}
                         {/* "Wording changed" is most rows; only a different kind is said */}
@@ -739,7 +740,7 @@ export function AnswerCard({ change, list, contractId, onAnswered, onReload, inP
         <p className="cx-line1">
           {/* one message (verifier item 7): a clause our standard covers is never also
               "no finding" — the route line says Legal decides it */}
-          {word ? <StatusChip status={chipStatus(readerStatus(change)!)} /> : <>
+          {word ? <StatusChip status={chipStatus(readerStatus(change)!)} decided={changeBucket(change) === "decided" || null} /> : <>
             {changeBucket(change) ? <PointStatusIcon bucket={changeBucket(change)!} /> : null}
             {change.route_reason === "MEASURED_BY_A_STANDARD"
               ? <span>Our standard covers this clause</span> : <span>No finding against our standard here</span>}
@@ -777,7 +778,7 @@ export function AnswerCard({ change, list, contractId, onAnswered, onReload, inP
               <span className="cx-label">From the review of version {versions.to}</span>
               <ul>
                 {change.review.after.map((f) => (
-                  <li key={f.finding_id}><strong>{USER_STATUS_LABELS[f.user_status]}</strong> · {requirementTitle({ code: f.requirement_code })}</li>
+                  <li key={f.finding_id}><StatusChip status={chipStatus(f.user_status)} /> {requirementTitle({ code: f.requirement_code })}</li>
                 ))}
               </ul>
             </>
@@ -847,7 +848,7 @@ export function AnswerCard({ change, list, contractId, onAnswered, onReload, inP
                 {/* named only when there are several — one point is the card's line 1 */}
                 {open.length > 1 ? (
                   <p className="cx-decide__name">
-                    <strong>{USER_STATUS_LABELS[read.user_status]}</strong> · {requirementTitle({ code: read.requirement_code })}
+                    <StatusChip status={chipStatus(read.user_status)} /> {requirementTitle({ code: read.requirement_code })}
                   </p>
                 ) : null}
                 <EscalateControl finding={finding} onChanged={onReload} />
@@ -941,7 +942,7 @@ function firstWords(change: ClientChange): string {
  *  Download PDF and Word inside. A reply with an undecided point is refused (`AM-293` r1,
  *  409 REPLY_UNDECIDED); the refusal lists what is open, each point a link to it. */
 export function ReplyDownloads({ version, pdf = "reply-pdf", word: hasWord = true }: {
-  version: Pick<DocumentVersion, "id">;
+  version: Pick<DocumentVersion, "id"> & Partial<Pick<DocumentVersion, "version_number">>;
   /** our reply's PDF, or — a contract made from our template — the contract's */
   pdf?: "reply-pdf" | "pdf";
   /** false for a final copy of the client's own PDF: there is no Word file (`AM-318`) */
@@ -969,7 +970,7 @@ export function ReplyDownloads({ version, pdf = "reply-pdf", word: hasWord = tru
         <IconFile size={14} /> {FEEDBACK_COPY.preview}
       </button>
       {open ? (
-        <PreviewPanel title={pdf === "reply-pdf" ? "Our reply" : "The contract"}
+        <PreviewPanel title={`${pdf === "reply-pdf" ? "Our reply" : "The contract"}${version.version_number ? `: version ${version.version_number}` : ""}`}
                       pdfPath={`/document-versions/${encodeURIComponent(version.id)}/${pdf}`}
                       onWord={hasWord ? () => void word() : undefined} wordBusy={busy}
                       onClose={() => setOpen(false)} returnFocus={() => trigger.current}
@@ -1265,17 +1266,17 @@ function DeclareRoles({ versions, onDone }: { versions: DocumentVersion[]; onDon
         <p>
           <span>{declareConfirmLine(picked.version.version_number, picked.role)}</span>{" "}
           <button type="button" className="ws-btn ws-btn--sm ws-btn--primary" disabled={busy}
-                  onClick={() => void declare(picked.version.id, picked.role)}>Confirm</button>{" "}
+                  onClick={() => void declare(picked.version.id, picked.role)}>Record it</button>{" "}
           <button type="button" className="ws-btn ws-btn--sm" disabled={busy}
                   onClick={() => setPicked(null)}>Cancel</button>
         </p>
       ) : versions.filter((v) => !done.includes(v.id)).map((v) => (
         <p key={v.id}>
-          <span>Version {v.version_number}{v.original_filename ? ` (${v.original_filename})` : ""} is</span>{" "}
+          <span>Version {v.version_number}{v.original_filename ? ` (${v.original_filename})` : ""}</span>{" "}
           <button type="button" className="ws-btn ws-btn--sm" disabled={busy}
-                  onClick={() => setPicked({ version: v, role: "COMPANY_DRAFT" })}>ours</button>{" "}
+                  onClick={() => setPicked({ version: v, role: "COMPANY_DRAFT" })}>Mark as ours</button>{" "}
           <button type="button" className="ws-btn ws-btn--sm" disabled={busy}
-                  onClick={() => setPicked({ version: v, role: "CLIENT_MODIFIED" })}>the client&rsquo;s</button>
+                  onClick={() => setPicked({ version: v, role: "CLIENT_MODIFIED" })}>Mark as the client&rsquo;s</button>
         </p>
       ))}
       {error ? <p className="ws-field__error" role="alert">{describeError(error)}</p> : null}

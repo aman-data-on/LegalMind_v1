@@ -149,9 +149,11 @@ describe("the four reader words wear one tone each, in one order", () => {
   });
 
   it("marks a Requires modification card amber and a Needs a decision card red", () => {
-    expect(tones(card(FINDINGS[2]!), "ws-finding__mark--")).toEqual(["warn"]);
-    expect(tones(card(FINDINGS[0]!), "ws-finding__mark--")).toEqual(["bad"]);
-    expect(tones(card(FINDINGS[1]!), "ws-finding__mark--")).toEqual(["ok"]);
+    // UX Batch 2: the card's one status is the StatusChip, in the fixed hue for its word
+    const chip = (html: string) => Array.from(html.matchAll(/lm-chip--(match|change|missing|decision|favour)/g)).map((m) => m[1]);
+    expect(chip(card(FINDINGS[2]!))).toEqual(["change"]);
+    expect(chip(card(FINDINGS[0]!))).toEqual(["decision"]);
+    expect(chip(card(FINDINGS[1]!))).toEqual(["match"]);
   });
 
   it("gives the loud solid chip to Needs a decision, not to Requires modification", () => {

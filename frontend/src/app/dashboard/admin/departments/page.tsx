@@ -29,6 +29,9 @@ import { useSession } from "@/lib/session";
 import type { Department } from "@/lib/types";
 
 import { AccountStatus, AdminNav, dateOnly } from "@/components/admin/AdminShell";
+import { ErrorState } from "@/components/Feedback";
+import { AccessRestricted } from "@/components/AccessRestricted";
+import { PageHeader } from "@/components/page/PageHeader";
 
 function DepartmentsScreen() {
   const { can } = useSession();
@@ -72,9 +75,10 @@ function DepartmentsScreen() {
 
   if (!allowed) {
     return (
-      <div className="ws-state" role="note">
-        <h2>Access restricted</h2>
-        <p>Your account does not include user administration.</p>
+      // one restricted state everywhere (GP-23): the page keeps its h1, the note is AccessRestricted
+      <div className="lm-page">
+        <PageHeader title="Administration" />
+        <AccessRestricted what="user administration" />
       </div>
     );
   }
@@ -160,10 +164,7 @@ function DepartmentsScreen() {
       ) : null}
 
       {error ? (
-        <div className="ws-state ws-state--error" role="alert">
-          <h2>Departments could not be loaded.</h2>
-          <p>{describeError(error)}</p>
-        </div>
+        <ErrorState title="Departments could not be loaded" error={error} onRetry={() => void load()} />
       ) : null}
 
       <div className="ws-admin__body">
@@ -223,9 +224,9 @@ function DepartmentsScreen() {
                           ? department.leads.map((lead) => lead.name).join(", ")
                           : <span className="ws-pane__note">No lead appointed</span>}
                       </td>
-                      <td className="ws-mono">{department.members ?? 0}</td>
-                      <td className="ws-mono">{department.active_members ?? 0}</td>
-                      <td className="ws-mono">{dateOnly(department.created_at)}</td>
+                      <td className="ws-num">{department.members ?? 0}</td>
+                      <td className="ws-num">{department.active_members ?? 0}</td>
+                      <td className="ws-num">{dateOnly(department.created_at)}</td>
                       <td className="ws-admin__rowact">
                         <button
                           type="button"
@@ -328,7 +329,7 @@ function DepartmentDetail({
             {(department.member_accounts ?? []).map((member) => (
               <li key={member.id}>
                 <span>{member.name}</span>
-                <span className="ws-mono ws-pane__note">{member.email}</span>
+                <span className="ws-pane__note">{member.email}</span>
                 <AccountStatus status={member.status} />
               </li>
             ))}

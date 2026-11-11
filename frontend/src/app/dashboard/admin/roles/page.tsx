@@ -32,6 +32,9 @@ import { useSession } from "@/lib/session";
 import type { PermissionCatalogue, Role } from "@/lib/types";
 
 import { AdminNav, TIER_LABEL, TIER_ORDER } from "@/components/admin/AdminShell";
+import { ErrorState } from "@/components/Feedback";
+import { AccessRestricted } from "@/components/AccessRestricted";
+import { PageHeader } from "@/components/page/PageHeader";
 
 export default function AdminRolesPage() {
   const { can } = useSession();
@@ -39,19 +42,21 @@ export default function AdminRolesPage() {
   const [catalogue, setCatalogue] = useState<PermissionCatalogue | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     if (!can(P.ROLE_MANAGE)) return;
     Promise.all([api.roles({ page_size: 100 }), api.permissionCatalogue()])
       .then(([rolePage, cat]) => { setRoles(rolePage.items); setCatalogue(cat); })
       .catch(setError);
-  }, [can]);
+  }, [can, attempt]);
 
   if (!can(P.ROLE_MANAGE)) {
     return (
-      <div className="ws-state" role="note">
-        <h2>Access restricted</h2>
-        <p>Your account does not include role administration.</p>
+      // one restricted state everywhere (GP-23): the page keeps its h1, the note is AccessRestricted
+      <div className="lm-page">
+        <PageHeader title="Administration" />
+        <AccessRestricted what="role administration" />
       </div>
     );
   }
@@ -87,10 +92,8 @@ export default function AdminRolesPage() {
       <AdminNav />
 
       {error ? (
-        <div className="ws-state ws-state--error" role="alert">
-          <h2>Roles could not be loaded.</h2>
-          <p>{describeError(error)}</p>
-        </div>
+        <ErrorState title="Roles could not be loaded" error={error}
+                    onRetry={() => { setError(null); setAttempt((n) => n + 1); }} />
       ) : null}
 
       {roles === null && !error ? (
@@ -124,7 +127,7 @@ export default function AdminRolesPage() {
                   <div className="ws-rolecard__tags">
                     <span className="ws-chip">{TIER_LABEL[role.tier] ?? role.tier}</span>
                     {role.confers_legal_authority.length > 0 ? (
-                      <span className="ws-chip ws-chip--fill ws-chip--outcome-fill">
+                      <span className="ws-chip lm-lozenge">
                         Legal authority
                       </span>
                     ) : null}
@@ -160,7 +163,7 @@ export default function AdminRolesPage() {
                               <li key={permission}>
                                 <span className="ws-mono">{permission}</span>
                                 {dangerous.has(permission) ? (
-                                  <span className="ws-chip ws-chip--fill ws-chip--outcome-fill">
+                                  <span className="ws-chip lm-lozenge">
                                     legal authority
                                   </span>
                                 ) : null}

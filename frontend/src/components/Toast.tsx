@@ -61,7 +61,7 @@ function One({ item }: { item: Item }) {
     return () => { window.clearTimeout(timer); left.current -= Date.now() - started; };
   }, [item, held]);
   return (
-    <div className={`lm-toast${item.failure ? " lm-toast--failure" : ""}`} role={item.failure ? "alert" : undefined}
+    <div className={`lm-toast${item.failure ? " lm-toast--failure" : ""}`}
          onMouseEnter={() => setHeld(true)} onMouseLeave={() => setHeld(false)}
          onFocus={() => setHeld(true)} onBlur={() => setHeld(false)}>
       <span className="lm-toast__icon">{item.failure ? <IconAlertCircle size={16} /> : <IconCheckCircle size={16} />}</span>
@@ -79,10 +79,16 @@ function One({ item }: { item: Item }) {
 
 export function Toaster() {
   const list = useSyncExternalStore(subscribe, snapshot, () => none);
-  // always mounted: a live region present before its text arrives is announced reliably
+  // always mounted: a live region present before its text arrives is announced reliably.
+  // Two regions, never nested: a confirmation is polite, a failure assertive (round 2).
   return (
-    <div className="lm-toaster" aria-live="polite">
-      {list.map((item) => <One key={item.id} item={item} />)}
+    <div className="lm-toaster">
+      <div className="lm-toaster__region" aria-live="polite">
+        {list.filter((t) => !t.failure).map((item) => <One key={item.id} item={item} />)}
+      </div>
+      <div className="lm-toaster__region" aria-live="assertive">
+        {list.filter((t) => t.failure).map((item) => <One key={item.id} item={item} />)}
+      </div>
     </div>
   );
 }

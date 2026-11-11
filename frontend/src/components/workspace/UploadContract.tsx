@@ -215,7 +215,7 @@ export function UploadContract({ firstRun, onClose }: {
           <span className="ws-upload-file__icon" aria-hidden="true"><IconFile size={20} /></span>
           <span className="ws-upload-file__meta">
             <span className="ws-upload-file__name">{file.name}</span>
-            <span className="ws-upload-file__sub ws-mono">
+            <span className="ws-upload-file__sub ws-num">
               {formatFileSize(file.size)} · {fileTypeLabel(file.name)}
             </span>
           </span>
@@ -260,7 +260,7 @@ export function UploadContract({ firstRun, onClose }: {
   return (
     <div className="ws-intake" aria-labelledby="ws-upload-title">
       <h3 className="ws-intake__title">
-        {file.name} <span className="ws-mono ws-intake__size">{formatFileSize(file.size)}</span>
+        {file.name} <span className="ws-num ws-intake__size">{formatFileSize(file.size)}</span>
       </h3>
 
       {/* The live checklist — every step is a real, already-happened (or

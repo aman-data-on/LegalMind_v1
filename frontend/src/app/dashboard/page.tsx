@@ -39,6 +39,8 @@ import { NewContractChooser } from "@/components/newcontract/NewContractChooser"
 import { HomeQueue, useTasks } from "@/components/workspace/TodoViews";
 import { PageHeader } from "@/components/page/PageHeader";
 import { IconPlus, IconSearch } from "@/components/workspace/icons";
+import { ErrorState } from "@/components/Feedback";
+import { SegmentedFilter } from "@/components/SegmentedFilter";
 
 const PAGE_SIZE = 25;
 
@@ -356,34 +358,18 @@ function DocumentsListView() {
       {/* Where every deal stands (`AM-260`): only the stages holding a deal, in the deal's
           own order, one line that scrolls sideways on a phone. */}
       {stagesHeld.length ? (
-        <div className="ws-filter ws-home__chips" role="group" aria-label="Filter by stage">
-          <button type="button" aria-pressed={stageFilter === ""}
-                  onClick={() => { setStageFilter(""); setPage(1); }}>
-            All stages
-          </button>
-          {stagesHeld.map((code) => (
-            <button key={code} type="button" aria-pressed={stageFilter === code}
-                    onClick={() => { setStageFilter(stageFilter === code ? "" : code); setPage(1); }}>
-              {STAGE_LABEL[code]}
-              <span className="ws-filter__n">{summary?.stages?.[code] ?? 0}</span>
-            </button>
-          ))}
-        </div>
+        // round 2: the one filter control — collapses to "Filter" instead of clipping at 390
+        <SegmentedFilter label="Filter by stage" value={stageFilter}
+                         onChange={(code) => { setStageFilter(code); setPage(1); }}
+                         segments={[{ id: "", label: "All stages", text: "All stages", always: true },
+                           ...stagesHeld.map((code) => ({ id: code, label: STAGE_LABEL[code], text: STAGE_LABEL[code] ?? code,
+                             count: summary?.stages?.[code] ?? 0 }))]} />
       ) : null}
 
       {error ? (
-        <div className={`ws-state ws-state--${stale ? "warn" : "error"}`} role="alert">
-          <p className="ws-home__errtitle">
-            {stale ? "These results could not be refreshed." : "Contracts could not be loaded."}
-          </p>
-          <p>
-            {describeError(error)}
-            {stale ? " The rows below are the last ones loaded successfully." : ""}
-          </p>
-          <button type="button" className="ws-btn ws-btn--sm" onClick={() => void load()}>
-            Try again
-          </button>
-        </div>
+        <ErrorState title={stale ? "These results could not be refreshed" : "Contracts could not be loaded"}
+                    error={error} onRetry={() => void load()}
+                    {...(stale ? { fix: "The rows below are the last ones that loaded. Try again in a moment." } : {})} />
       ) : null}
 
       {contracts === null && !error ? (

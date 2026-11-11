@@ -730,7 +730,7 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                       }}
                     >
                       <span className="ws-outline__label">
-                        {node.number ? <span className="ws-mono">{node.number}</span> : null}
+                        {node.number ? <span className="ws-num">{node.number}</span> : null}
                         {node.title || (node.number ? "" : "Untitled clause")}
                       </span>
                       {bucket ? <StatusIcon bucket={bucket} /> : null}
@@ -898,7 +898,7 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                   }}
                   placeholder="Find in document…"
                 />
-                <span className="ws-pane__note ws-mono">
+                <span className="ws-pane__note ws-num">
                   {findQuery.trim() ? `${findHits.length} match${findHits.length === 1 ? "" : "es"}` : ""}
                 </span>
               </form>
@@ -947,7 +947,7 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                 >
                   −
                 </button>
-                <span className="ws-mono ws-doccard__zoom">{zoom}%</span>
+                <span className="ws-num ws-doccard__zoom">{zoom}%</span>
                 <button
                   type="button"
                   className="ws-toolbtn"
@@ -1347,11 +1347,8 @@ function OriginalView({ versionId, filename, page }: {
   if (state.kind === "failed") {
     return (
       <div className="ws-original ws-original--wait">
-        <div className="ws-state" role="alert">
-          <h3>The original document could not be loaded.</h3>
-          <p>{describeError(state.error)}</p>
-          <p className="ws-pane__note">The extracted text view is still available above.</p>
-        </div>
+        <ErrorState heading="h3" title="The original document could not be shown" error={state.error}
+                    fix="The text view above still works. Try again in a moment." />
       </div>
     );
   }

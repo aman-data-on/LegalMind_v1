@@ -14,7 +14,7 @@
 
 import { ApiError, describeError } from "@/lib/api";
 import { FEEDBACK_COPY } from "@/lib/labels";
-import { IconAlertCircle } from "@/components/workspace/icons";
+import { IconAlertCircle, IconInfo } from "@/components/workspace/icons";
 
 /** The id support can look up, or null when the response carried none. */
 export function supportReference(error: unknown): string | null {
@@ -41,7 +41,9 @@ export function ErrorState({ title, fix, error, onRetry, heading: Heading = "h2"
   /** an extra control a caller needs (a declare-roles form, a link home) */
   children?: React.ReactNode;
 }) {
-  const why = error ? describeError(error) : null;
+  // a transient failure (5xx, network) says only the fix — never the server's raw word
+  // ("Internal error"); a refusal the server explained (401, 404, a validation) says why
+  const why = error && !transient(error) ? describeError(error) : null;
   const next = fix === undefined ? (error === undefined || transient(error) ? FEEDBACK_COPY.defaultFix : null) : fix;
   const reference = supportReference(error);
   return (
@@ -63,6 +65,27 @@ export function ErrorState({ title, fix, error, onRetry, heading: Heading = "h2"
   );
 }
 
+/** A question or notice for the reader — not a failure (round 2): the action-blue rule and
+ *  an info icon, no red, no `role="alert"`, no support reference (Carbon actionable
+ *  notification, info kind; Atlassian section message). The answer goes in `children`. */
+export function NoticeState({ title, body, heading: Heading = "h2", children }: {
+  title: string;
+  body?: React.ReactNode;
+  heading?: "h1" | "h2" | "h3";
+  children?: React.ReactNode;
+}) {
+  return (
+    <section className="lm-state lm-state--notice" aria-label={title}>
+      <span className="lm-state__icon"><IconInfo size={20} /></span>
+      <div className="lm-state__text">
+        <Heading className="lm-state__title">{title}</Heading>
+        {body ? <p className="lm-state__body">{body}</p> : null}
+        {children}
+      </div>
+    </section>
+  );
+}
+
 /** Fixed-height skeleton rows (shape only, no shimmer) and the word, announced once. */
 export function LoadingState({ label = FEEDBACK_COPY.loading, rows = 0 }: { label?: string; rows?: number }) {
   return (
@@ -79,9 +102,11 @@ export function LoadingState({ label = FEEDBACK_COPY.loading, rows = 0 }: { labe
 
 /** One centred block in the pane that would hold the content: what is true, what to do,
  *  and the one action. */
-export function EmptyState({ icon, title, body, action, children }: {
+export function EmptyState({ icon, title, body, action, heading: Heading = "p", children }: {
   icon?: React.ReactNode;
   title?: string;
+  /** "h1" where the empty state IS the page; a pane's own heading level otherwise */
+  heading?: "h1" | "h2" | "h3" | "p";
   body?: React.ReactNode;
   action?: React.ReactNode;
   /** the older one-sentence form (`<EmptyState>No rows.</EmptyState>`) */
@@ -90,7 +115,7 @@ export function EmptyState({ icon, title, body, action, children }: {
   return (
     <div className="lm-state lm-state--empty">
       {icon ? <span className="lm-state__icon" aria-hidden="true">{icon}</span> : null}
-      {title ? <p className="lm-state__title">{title}</p> : null}
+      {title ? <Heading className="lm-state__title">{title}</Heading> : null}
       {(body ?? children) ? <p className="lm-state__body">{body ?? children}</p> : null}
       {action ? <p className="lm-state__acts">{action}</p> : null}
     </div>

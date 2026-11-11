@@ -92,7 +92,7 @@ describe("clauseStatusByEvidenceId", () => {
       finding("DEVIATION", true, ["e2"]),
     ]);
     expect(map.get("e1")).toEqual({ covered: true, attention: false, bucket: "match" });
-    expect(map.get("e2")).toEqual({ covered: true, attention: true, bucket: "review" });
+    expect(map.get("e2")).toEqual({ covered: true, attention: true, bucket: "change" });
     expect(map.get("e3")).toBeUndefined();
   });
 
@@ -101,18 +101,18 @@ describe("clauseStatusByEvidenceId", () => {
       finding("DEVIATION", true, ["shared"]),
       finding("MATCH", false, ["shared"]),
     ]);
-    expect(map.get("shared")).toEqual({ covered: true, attention: true, bucket: "review" });
+    expect(map.get("shared")).toEqual({ covered: true, attention: true, bucket: "change" });
   });
 
-  it("DD-9 buckets: MISSING is its own bucket; every other non-MATCH value is review", () => {
+  it("DD-9 buckets: MISSING is its own bucket; DEVIATION a change; every other value fails toward a decision", () => {
     const map = clauseStatusByEvidenceId([
       finding("MISSING", false, ["m"]),
       finding("AMBIGUOUS", false, ["a"]),
       finding("CONFLICT", false, ["c"]),
     ]);
     expect(map.get("m")!.bucket).toBe("missing");
-    expect(map.get("a")!.bucket).toBe("review");
-    expect(map.get("c")!.bucket).toBe("review");
+    expect(map.get("a")!.bucket).toBe("decision");
+    expect(map.get("c")!.bucket).toBe("decision");
   });
 });
 
@@ -125,11 +125,11 @@ describe("outlineStatus", () => {
       { id: "b2", section_number: null, section_title: null },
     ];
     const status = new Map([
-      ["b1", { covered: true, attention: true, bucket: "review" as const }],
+      ["b1", { covered: true, attention: true, bucket: "decision" as const }],
       ["h2", { covered: true, attention: false, bucket: "match" as const }],
     ]);
     const rolled = outlineStatus(rows, status);
-    expect(rolled.get("h1")).toEqual({ covered: true, attention: true, bucket: "review" });
+    expect(rolled.get("h1")).toEqual({ covered: true, attention: true, bucket: "decision" });
     expect(rolled.get("h2")).toEqual({ covered: true, attention: false, bucket: "match" });
     expect(rolled.get("b2")).toBeUndefined();
   });

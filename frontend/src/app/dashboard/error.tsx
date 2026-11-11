@@ -11,7 +11,7 @@ export default function SectionError({ reset }: { error: Error & { digest?: stri
   return (
     <div className="lm-page">
       <ErrorState heading="h1" title="This page could not be shown"
-                  fix="Nothing you saved is affected. Try again, or go back to Contracts." onRetry={reset}>
+                  fix="Nothing you saved is affected." onRetry={reset}>
         <p className="lm-state__body"><Link href="/contracts">Go to Contracts</Link></p>
       </ErrorState>
     </div>

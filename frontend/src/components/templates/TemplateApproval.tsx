@@ -27,6 +27,7 @@ import {
   blankPath, reviewCopyPath,
   type CheckStandard, type ClauseVersionRow, type OutlineLine, type TemplateCheck, type TemplateClause,
   type SpecialConditionsReadiness, type TemplateDetail,
+  cardName,
 } from "@/lib/templates";
 
 import { shortDate } from "@/components/workspace/model";
@@ -35,7 +36,7 @@ import { PageHeader } from "@/components/page/PageHeader";
 
 import { ClauseSheet, Runs } from "./TemplateClause";
 import { CheckStatus } from "./TemplateList";
-import { DownloadMenu } from "./DownloadMenu";
+import { PreviewButton } from "@/components/PreviewPanel";
 import "./templates.css";
 import { formatDate } from "@/lib/dates";
 
@@ -174,9 +175,9 @@ export function TemplateApproval({ id }: { id: string }) {
         </>}
         secondary={<>
           {draft || detail.status === "APPROVED" ? (
-            <DownloadMenu path={reviewCopyPath(detail)} label="Download review copy" variant="link" />
+            <PreviewButton path={reviewCopyPath(detail)} text="Preview review copy" title={`Review copy: ${cardName(detail)}, version ${detail.version}`} />
           ) : detail.status === "PUBLISHED" ? (
-            <DownloadMenu path={blankPath(detail)} label="Download blank template" />
+            <PreviewButton path={blankPath(detail)} text="Preview blank" title={`Blank template: ${cardName(detail)}, version ${detail.version}`} />
           ) : null}
           {draft && !canPublish(detail, check) && stops ? (
             <button type="button" className="ws-btn ws-btn--sm" aria-pressed={view?.kind === "publish"}

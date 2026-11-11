@@ -41,12 +41,12 @@
  * — what `shadcn init` writes — also pulls `preflight.css`. That was measured
  * against this app rather than assumed, and it is not acceptable here:
  *
- *   ul, ol { list-style: none; margin: 0; padding: 0 }   17 <ul> / 14 <ol>, and
+ *   ul, ol { list-style: none; margin: 0; padding: 0}   17 <ul> / 14 <ol>, and
  *       nothing below re-styles them -> the admin roster and roles screens lose
  *       their bullets and indentation, which moves the ws-admin baseline.
  *   a { color: inherit; text-decoration: inherit }        38 links, and only
  *       `.topbar__nav a`, `.login a` and `.table-card a` are styled below.
- *   blockquote { margin: 0 }                              9 occurrences.
+ *   blockquote { margin: 0}                              9 occurrences.
  *   * { box-sizing: border-box }                          already set at the
  *       top of this file, so preflight's copy is pure redundancy.
  *
@@ -200,6 +200,17 @@
   --c-action-tint: #eff4ff;
   --c-error: #d52222;         /* system failure only, never a legal status: 5.15 / 4.67 */
   --c-error-tint: #fdecec;    /* error text on it 4.51 */
+  /* a system warning (a paused model, a blocked action) — never a point status, never the
+     Change-needed orange: amber text on its tint 5.0:1 */
+  --c-warning: #a85c05;  --c-warning-tint: #fdf3e3;
+  --c-error-hover: #b91c1c;   /* a confirmed destructive button, pressed */
+  --c-on-action: #ffffff;     /* text and icons on a filled action, dark or error surface */
+  --c-highlight: #fdf0c2;     /* the reader's own highlight in a document (never a status) */
+  --c-highlight-edge: #e5c355;
+  --c-highlight-hover: #fbe89e;
+  /* the neutral lozenge: stages and lifecycle (Drafting, With Legal, Awaiting approval,
+     Retired, Signed). Ink on paper with a control-strength edge: it never borrows a status hue */
+  --c-state: #2b3444;  --c-state-tint: #f2f4f8;  --c-state-edge: #808899;
 
   /* Point status: one hue + one icon + one word on every screen (StatusChip).
      Text on its own tint: match 4.55, change/missing 4.75, decision 5.62,
@@ -221,13 +232,12 @@
   /* ---- Legacy names, now aliases of the roles above ---- */
   --ink: var(--c-text);
   --muted: var(--c-text-3);
-  /* stays #d8dce1: legacy inputs draw their edge with it, and --c-line would drop
-     those edges under 3:1 */
+  /* a divider (1.4:1, decorative). Control edges use --c-line-strong, never this. */
   --line: #d8dce1;
   --surface: var(--c-surface);
   --page: var(--c-page);
-  --attention: #8a4b00;
-  --attention-bg: #fff6e8;
+  --attention: var(--c-warning);
+  --attention-bg: var(--c-warning-tint);
   --error: var(--c-error);
   --error-bg: var(--c-error-tint);
   --success: var(--c-status-match);
@@ -327,18 +337,18 @@ body {
 }
 .topbar__brand {
   font-family: var(--font-display); font-weight: 600; font-size: var(--t-page);
-  letter-spacing: -0.01em; color: #fff;
+  letter-spacing: -0.01em; color: var(--c-on-action);
 }
 /* Two-tone wordmark (owner, 2026-09-02) — the same split the new shell uses.
    The brand blue is repeated as a literal here rather than shared: this legacy
    stylesheet and workspace.css deliberately never reference each other's
    variables (see the file banner), and the legacy screens are being retired. */
-.topbar__brand-a { color: #fff; }
+.topbar__brand-a { color: var(--c-on-action); }
 .topbar__brand-b { color: #0055aa; }
 .topbar__nav { display: flex; gap: var(--space-5); flex: 1; flex-wrap: wrap; }
 .topbar__nav a { color: var(--on-deep-muted); text-decoration: none; padding: 0.35rem 0; display: flex; align-items: center; gap: 0.45rem; }
 .topbar__nav a:hover { color: var(--on-deep); }
-.topbar__nav a.active { color: #fff; box-shadow: inset 0 -2px 0 var(--accent-vivid); }
+.topbar__nav a.active { color: var(--c-on-action); box-shadow: inset 0 -2px 0 var(--accent-vivid); }
 .nav-icon { display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .nav-label { display: inline-block; }
 .topbar__identity { display: flex; align-items: center; gap: 0.75rem; color: var(--on-deep-muted); }
@@ -436,7 +446,7 @@ th { font-size: var(--text-xs); color: var(--muted); }
   button { font: inherit; padding: 0.4rem 0.8rem; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); cursor: pointer; }
   button:disabled { color: var(--muted); cursor: not-allowed; }
   label { display: block; margin-bottom: 0.6rem; font-size: var(--text-md); }
-  input, select, textarea { font: inherit; width: 100%; padding: 0.4rem; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+  input, select, textarea { font: inherit; width: 100%; padding: 0.4rem; border: 1px solid var(--c-line-strong); border-radius: var(--radius-sm); }
 }
 
 /* Class subjects — unlayered, and still beating both @layer base above and every
@@ -501,8 +511,11 @@ textarea:focus-visible,
 .decision-history--superseded { color: var(--muted); }
 .decision-history blockquote { margin: 0.2rem 0; padding-left: 0.6rem; border-left: 2px solid var(--line); }
 
-.banner { border-radius: var(--radius-sm); padding: 0.7rem 0.9rem; margin-bottom: var(--space-4); }
-.banner--error { background: var(--error-bg); border: 1px solid #e5b3b3; color: var(--error); }
+.banner { border-radius: var(--radius-sm); padding: var(--s-3) var(--s-4); margin-bottom: var(--space-4); }
+/* round 2: no stray paragraph margin above the message (the sign-in error had 24px) */
+.banner > p { margin: 0; }
+.banner > p + p { margin-top: var(--s-1); }
+.banner--error { background: var(--error-bg); border: 1px solid var(--c-error); color: var(--error); }
 .banner__fields { margin: 0.3rem 0 0; padding-left: 1.1rem; font-size: var(--text-sm); }
 
 .access-restricted { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); padding: var(--space-5); }
@@ -525,7 +538,7 @@ textarea:focus-visible,
 .btn:disabled { cursor: not-allowed; opacity: 0.6; }
 /* DD-5: on light surfaces the primary action uses --accent (~7:1 with white
    text); --accent-vivid stays the primary on deep surfaces (/login). */
-.btn--primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn--primary { background: var(--accent); color: var(--c-on-action); border-color: var(--accent); }
 .btn--primary:hover:not(:disabled) { background: #16407e; }
 .btn--secondary { background: var(--surface); color: var(--ink); border-color: var(--line); }
 .btn--secondary:hover:not(:disabled) { background: var(--page); }
@@ -621,19 +634,19 @@ textarea:focus-visible,
 .login__top {
   position: relative; z-index: 2;
   display: flex; align-items: center;
-  padding: 18px 32px;
+  padding: 16px 32px;
   border-bottom: 1px solid var(--line-deep);
 }
 .login__brand {
   margin: 0; font-family: var(--font-display); font-weight: 600;
-  font-size: var(--t-page); letter-spacing: -0.01em; color: #fff;
+  font-size: var(--t-page); letter-spacing: -0.01em; color: var(--c-on-action);
 }
 .login__main {
   position: relative; z-index: 2; flex: 1;
   /* Owner request: the card starts just below the header rule instead of
      floating at the vertical center. */
   display: flex; align-items: flex-start; justify-content: center;
-  padding: 40px 24px 48px;
+  padding: 48px 24px 48px;
 }
 
 /* — the card — */
@@ -642,8 +655,8 @@ textarea:focus-visible,
   background: oklch(0.22 0.025 258 / 0.92);
   backdrop-filter: blur(6px);
   border: 1px solid var(--line-deep);
-  border-radius: 14px;
-  padding: 64px 34px 58px;
+  border-radius: 12px;
+  padding: 64px 32px 58px;
   box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.5);
   animation: login-card-in 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
@@ -651,9 +664,9 @@ textarea:focus-visible,
    centered heading, ~24px field gaps, a large pause before the primary action,
    tight equal gaps between sign-in controls, and small print inside the card. */
 .login__tagline {
-  font-family: var(--font-display); font-weight: 600; color: #fff;
+  font-family: var(--font-display); font-weight: 600; color: var(--c-on-action);
   /* Sized so the one-line tagline spans the same width as the inputs below. */
-  font-size: var(--t-page); margin: 0 0 44px; text-align: center;
+  font-size: var(--t-page); margin: 0 0 48px; text-align: center;
   white-space: nowrap;
 }
 
@@ -662,12 +675,13 @@ textarea:focus-visible,
 .login .field { margin-bottom: 0; }
 .login .field__label {
   color: var(--on-deep-muted); font-size: var(--text-xs);
-  font-weight: var(--weight-semibold); margin-bottom: 6px;
+  font-weight: var(--weight-semibold); margin-bottom: 8px;
 }
 .login input {
-  color: #fff; background: var(--input-deep);
-  border: 1.5px solid oklch(0.32 0.03 258); border-radius: 8px;
-  padding: 11px 14px;
+  color: var(--c-on-action); background: var(--input-deep);
+  /* GP-7 round 2: the field edge at 3:1 or more on the deep card (was oklch 0.32, 1.38:1) */
+  border: 1.5px solid var(--on-deep-faint); border-radius: 8px;
+  padding: 12px 16px;
   transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 .login input:focus-visible {
@@ -690,8 +704,8 @@ textarea:focus-visible,
 }
 
 .login__submit {
-  width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px;
-  background: var(--accent-vivid); color: #fff;
+  width: 100%; display: flex; align-items: center; justify-content: center; gap: 12px;
+  background: var(--accent-vivid); color: var(--c-on-action);
   border: none; border-radius: 8px; padding: 12px 16px;
   font: inherit; font-size: var(--text-base); font-weight: var(--weight-semibold);
   cursor: pointer; margin-top: 32px;
@@ -699,10 +713,10 @@ textarea:focus-visible,
   transition: filter 0.18s ease;
 }
 .login__submit:hover:not(:disabled) { filter: brightness(1.08); }
-.login__submit:disabled { background: oklch(0.55 0.14 258 / 0.7); color: #fff; cursor: default; }
+.login__submit:disabled { background: oklch(0.55 0.14 258 / 0.7); color: var(--c-on-action); cursor: default; }
 .login__spinner {
   width: 15px; height: 15px; border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.35); border-top-color: #fff;
+  border: 2px solid rgba(255, 255, 255, 0.35); border-top-color: var(--c-on-action);
   animation: login-spin 0.7s linear infinite;
 }
 
@@ -735,9 +749,9 @@ textarea:focus-visible,
 @keyframes login-spin { to { transform: rotate(360deg); } }
 
 @media (max-width: 640px) {
-  .login__top { padding: 14px var(--space-4); }
+  .login__top { padding: 16px var(--space-4); }
   .login__main { padding: var(--space-6) var(--space-4); }
-  .login__card { padding: 34px 22px 32px; }
+  .login__card { padding: 32px 24px 32px; }
   /* The input-width heading fit is a desktop measurement; on a narrow card the
      line must wrap rather than clip. */
   .login__tagline { white-space: normal; }
@@ -756,15 +770,15 @@ textarea:focus-visible,
 .login__toplink { margin: 0; font-size: var(--text-md); color: var(--on-deep-muted); }
 .login a { color: var(--link-on-deep); text-decoration: none; }
 .login a:hover { color: oklch(0.8 0.1 258); text-decoration: underline; }
-.login a:focus-visible { outline: none; box-shadow: 0 0 0 3px oklch(0.6 0.12 258 / 0.5); border-radius: 3px; }
+.login a:focus-visible { outline: none; box-shadow: 0 0 0 3px oklch(0.6 0.12 258 / 0.5); border-radius: 4px; }
 
 .login__google {
-  display: flex; align-items: center; justify-content: center; gap: 10px;
+  display: flex; align-items: center; justify-content: center; gap: 12px;
   width: 100%; margin-top: var(--space-4);
   /* 12px vertical on a 20px line-box clears the 44px minimum touch target the
      previous 10px did not. */
-  padding: 12px 14px; min-height: 44px;
-  background: #fff; border: 1px solid #dde1e7; border-radius: 8px;
+  padding: 12px 16px; min-height: 44px;
+  background: var(--c-surface); border: 1px solid #dde1e7; border-radius: 8px;
   font-size: var(--text-sm); font-weight: var(--weight-semibold);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
   transition: box-shadow 0.18s ease;
@@ -786,14 +800,14 @@ textarea:focus-visible,
  * case, not an error the user did something wrong in.
  */
 .login__sso-alert {
-  margin: var(--space-4) 0 0; padding: 10px 12px;
+  margin: var(--space-4) 0 0; padding: 12px 12px;
   border-radius: 8px; border: 1px solid oklch(0.45 0.06 258 / 0.6);
   background: oklch(0.3 0.03 258 / 0.5);
   font-size: var(--text-xs); line-height: 1.6; color: var(--on-deep-muted);
   animation: login-fade 0.2s ease-out;
 }
 
-.login__alt { text-align: center; font-size: var(--text-sm); color: var(--on-deep-muted); margin: 40px 0 0; }
+.login__alt { text-align: center; font-size: var(--text-sm); color: var(--on-deep-muted); margin: 48px 0 0; }
 /* Small print inside the card bottom, mirroring the reference's notice position. */
 .login__note { text-align: center; font-size: var(--text-xs); color: var(--on-deep-muted); /* GP-7: was --on-deep-faint, 3.56:1 */ line-height: 1.6; margin: 32px 0 0; }
 
@@ -858,7 +872,7 @@ textarea:focus-visible,
   padding: 0.45rem 0.9rem; font-weight: var(--weight-medium); cursor: pointer;
 }
 .seg button + button { border-left: 1px solid var(--line); }
-.seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--c-on-action); }
 .seg button:disabled { color: var(--line); cursor: not-allowed; }
 
 /* A Finding whose Evaluations still need a decision is findable by scanning
@@ -942,7 +956,7 @@ pre { overflow-x: auto; margin: 0.3rem 0; font-size: var(--t-caption); }
   font-size: var(--t-caption);
 }
 .ask-citation-score {
-  font-size: var(--t-label);
+  font-size: var(--t-caption);
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
@@ -1048,7 +1062,7 @@ pre { overflow-x: auto; margin: 0.3rem 0; font-size: var(--t-caption); }
 .notfound p { margin: 0; color: var(--muted); }
 .notfound__home {
   margin-top: 0.5rem; padding: 0.55rem 1rem; border-radius: var(--radius-sm);
-  background: var(--accent); color: #fff; font-weight: var(--weight-medium); text-decoration: none;
+  background: var(--accent); color: var(--c-on-action); font-weight: var(--weight-medium); text-decoration: none;
 }
 .notfound__home:hover { filter: brightness(1.08); }
 .notfound__home:focus-visible { outline: none; box-shadow: var(--focus-ring); }
@@ -1189,3 +1203,64 @@ pre { overflow-x: auto; margin: 0.3rem 0; font-size: var(--t-caption); }
 }
 /* a clause's status chip and the standard it was checked against, on one line */
 .ws-compare__finding { display: inline-flex; align-items: center; gap: var(--s-2); }
+
+/* The neutral lozenge (round 2): a stage or lifecycle state — With Legal, Awaiting approval,
+   Retired, Draft, Signed. Ink on paper with a control-strength edge and square-ish corners
+   (radius 4), so it never reads as a point status (StatusChip, radius 8, a status hue). */
+.lm-lozenge, .ws-chip.lm-lozenge {
+  display: inline-flex; align-items: center; gap: var(--s-1);
+  padding: 2px var(--s-2); border: 1px solid var(--c-state-edge); border-radius: var(--r-control);
+  background: var(--c-state-tint); color: var(--c-state);
+  font-family: var(--font-sans); font-size: var(--t-label); line-height: var(--t-label-lh); font-weight: var(--w-medium);
+  white-space: nowrap; vertical-align: middle;
+}
+
+/* The filter control (SegmentedFilter): joined segments, square-ish corners, never a pill,
+   never a status hue. Selected = ink fill. Collapses to a native select when it cannot fit. */
+.lm-seg { position: relative; min-width: 0; max-width: 100%; }
+.lm-seg__row { display: inline-flex; flex-wrap: nowrap; max-width: 100%; }
+/* the measuring copy lives in a clipped, invisible box: it never widens the page */
+.lm-seg__measurebox { position: absolute; inset: 0; overflow: hidden; visibility: hidden; pointer-events: none; }
+.lm-seg__measure { width: max-content; max-width: none; }
+.lm-seg__item {
+  display: inline-flex; align-items: center; gap: var(--s-1); white-space: nowrap; margin: 0;
+  min-height: 32px; padding: var(--s-1) var(--s-3);
+  font-family: var(--font-sans); font-size: var(--t-dense); line-height: var(--t-dense-lh); font-weight: var(--w-medium);
+  color: var(--c-text-2); background: var(--c-surface); cursor: pointer;
+  border: 1px solid var(--c-line-strong); border-radius: 0;
+}
+.lm-seg__item + .lm-seg__item { margin-left: -1px; }
+.lm-seg__item:first-child { border-radius: var(--r-control) 0 0 var(--r-control); }
+.lm-seg__item:last-child { border-radius: 0 var(--r-control) var(--r-control) 0; }
+.lm-seg__item:hover:not([aria-pressed="true"]) { background: var(--c-page); color: var(--c-text); }
+.lm-seg__item[aria-pressed="true"] { position: relative; z-index: 1; background: var(--c-text); border-color: var(--c-text); color: var(--c-on-action); }
+.lm-seg__item:focus-visible { position: relative; z-index: 2; outline: 2px solid var(--c-action); outline-offset: 2px; }
+.lm-seg__item svg { flex: none; }
+.lm-seg__n { font-size: var(--t-caption); font-weight: var(--w-regular); font-variant-numeric: tabular-nums; opacity: 0.85; }
+.lm-seg__select { display: inline-flex; align-items: center; gap: var(--s-2); max-width: 100%; }
+.lm-seg__selectlabel { font-size: var(--t-caption); color: var(--c-text-3); }
+.lm-seg__select select {
+  min-height: 36px; max-width: 100%; padding: var(--s-1) var(--s-6) var(--s-1) var(--s-3);
+  font: inherit; font-size: var(--t-dense); color: var(--c-text);
+  border: 1px solid var(--c-line-strong); border-radius: var(--r-control); background-color: var(--c-surface);
+}
+@media (max-width: 640px) { .lm-seg__item, .lm-seg__select select { min-height: 44px; } }
+
+/* Point marks (PointStatus): StatusChip's hues, on an icon alone */
+.lm-mark--match { color: var(--c-status-match); }
+.lm-mark--change { color: var(--c-status-change); }
+.lm-mark--missing { color: var(--c-status-missing); }
+.lm-mark--decision { color: var(--c-status-decision); }
+.lm-mark--favour { color: var(--c-status-favour); }
+.lm-mark--decided { color: var(--c-status-done); }
+.lm-state--notice { background: var(--c-surface); border: 1px solid var(--c-line); border-left: 3px solid var(--c-action); }
+.lm-state--notice .lm-state__icon { color: var(--c-action); }
+.lm-state--notice p { margin: var(--s-2) 0 0; }
+.lm-toaster__region { display: grid; gap: var(--s-2); }
+/* an empty or error state that IS the page: its h1 is the page title size */
+.lm-state h1.lm-state__title { font-size: var(--t-page); line-height: var(--t-page-lh); }
+/* round 2: a lozenge never touches the link after it (the Legal queue's "Report") */
+.lm-lozenge + a, .lm-lozenge + .ws-link { margin-left: var(--s-2); }
+/* the one restricted note (style only — AccessRestricted's words and behaviour are unchanged) */
+.access-restricted h2 { margin-top: 0; }
+.access-restricted .hint { font-style: normal; color: var(--c-text-3); }

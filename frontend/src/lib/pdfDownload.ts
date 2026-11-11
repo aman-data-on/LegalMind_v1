@@ -57,3 +57,11 @@ export function saveBlob(blob: Blob, name: string | undefined): void {
   Object.assign(document.createElement("a"), { href: url, download: name ?? "" }).click();
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+/** A Word file at `path` (`?format=docx`), saved under the name the server gives it. */
+export async function downloadWord(path: string): Promise<void> {
+  const response = await api.pdfResponse(path);
+  if (!response.ok) throw await toApiError(response, response.headers.get("X-Request-Id") ?? "-");
+  const name = /filename\*=UTF-8''([^;]+)/i.exec(response.headers.get("Content-Disposition") ?? "")?.[1];
+  saveBlob(await response.blob(), name ? decodeURIComponent(name) : undefined);
+}

@@ -97,7 +97,7 @@ export function AccountStatus({ status }: { status: string }) {
   // roster where every row shouts is a roster nobody scans.
   const attention = status !== "ACTIVE";
   return (
-    <span className={`ws-chip${attention ? " ws-chip--fill ws-chip--outcome-fill" : ""}`}>
+    <span className={`ws-chip${attention ? " lm-lozenge" : ""}`}>
       {status === "ACTIVE" ? "Active" : status === "DISABLED" ? "Disabled" : "Suspended"}
     </span>
   );

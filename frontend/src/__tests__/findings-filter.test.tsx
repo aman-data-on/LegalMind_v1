@@ -99,20 +99,22 @@ function pane(findings: Finding[] = FINDINGS): string {
 
 /** The filter row's buttons, in the order they render. */
 function filterRow(html: string): { label: string; pressed: boolean }[] {
-  const row = html.match(/aria-label="Filter findings"[^>]*>(.*?)<\/div>/s);
+  // the one filter control (UX Batch 2): its live row, not the hidden measuring copy
+  const row = html.match(/role="group" aria-label="Show points"[^>]*>(.*?)<\/div>/s);
   expect(row, "the filter row renders").toBeTruthy();
   return Array.from((row?.[1] ?? "").matchAll(/<button[^>]*>(.*?)<\/button>/gs))
     .map((m) => ({
-      label: (m[1] ?? "").replace(/<[^>]*>/g, "").replace(/&#x27;|&quot;/g, "'").replace(/\s+/g, " ").trim(),
+      label: (m[1] ?? "").replace(/<[^>]*>/g, " ").replace(/&#x27;|&quot;/g, "'").replace(/\s+/g, " ").trim(),
       pressed: /aria-pressed="true"/.test(m[0]),
     }));
 }
 
 describe("the Points filters are the one status set (cross-page pass, AM-291 r5)", () => {
   it("reads All, then the document legend's words, in that order — adding up to All", () => {
-    // Batch 1 (c): a missing point is Missing, never also Open
+    // Batch 1 (c): a missing point is Missing; UX Batch 2: an open point carries the
+    // server's own word (StatusChip's), never one "Open" for two statuses
     expect(filterRow(pane()).map((b) => b.label)).toEqual([
-      "All 6", "Matches 2", "Open 3", "Missing 1",
+      "All 6", "Matches 2", "Change needed 2", "Missing 1", "Needs a decision 1",
     ]);
   });
 
@@ -123,7 +125,7 @@ describe("the Points filters are the one status set (cross-page pass, AM-291 r5)
     const asking = { ...finding("p3", "CONFLICT", "NEEDS_DECISION"),
                      status: "AWAITING_CLARIFICATION", requires_decision: true };
     expect(filterRow(pane([pending, decided, asking, finding("p4", "MATCH", "ACCEPTABLE")]))
-      .map((b) => b.label)).toEqual(["All 4", "Matches 1", "Open 2", "Decided 1"]);
+      .map((b) => b.label)).toEqual(["All 4", "Matches 1", "Change needed 1", "Needs a decision 1", "Decided 1"]);
   });
 
   it("opens on All, so the reader lands on every finding", () => {
@@ -139,7 +141,7 @@ describe("the Points filters are the one status set (cross-page pass, AM-291 r5)
       finding("f1", "CONFLICT", "NEEDS_DECISION"),
       finding("f2", "MATCH", "ACCEPTABLE"),
     ])).map((b) => b.label);
-    expect(labels).toEqual(["All 2", "Matches 1", "Open 1"]);
+    expect(labels).toEqual(["All 2", "Matches 1", "Needs a decision 1"]);
   });
 });
 
