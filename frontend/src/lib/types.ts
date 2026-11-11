@@ -472,6 +472,9 @@ export interface Evidence {
   section_title: string | null;
   content: string;
   source_type: string;
+  /** a clause number the paper uses twice: this clause's own words (slice A's `name`);
+   *  omitted when the number is unique */
+  name?: string;
 }
 
 export interface Decision {
@@ -593,6 +596,9 @@ export interface Finding {
   escalated: boolean;
   /** The worst of its evaluations' `user_status`, server-derived. */
   user_status?: UserStatusWord;
+  /** Batch 1 (d): a deviation the evaluator's recorded rule outcome accepted in our
+   *  favour (AM-239, AM-303) — the server's word, never derived here */
+  in_our_favour?: boolean;
   evaluations: Evaluation[];
   evidence: Evidence[];
   /** `AM-317` r7: an earlier version's Legal Decision stands for this point (same
@@ -1368,7 +1374,9 @@ interface RelatedClause {
  *  the gap in one line, the impact the figures support, the related clauses, and the
  *  RECOMMENDED action — a recommendation, never a decision, and never "Reject". */
 export interface FindingCase {
-  contract: { quote: string; clause: string | null; page: number | null } | null;
+  contract: { quote: string; clause: string | null; page: number | null;
+              /** a number the paper uses twice: the clause's own words (slice A) */
+              name?: string } | null;
   standard: {
     section: string | null;
     topic: string | null;

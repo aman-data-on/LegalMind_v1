@@ -109,9 +109,10 @@ function filterRow(html: string): { label: string; pressed: boolean }[] {
 }
 
 describe("the Points filters are the one status set (cross-page pass, AM-291 r5)", () => {
-  it("reads All, then the document legend's four words, in that order", () => {
+  it("reads All, then the document legend's words, in that order — adding up to All", () => {
+    // Batch 1 (c): a missing point is Missing, never also Open
     expect(filterRow(pane()).map((b) => b.label)).toEqual([
-      "All 6", "Matches 2", "Open 4", "Missing 1",
+      "All 6", "Matches 2", "Open 3", "Missing 1",
     ]);
   });
 

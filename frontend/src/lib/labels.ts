@@ -389,6 +389,12 @@ export function pointsWords(c: DealCounts | undefined, viewer: StageViewer = "ow
     : `${plural(c.points_open, "open point")}`;
 }
 
+/** "15 waiting for the client" — the points sent back for clarification, said the same
+ *  way on the list and the Summary; null when none wait. */
+export function waitingWords(n: number | undefined): string | null {
+  return n ? `${n} waiting for the client` : null;
+}
+
 /** The stage chip, from the stage AND the counts the Summary shows — never contradicting
  *  them. Once every change is answered the stage names what really happens next. */
 export function stageLine(code: string, c: DealCounts | undefined, viewer: StageViewer = "owner",

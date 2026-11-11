@@ -37,6 +37,7 @@ import {
   USER_STATUS_TONE,
   pointAnswer,
   pointState,
+  readerWord,
   reviewHeadline,
   statusCounts,
   userStatus,
@@ -44,7 +45,7 @@ import {
   type UserStatus,
 } from "./findingLanguage";
 import { useFindingsState } from "./findingsState";
-import { STAGE_LABELS, changesWords, contractOutcomeLabel, decidedWords, pointsWords, stageWords, withoutSectionRefs,
+import { STAGE_LABELS, changesWords, contractOutcomeLabel, decidedWords, pointsWords, stageWords, waitingWords, withoutSectionRefs,
          type StageViewer } from "@/lib/labels";
 
 import { useHighlight } from "./highlight";
@@ -238,7 +239,7 @@ export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner
                         onOpen={sideTabs ? (id) => sideTabs.openFindings({ findingId: id })
                                          : undefined}
                         words={new Map(state.findings.map((f) => [f.id, {
-                          reader: USER_STATUS_LABELS[userStatus(f)],
+                          reader: readerWord(f),
                           answer: pointAnswer(f, can(P.LEGAL_DECISION),
                                               state.progress?.stage !== "NOT_SENT") }]))} />}
           </section>
@@ -434,7 +435,7 @@ export function summaryCount({ points, open, canDecide, mine = false, notSent, a
     : `${points} ${one ? "is" : "are"} with ${assignee ?? "Legal"}`
       + (canDecide ? `. You can also decide ${one ? "it" : "them"}` : "");
   return [lead,
-          waiting ? `${waiting} waiting for the client` : null,
+          waitingWords(waiting),
           decided && open ? `${decided} of ${required} decided` : null,
   ].filter(Boolean).join(". ") + ".";
 }

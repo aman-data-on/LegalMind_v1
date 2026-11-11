@@ -90,12 +90,13 @@ describe("one primary step per person per stage", () => {
 });
 
 describe("one status set", () => {
-  it("lists the four marks in one order, each with its own icon", () => {
+  it("lists the five marks in one order, each with its own icon", () => {
     const html = renderToStaticMarkup(<PointStatusLegend />);
     const words = Object.values(POINT_STATUS);
-    expect(words).toEqual(["Matches our standard", "Open point", "Decided", "Missing"]);
+    // Batch 1 (d): "In our favour" is its own mark
+    expect(words).toEqual(["Matches our standard", "In our favour", "Open point", "Decided", "Missing"]);
     for (const w of words) expect(html).toContain(w);
-    expect(new Set(html.match(/lucide-[a-z-]+/g)).size).toBeGreaterThanOrEqual(4);
+    expect(new Set(html.match(/lucide-[a-z-]+/g)).size).toBeGreaterThanOrEqual(5);
   });
 });
 

@@ -5,7 +5,7 @@
  * names them in plain words (rule 18: nothing decided here).
  */
 
-import type { Answer, ClientChange, EffectForUs } from "./changes";
+import type { Answer, ClientChange, EffectForUs, Measured } from "./changes";
 
 export interface PackageBlocker {
   code: string;
@@ -27,6 +27,8 @@ export interface PackageEntry {
   row_key?: string;
   answer?: Answer;
   effect?: EffectForUs;
+  /** why a NEGATIVE row goes to Legal — the Changes row's own words (slice A split) */
+  measured?: Measured;
 }
 
 /** `AM-310`: an amendment is the changes-only instrument unless Legal restates it */
@@ -58,6 +60,7 @@ export interface TraceEntry {
   n: number;
   op: PackageEntry["op"];
   effect?: EffectForUs | null;
+  measured?: Measured;
   row_key: string;
   decision_ids: string[];
   answer?: string;

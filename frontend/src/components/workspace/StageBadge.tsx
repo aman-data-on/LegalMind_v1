@@ -9,7 +9,7 @@
  * (Batch 1 (c)), never a guess from the stage.
  */
 
-import { changesWords, pointsWords, reviewStatusLabel, stageLine, stageWords, type StageViewer } from "@/lib/labels";
+import { changesWords, pointsWords, reviewStatusLabel, stageLine, stageWords, waitingWords, type StageViewer } from "@/lib/labels";
 import type { Contract, DealCounts, NegotiationStage, NegotiationStageCode } from "@/lib/types";
 
 import { documentStatusBucket, relativeTime, shortDate, UNFINISHED_REVIEW_STATUSES } from "./model";
@@ -82,10 +82,13 @@ export function CountsCell({ contract, viewer }: { contract: Contract; viewer: S
   if (review && UNFINISHED_REVIEW_STATUSES.has(review)) points = reviewStatusLabel(review);
   else if (documentStatusBucket(contract) === "analyzing") points = <span className="ws-home__quiet">Being read</span>;
   else if (points === null) points = <span className="ws-home__quiet">Not checked yet</span>;
+  // the Summary's "N waiting for the client", so the list agrees with it (Batch 1)
+  const waiting = waitingWords(contract.counts?.points_waiting);
   return (
     <span className="ws-home__counts">
       {changes ? <span>{changes}</span> : null}
       <span>{points}</span>
+      {waiting ? <span>{waiting}</span> : null}
     </span>
   );
 }

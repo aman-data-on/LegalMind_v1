@@ -6,7 +6,7 @@
  */
 
 import { USER_STATUS_LABELS, requirementTitle, type UserStatus } from "@/components/workspace/findingLanguage";
-import { sectionRef } from "@/lib/documentTypes";
+import { clauseName } from "@/lib/documentTypes";
 import { formatDate } from "@/lib/dates";
 
 /** THEIRS: the client's paper came first (`AM-290`) — one row per point the review
@@ -251,12 +251,9 @@ export const ROUTE_LABEL: Record<ChangeRoute, string> = {
   favour: "In our favour",
 };
 
-/** "2 Fees", or — a number the paper uses twice — "2 — Invoicing and Payment" by the
- *  clause's own words; "" when the clause has neither number nor heading. */
-export function clauseName({ number, heading, name }: ClauseName): string {
-  const ref = sectionRef(number);
-  return ref && name ? `${ref} — ${name}` : [ref, heading].filter(Boolean).join(" ");
-}
+// "2 Fees" / "2 — Invoicing and Payment": one helper, beside `sectionRef`, so the Points
+// passages say a clause exactly as the Changes rows do (slice C)
+export { clauseName };
 
 export function where(change: ClientChange): string {
   const head = clauseName(change.clause);

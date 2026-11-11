@@ -87,8 +87,8 @@ describe("the contracts home rows (critic round)", () => {
     const facts = contractFacts(row(analysed), "Acme");
     expect(facts.slice(0, 2)).toEqual(["Acme", "MSA"]);
     expect(facts[2]).toMatch(/^Version 2, uploaded 2 Nov 2026, \d{1,2}:\d\d (am|pm)$/);
-    expect(facts[3]).toBe("Ref C");
+    expect(facts).toHaveLength(3);                       // Batch 1 (f): no Ref id
     expect(facts.join(" ")).not.toContain("·");            // parts, never a middot string
-    expect(contractFacts(row({ contract_type: null }))).toEqual(["Ref C"]);
+    expect(contractFacts(row({ contract_type: null }))).toEqual([]);
   });
 });

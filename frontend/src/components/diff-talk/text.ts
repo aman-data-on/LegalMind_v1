@@ -86,6 +86,6 @@ export function choicesForLegal(oursTitle: string, theirsTitle: string, rows: Ro
     ...rows.filter(isDecidable).map((row) => {
       const pick = choices[rowKey(row)];
       return `• ${clauseName(row.right ?? row.left)} — ${pick
-        ? CHOICE_WORDS[row.status][pick] : "not decided yet"}`;
+        ? CHOICE_WORDS[row.status][pick] : "not chosen yet"}`;
     })].join("\n");
 }

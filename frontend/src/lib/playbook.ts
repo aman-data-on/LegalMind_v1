@@ -14,7 +14,7 @@ export interface PlaybookPoint {
   kind: OfferKind;
   /** our paper's own figure, as the engine read it; null when it read none */
   opening: { value: number; unit: string; basis: string | null } | null;
-  /** the line in plain words, e.g. "We start at 7 days. You can agree up to 21 days. …" */
+  /** the line in plain words, e.g. "Our paper says 7 days. You can agree up to 21 days. …" */
   line: string;
   /** something lies between our opening and our limit — the deal owner's to agree */
   room: boolean;

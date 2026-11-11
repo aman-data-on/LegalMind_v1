@@ -28,7 +28,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import {
-  requirementTitle, USER_STATUS_LABELS, userStatus,
+  readerWord, requirementTitle, userStatus,
 } from "@/components/workspace/findingLanguage";
 
 import { api, describeError } from "@/lib/api";
@@ -240,7 +240,7 @@ export default function LegalQueuePage() {
                           2026-10-21) — the engine's own word stays in the tooltip */}
                       <span className={`ws-chip ws-chip--fill ws-chip--status-${userStatus(finding).toLowerCase()}`}
                             title={classificationLabel(finding.classification)}>
-                        {USER_STATUS_LABELS[userStatus(finding)]}
+                        {readerWord(finding)}
                       </span>
                     </td>
                     <td>
