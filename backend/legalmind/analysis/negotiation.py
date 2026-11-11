@@ -326,7 +326,8 @@ def _units(clauses: list[Clause]) -> list[dict[str, Any]]:
     — never a heading inferred from another row; else None. ``group``: where the
     unit's top-level number is used by two or more units, ``{key, name}`` of its parent
     — the nearest unit before it (itself included) numbered that top-level number —
-    keyed by the parent's name, or its first evidence row when it has none; else None."""
+    keyed by the parent's first evidence row, never its words; else None. ``parent``:
+    that parent's index here (None without one)."""
     units: list[dict[str, Any]] = []
     for row in clauses:
         first = (row.content or "").strip().split("\n", 1)[0]
@@ -350,17 +351,31 @@ def _units(clauses: list[Clause]) -> list[dict[str, Any]]:
                                      is None else r.marks["original"] for r in rows)
         unit["changes"] = [c for r in rows for c in (r.marks or {}).get("changes") or ()]
     numbers = Counter(_num(u["number"]) for u in units if u["number"])
-    parents: dict[str, dict] = {}
-    for unit in units:
+    parents: dict[str, int] = {}
+    for at, unit in enumerate(units):
         number = _num(unit["number"])
         unit["name"] = _own_name(unit) if number and numbers[number] > 1 else None
         if number and "." not in number:
-            parents[number] = unit
-        parent = parents.get(number.split(".")[0]) if number else None
+            parents[number] = at
+        p = parents.get(number.split(".")[0]) if number else None
+        parent = units[p] if p is not None else None
+        # the parent's index, so a deleted row can take its parent's twin's group
+        unit["parent"] = p
+        # keyed by the parent unit itself (its first row), never by its words
         unit["group"] = None if parent is None or numbers[_num(parent["number"])] < 2 \
-            else {"key": parent["name"] or parent["evidence_ids"][0],
-                  "name": parent["name"]}
+            else {"key": parent["evidence_ids"][0], "name": parent["name"]}
     return units
+
+
+def unit_names(clauses: list[Clause]) -> dict[str, str]:
+    """{evidence_id: name} for every row of a unit whose number the paper uses twice —
+    the clause's own words (`_units`), so a Points passage reads "2 — Invoicing"."""
+    return {e: u["name"] for u in _units(clauses) if u["name"] for e in u["evidence_ids"]}
+
+
+def review_unit_names(db: DBSession, review_id: UUID) -> dict[str, str]:
+    review = db.get(M.Review, review_id)
+    return unit_names(load_clauses(db, review.document_version_id)) if review else {}
 
 
 def _num(number: str | None) -> str:
@@ -650,6 +665,20 @@ def _clause(unit: dict) -> dict:
             "group": unit["group"]}
 
 
+def row_clause(o: dict | None, n: dict | None, old: list[dict], new: list[dict],
+               twin: dict[int, int]) -> dict:
+    """A row's clause: the returned copy's unit, else ours — a row only ours (deleted)
+    sits in the group of its parent's twin on the returned copy (the same number), so
+    one parent reads as one group whichever side its rows come from."""
+    here = n or o
+    assert here is not None
+    p = o["parent"] if n is None and o is not None else None
+    if p is not None and p in twin \
+            and _num(new[twin[p]]["number"]) == _num(old[p]["number"]):
+        return _clause({**here, "group": new[twin[p]]["group"]})
+    return _clause(here)
+
+
 def clause_label(clause: dict, heading: bool = True) -> str | None:
     """A clause in words, as the Changes tab says it (`clauseName`): "2 — Invoicing
     and Payment" for a number the paper uses twice, else "7 Fees" (or "7" without
@@ -776,7 +805,9 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
         if any(u["changes"] for u in new) else {}
     answers = answer_lines(db, contract, before, after, legal_position=legal_position)
     out: list[dict[str, Any]] = []
-    for i, j, moved in _align(old, new):
+    aligned = _align(old, new)
+    twin = {i: j for i, j, _ in aligned if i is not None and j is not None}
+    for i, j, moved in aligned:
         o, n = (old[i] if i is not None else None), (new[j] if j is not None else None)
         kind = _kind(o, n, moved)
         if kind is None or (kind == "DELETED" and template is not None and o
@@ -810,7 +841,7 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
             "row_key": key, "kind": kind,
             # a clause both moved and reworded is MODIFIED, and says it moved
             "moved": moved and kind == "MODIFIED",
-            "clause": _clause(here),
+            "clause": row_clause(o, n, old, new, twin),
             "page": here["page"],
             "before": _side(o), "after": _side(n),
             "tracked": tracked, "untracked": untracked,

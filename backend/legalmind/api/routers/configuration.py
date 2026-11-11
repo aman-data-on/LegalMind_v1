@@ -209,6 +209,13 @@ def update_company_standard(requirement_id: UUID,
         raise BusinessRuleRejected(
             "requirement has no version yet; draft one with "
             "POST /requirements/{id}/versions first")
+    if latest.evaluator_type is E.EvaluatorType.CATEGORICAL:
+        # the same check publish applies (GP-1): a raw edit that drops the allowed
+        # values is refused at save, never found at evaluation
+        try:
+            categorical_values(body.company_standard or {})
+        except CategoricalMisconfigured as exc:
+            raise BusinessRuleRejected(str(exc)) from exc
 
     prior_mr = _latest(guard, M.MappingRuleVersion, latest.id)
     prior_er = _latest(guard, M.EvaluationRuleVersion, latest.id)

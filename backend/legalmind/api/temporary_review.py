@@ -31,6 +31,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session as DBSession
 
+from legalmind.analysis.negotiation import review_unit_names
 from legalmind.analysis.service import AnalysisNotPermitted, NotAContract, run_analysis
 from legalmind.api.angles import review_angles
 from legalmind.api.reporting import review_findings
@@ -165,7 +166,8 @@ def review_file(db: DBSession, *, conversation_id: UUID, user_id: UUID,
             return TemporaryReview(filename, [], refused=str(exc) or "not_analysable")
         if review.status is E.ReviewStatus.ANALYSIS_FAILED:
             return TemporaryReview(filename, [], refused=outcome.review_status)
-        findings = [serialize_finding(db, f, legal_position=legal_position)
+        names = review_unit_names(db, review.id)
+        findings = [serialize_finding(db, f, legal_position=legal_position, names=names)
                     for f in review_findings(db, review.id)]
         angles = (review_angles(db, review, legal_position=legal_position)
                   if with_angles else None)

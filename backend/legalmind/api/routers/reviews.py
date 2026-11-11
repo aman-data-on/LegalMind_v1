@@ -21,6 +21,7 @@ from fastapi import APIRouter, Depends, Header, Query, Response
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import aliased
 
+from legalmind.analysis.negotiation import review_unit_names
 from legalmind.analysis.service import (
     AnalysisNotPermitted,
     NotAContract,
@@ -506,8 +507,10 @@ def list_findings(
                       M.Finding.created_at, M.Finding.id)
     # AM-179: the point each finding belongs to — the one fold every screen uses
     groups = group_ids(guard.db, [review_id], legal_position=guard.sees_legal_position)
+    names = review_unit_names(guard.db, review_id)
     return paginated(
-        [{**serialize_finding(guard.db, f, legal_position=guard.sees_legal_position),
+        [{**serialize_finding(guard.db, f, legal_position=guard.sees_legal_position,
+                              names=names),
           "group_id": groups.get(f.id, str(f.id))}
          for f in rows],
         page=page.page, page_size=page.page_size, total=total)

@@ -1324,7 +1324,7 @@ def _package_plan(guard: Guard, contract: M.Contract, form: str = CHANGES_ONLY) 
         stop("NO_ENTRIES", "Every change keeps our wording — send our version as it "
              "is, or prepare our reply.")
     out["entries"] = [{k: e[k] for k in ("n", "op", "target", "text", "row_key",
-                                         "answer", "effect") if k in e}
+                                         "answer", "effect", "measured") if k in e}
                       | ({"new_number": e["new_number"]} if "new_number" in e else {})
                       | ({"carried": True} if "trace" in e else {})
                       for e in shown]
@@ -1423,7 +1423,9 @@ def _trace(guard: Guard, plan: dict) -> list[dict]:
                     "choice_id": str(choice.id) if choice else None,
                     "choice_version": choice.version_number if choice else None,
                     "text_sha256": special_conditions.text_sha256(e["text"] or ""),
-                    "effect": e.get("effect"), "decision_ids": decisions,
+                    "effect": e.get("effect"),
+                    **({"measured": e["measured"]} if e.get("measured") else {}),
+                    "decision_ids": decisions,
                     **({"holder_answer_audit_id": str(holder)} if holder else {})})
     return out
 

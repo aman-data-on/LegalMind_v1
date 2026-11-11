@@ -7,11 +7,12 @@ from __future__ import annotations
 
 import os
 import uuid
+from collections import Counter
 from pathlib import Path
 
 import pytest
 
-from legalmind.analysis.negotiation import _ZERO_WIDTH, _units
+from legalmind.analysis.negotiation import _ZERO_WIDTH, _num, _units, clause_label
 from legalmind.ingestion.parsing import parse
 from legalmind.mapping.engine import Clause
 
@@ -21,7 +22,8 @@ DOCS = Path(os.environ.get("LEGALMIND_SOURCE_MATERIAL_DIR", "/nonexistent"))
 FILES = [DRIVE / n for n in ("client-A.docx", "client-B.docx", "client-C-markup.docx",
                              "client-D.pdf")] + \
         [DOCS / n for n in ("MSA.pdf", "MSA-GRP-2026-07-30.pdf", "MSA-Feb.pdf", "NDA.pdf",
-                            "SLA-leapswitch.pdf", "TOS-leapswitch.pdf")]
+                            "SLA-leapswitch.pdf", "TOS-leapswitch.pdf",
+                            "SLA-cloudpe.pdf", "TOS-cloudpe.pdf")]
 MIME = {".pdf": "application/pdf", ".md": "text/markdown",
         ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"}
 
@@ -38,6 +40,14 @@ def test_a_repeated_number_is_named_by_its_own_words_only(path):
     units = _units([Clause(uuid.uuid4(), s.content, s.section_number, s.section_title,
                            s.page_number, bool(s.metadata.get("heading")))
                     for s in read.segments])
+    numbers = Counter(_num(u["number"]) for u in units if u["number"])
+    # slice C: a repeated number is never left unnamed (a unit with words of its own),
+    # and no two numbered units read the same label
+    unnamed = [u["number"] for u in units if u["number"] and numbers[_num(u["number"])] > 1
+               and not u["name"] and _words(u["text"].removeprefix(u["number"]))]
+    assert unnamed == []
+    labels = Counter(clause_label(u) for u in units if u["number"])
+    assert [k for k, n in labels.items() if n > 1] == []
     said: dict[tuple[str, str | None], int] = {}
     for u in units:
         if not u["name"]:
