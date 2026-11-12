@@ -68,6 +68,44 @@ export const TIER_ORDER: RoleTier[] = [
   "department", "platform", "break_glass", "custom", "future_legal",
 ];
 
+/** The account-lifecycle actions worth offering as one-click filters. Free text
+ *  is still available for anything else, and matches exactly. */
+export const COMMON_ACTIONS = [
+  { value: "", label: "All actions" },
+  { value: "admin.user_created", label: "Account created" },
+  { value: "admin.user_updated", label: "Account updated" },
+  { value: "admin.user_deleted", label: "Account deleted" },
+  { value: "admin.role_granted", label: "Role granted" },
+  { value: "admin.role_revoked", label: "Role revoked" },
+  { value: "admin.department_created", label: "Department created" },
+  { value: "admin.department_updated", label: "Department renamed" },
+  { value: "admin.permission_changed", label: "Role permissions changed" },
+  { value: "auth.login_failed", label: "Failed sign-in" },
+  { value: "auth.session_revoked", label: "Session revoked" },
+] as const;
+
+/** B3 p2: an audit action in plain words — the filter's own labels and a few everyday ones;
+ *  any other code is said as words ("Contract: read via department scope"). The code itself
+ *  stays in the row's Details. UI copy only: the record is unchanged (AUD-01). */
+const ACTION_WORDS: Record<string, string> = {
+  ...Object.fromEntries(COMMON_ACTIONS.filter((a) => a.value).map((a) => [a.value, a.label])),
+  "auth.login_succeeded": "Signed in", "auth.logout": "Signed out",
+  "contract.created": "Created a contract", "document.uploaded": "Uploaded a document",
+  "review.created": "Started a review", "legal.decision_recorded": "Recorded a decision",
+  "legal.finding_escalated": "Asked Legal",
+};
+const SUBJECT: Record<string, string> = {
+  auth: "Sign-in", authz: "Access", admin: "Administration", config: "Standards", assist: "Ask",
+};
+const words = (code: string) => code.replace(/_/g, " ");
+export function actionWords(code: string): string {
+  if (ACTION_WORDS[code]) return ACTION_WORDS[code];
+  if (code.startsWith("contract.read_via_")) return "Opened a contract";
+  const [subject = "", ...rest] = code.split(".");
+  const head = SUBJECT[subject] ?? words(subject).replace(/^./, (c) => c.toUpperCase());
+  return rest.length ? `${head}: ${words(rest.join(" "))}` : head;
+}
+
 export function AdminNav() {
   const pathname = usePathname();
   // Longest match, so `/dashboard/admin/audit` never also lights "Users"

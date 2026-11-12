@@ -748,9 +748,9 @@ export function FindingCard({ finding, onChanged, prepared, qualify, explanation
                 2026-09-09): which of the five answers produced this status. */}
             {/* one reason, in the case's words ("15 days in the contract vs our 30
                 days"); the engine's determination only where no case is built */}
-            {kase ? (
-              <span className="ws-finding__reason">{kase.gap}</span>
-            ) : determinationLabel(finding.classification) ? (
+            {/* B3 p2 fix: the case's gap line ("45 days in the contract vs our 21 days")
+                repeated the facts below it; the facts now say it once */}
+            {kase ? null : determinationLabel(finding.classification) ? (
               <span className="ws-finding__det">
                 {determinationLabel(finding.classification)}
               </span>
@@ -787,11 +787,10 @@ export function FindingCard({ finding, onChanged, prepared, qualify, explanation
           </>
         ) : null}
         <dt>What to do</dt>
-        <dd className="ws-facts__next">
-          {todo}
-          {proposal ? <CounterProposalCard proposal={proposal} /> : null}
-        </dd>
+        <dd className="ws-facts__next">{todo}</dd>
       </dl>
+      {/* the action's payload, full width under the facts — never a box inside a value */}
+      {proposal ? <CounterProposalCard proposal={proposal} /> : null}
       {!kase && meaning ? <p className="ws-finding__lede">{meaning}</p> : null}
       {prohibition ? (
         // NOT ACCEPTED always shows its source: the Constitution section the

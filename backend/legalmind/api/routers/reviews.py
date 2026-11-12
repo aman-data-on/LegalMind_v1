@@ -15,6 +15,7 @@ from the reviewer's recorded decision on the contract (AM-174), never from a sta
 
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Query, Response
@@ -224,6 +225,27 @@ def _with_document(guard: Guard, reviews: list[M.Review]) -> list[dict]:
                    M.ContractOutcomeRecord.version_number)
             .where(M.ContractOutcomeRecord.review_id.in_([r.id for r in reviews]))
             .order_by(M.ContractOutcomeRecord.version_number))}
+    # B3 page 2: since when each is with Legal and who holds it — `sent_to_legal()`'s own
+    # two facts (a live assignment, an open escalation), the earliest of them; the
+    # assignees by name. A colleague's assignment is the team's to see (`with_legal`).
+    ids = [r.id for r in reviews]
+    since: dict[UUID, datetime] = {}
+    holders: dict[UUID, list[str]] = {}
+    if ids:
+        RA = M.ReviewAssignment
+        for rid, at, name in guard.db.execute(
+                select(RA.review_id, RA.created_at, M.User.name)
+                .join(M.User, M.User.id == RA.user_id)
+                .where(RA.review_id.in_(ids), RA.revoked_at.is_(None))
+                .order_by(RA.created_at)):
+            since.setdefault(rid, at)
+            holders.setdefault(rid, []).append(name)
+        for rid, at in guard.db.execute(
+                select(M.Finding.review_id, func.min(M.Escalation.created_at))
+                .join(M.Escalation, M.Escalation.finding_id == M.Finding.id)
+                .where(M.Finding.review_id.in_(ids), M.Escalation.withdrawn_at.is_(None))
+                .group_by(M.Finding.review_id)):
+            since[rid] = min(since.get(rid, at), at)
     payload = []
     for review in reviews:
         contract = contracts.get(review.contract_id)
@@ -242,6 +264,10 @@ def _with_document(guard: Guard, reviews: list[M.Review]) -> list[dict]:
         item["sent_to_you"] = review.id in sent
         item["yours"] = review.id in held
         item["contract_outcome"] = outcomes.get(review.id)
+        # present only when the Review is with Legal (never null)
+        if review.id in since:
+            item["with_legal_since"] = since[review.id].isoformat()
+        item["assigned_to"] = holders.get(review.id, [])
         payload.append(item)
     return payload
 

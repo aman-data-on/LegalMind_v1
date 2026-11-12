@@ -307,7 +307,22 @@ export function CounterProposalCard({ proposal }: { proposal: CounterProposal })
       </p>
       <blockquote className="ws-counter__text">{proposal.text}</blockquote>
       {legalReader ? <p className="ws-counter__label">{proposal.label}</p> : null}
+      {wording ? <CopyWording text={proposal.text} /> : null}
     </aside>
+  );
+}
+
+/** The server's wording, copied verbatim; the result is said in a status line. */
+function CopyWording({ text }: { text: string }) {
+  const [said, setSaid] = useState<string | null>(null);
+  return (
+    <p className="ws-counter__copy">
+      <button type="button" className="ws-btn ws-btn--sm" onClick={() => {
+        void navigator.clipboard.writeText(text).then(() => setSaid("Copied"),
+          () => setSaid("Couldn't copy — select the wording instead"));
+      }}>Copy wording</button>
+      <span role="status">{said}</span>
+    </p>
   );
 }
 

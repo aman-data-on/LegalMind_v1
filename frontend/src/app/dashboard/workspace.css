@@ -7201,7 +7201,7 @@ button.ws-open__go:hover { background: var(--ws-paper); }
 .ws-attn__count, .ws-attn__changes { margin: 0; font-size: var(--t-caption); color: var(--ws-ink-700);
   line-height: 1.45; font-variant-numeric: tabular-nums; }
 /* B3 p1: the pane's key sentence reads at body size, not caption */
-.ws-attn__count { font-size: var(--t-body); color: var(--ws-ink-900); }
+.ws-attn__count { font-size: var(--t-body); color: var(--ws-ink-900); text-wrap: pretty; }
 /* a thin meter under its own words ("1 of 3 decided"), drawn only once a point is decided */
 .ws-attn .ws-stage__bar { margin: 2px 0 4px; height: 4px; border: 0; border-radius: 4px;
   appearance: none; background: var(--ws-ink-100); overflow: hidden; }
@@ -7650,8 +7650,11 @@ a.ws-askglobal[data-away]:not(:focus-visible) {
     clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
   .lm-stack tr { padding: var(--ws-s3) var(--ws-s4); border-bottom: 1px solid var(--ws-ink-100); }
   .lm-stack tr:last-child { border-bottom: 0; }
-  .lm-stack td, .lm-stack tr:last-child td { padding: 2px 0; border: 0; white-space: normal;
-    overflow-wrap: anywhere; min-width: 0; }
+  /* padding-BLOCK only: a shorthand here (with the last row's higher specificity) wiped the
+     label gutter on the last card (review §B3-P2) */
+  .lm-stack td, .lm-stack tr:last-child td { padding-block: 2px; border: 0; white-space: normal;
+    overflow-wrap: anywhere; word-break: break-word; min-width: 0; }
+  .lm-stack td:not([data-label]) { padding-left: 0; }
   /* the label sits in a 7rem gutter; the value stays inline, so chips keep their own width
      and several chips wrap under the value, never under the label */
   .lm-stack td[data-label] { position: relative; padding-left: calc(7rem + var(--ws-s2)); }
@@ -7678,11 +7681,48 @@ a.ws-askglobal[data-away]:not(:focus-visible) {
 }
 .ws-facts--card dt { margin-bottom: 0; }
 .ws-facts--card .ws-case__contract { margin: 0; }
-.ws-facts--card .ws-counter { margin-top: var(--ws-s2); }
-@container (max-width: 420px) {
-  .ws-facts.ws-facts--card { grid-template-columns: minmax(0, 1fr); row-gap: 2px; }
+/* plain facts on the card itself — no panel of their own (DESIGN-FOUNDATION §2.4: never a card
+   inside a card); the send-back wording follows them, full width */
+.ws-facts.ws-facts--card { background: none; border: 0; box-shadow: none; padding: var(--ws-s2) 0 0; }
+.ws-facts--card dd + dt { border-left: 0; }
+.ws-finding > .ws-counter { margin: var(--ws-s2) 0; }
+.ws-counter__copy { display: flex; align-items: center; gap: var(--ws-s2); margin: var(--ws-s2) 0 0;
+  font-size: var(--t-caption); color: var(--ws-ink-500); }
+@media (max-width: 640px) {
+  /* a phone: each label above its value, so the value keeps the full width */
+  .ws-facts.ws-facts--card, .ws-workspace--wide[data-doc-open] .ws-facts.ws-facts--card {
+    grid-template-columns: minmax(0, 1fr); row-gap: 2px; }
   .ws-facts--card dd { margin-bottom: var(--ws-s2); }
 }
 
 /* B3 p1: the "read before a formatting fix" notice sits on the page's own inset, full width */
 .ws-viewpanel > .lm-state--notice { margin: var(--ws-s4) var(--ws-s4) 0; max-width: none; }
+
+/* B3 p2: Ask on a phone is an app-bar icon (`.ws-shell__ask`), never a floating button over
+   the rows (review §B3-P2, WCAG 2.4.11); above 760px the floating launcher stays. */
+.ws-shell__ask { display: none; }
+@media (max-width: 760px) {
+  .ws-shell__ask { display: inline-flex; align-items: center; justify-content: center;
+    width: 44px; height: 44px; border-radius: 50%; color: var(--c-on-action); }
+  .ws-shell__ask:hover { background: rgba(255, 255, 255, 0.08); }
+  .ws-shell__ask:focus-visible { outline: 2px solid var(--c-on-action); outline-offset: -2px; }
+  a.ws-askglobal { display: none; }
+  .ws:has(.ws-askglobal) :is(.lm-page, .ws-admin) { padding-bottom: 96px; }
+}
+
+/* B3 p2: `FilterPanel` — one row on a wide screen, behind one "Filters" button on a phone */
+.lm-filters__toggle { display: none; }
+.lm-filters__body { display: contents; }
+@media (max-width: 640px) {
+  .lm-filters__toggle { display: inline-flex; align-self: flex-start; }
+  .lm-filters__body { display: none; }
+  .lm-filters[data-open] .lm-filters__body { display: flex; flex-direction: column; gap: var(--ws-s3);
+    width: 100%; }
+  .lm-filters .ws-field { max-width: none; }
+}
+/* B3 p2: Administration on the same page width and inset as every other list page */
+.ws-admin { max-width: min(var(--lm-page-w), 100%);
+  padding-inline: clamp(var(--ws-s4), 2.5vw, var(--ws-s6)); }
+/* the audit row's Details toggle: a real target (WCAG 2.5.8), 44px on touch */
+.ws-auditshow { min-height: 24px; min-width: 44px; padding: 2px 0; text-align: left; }
+@media (pointer: coarse) { .ws-auditshow { min-height: 44px; } }

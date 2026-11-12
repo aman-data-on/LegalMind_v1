@@ -388,7 +388,7 @@ export function ChangesPane({
                      aria-current={c.row_key === current?.row_key || undefined}
                      onClick={() => setSelected(c.row_key)}>
               <h3>{where(c)}{formattingOnly(c) ? <span className="cx-tag">Formatting only</span>
-                : c.kind !== "MODIFIED" ? <span className="cx-tag">{KIND_LABEL[c.kind]}</span> : null}</h3>
+                : c.kind !== "MODIFIED" && !wholeClause(c) ? <span className="cx-tag">{KIND_LABEL[c.kind]}</span> : null}</h3>
               <Marked change={c} list={data} />
             </article>
           ))}
@@ -657,11 +657,15 @@ function ChangeIndex({ rows, current, onPick, allUntracked, reader, formatting, 
 
 const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
+/** A change with no "before" text: the client's whole clause, drawn as one block with its
+ *  own header — so no separate kind tag beside it (B3 p1/p2) */
+const wholeClause = (c: ClientChange) => !c.before?.text && !!c.after?.text;
+
 export function Marked({ change, list }: { change: ClientChange; list: Pick<ChangeList, "from" | "to" | "template"> }) {
   // B3 p1 (DESIGN-FOUNDATION §2.5): a clause that is wholly the client's — added, or their
   // own paper — is ONE block with a header, never a page underlined line by line. `<ins>`
   // still tells assistive technology it is the client's text.
-  if (!change.before?.text && change.after?.text) {
+  if (wholeClause(change) && change.after?.text) {
     return (
       <div className="cx-whole">
         <p className="cx-whole__head">{change.kind === "ADDED" ? "The client added this clause" : "The client\u2019s own clause"}</p>
@@ -760,7 +764,7 @@ export function AnswerCard({ change, list, contractId, onAnswered, onReload, inP
           {point && requirementTitle({ code: point.requirement_code }) !== rowLabel(change, "")
             ? <span> · {requirementTitle({ code: point.requirement_code })}</span> : null}
           {formattingOnly(change) ? <span className="cx-tag">Formatting only</span>
-            : change.kind !== "MODIFIED" ? <span className="cx-tag">{KIND_LABEL[change.kind]}</span> : null}
+            : change.kind !== "MODIFIED" && !wholeClause(change) ? <span className="cx-tag">{KIND_LABEL[change.kind]}</span> : null}
           {change.moved ? <span className="cx-tag">Also moved</span> : null}
         </p>
         {/* "Legal decides" is said ONCE, beside Ask Legal below — not again here */}

@@ -43,6 +43,7 @@ import { SegmentedFilter } from "@/components/SegmentedFilter";
 import { AccessRestricted } from "@/components/AccessRestricted";
 import { PageHeader } from "@/components/page/PageHeader";
 import { StackTable } from "@/components/StackTable";
+import { relativeTime } from "@/components/workspace/model";
 
 /** Step 30 statuses under which undecided Findings can still exist. LEGAL_REVIEW
  *  first: it is the explicitly-escalated lane. RESOLVED/CLOSED reviews cannot
@@ -63,7 +64,9 @@ const WORDS = {
   emptyAllHint: "A point appears here when it needs one.",
   emptyYours: "No points wait for your decision.",
   emptyYoursHint: "Points with your colleagues are under All with Legal.",
-  columns: [{ label: "Point" }, { label: "Status" }, { label: "Contract" }, { label: "Review" }],
+  columns: [{ label: "Point" }, { label: "Status" }, { label: "Contract" }, { label: "Waiting" },
+            { label: "Assigned to" }],
+  nobody: "Not assigned",
 };
 
 /** The header's one line: what waits on this reader, never "nothing" over a full list. */
@@ -123,8 +126,11 @@ export default function LegalQueuePage() {
       // Review this queue exists to show, since Legal scope covers the Review
       // and not the Contract.
       // what the owner sent to this reviewer first (owner, 2026-10-21; AB-100)
+      // then the longest waiting first (B3 p2: the server's `with_legal_since`)
+      const since = (row: QueueRow) => row.review.with_legal_since ?? "9999";
       rows.sort((a, b) => Number(Boolean(b.review.sent_to_you))
-                          - Number(Boolean(a.review.sent_to_you)));
+                          - Number(Boolean(a.review.sent_to_you))
+                          || since(a).localeCompare(since(b)));
       // QA-023: a review whose points could not be read is said, never silently left out
       const failed = perReview.filter((outcome) => outcome.status === "rejected").length;
       setState({ kind: "ready", rows, truncated, failed, mine });
@@ -223,6 +229,9 @@ export default function LegalQueuePage() {
                         ? <span className="ws-chip">{contractOutcomeLabel(review.contract_outcome)}</span>
                         : null}
                       {finding.escalated ? <span className="ws-chip--flag">Escalated</span> : null}
+                      {/* every row here is With Legal; only another stage is worth a word */}
+                      {review.status !== "LEGAL_REVIEW"
+                        ? <span className="ws-chip" title={review.status}>{reviewStatusLabel(review.status)}</span> : null}
                     </td>
                     <td>
                       {/* the reader's three words, as on every other screen (owner,
@@ -230,24 +239,12 @@ export default function LegalQueuePage() {
                       <StatusChip status={chipStatus(userStatus(finding), finding.in_our_favour)}
                                   title={classificationLabel(finding.classification)} />
                     </td>
-                    <td>
-                      {review.document_accessible ? (
-                        <Link href={`/dashboard?id=${review.contract_id}`}>
-                          {review.document_name ?? review.contract_id.slice(0, 8)}
-                        </Link>
-                      ) : (
-                        <span className="ws-docs__name" title="You can open the report, not the document">
-                          {review.document_name ?? review.contract_id.slice(0, 8)}
-                        </span>
-                      )}
+                    {/* B3 p2: the point is the row's one link; the contract is plain text */}
+                    <td>{review.document_name ?? review.contract_id.slice(0, 8)}</td>
+                    <td title={review.with_legal_since}>
+                      {review.with_legal_since ? relativeTime(review.with_legal_since) : "—"}
                     </td>
-                    <td>
-                      <span className={`ws-chip${review.status === "LEGAL_REVIEW" ? " lm-lozenge" : ""}`}
-                            title={review.status}>
-                        {reviewStatusLabel(review.status)}
-                      </span>{" "}
-                      <Link href={`/dashboard/reviews?id=${review.id}`}>Report</Link>
-                    </td>
+                    <td>{review.assigned_to?.length ? review.assigned_to.join(", ") : WORDS.nobody}</td>
                   </tr>
                 ))}
           </StackTable>

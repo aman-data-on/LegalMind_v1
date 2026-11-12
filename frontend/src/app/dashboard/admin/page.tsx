@@ -46,6 +46,7 @@ import { ErrorState } from "@/components/Feedback";
 import { AccessRestricted } from "@/components/AccessRestricted";
 import { PageHeader } from "@/components/page/PageHeader";
 import { StackTable } from "@/components/StackTable";
+import { FilterPanel } from "@/components/FilterPanel";
 
 const PAGE_SIZE = 25;
 
@@ -201,23 +202,26 @@ function UsersScreen() {
         />
       ) : null}
 
-      <div className="ws-filter-bar">
+      {/* B3 p2: search stays; role, department, status and sort fold behind "Filters" on a phone */}
+      <FilterPanel active={[roleFilter, departmentFilter, statusFilter].filter(Boolean).length}
+                   lead={<>
         {/* The filter controls and the create form both talk about a role and a
             department. Two controls with the same accessible name on one screen
             is a real defect, not just an ambiguous selector: a screen reader
             announces "Role, combo box" twice and neither one says which. The
             visible text stays short and is a substring of the accessible name,
             so WCAG 2.5.3 is satisfied rather than traded away. */}
-        <label className="ws-field">
-          <span className="ws-field__label">Search</span>
-          <input
-            type="search"
-            aria-label="Search accounts"
-            placeholder="Name or email"
-            value={searchInput}
-            onChange={(event) => setSearchInput(event.target.value)}
-          />
-        </label>
+          <label className="ws-field">
+            <span className="ws-field__label">Search</span>
+            <input
+              type="search"
+              aria-label="Search accounts"
+              placeholder="Name or email"
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+            />
+          </label>
+        </>}>
         <label className="ws-field">
           <span className="ws-field__label">Role</span>
           <select aria-label="Filter by role" value={roleFilter}
@@ -263,7 +267,7 @@ function UsersScreen() {
             ))}
           </select>
         </label>
-      </div>
+      </FilterPanel>
 
       <div className="ws-admin__body">
         <div className="ws-admin__main">

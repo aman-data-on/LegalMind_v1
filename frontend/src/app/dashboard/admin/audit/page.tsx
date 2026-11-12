@@ -28,29 +28,14 @@ import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { AuditEvent, Pagination } from "@/lib/types";
 
-import { AdminNav, dateTime } from "@/components/admin/AdminShell";
+import { AdminNav, COMMON_ACTIONS, actionWords, dateTime } from "@/components/admin/AdminShell";
 import { ErrorState } from "@/components/Feedback";
 import { AccessRestricted } from "@/components/AccessRestricted";
 import { PageHeader } from "@/components/page/PageHeader";
 import { StackTable } from "@/components/StackTable";
+import { FilterPanel } from "@/components/FilterPanel";
 
 const PAGE_SIZE = 50;
-
-/** The account-lifecycle actions worth offering as one-click filters. Free text
- *  is still available for anything else, and matches exactly. */
-const COMMON_ACTIONS = [
-  { value: "", label: "All actions" },
-  { value: "admin.user_created", label: "Account created" },
-  { value: "admin.user_updated", label: "Account updated" },
-  { value: "admin.user_deleted", label: "Account deleted" },
-  { value: "admin.role_granted", label: "Role granted" },
-  { value: "admin.role_revoked", label: "Role revoked" },
-  { value: "admin.department_created", label: "Department created" },
-  { value: "admin.department_updated", label: "Department renamed" },
-  { value: "admin.permission_changed", label: "Role permissions changed" },
-  { value: "auth.login_failed", label: "Failed sign-in" },
-  { value: "auth.session_revoked", label: "Session revoked" },
-] as const;
 
 export default function AuditPage() {
   const { can } = useSession();
@@ -116,10 +101,9 @@ export default function AuditPage() {
 
       <AdminNav />
 
-      <form
-        className="ws-filter-bar"
-        onSubmit={(event) => { event.preventDefault(); setFilter(draft); }}
-      >
+      <form onSubmit={(event) => { event.preventDefault(); setFilter(draft); }}>
+        <FilterPanel active={[filter.action, filter.entity_type, filter.since].filter(Boolean).length
+          + (filter.administrative ? 1 : 0)}>
         <label className="ws-field">
           <span className="ws-field__label">Action</span>
           <select
@@ -132,7 +116,7 @@ export default function AuditPage() {
           </select>
         </label>
         <label className="ws-field">
-          <span className="ws-field__label">Entity type</span>
+          <span className="ws-field__label">Record type</span>
           <input
             value={draft.entity_type}
             placeholder="user, department, role…"
@@ -157,6 +141,7 @@ export default function AuditPage() {
           <span className="ws-field__label">Account &amp; access only</span>
         </label>
         <button type="submit" className="ws-btn">Apply</button>
+        </FilterPanel>
       </form>
 
       {error ? (
@@ -186,7 +171,7 @@ export default function AuditPage() {
       ) : null}
 
       {events !== null && events.length > 0 ? (
-        <StackTable columns={[{ label: "When" }, { label: "Who" }, { label: "Did what" }, { label: "To what" }, { label: "Detail" }]}>
+        <StackTable columns={[{ label: "When" }, { label: "Who" }, { label: "Did what" }, { label: "To what" }, { label: "Details" }]}>
               {events.map((event) => {
                 // Presence-tested, never null-tested: the field is omitted when
                 // the caller may not read it (49.7 r4 / Step 52.4).
@@ -200,33 +185,26 @@ export default function AuditPage() {
                         ? <span title={event.actor.email}>{event.actor.name}</span>
                         : <span className="ws-pane__note">system</span>}
                     </td>
-                    <td className="ws-mono">{event.action}</td>
+                    <td>{actionWords(event.action)}</td>
                     <td>
                       {event.entity_label
                         ? <span>{event.entity_label}</span>
-                        : <span className="ws-pane__note">{event.entity_type}</span>}
-                      {event.entity_id ? (
-                        <span className="ws-mono ws-pane__note"> {event.entity_id.slice(0, 8)}</span>
-                      ) : null}
+                        : <span className="ws-pane__note">{(event.entity_type ?? "").replace(/_/g, " ") || "—"}</span>}
                     </td>
                     <td>
-                      {payload ? (
-                        <>
-                          <button type="button" className="ws-link" aria-expanded={open}
-                                  onClick={() => setExpanded(open ? null : event.id)}>
-                            {open ? "Hide" : "Show"}
-                          </button>
-                          {open ? (
-                            <pre className="ws-auditpayload">
-                              {JSON.stringify(
-                                { before: event.before_state, after: event.after_state },
-                                null, 2)}
-                            </pre>
-                          ) : null}
-                        </>
-                      ) : (
-                        <span className="ws-pane__note" title="Not an account or access event">—</span>
-                      )}
+                      {/* B3 p2: codes and ids only here, on request */}
+                      <button type="button" className="ws-link ws-auditshow" aria-expanded={open}
+                              onClick={() => setExpanded(open ? null : event.id)}>
+                        {open ? "Hide" : "Show"}
+                      </button>
+                      {open ? (
+                        <pre className="ws-auditpayload">
+                          {JSON.stringify({
+                            action: event.action, record: event.entity_type, id: event.entity_id,
+                            ...(payload ? { before: event.before_state, after: event.after_state } : {}),
+                          }, null, 2)}
+                        </pre>
+                      ) : null}
                     </td>
                   </tr>
                 );

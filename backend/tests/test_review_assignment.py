@@ -178,6 +178,26 @@ def test_the_reviews_list_marks_what_was_sent_to_you(api, db, owner, case):
     assert [r["sent_to_you"] for r in rows if r["id"] == str(review.id)] == [True]
 
 
+def test_the_reviews_list_says_since_when_and_who_holds_it(api, db, owner, case):
+    """B3 page 2: the Legal queue's waiting time and assignee — `sent_to_legal()`'s own fact
+    (the live assignment), the assignee by name; absent (never null) before it is sent."""
+    review, _ = case
+    reviewer = _reviewer(db)
+    sign_in(api, db, owner)
+
+    def row():
+        rows = api.get(f"{V1}/reviews").json()["data"]
+        return next(r for r in rows if r["id"] == str(review.id))
+
+    assert "with_legal_since" not in row() and row()["assigned_to"] == []
+    _send(api, review, reviewer)
+    sent = row()
+    assignment = db.execute(select(M.ReviewAssignment).where(
+        M.ReviewAssignment.review_id == review.id)).scalar_one()
+    assert sent["with_legal_since"] == assignment.created_at.isoformat()
+    assert sent["assigned_to"] == [reviewer.name]
+
+
 def test_a_later_grant_is_authorised_by_a_holder_and_recorded_as_theirs(db, seeded):
     from tools.grant_legal_authority import grant_first
     holder = make_user(db)

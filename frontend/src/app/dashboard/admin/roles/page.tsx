@@ -122,7 +122,6 @@ export default function AdminRolesPage() {
                 <header className="ws-rolecard__head">
                   <div>
                     <h2 className="ws-rolecard__name">{role.name}</h2>
-                    <p className="ws-pane__note ws-mono">{role.code}</p>
                   </div>
                   <div className="ws-rolecard__tags">
                     <span className="ws-chip">{TIER_LABEL[role.tier] ?? role.tier}</span>
@@ -152,6 +151,8 @@ export default function AdminRolesPage() {
 
                 {open ? (
                   <div className="ws-rolecard__perms">
+                    {/* B3 p2: the code is a detail, shown with the permissions only */}
+                    <p className="ws-pane__note">Role code: {role.code}</p>
                     {role.permissions.length === 0 ? (
                       <p className="ws-pane__note">No permissions assigned.</p>
                     ) : (

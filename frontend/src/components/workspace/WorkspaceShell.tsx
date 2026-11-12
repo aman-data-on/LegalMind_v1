@@ -189,6 +189,13 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
         </nav>
         <span className="ws-shell__spacer" />
         <div className="ws-shell__bar" ref={barRef} onKeyDown={onBarKey}>
+          {/* B3 p2: on a phone Ask lives here, in the app bar — a floating button there
+              covered list rows (WCAG 2.4.11); above 760px this is not drawn */}
+          {can(P.ASSIST_ASK) ? (
+            <Link className="ws-shell__ask" href="/dashboard/ask" aria-label="Ask">
+              <IconSparkle size={18} />
+            </Link>
+          ) : null}
           {/* AM-273 m3 (AB-150): the caller's own notices, a fixed sentence and a link. */}
           <div className="ws-shell__bell">
             <BellToggle unread={notes.list.unread} open={open === "bell"}
