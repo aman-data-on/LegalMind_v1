@@ -51,7 +51,7 @@ from docx.oxml.ns import nsdecls, qn
 from docx.shared import Cm, Mm, Pt, RGBColor, Twips
 
 from legalmind.api.export_render import _field
-from legalmind.drafting.model import text_of
+from legalmind.drafting.model import EMAIL, text_of
 
 RENDERER_VERSION = "lm-render-contract-3"
 HOUSE_PATH = (Path(__file__).resolve().parents[2] / "config" / "templates" / "house"
@@ -605,14 +605,22 @@ def _signature_rows(execution: Mapping[str, Any]) -> list[tuple[str, int]]:
             if shows.get(label, True)]
 
 
+#: a signature-table cell's value must read as this, or it is not filled ("TBD")
+SIGNATURE_FORMAT = {"Signatory Email": EMAIL}
+
+
 def unfilled(execution: Mapping[str, Any]) -> list[tuple[str, str]]:
-    """``(row label, party)`` for each signature-table cell left empty that is not
-    `SIGNED_LATER` — in practice the signatory's email, which a signing tool routes by
-    (`FINAL-PACKAGE-SPEC` c2: required before Final)."""
+    """``(row label, party)`` for each signature-table cell left empty — or not in its
+    format (`SIGNATURE_FORMAT`) — that is not `SIGNED_LATER`: in practice the
+    signatory's email, which a signing tool routes by (`FINAL-PACKAGE-SPEC` c2:
+    required before Final)."""
+    def filled(label: str, value: str) -> bool:
+        form = SIGNATURE_FORMAT.get(label)
+        return bool(value) and (form is None or bool(form.fullmatch(value)))
     return [(label, text_of(r.get("party")) or "a party")
             for label, _ in _signature_rows(execution) if label not in SIGNED_LATER
             for r in execution["rows"]
-            if not text_of(r.get(SIGNATURE_VALUE.get(label, ""))).strip()]
+            if not filled(label, text_of(r.get(SIGNATURE_VALUE.get(label, ""))).strip())]
 
 
 def _execution(b: _Builder, execution: Mapping[str, Any]) -> None:

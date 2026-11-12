@@ -285,8 +285,10 @@ def _stand_in(var: dict[str, Any]) -> Any:
     kind = var.get("type", "text")
     if var.get("allowed"):
         return var["allowed"][0]
+    # an email stand-in on the reserved .invalid domain (RFC 2606): never deliverable
     return {"bool": False, "int": (var.get("range") or [1])[0] or 1,
-            "date": "2000-01-01"}.get(kind, f"[{model_.label(var)}]")
+            "date": "2000-01-01", "email": "signatory@example.invalid"}.get(
+        kind, f"[{model_.label(var)}]")
 
 
 @router.get("/drafts/{draft_id}/preview")

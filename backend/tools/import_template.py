@@ -437,13 +437,13 @@ def _variables(parties: list[dict[str, Any]]) -> list[dict[str, Any]]:
             var("our_cin", "Our company", "O", locked=ours.get("cin")),
             var("our_signatory_name", "Our company"),
             var("our_signatory_designation", "Our company"),
-            var("our_signatory_email", "Our company"),
+            var("our_signatory_email", "Our company", kind="email"),
             var("counterparty_name", "Client"),
             var("counterparty_registered_office", "Client"),
             var("counterparty_cin", "Client", "O"),
             var("counterparty_signatory_name", "Client"),
             var("counterparty_signatory_designation", "Client"),
-            var("counterparty_signatory_email", "Client")]
+            var("counterparty_signatory_email", "Client", kind="email")]
 
 
 CHECK_VALUES = {"effective_date": "2026-01-01", "our_signatory_name": "Check Signatory One",

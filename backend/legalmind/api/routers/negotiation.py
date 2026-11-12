@@ -1660,8 +1660,13 @@ def blanks(db, version: M.DocumentVersion) -> str | None:
 
 def _unsigned(base: dict) -> str | None:
     """What the signature page of a contract WE generated still lacks — a signatory's
-    email (`FINAL-PACKAGE-SPEC` c2: signing tools route by email; Sign and Date of sign
-    stay empty on purpose, `render_contract.SIGNED_LATER`) — in plain words, or None."""
+    email, present and in an email's form (`FINAL-PACKAGE-SPEC` c2: signing tools route
+    by email; Sign and Date of sign stay empty on purpose, `render_contract.SIGNED_LATER`)
+    — in plain words, or None. A template with no email field cannot be answered by
+    starting again, so it says who must act."""
+    if any("email" not in r for r in base["execution"]["rows"]):
+        return ("This template has no signatory email field yet; Legal/ops must publish "
+                "a version with one before Final.")
     missing = render_contract.unfilled(base["execution"])
     if not missing:
         return None

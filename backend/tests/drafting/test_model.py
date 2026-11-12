@@ -69,3 +69,30 @@ def test_model_hash_is_deterministic(placeholder, answers):
     assert model_hash(resolve(*placeholder, answers)) == model_hash(resolve(*placeholder, answers))
     assert model_hash(resolve(*placeholder, answers)) != model_hash(
         resolve(*placeholder, {**answers, "count_value": 4}))
+
+
+@pytest.mark.parametrize("bad", ["TBD", "not an email", "name@", "@company.com"])
+def test_a_signatory_email_must_be_an_email(placeholder, answers, bad):
+    """S2 M1: the form refuses what is not an email address, by the field's type."""
+    with pytest.raises(ModelError, match="party_two_email: must be an email address"):
+        resolve(*placeholder, {**answers, "party_two_email": bad})
+
+
+def test_a_signature_page_email_not_in_form_is_unfilled(placeholder, answers):
+    """S2 M1: a template whose email field is plain text lets "TBD" through the form;
+    the signature-page rule still reads it as missing, and Final says so in the
+    person's words (start again) — the field exists."""
+    from legalmind.api.routers.negotiation import _unsigned
+    from legalmind.drafting import render_contract
+    template, clauses = placeholder
+    for v in template["variables"]:
+        if v["key"].endswith("_email"):
+            v["type"] = "text"
+    model = resolve(template, clauses, {**answers, "party_two_email": "TBD"})
+    assert render_contract.unfilled(model["execution"]) == [
+        ("Signatory Email", "Party Two Placeholder Private Limited")]
+    assert _unsigned(model) == (
+        "The signature page has no signatory email for Party Two Placeholder Private "
+        "Limited. Signing tools send the contract by email — start the contract again "
+        "with the signatory's email.")
+    assert _unsigned(resolve(template, clauses, answers)) is None

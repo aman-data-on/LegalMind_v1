@@ -57,7 +57,9 @@ MAX_LEVEL = 5
 #: the optional front-matter texts (see the layout above)
 FRONT = ("connector", "parties_close", "recitals_label", "operative")
 CLASSES = {"M", "O", "C", "AO"}
-TYPES = {"text", "date", "int", "bool", "choice"}
+TYPES = {"text", "date", "int", "bool", "choice", "email"}
+#: an email address as a signing tool needs one (S2): local part, @, a dotted domain
+EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 #: ``{name}`` · ``{xref:CLAUSE.KEY}`` · ``{term:Defined Term}``
 SLOT = re.compile(r"\{(?:(xref|term):)?([A-Za-z_][\w .\-]*)\}")
 _TEXT_MAX = 500
@@ -191,6 +193,8 @@ def _coerce(var: Mapping[str, Any], raw: Any) -> Any:
         raise ValueError(f"is longer than {_TEXT_MAX} characters")
     if "{" in text or "}" in text:
         raise ValueError("may not contain { or }")
+    if kind == "email" and not EMAIL.fullmatch(text):
+        raise ValueError("must be an email address, for example name@company.com")
     return text
 
 

@@ -397,8 +397,8 @@ def no_email(placeholder):
 def test_a_final_contract_needs_each_signatorys_email(db, api, no_email, published,
                                                       staff, answers):
     """S2 (`FINAL-PACKAGE-SPEC` c2): signing tools route by email, so a contract we made
-    whose signature page has no signatory email is blocked at Final, in plain words;
-    Sign and Date of sign stay empty on purpose and block nothing."""
+    from a template with no signatory email field is blocked at Final, saying who must
+    act; Sign and Date of sign stay empty on purpose and block nothing."""
     from legalmind.drafting import render_contract
     assert {"Sign", "Date of sign"} <= render_contract.SIGNED_LATER
     sign_in(api, db, staff)
@@ -411,10 +411,8 @@ def test_a_final_contract_needs_each_signatorys_email(db, api, no_email, publish
     url = f"{V1}/contracts/{contract_id}/final-copy"
     assert api.get(url).json()["data"]["blockers"] == [{
         "code": "SIGNATORY_EMAIL",
-        "message": "The signature page has no signatory email for Party One Placeholder "
-                   "Limited; no signatory email for Party Two Placeholder Private "
-                   "Limited. Signing tools send the contract by email — start the "
-                   "contract again with the signatory's email."}]
+        "message": "This template has no signatory email field yet; Legal/ops must "
+                   "publish a version with one before Final."}]
     assert api.post(url).status_code == 409
 
 

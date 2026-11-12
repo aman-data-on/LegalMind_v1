@@ -13,7 +13,7 @@ export type FieldClass = "M" | "O" | "C" | "AO";
 export interface Question {
   key: string;
   label: string;
-  type?: "text" | "date" | "int" | "bool" | "choice";
+  type?: "text" | "date" | "int" | "bool" | "choice" | "email";
   group?: string;
   class?: FieldClass;
   help?: string;

@@ -107,7 +107,7 @@
     },
     {
       "key": "party_one_email",
-      "type": "text",
+      "type": "email",
       "group": "Our company",
       "class": "M",
       "role": "our_signatory_email"
@@ -156,7 +156,7 @@
     },
     {
       "key": "party_two_email",
-      "type": "text",
+      "type": "email",
       "group": "Client",
       "class": "M",
       "role": "counterparty_signatory_email"

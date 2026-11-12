@@ -39,7 +39,7 @@ from lxml import etree  # type: ignore[import-untyped]
 
 from legalmind.analysis import consistency
 from legalmind.drafting import clean, render_contract
-from legalmind.drafting.model import defined_terms
+from legalmind.drafting.model import EMAIL, defined_terms
 from legalmind.ingestion.parsing import (
     ParseError,
     _docx_list_numbers,
@@ -56,8 +56,6 @@ _TIGHT = re.compile(r"\s+(?=[,.;:)])")          # a space before punctuation
 #: where a line may break with no space in the text: after a hyphen, dash or slash and
 #: before an em dash ("quasi-" | "governmental" reads "quasi- governmental" in a PDF)
 _BREAK = re.compile(r"(?<=[-\u2010\u2013\u2014/])\s+|\s+(?=\u2014)")
-#: an email address — a narrow signature-table cell breaks one mid-word, with no hyphen
-_EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 _QUOTED = re.compile(r"[“\"]([A-Z][\w &/-]{1,60}?)[”\"]")
 #: how far a glyph may sit past the right margin (PDF points) before the page fails
 MARGIN_TOLERANCE_PT = 0.5
@@ -414,7 +412,7 @@ def _pdf(docx_bytes: bytes, pdf: bytes, *, ours: bool,
     # S2: the Word file's email addresses, each read whole where the PDF broke it over
     # two lines (a narrow cell, no space to break at) — only these exact strings
     emails = sorted({e for p in docx_body.iter(_W + "p")
-                     for e in _EMAIL.findall(_docx_text(p))}, key=len, reverse=True)
+                     for e in EMAIL.findall(_docx_text(p))}, key=len, reverse=True)
     heals = [(re.compile(r"\s*".join(map(re.escape, e))), e) for e in emails]
 
     def heal(text: str) -> str:
