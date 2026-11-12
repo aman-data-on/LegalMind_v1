@@ -187,7 +187,9 @@ def test_a_client_pdf_with_hidden_content_blocks_the_final_copy(api, db, owner, 
         "The client's PDF contains comments or other annotations; ask for a clean PDF "
         "or upload the Word file.",
         "The client's PDF contains JavaScript; ask for a clean PDF or upload the Word "
-        "file."]
+        "file.",
+        "The client's PDF does something when it is opened, beyond showing a page; ask "
+        "for a clean PDF or upload the Word file."]
     assert made.status_code == 409
     assert made.json()["error"]["code"] == "FINAL_COPY_NOT_READY"
     dry, made = plan(pdf(dirty=False))
