@@ -39,8 +39,6 @@ test("the row action menu escapes the table's clipping ancestor and is fully usa
 }) => {
   await createAnalysedReview(page);
   await page.goto("/dashboard");
-  // the sections above the table load late; a scroll they cause closes an open menu
-  await page.waitForLoadState("networkidle");
 
   const toggle = page.getByRole("button", { name: /More actions for/ }).first();
   await toggle.scrollIntoViewIfNeeded();
@@ -118,6 +116,25 @@ test("the menu keeps its design tokens and fully covers the row it floats over",
     return el?.closest(".ws-menu__list") != null;
   }, [linkBox!.x + linkBox!.width / 2, linkBox!.y + linkBox!.height / 2] as const);
   expect(topElement).toBe(true);
+});
+
+test("the open menu stays with its button when the page moves under it", async ({ page }) => {
+  // A section above the table that loads late shifts the rows; the browser keeps its
+  // place with a scroll. The menu must follow its toggle, not close (CI 2026-11-12).
+  await createAnalysedReview(page);
+  await page.goto("/dashboard");
+  const toggle = page.getByRole("button", { name: /More actions for/ }).first();
+  await toggle.click();
+  const menu = page.locator(".ws-menu__list");
+  await expect(menu).toBeVisible();
+  await page.evaluate(() => window.scrollBy(0, 60));
+  await expect(menu).toBeVisible();
+  const [t, m] = [await toggle.boundingBox(), await menu.boundingBox()];
+  // still directly below (or above) its own toggle
+  expect(Math.abs(m!.y - (t!.y + t!.height + 4)) < 2 || Math.abs(m!.y + m!.height + 4 - t!.y) < 2).toBe(true);
+  // a toggle scrolled out of view takes its menu with it
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  if (((await toggle.boundingBox())?.y ?? -1) < 0) await expect(menu).toHaveCount(0);
 });
 
 /**

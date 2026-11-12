@@ -34,8 +34,6 @@ async function declare(page: Page, versionId: string, body: Record<string, strin
 /** The newest row's action menu — the same gesture `dashboard-list.spec.ts` uses:
  *  the menu renders through a portal, so wait for it rather than for the click. */
 async function openFirstRowMenu(page: Page) {
-  // the sections above the table load late; a scroll they cause closes an open menu
-  await page.waitForLoadState("networkidle");
   const toggle = page.getByRole("button", { name: /More actions for/ }).first();
   await toggle.scrollIntoViewIfNeeded();
   // A click that lands before hydration attaches the handler focuses the button

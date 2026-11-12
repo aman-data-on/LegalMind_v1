@@ -54,8 +54,6 @@ test("the edit dialog links a deal to a company, and the link survives a reload"
   const contract = await postOk(page, "/contracts", { name: `Deal ${stamp}`, contract_type: "MSA" });
 
   await page.goto("/dashboard");
-  // the sections above the table load late; a scroll they cause closes an open menu
-  await page.waitForLoadState("networkidle");
   const toggle = page.getByRole("button", { name: `More actions for ${contract.name}` });
   await toggle.scrollIntoViewIfNeeded();
   await expect(async () => {

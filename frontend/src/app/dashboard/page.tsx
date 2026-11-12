@@ -125,6 +125,13 @@ function DocumentsListView() {
    *  the row's own action cell, so the row below never peeks out from under it. */
   function openMenu(id: string, toggle: HTMLElement) {
     menuToggleRef.current = toggle;
+    placeMenu(toggle);
+    setMenuFor(id);
+  }
+
+  /** Where the menu sits for `toggle` now — at open, and again whenever the page moves
+   *  under it (a section above the table that loads late shifts the rows). */
+  function placeMenu(toggle: HTMLElement) {
     const rect = toggle.getBoundingClientRect();
     const cellRect = toggle.closest("td")?.getBoundingClientRect() ?? rect;
     const estimatedHeight = 176; // up to four items plus padding
@@ -136,7 +143,6 @@ function DocumentsListView() {
         ? { bottom: window.innerHeight - rect.top + 4 }
         : { top: rect.bottom + 4 }),
     });
-    setMenuFor(id);
   }
 
   const load = useCallback(async () => {
@@ -200,8 +206,8 @@ function DocumentsListView() {
     return () => window.clearTimeout(timer);
   }, [qInput]);
 
-  // The ⋯ menu closes on an outside press, Escape, or any scroll (its position is fixed at
-  // open time). Focus lands on its first item with `preventScroll` — a plain focus()
+  // The ⋯ menu closes on an outside press, Escape, or once its toggle scrolls out of view
+  // (a scroll moves it with the toggle). Focus lands on its first item with `preventScroll` — a plain focus()
   // scrolls, and that scroll would close the menu the instant it opened; the listeners
   // attach a frame late for the same reason.
   useEffect(() => {
@@ -218,9 +224,15 @@ function DocumentsListView() {
     function onKey(event: KeyboardEvent) {
       if (event.key === "Escape") closeMenu(true);
     }
+    // The menu stays with its toggle: a scroll (the reader's, or the browser keeping its
+    // place while a late section above loads) moves it along; once the toggle has left
+    // the viewport the menu closes, since it would float over nothing it belongs to.
     function onScroll(event: Event) {
       if (event.target instanceof Element && event.target.closest(".ws-menu__list")) return;
-      closeMenu();
+      const toggle = menuToggleRef.current;
+      const rect = toggle?.isConnected ? toggle.getBoundingClientRect() : null;
+      if (!toggle || !rect || rect.bottom < 0 || rect.top > window.innerHeight) closeMenu();
+      else placeMenu(toggle);
     }
     const raf = requestAnimationFrame(() => {
       document.addEventListener("mousedown", onPointerDown);
