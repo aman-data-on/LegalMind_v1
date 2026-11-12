@@ -129,12 +129,18 @@ test("the open menu stays with its button when the page moves under it", async (
   await expect(menu).toBeVisible();
   await page.evaluate(() => window.scrollBy(0, 60));
   await expect(menu).toBeVisible();
-  const [t, m] = [await toggle.boundingBox(), await menu.boundingBox()];
-  // still directly below (or above) its own toggle
-  expect(Math.abs(m!.y - (t!.y + t!.height + 4)) < 2 || Math.abs(m!.y + m!.height + 4 - t!.y) < 2).toBe(true);
+  // still directly below (or above) its own toggle — polled: the scroll event and the
+  // re-render that moves the menu land a frame or two after scrollBy returns
+  await expect.poll(async () => {
+    const [t, m] = [await toggle.boundingBox(), await menu.boundingBox()];
+    return Math.abs(m!.y - (t!.y + t!.height + 4)) < 2 || Math.abs(m!.y + m!.height + 4 - t!.y) < 2;
+  }).toBe(true);
   // a toggle scrolled out of view takes its menu with it
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-  if (((await toggle.boundingBox())?.y ?? -1) < 0) await expect(menu).toHaveCount(0);
+  // (the app closes once the toggle's *bottom* is above the viewport; a half-visible
+  // toggle keeps its menu)
+  const gone = await toggle.boundingBox();
+  if (!gone || gone.y + gone.height < 0) await expect(menu).toHaveCount(0);
 });
 
 /**

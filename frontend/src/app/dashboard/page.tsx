@@ -208,8 +208,9 @@ function DocumentsListView() {
 
   // The ⋯ menu closes on an outside press, Escape, or once its toggle scrolls out of view
   // (a scroll moves it with the toggle). Focus lands on its first item with `preventScroll` — a plain focus()
-  // scrolls, and that scroll would close the menu the instant it opened; the listeners
-  // attach a frame late for the same reason.
+  // scrolls, and that scroll would close the menu the instant it opened. The press/key
+  // listeners attach a frame late so the opening press is not seen; the scroll listener
+  // attaches at once, so a scroll in the menu's first frame still moves it.
   useEffect(() => {
     if (!menuFor) return;
     menuRef.current
@@ -234,10 +235,10 @@ function DocumentsListView() {
       if (!toggle || !rect || rect.bottom < 0 || rect.top > window.innerHeight) closeMenu();
       else placeMenu(toggle);
     }
+    document.addEventListener("scroll", onScroll, true);
     const raf = requestAnimationFrame(() => {
       document.addEventListener("mousedown", onPointerDown);
       document.addEventListener("keydown", onKey);
-      document.addEventListener("scroll", onScroll, true);
     });
     return () => {
       cancelAnimationFrame(raf);
