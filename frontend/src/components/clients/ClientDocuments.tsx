@@ -26,6 +26,7 @@
  * immutability), and this list makes that visible rather than merely true.
  */
 
+import { Plus } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -508,7 +509,8 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
   const menuShown = (can(P.CONTRACT_UPDATE) || can(P.CONTRACT_ARCHIVE) || can(P.DOCUMENT_UPLOAD)) && isMine;
   return (
     <>
-      <tr className={bucket === "needs_attention" ? "ws-tr--attention" : undefined}>
+      {/* B3 p5: no unexplained row rule — the status in the row says it */}
+      <tr>
         <td>
           {/* `title` keeps the full name reachable when the CSS below clamps
               a long one to two lines — a hover/long-press affordance, not a
@@ -587,7 +589,7 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
           ) : null}
           {analyzed ? (
             <Link className="ws-btn ws-btn--sm" href={`/dashboard?id=${contract.id}`}>
-              Review
+              Open
             </Link>
           ) : null}
           {/* The existing comparison, in the workspace that owns it — only
@@ -766,7 +768,7 @@ export function ClientDocuments({ client, onChanged }: {
                     setUploadTarget(undefined);
                     setLinkOpen(false);
                   }}>
-            {uploadOpen ? "Close" : "+ Upload document"}
+            {uploadOpen ? "Close" : <><Plus size={16} aria-hidden="true" /> Upload document</>}
           </button>
         ) : null}
       </header>
@@ -794,7 +796,7 @@ export function ClientDocuments({ client, onChanged }: {
           {canUpload && !uploadOpen ? (
             <button type="button" className="ws-btn ws-btn--primary"
                     onClick={() => setUploadOpen(true)}>
-              + Upload document
+              <Plus size={16} aria-hidden="true" /> Upload document
             </button>
           ) : null}
         </div>

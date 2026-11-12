@@ -54,7 +54,8 @@ export function StageBadge({ stage, counts, showDays = true, viewer = "owner", f
       title={`${label} since ${shortDate(stage.since)}`}
     >
       <span>{label}</span>
-      {ourTurn ? <span className="ws-visually-hidden">, our turn</span> : null}
+      {/* B3 p5: said, not a black bar */}
+      {ourTurn ? <span className="ws-dealstage__turn">Your turn</span> : null}
       {showDays ? (
         <span className="ws-dealstage__days">
           <span className="ws-visually-hidden">, since </span>{relativeTime(stage.since)}

@@ -7746,3 +7746,17 @@ a.ws-askglobal[data-away]:not(:focus-visible) {
   border-right: 2px solid var(--ws-ink-500); border-bottom: 2px solid var(--ws-ink-500);
   transform: rotate(-45deg); transition: transform var(--ws-t); align-self: center; }
 .ws-stdgroup[open] > summary::before { transform: rotate(45deg); }
+
+/* B3 p5: the "our turn" stage is said in words, not marked by a black left bar */
+.ws-dealstage--turn { border-left-color: var(--ws-ink-100); }
+.ws-dealstage { border-left-width: 1px; }
+.ws-dealstage__turn { font-size: var(--t-caption); font-weight: 600; color: var(--ws-ink-900); }
+/* row-level acts are one size (32px), like each row's "Open" */
+.ws-btn.ws-hq__act { min-height: 32px; padding: 4px 12px; font-size: var(--ws-text-sm); }
+/* To-do: the task list keeps a reading measure; the time stays near its row */
+.lm-page.ws-home .ws-hq { max-width: 52rem; }
+.ws-cl__rail-add, .ws-cl__actions .ws-btn { display: inline-flex; align-items: center; gap: 6px; }
+/* one height per context: the page header's actions match the toolbar beside them (40) */
+.lm-ph__acts .ws-btn { min-height: 40px; }
+/* client profile: the row's ⋯ is the same height as the row's Open (36) */
+.ws-cl .ws-btn--sm.ws-menu__toggle, .ws-cl__main .ws-btn--sm.ws-menu__toggle { min-height: 36px; }

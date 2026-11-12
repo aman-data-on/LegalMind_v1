@@ -23,7 +23,7 @@ describe("StageBadge", () => {
         since: new Date(Date.now() - 9.2 * 86400e3).toISOString(), days: 9 }} ourTurn />);
     expect(html).toContain("Client replied");
     expect(html).toContain("9 days ago");          // the one relative-time format
-    expect(html).toContain(", our turn");
+    expect(html).toContain(">Your turn<");
     expect(html).toContain("ws-dealstage--turn");
     expect(html).not.toMatch(/ws-state|ws-axis|StatePill/);
   });

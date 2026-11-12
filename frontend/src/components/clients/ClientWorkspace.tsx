@@ -22,6 +22,7 @@
  * version's declared role, and the counterparty link.
  */
 
+import { Plus } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
@@ -200,7 +201,7 @@ function ClientRail({
         {canAdd ? (
           <button type="button" className="ws-btn ws-btn--sm ws-cl__rail-add"
                   onClick={onAdd}>
-            + Add
+            <Plus size={16} aria-hidden="true" /> Add
           </button>
         ) : null}
       </div>

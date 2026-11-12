@@ -210,7 +210,7 @@ def _my_deals(guard: Guard) -> list[dict]:
         if not left and n.get("changes_left"):
             continue
         kind, sentence = ("client_returned",
-                          "The client returned a new version — it is our turn.")
+                          "The client returned a new version. It is your turn.")
         if "changes_total" in n and not n.get("changes_left") \
                 and not n.get("changes_ours"):
             if n.get("points_open") == 0 and n.get("points_waiting") == 0:
