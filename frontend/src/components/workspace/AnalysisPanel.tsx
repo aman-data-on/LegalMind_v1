@@ -37,6 +37,7 @@ import {
   USER_STATUS_TONE,
   pointAnswer,
   pointState,
+  IN_OUR_FAVOUR,
   readerWord,
   reviewHeadline,
   statusCounts,
@@ -49,7 +50,7 @@ import { STAGE_LABELS, changesWords, contractOutcomeLabel, decidedWords, pointsW
          type StageViewer } from "@/lib/labels";
 
 import { useHighlight } from "./highlight";
-import { IconAlertCircle, IconCheckCircle, IconFileMinus, IconRefresh, IconScale } from "./icons";
+import { IconAlertCircle, IconBetter, IconCheckCircle, IconFilePlus, IconPencilLine, IconRefresh, IconScale } from "./icons";
 import {
   classificationBucket,
   findingsSummary,
@@ -61,6 +62,9 @@ import { useSession } from "@/lib/session";
 import { ObligationsPanel } from "./ObligationsPanel";
 import { OfferSection } from "./OfferPlaybook";
 import { useSideTabs } from "./WorkspaceLayout";
+import { chipStatus } from "@/components/StatusChip";
+import { EmptyState, ErrorState, LoadingState } from "@/components/Feedback";
+import { STATUS_CHIP_WORDS, plural } from "@/lib/labels";
 
 /** The Summary speaks the card's three words (owner, 2026-09-09 — reversing
  *  the 2026-09-01 tile correction; AM-50 r4), in the one order and the one set
@@ -83,7 +87,9 @@ export function ToneIcon({ tone, size }: { tone: StatusTone; size: number }) {
 /** One icon per WORD (AB-104): "Missing" shares the change's amber, so its own icon
  *  (a page with a minus) tells the two apart without colour. */
 export function StatusIcon({ status, size }: { status: UserStatus; size: number }) {
-  if (status === "MISSING") return <IconFileMinus size={size} />;
+  // the fixed set (UX Batch 2): one icon per word, the same on every screen
+  if (status === "MISSING") return <IconFilePlus size={size} />;
+  if (status === "REQUIRES_MODIFICATION") return <IconPencilLine size={size} />;
   return <ToneIcon tone={USER_STATUS_TONE[status]} size={size} />;
 }
 
@@ -116,6 +122,10 @@ export function StatusExplainer({ collapsible = false }: { collapsible?: boolean
           in the finding's own state and the pending-decision count. This line
           now names what actually reaches this word: unreadable, conflicting, or
           a position the Constitution itself calls unacceptable (`AM-63`). */}
+      <div className="ws-explain__card ws-explain__card--favour">
+        <b>In our favour</b>
+        <span>The clause differs from our approved position, but our approved rules accept it because it is better for us. Nothing to do.</span>
+      </div>
       <div className="ws-explain__card ws-explain__card--bad">
         <b>Needs a decision</b>
         <span>A person must choose, and each card says what: a figure left blank, two clauses that say different things, a figure that could not be confirmed, a standard written for another type of document, or a point our standards say is not negotiable. Never a rejection.</span>
@@ -125,14 +135,14 @@ export function StatusExplainer({ collapsible = false }: { collapsible?: boolean
   if (!collapsible) {
     return (
       <div className="ws-explain">
-        <p className="ws-explain__title">What the four statuses mean</p>
+        <p className="ws-explain__title">What the statuses mean</p>
         {cards}
       </div>
     );
   }
   return (
     <details className="ws-explain ws-explain--collapsible">
-      <summary>What the four statuses mean</summary>
+      <summary>What the statuses mean</summary>
       {cards}
     </details>
   );
@@ -177,7 +187,7 @@ export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner
           Visually hidden because the tab above already says "Summary" on
           screen; the outline needs the level, not a second label. */}
       <div className="ws-analysis__updated">
-        <h2 id="ws-sum-attention" className="ws-summary__h2">What needs attention</h2>
+        <h2 id="ws-sum-attention" className="ws-summary__h2">{state.kind === "no-review" && signedCopy ? "Signed copy" : "What needs attention"}</h2>
         <button type="button" className="ws-toolbtn" aria-label="Refresh analysis"
                 title={state.kind === "ready" && state.review.completed_at
                   ? `Updated ${relativeTime(state.review.completed_at)}` : "Refresh"}
@@ -186,9 +196,11 @@ export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner
         </button>
       </div>
       {state.kind === "loading" ? (
-        <p className="ws-pane__note" aria-busy="true" role="status">
-          Loading the analysis…
-        </p>
+        <LoadingState label="Loading the summary…" rows={3} />
+      ) : state.kind === "no-review" && signedCopy ? (
+        // round 3: nothing to settle on a signed copy — one empty state, not a muted line
+        <EmptyState heading="h3" icon={<IconCheckCircle size={24} />} title="Nothing to settle"
+                    body={SIGNED_COPY_NOTE} />
       ) : state.kind === "no-review" ? (
         /* "no-review" is also a review outside this reader's scope (REC-09/AM-174: Legal's
            scope ends when it is CLOSED; SEC-07 hides that it exists) — so never claim the
@@ -215,7 +227,7 @@ export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner
           The analysis could not be completed — the Points tab has the details.
         </p>
       ) : state.kind === "error" ? (
-        <p className="ws-pane__note">{describeError(state.error)}</p>
+        <ErrorState heading="h3" title="The summary could not be loaded" error={state.error} onRetry={reload} />
       ) : (
         <>
           <ReanalyseNotice documentVersionId={documentVersionId}
@@ -240,6 +252,7 @@ export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner
                                          : undefined}
                         words={new Map(state.findings.map((f) => [f.id, {
                           reader: readerWord(f),
+                          status: chipStatus(userStatus(f), f.in_our_favour),
                           answer: pointAnswer(f, can(P.LEGAL_DECISION),
                                               state.progress?.stage !== "NOT_SENT") }]))} />}
           </section>
@@ -270,14 +283,16 @@ export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner
 function AnalysisSummary({ findings }: { findings: Finding[] }) {
   const sideTabs = useSideTabs();
   const total = findings.length;
-  const statuses = statusCounts(findings);
+  // round 2: a point in our favour is its own tile, as on Points — never counted again under
+  // its reader word (the server's flag, `in_our_favour`; Points shows the same split)
+  const favour = findings.filter((f) => f.in_our_favour).length;
+  const statuses = statusCounts(findings.filter((f) => !f.in_our_favour));
 
   if (total === 0) {
     return (
       <section className="ws-analysis__section" aria-label="Status summary">
-        <p className="ws-pane__note">
-          Analysis complete. None of our standards produced a finding.
-        </p>
+        <EmptyState heading="h3" icon={<IconCheckCircle size={24} />} title="No points on this contract"
+                    body="None of our standards found anything to raise in it." />
       </section>
     );
   }
@@ -293,18 +308,28 @@ function AnalysisSummary({ findings }: { findings: Finding[] }) {
             key={status}
             type="button"
             className={`ws-tile ws-tile--${tone}`}
-            aria-label={`Show the ${statuses[status]} ${USER_STATUS_LABELS[status]} finding${statuses[status] === 1 ? "" : "s"}`}
+            aria-label={`Show the ${statuses[status]} ${STATUS_CHIP_WORDS[chipStatus(status)]} finding${statuses[status] === 1 ? "" : "s"}`}
             onClick={() => sideTabs?.openFindings({ status })}
             disabled={statuses[status] === 0}
           >
             <span className="ws-tile__n">{statuses[status]}</span>
-            <span className="ws-tile__label">{USER_STATUS_LABELS[status]}</span>
+            {/* round 3: the chip's own word ("Matches"), the same on every surface */}
+            <span className="ws-tile__label">{STATUS_CHIP_WORDS[chipStatus(status)]}</span>
             {/* Never colour alone: the word above, the icon beside it. */}
             <span className={`ws-status ws-status--${tone}`}>
               <StatusIcon status={status} size={18} />
             </span>
           </button>
         ))}
+        {favour ? (
+          <button type="button" className="ws-tile ws-tile--favour"
+                  aria-label={`Show the ${favour} ${IN_OUR_FAVOUR} finding${favour === 1 ? "" : "s"}`}
+                  onClick={() => sideTabs?.openFindings({ state: "favour" })}>
+            <span className="ws-tile__n">{favour}</span>
+            <span className="ws-tile__label">{IN_OUR_FAVOUR}</span>
+            <span className="ws-status lm-mark--favour"><IconBetter size={18} /></span>
+          </button>
+        ) : null}
       </div>
     </section>
   );
@@ -396,14 +421,21 @@ export function AttentionLine({ progress, stage, viewer, canDecide, counts }: {
   }
   const counted = !signed && progress && progress.required > 0 && progress.stage !== "SUPERSEDED";
   const points = pointsWords(counts, viewer);
-  const changes = signed ? null : changesWords(counts, viewer);
+  // B3 p1: one fact, one sentence (PLAIN-LANGUAGE §2.2). Not yet sent to Legal, with open
+  // points AND client changes left: both of the server's counts in ONE sentence, never
+  // two lines that each say "need Legal". No relation between them is claimed.
+  const left = counts?.changes_left ?? 0, total = counts?.changes_total ?? 0;
+  const joint = !!counted && !!points && open > 0 && left > 0 && viewer !== "legal"
+    && progress?.stage === "NOT_SENT" && !(counts?.changes_left_for_me ?? 0);
+  const changes = signed || joint ? null : changesWords(counts, viewer);
   return (
     <div className="ws-attn">
       {/* the stage is the header's; the Summary starts at the count */}
       {counted && points ? (
         <>
           <p className="ws-attn__count">
-            {summaryCount({ points, open, canDecide, mine: (counts?.points_for_me ?? 0) > 0,
+            {summaryCount({ points: joint ? `${points} and ${left === total ? plural(total, "change") : `${left} of ${plural(total, "change")}`}` : points,
+                            open: joint ? open + left : open, canDecide, mine: (counts?.points_for_me ?? 0) > 0,
                             notSent: progress.stage === "NOT_SENT",
                             assignee: progress.assignee?.name, waiting, decided, required: progress.required })}
           </p>

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError, describeError } from "@/lib/api";
 import type { ComparisonChoice } from "@/lib/types";
 import type { Choice } from "./text";
+import { toastFailure } from "@/components/Toast";
 
 /**
  * The drafting choices for one pair of documents, kept by LegalMind (AB-81 / AM-136):
@@ -51,7 +52,8 @@ export function useChoices(left: string, right: string) {
       .catch((e: unknown) => {
         setError(`Your choice was not saved — ${describeError(e)}`);
         // Show what is really stored, not what the click hoped for.
-        api.comparisonChoices(left, right).then((s) => setByKey(s.choices)).catch(() => undefined);
+        api.comparisonChoices(left, right).then((s) => setByKey(s.choices))
+          .catch(toastFailure("Your saved choices could not be reloaded. Refresh the page."));
       });
   }, [left, right]);
 

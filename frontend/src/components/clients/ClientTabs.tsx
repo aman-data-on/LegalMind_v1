@@ -21,6 +21,7 @@ import type { ClientActivity, Counterparty } from "@/lib/types";
 
 import { Fact, websiteHref } from "./ClientBits";
 import { activityWords, shortDate } from "./model";
+import { ErrorState } from "@/components/Feedback";
 
 /**
  * Everything recorded about the client, in one plain list.
@@ -160,6 +161,7 @@ export function ClientNotes({ client, onSaved }: {
 export function ClientActivityFeed({ clientId }: { clientId: string }) {
   const [rows, setRows] = useState<ClientActivity[] | null>(null);
   const [error, setError] = useState<unknown>(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -169,14 +171,12 @@ export function ClientActivityFeed({ clientId }: { clientId: string }) {
       .then((result) => { if (!cancelled) setRows(result); })
       .catch((cause) => { if (!cancelled) setError(cause); });
     return () => { cancelled = true; };
-  }, [clientId]);
+  }, [clientId, attempt]);
 
   if (error) {
     return (
-      <div className="ws-state ws-state--error" role="alert">
-        <h2>This client&rsquo;s history could not be loaded.</h2>
-        <p>{describeError(error)}</p>
-      </div>
+      <ErrorState title="This client’s history could not be loaded" error={error}
+                  onRetry={() => setAttempt((n) => n + 1)} />
     );
   }
   if (rows === null) {
@@ -198,7 +198,7 @@ export function ClientActivityFeed({ clientId }: { clientId: string }) {
       <ol className="ws-cl__timeline">
         {rows.map((row) => (
           <li key={row.id}>
-            <span className="ws-cl__when ws-mono">
+            <span className="ws-cl__when ws-num">
               {shortDate(row.timestamp) ?? "—"}
             </span>
             <span className="ws-cl__what">

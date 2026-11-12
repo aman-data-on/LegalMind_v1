@@ -36,6 +36,7 @@ import {
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { Counterparty } from "@/lib/types";
+import { FilePicker } from "@/components/FilePicker";
 
 /** Mirrors the server's own limit (`LEGALMIND_MAX_UPLOAD_BYTES`, 25 MB). A
  *  convenience pre-check for an immediate message — 34.16 keeps the server's
@@ -151,15 +152,12 @@ export function UploadToClient({ client, onDone, initialContractId }: {
       <h3 id="ws-cl-upload-title">Upload a document for {client.name}</h3>
 
       <div className="ws-cl__upload-grid">
-        <label className="ws-field ws-cl__form-wide">
+        <div className="ws-field ws-cl__form-wide">
           <span className="ws-field__label">
             File <span className="ws-field__req">(required)</span>
           </span>
-          <input ref={fileInput} type="file" accept=".pdf,.docx,.md,.txt" required
-                 disabled={busy}
-                 onChange={(event) => choose(event.target.files?.[0] ?? null)} />
-          <span className="ws-field__help">PDF, DOCX, Markdown or text, up to 25 MB.</span>
-        </label>
+          <FilePicker compact required inputRef={fileInput} chosen={file} disabled={busy} onFile={choose} />
+        </div>
 
         <label className="ws-field">
           <span className="ws-field__label">This is</span>

@@ -32,7 +32,8 @@ vi.mock("@/components/workspace/Angles", async (original) => ({
     observations: { structural: [{ kind: "X", clauses: ["4"], evidence_ids: ["ev1"],
                                    text: "Clause 4 and clause 9 state two notice periods." }],
                     additional: [] },
-    counter_proposals: {},
+    counter_proposals: { f1: { kind: "DRAFTING_LANGUAGE", label: "Source",
+                               text: "Recommended wording to send back" } },
   }),
   FindingCounterProposal: () => <aside>Recommended wording to send back</aside>,
 }));
@@ -95,7 +96,8 @@ describe("(c) the Points chips add up to All", () => {
       finding(),
     ];
     const n = (b: StatusBucket) => points.filter((f) => inBucket(f, b)).length;
-    expect(POINT_STATUS_ORDER.map(n)).toEqual([9, 1, 12, 0, 2]);
+    // order: match, favour, change, missing, decision, decided (UX Batch 2: the server words)
+    expect(POINT_STATUS_ORDER.map(n)).toEqual([9, 1, 0, 2, 12, 0]);
     for (const f of points) expect(POINT_STATUS_ORDER.filter((b) => inBucket(f, b))).toHaveLength(1);
   });
 });
@@ -191,10 +193,10 @@ describe("verify round 1: one word, and no wording to counter a favour point", (
     const favourOnly = renderToStaticMarkup(<AnswerAnglesView angles={angles} evidenceIds={["ev-8"]} />)
       .split("Also in this contract")[0]!;
     expect(favourOnly).toContain("in our favour");
-    expect(favourOnly).not.toContain("Recommended wording");
+    expect(favourOnly).not.toContain("Wording to send back");
     expect(favourOnly).not.toContain("Thirty days to cure");
     expect(renderToStaticMarkup(<AnswerAnglesView angles={angles} evidenceIds={["ev-13"]} />))
-      .toContain("Recommended wording to send back");
+      .toContain("Wording to send back");
   });
   it("the Changes read and its explanation say In our favour, as the card does", () => {
     const read = { finding_id: "f", requirement_code: "PAYMENT-PERIOD-MSA-001", classification: "DEVIATION",

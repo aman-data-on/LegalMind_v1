@@ -34,7 +34,7 @@ describe("what we can offer (AM-305)", () => {
     expect(grouped([LAW, fixed, CAP])).toEqual({ room: [CAP], fixed: [fixed], legal: [LAW] });
     expect(OFFER_WORDS.within).toBe("Within what we can offer — you can accept");
     expect(OFFER_WORDS.fallback).toBe("Fallback — you can accept");
-    expect(OFFER_WORDS.beyond).toBe("Beyond what we can offer — Legal decides");
+    expect(OFFER_WORDS.beyond).toBe("Beyond what we can offer");
   });
 });
 

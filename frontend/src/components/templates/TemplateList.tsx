@@ -8,24 +8,22 @@
  */
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { api, describeError } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import { ACTION } from "@/lib/labels";
 import {
-  blockers, brandLabel, cardName, clauseNumbers, reviewCopyPath, canPublish, displayTitle, statusWords, templateName,
+  blockers, brandLabel, cardName, reviewCopyPath, canPublish, displayTitle, statusWords, templateName,
   templatesFor, within,
-  type TemplateCheck, type TemplateDetail, type TemplateSummary,
+  type TemplateCheck, type TemplateSummary,
 } from "@/lib/templates";
 import { BRANDS, DOC_TYPES, unavailable } from "@/lib/newContract";
-import { Dialog } from "@/components/Dialog";
 import { UploadContractDialog } from "@/components/workspace/UploadContractDialog";
-import { Blocks } from "./TemplateClause";
 import { CardDownload, TemplateCard } from "./TemplateCard";
 import { PageHeader } from "@/components/page/PageHeader";
-import { DownloadMenu } from "./DownloadMenu";
+import { PreviewButton } from "@/components/PreviewPanel";
 import { IconCheck } from "@/components/workspace/icons";
 
 import "./templates.css";
@@ -71,36 +69,6 @@ function useTemplates(enabled: boolean) {
   return { list, checks, error, runCheck, reload: () => setAttempt((n) => n + 1) };
 }
 
-/** The template's full text in a dialog — for a version awaiting approval, which has no
- *  page of its own for anyone but Legal. Marked as a draft; nothing here is usable. */
-function PreviewDialog({ t, onClose, returnTo }: {
-  t: TemplateSummary; onClose: () => void;
-  /** template re-check #1 (WCAG 2.4.3): Esc or Close gives focus back to its Preview button */
-  returnTo: () => HTMLElement | null;
-}) {
-  const [detail, setDetail] = useState<TemplateDetail | null>(null);
-  const [error, setError] = useState<unknown>(null);
-  useEffect(() => { api.template(t.id).then(setDetail).catch(setError); }, [t.id]);
-  const numbers = detail ? clauseNumbers(detail.clauses) : new Map<string, string>();
-  return (
-    <Dialog onClose={onClose} titleId="tpl-preview-title" overlayClassName="tpl-preview" returnFocus={returnTo}>
-      <h2 id="tpl-preview-title">{cardName(t)}</h2>
-      <p className="tpl-quiet">Draft, awaiting approval. Not for use with a client.</p>
-      <div className="tpl-preview__text">
-        {error ? <p className="tpl-error" role="alert">{describeError(error)}</p>
-          : !detail ? <p className="tpl-quiet" role="status">Loading the text…</p>
-          : detail.clauses.map((c, i) => (
-            <section key={c.clause_key} className="tpl-preview__clause" aria-labelledby={`tpl-pv-${i}`}>
-              <h3 id={`tpl-pv-${i}`} className="tpl-sheet__title"><span className="tpl-num">{i + 1}</span>{c.title}</h3>
-              <div className="tpl-sheet__body"><Blocks blocks={c.body} prefix={String(i + 1)} numbers={numbers} /></div>
-            </section>
-          ))}
-      </div>
-      <div className="ws-modal__acts"><button type="button" className="ws-btn" onClick={onClose}>Close</button></div>
-    </Dialog>
-  );
-}
-
 /** Legal's draft rows ("Being prepared"): what still stands in the way of publishing. */
 function DraftRows({ rows, checks, runCheck }: {
   rows: TemplateSummary[]; checks: ReturnType<typeof useTemplates>["checks"]; runCheck: (id: string) => void;
@@ -129,7 +97,8 @@ function DraftRows({ rows, checks, runCheck }: {
               </p>
             </div>
             <div className="tpl-card__acts">
-              <DownloadMenu path={reviewCopyPath(t)} label="Download review copy" kind="Review copy" />
+              <PreviewButton path={reviewCopyPath(t)} text="Preview review copy" label={`Preview review copy: ${cardName(t)}`}
+                             title={`Review copy: ${cardName(t)}, version ${t.version}`} />
               <Link className={`ws-btn${ready ? " ws-btn--primary" : ""} tpl-card__act`}
                     href={`/templates/${t.id}`} aria-label={`${action}: ${cardName(t)}`}>{action}</Link>
             </div>
@@ -148,8 +117,6 @@ export function TemplateLibrary() {
   const { can } = useSession();
   const approver = can(P.LEGAL_APPROVE_CUSTOMIZATION);
   const { list, checks, error, runCheck, reload } = useTemplates(true);
-  const [preview, setPreview] = useState<TemplateSummary | null>(null);
-  const previewFrom = useRef<HTMLElement | null>(null);
   const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
@@ -217,12 +184,10 @@ export function TemplateLibrary() {
             {awaiting.length ? (
               <section className="tpl-lib" aria-labelledby="tpl-wait">
                 <h2 id="tpl-wait" className="tpl-lib__h2">Awaiting approval</h2>
-                <p className="tpl-quiet">Not for use with a client until it is approved. Read it or download the draft.</p>
+                <p className="tpl-quiet">Not for use with a client until it is approved. Preview the draft to read it.</p>
                 <div className="tpl-lib__cards">
                   {awaiting.map((t) => (
                     <TemplateCard key={t.id} t={t} actions={<>
-                      <button type="button" className="ws-btn" onClick={(event) => { previewFrom.current = event.currentTarget; setPreview(t); }}
-                              aria-label={`Preview: ${cardName(t)}`}>Preview</button>
                       <CardDownload t={t} />
                       {approver ? (
                         <Link className="ws-btn" href={`/templates/${t.id}`}
@@ -243,7 +208,6 @@ export function TemplateLibrary() {
             ) : null}
           </>
         )}
-      {preview ? <PreviewDialog t={preview} onClose={() => setPreview(null)} returnTo={() => previewFrom.current} /> : null}
       {uploading ? <UploadContractDialog firstRun={false} onClose={() => setUploading(false)} /> : null}
     </div>
   );

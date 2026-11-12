@@ -48,5 +48,6 @@ export function offerFor(change: ClientChange, points: PlaybookPoint[] | null):
 export const OFFER_WORDS = {
   within: "Within what we can offer — you can accept",
   fallback: "Fallback — you can accept",
-  beyond: "Beyond what we can offer — Legal decides",
+  // "Legal decides" is said once, beside Ask Legal (B3 p1); this line says only the fact
+  beyond: "Beyond what we can offer",
 } as const;

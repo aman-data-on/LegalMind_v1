@@ -87,7 +87,7 @@ def test_each_persona_sees_only_its_own_items(api, db, world):
 
 def test_an_item_is_a_fixed_sentence_and_a_readable_link(api, db, world):
     [item] = _todo(api, db, world["owner"])
-    assert item["sentence"] == "The client returned a new version — it is our turn."
+    assert item["sentence"] == "The client returned a new version. It is your turn."
     assert item["link"] == f"/contracts/{world['returned'].contract_id}/changes"
     assert item["since"] and item["days"] == 0          # since the client's version arrived
 

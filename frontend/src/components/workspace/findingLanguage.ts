@@ -549,6 +549,23 @@ export function nextStep(
   }
 }
 
+/** B3 page 1 (PLAIN-LANGUAGE §4 rule 4): the card's ONE action, by one actor, agreeing with
+ *  its status. "Send our standard wording" / "Ask the client to add our clause" only when
+ *  the server holds our wording to send (`sendable`) — never invented. A decided point says
+ *  what was decided (`nextStep`). Language only: the status is the server's (rule 18). */
+export function whatToDo(finding: PresentedFinding, evaluation: Evaluation | undefined,
+                         status: UserStatus, sendable: boolean, legalReader = false): string {
+  const state = pointState(finding);
+  if (evaluation?.current_decision) return nextStep(finding, evaluation, status) ?? "Decided.";
+  if (state === "decided") return "Decided.";
+  if (state === "clarification") return "Waiting for the client's answer; then Legal decides.";
+  if (state === "matches") return "Nothing to do.";
+  if (state === "favour") return "You can accept this.";
+  if (status === "REQUIRES_MODIFICATION" && sendable) return "Send our standard wording, or Legal decides.";
+  if (status === "MISSING" && sendable) return "Ask the client to add our clause.";
+  return legalReader ? "Read it and decide." : "Legal decides this one.";
+}
+
 /** Why a point needs a person, in one sentence — from what the engine recorded, never
  *  "unclear" (owner, 2026-10-23). */
 function decisionReason(finding: Finding, evaluation?: Evaluation): string {

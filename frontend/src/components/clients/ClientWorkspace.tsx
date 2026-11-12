@@ -22,6 +22,7 @@
  * version's declared role, and the counterparty link.
  */
 
+import { Plus } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
@@ -44,6 +45,7 @@ import {
   hasProfileDetail,
   mergeProfile,
 } from "./model";
+import { ErrorState } from "@/components/Feedback";
 
 const TABS = [
   { key: "documents", label: "Documents" },
@@ -187,7 +189,7 @@ function ClientRail({
           All clients
         </Link>
         {total !== null ? (
-          <span className="ws-cl__rail-total ws-mono">{total}</span>
+          <span className="ws-cl__rail-total ws-num">{total}</span>
         ) : null}
       </div>
       <div className="ws-cl__rail-tools">
@@ -199,7 +201,7 @@ function ClientRail({
         {canAdd ? (
           <button type="button" className="ws-btn ws-btn--sm ws-cl__rail-add"
                   onClick={onAdd}>
-            + Add
+            <Plus size={16} aria-hidden="true" /> Add
           </button>
         ) : null}
       </div>
@@ -307,11 +309,8 @@ export function ClientWorkspace({ clientId }: { clientId: string }) {
 
   if (error) {
     return (
-      <div className="ws-state ws-state--error" role="alert">
-        <h2>This client could not be opened.</h2>
-        <p>{describeError(error)}</p>
-        <Link className="ws-btn" href="/dashboard/clients">All clients</Link>
-      </div>
+      <ErrorState title="This client could not be opened" error={error} fix={null}
+                  back={{ href: "/dashboard/clients", label: "All clients" }} />
     );
   }
 
@@ -338,7 +337,7 @@ export function ClientWorkspace({ clientId }: { clientId: string }) {
         {/* Breadcrumb, so a reader arriving from a document knows where they
             are and can get back to the list in one click. */}
         <nav className="ws-cl__crumbs" aria-label="Breadcrumb">
-          <Link href="/dashboard/clients">Client profiles</Link>
+          <Link href="/dashboard/clients">Clients</Link>
           <span aria-hidden="true"><IconChevronRight size={12} /></span>
           <span aria-current="page">{adding ? "Add client" : client.name}</span>
         </nav>

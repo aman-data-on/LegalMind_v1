@@ -16,6 +16,9 @@ import { requirementTitle } from "./findingLanguage";
 import type {
   BusinessPoint, CounterProposal, LegalItem, Observation, ReviewAngles,
 } from "@/lib/types";
+import { StatusChip, type ChipStatus } from "@/components/StatusChip";
+import { useCanQuietly } from "@/lib/session";
+import * as P from "@/lib/permissions";
 
 const cache = new Map<string, Promise<ReviewAngles | null>>();
 
@@ -115,23 +118,26 @@ const ISSUES_SHOWN = 5;
  *  recommends, and where — one press opens its finding. Every word is the server's. */
 /** A point's two lines on the Summary (S1): the review's word against our standard, then
  *  who answers it — read from the findings already loaded, never re-derived here. */
-export interface PointWords { reader: string; answer: string | null }
+export interface PointWords { reader: string; status?: ChipStatus; answer: string | null }
 
 function OpenPoint({ item, onOpen, words }: {
   item: LegalItem;
   onOpen?: ((id: string) => void) | undefined;
   words?: PointWords | undefined;
 }) {
-  // page 2 (AM-291 r1/r6): line 1 the point and the review's word, the place on the
-  // right; line 2 who has it or what was answered. The gap, the recommendation and the
+  // page 2 (AM-291 r1/r6): line 1 the point and the review's word; then its place; then
+  // who has it or what was answered. The gap, the recommendation and the
   // standards' sentences are on the point's card and in Legal details — not here.
   const body = (
     <>
       <span className="ws-open__line">
         <span className="ws-open__name">{requirementTitle({ code: item.requirement_code })}</span>
-        {words ? <span className="ws-open__word">{words.reader}</span> : null}
-        {item.where ? <span className="ws-open__where">{item.where}</span> : null}
+        {/* UX Batch 2: the one StatusChip, as on Points and Changes */}
+        {words?.status ? <StatusChip status={words.status} />
+          : words ? <span className="ws-open__word">{words.reader}</span> : null}
       </span>
+      {/* B3 p1: the place is the name's metadata line, under it, never pushed off to the right */}
+      {item.where ? <span className="ws-open__where">{item.where}</span> : null}
       {words?.answer ? <span className="ws-open__who">{words.answer}</span> : null}
     </>
   );
@@ -208,7 +214,7 @@ export function LegalAngleView({ angles, onOpen, decided, words, withRecommendat
           decide (the Summary's "N points need Legal") plus any the approved rule
           accepts in our favour, which the recommendation counts apart. */}
       <h3 id="ws-angle-legal" className="ws-angle__title">
-        {allDecided ? "Where it differs from our standard" : "Open points"}{items.length ? ` (${items.length})` : ""}
+        {allDecided ? "Where it differs from our standard" : "Points to settle"}{items.length ? ` (${items.length})` : ""}
       </h3>
       {withRecommendation && angles.recommendation ? (
         <p className="ws-angle__recommendation">{withoutSectionRefs(angles.recommendation)}</p>
@@ -289,15 +295,34 @@ export function CounterProposalCard({ proposal }: { proposal: CounterProposal })
   // a Company Position is our stance, not clause wording: never "send this back" (review,
   // 2026-10-17) — only the Constitution's Drafting Notes are wording to send
   const wording = proposal.kind === "DRAFTING_LANGUAGE";
+  // B3 p1: where the wording comes from ("Constitution §16 — Drafting Notes…") is a Legal
+  // detail (PLAIN-LANGUAGE §3): shown to a `legal.review` holder only — by permission,
+  // never by role name. The wording itself is the server's, unchanged.
+  const legalReader = useCanQuietly(P.LEGAL_REVIEW);
   return (
     <aside className="ws-counter"
-           aria-label={wording ? "Recommended counter-proposal" : "Our position"}>
+           aria-label={wording ? "Wording to send back" : "Our standard"}>
       <p className="ws-counter__title">
-        {wording ? "Recommended wording to send back" : "Our position — no approved wording to send"}
+        {wording ? "Wording to send back" : "No standard wording yet — ask Legal"}
       </p>
       <blockquote className="ws-counter__text">{proposal.text}</blockquote>
-      <p className="ws-counter__label">{proposal.label}</p>
+      {legalReader ? <p className="ws-counter__label">{proposal.label}</p> : null}
+      {wording ? <CopyWording text={proposal.text} /> : null}
     </aside>
+  );
+}
+
+/** The server's wording, copied verbatim; the result is said in a status line. */
+function CopyWording({ text }: { text: string }) {
+  const [said, setSaid] = useState<string | null>(null);
+  return (
+    <p className="ws-counter__copy">
+      <button type="button" className="ws-btn ws-btn--sm" onClick={() => {
+        void navigator.clipboard.writeText(text).then(() => setSaid("Copied"),
+          () => setSaid("Couldn't copy — select the wording instead"));
+      }}>Copy wording</button>
+      <span role="status">{said}</span>
+    </p>
   );
 }
 

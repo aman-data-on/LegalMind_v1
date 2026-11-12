@@ -100,7 +100,7 @@ test.describe("signed in (counsel)", () => {
        permissions and the version load) and the Legal angle (AM-159). CI caught
        both sides of that race on PR #217 — one run settled, the next not — so the
        shot waits for the settled page, a real condition, never a sleep. */
-    await expect(page.getByRole("link", { name: "Diff-Talk", exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Compare", exact: true })).toBeVisible();
     // "Compare in Diff-Talk" is an item under the header's ⋯ since the CLM record header;
     // the ⋯ itself is what settles in the header
     await expect(page.getByRole("button", { name: "More actions" })).toBeVisible();

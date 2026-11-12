@@ -18,12 +18,14 @@ stay readable by id, and refuse every write with 409.
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Query, Request
 from sqlalchemy import Select, event, false, func, or_, select
 from sqlalchemy.exc import DBAPIError
+from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
 from legalmind.analysis import negotiation
@@ -54,6 +56,7 @@ from legalmind.drafting import blank
 from legalmind.evaluation.user_status import folded_user_status_counts
 from legalmind.ingestion.service import ingest_document
 from legalmind.ingestion.storage import StorageBackend
+from legalmind.ingestion.validation import MARKDOWN_MIME
 from legalmind.security import audit
 from legalmind.security import permissions as P
 from legalmind.security.authorization import (
@@ -515,6 +518,28 @@ def create_contract(body: ContractCreate,
     return data(serialize_contract(contract))
 
 
+_INGEST_N = re.compile(r"legalmind-ingest-v(\d+)$")
+
+
+def reader_outdated(db: Session, versions: Sequence[M.DocumentVersion]) -> set[UUID]:
+    """B3 page 1: the Markdown uploads read before `legalmind-ingest-v11`, whose stored
+    text still carries the export's marks (``**``, ``##``, ``\\-``). A pinned reading is
+    never re-read in place (rules 16/17), so the reader is told and offered a new
+    version. A version not read yet is not flagged."""
+    md = [v.id for v in versions if v.mime_type == MARKDOWN_MIME]
+    if not md:
+        return set()
+    runs = db.execute(
+        select(M.DocumentProcessingRun.document_version_id,
+               M.DocumentProcessingRun.processor_version)
+        .where(M.DocumentProcessingRun.document_version_id.in_(md),
+               M.DocumentProcessingRun.status == E.ProcessingRunStatus.COMPLETED)).all()
+    read = {vid for vid, _ in runs}
+    fresh = {vid for vid, pv in runs
+             if (m := _INGEST_N.match(pv or "")) and int(m.group(1)) >= 11}
+    return read - fresh
+
+
 @router.get("/contracts/{contract_id}")
 def get_contract(contract_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
     """The contract with its document versions, newest first.
@@ -537,7 +562,10 @@ def get_contract(contract_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
     ).scalars().all()
     payload = serialize_contract(contract)
     payload["owner_name"] = _owner_names(guard, [contract]).get(contract.owner_id)
-    payload["document_versions"] = [serialize_document_version(v) for v in versions]
+    outdated = reader_outdated(guard.db, versions)
+    payload["document_versions"] = [
+        {**serialize_document_version(v),
+         **({"reader_outdated": True} if v.id in outdated else {})} for v in versions]
     if len(versions) == 1:
         # AM-302: one version made from our blank template opens on its Changes, which
         # compare it with that template (the link is read from its own text)

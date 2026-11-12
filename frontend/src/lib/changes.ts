@@ -267,10 +267,11 @@ export function where(change: ClientChange): string {
 
 /** The four actions, by their `AM-291` r2 names. */
 export const ACTION_LABEL: Record<Answer, string> = {
-  keep_ours: "Keep ours",
-  accept_theirs: "Accept theirs",
-  use_standard: "Use our standard",
-  write_wording: "Write our wording",
+  // PLAIN-LANGUAGE §2.2: the whole object, every time (B3 p1)
+  keep_ours: "Keep our wording",
+  accept_theirs: "Accept their wording",
+  use_standard: "Use our standard wording",
+  write_wording: "Write new wording",
 };
 
 type Reader = Pick<ChangeList, "can_answer" | "can_decide" | "can_write_wording">;
@@ -302,19 +303,34 @@ export function actionsFor(change: ClientChange, list: Reader): Answer[] {
  *  clause is not simply a match. Never merged with line 2. */
 export function readerWord(change: ClientChange): string | null {
   // a point in our favour is not "simply a match": it says so (Batch 1 d)
-  const f = change.review.after.find((x) => x.user_status !== "ACCEPTABLE" || x.in_our_favour);
+  const f = readerFinding(change);
   return f ? pointWord(f) : null;
+}
+
+/** The point behind line 1: the first not simply a match, or one in our favour. */
+function readerFinding(change: ClientChange) {
+  return change.review.after.find((x) => x.user_status !== "ACCEPTABLE" || x.in_our_favour) ?? null;
+}
+
+/** The server's reader status behind `readerWord`, with its favour flag — what the one
+ *  StatusChip shows (UX Batch 2). */
+export function readerStatus(change: ClientChange): UserStatus | null {
+  return readerFinding(change)?.user_status ?? null;
+}
+export function readerFavour(change: ClientChange): boolean {
+  return !!readerFinding(change)?.in_our_favour;
 }
 
 /** Which of the four marks a change carries (the one status set, `PointStatus`): the
  *  review's word on the client's clause, "Decided" once answered or accepted by Legal;
  *  null when no standard measures it. */
-export function changeBucket(change: ClientChange): "match" | "review" | "decided" | "missing" | null {
+export function changeBucket(change: ClientChange): "match" | "change" | "decision" | "decided" | "missing" | null {
   const after = change.review.after;
   if (!after.length) return null;
   if (change.answer || change.holder_accepted) return "decided";
   if (after.every((f) => f.user_status === "ACCEPTABLE")) return "match";
-  return after.some((f) => f.user_status === "MISSING") ? "missing" : "review";
+  if (after.some((f) => f.user_status === "MISSING")) return "missing";
+  return after.some((f) => f.user_status === "NEEDS_DECISION") ? "decision" : "change";
 }
 
 /** Line 2 of a point: what was answered, or who answers it — the server's route and
@@ -390,7 +406,7 @@ export function historyLine(history: AnswerEntry[]): string {
     .join(" → ");
 }
 
-/** "Explain this" — assembled from what the review recorded and what code read; no
+/** "Why does this matter?" — assembled from what the review recorded and what code read; no
  *  sentence is written here that the server did not give. */
 export function explanation(change: ClientChange, versions: { from: number; to: number }): string[] {
   const out: string[] = [];

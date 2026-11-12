@@ -36,6 +36,7 @@ import { PageHeader } from "@/components/page/PageHeader";
 import { ClientAvatar, ClientStatus } from "./ClientBits";
 import { ClientForm } from "./ClientForm";
 import { clientCountLabel, shortDate } from "./model";
+import { ErrorState } from "@/components/Feedback";
 
 const PAGE_SIZE = 25;
 
@@ -166,7 +167,7 @@ export function ClientDirectory() {
       {/* The house page header (Contracts, To-do, Templates). The count is a real field,
           scoped to this caller (AB-13 r6). "Add client" is absent on the first run: the
           empty state's button is the page's one action there. */}
-      <PageHeader title="Client profiles"
+      <PageHeader title="Clients"
                   meta={pagination && !firstRun ? <span>{clientCountLabel(pagination.total)} you work with</span> : null}
                   primary={canAdd && !firstRun ? (
                     <button type="button" className="ws-btn ws-btn--primary"
@@ -259,23 +260,13 @@ export function ClientDirectory() {
             ) : null}
 
             {error ? (
-              <div className={`ws-state ws-state--${stale ? "warn" : "error"}`} role="alert">
-                <h2>
-                  {stale ? "These results could not be refreshed."
-                    : "Client profiles could not be loaded."}
-                </h2>
-                <p>
-                  {describeError(error)}
-                  {stale ? " The rows below are the last ones loaded successfully." : ""}
-                </p>
-                <button type="button" className="ws-btn ws-btn--sm"
-                        onClick={() => void load()}>
-                  Try again
-                </button>
-              </div>
+              <ErrorState title={stale ? "These results could not be refreshed" : "Clients could not be loaded"}
+                          error={error} onRetry={() => void load()}
+                          {...(stale ? { fix: "The rows below are the last ones that loaded. Try again in a moment." } : {})} />
             ) : null}
 
-            {clients === null ? (
+            {/* round 3: never a skeleton beside an error (the shared-state rule, GP-4) */}
+            {clients === null && error ? null : clients === null ? (
               /* The column header is part of the loading state, not something that
                  appears afterwards — the 2026-09-08 lesson from the Dashboard:
                  rendering rows without it moved everything down by the header's
@@ -303,7 +294,7 @@ export function ClientDirectory() {
                  above already keeps this whole ternary from rendering while the
                  form is open, so this branch is reached only when it should show. */
               <div className="ws-state ws-cl__zero">
-                <h2>No client profiles yet</h2>
+                <h2>No clients yet</h2>
                 <p>
                   A client profile keeps one company&apos;s details and contracts together.
                 </p>
@@ -353,14 +344,14 @@ export function ClientDirectory() {
                               )}
                             </td>
                             <td data-label="Status"><ClientStatus status={client.status} /></td>
-                            <td className="ws-mono" data-label="Documents">{client.documents ?? 0}</td>
+                            <td className="ws-num" data-label="Documents">{client.documents ?? 0}</td>
                             <td data-label="Closed">
                               <span className={client.final_documents || client.signed_documents ? "ws-cl__signed" : "ws-cl__absent"}>
                                 {closedWords(client)}
                               </span>
                             </td>
-                            <td className="ws-mono" data-label="Last activity">{relativeTime(client.last_activity)}</td>
-                            <td className="ws-mono" data-label="Added">{shortDate(client.created_at) ?? "—"}</td>
+                            <td className="ws-num" data-label="Last activity">{relativeTime(client.last_activity)}</td>
+                            <td className="ws-num" data-label="Added">{shortDate(client.created_at) ?? "—"}</td>
                             <td className="ws-cl__rowact">
                               {/* A quiet link, not a bordered button. Eleven
                                   outlined buttons down the right edge drew more
@@ -386,7 +377,7 @@ export function ClientDirectory() {
                             onClick={() => setPage((p) => Math.max(1, p - 1))}>
                       Previous
                     </button>
-                    <span className="ws-pane__note ws-mono">
+                    <span className="ws-pane__note ws-num">
                       Page {page} of {pageCount}
                     </span>
                     <button type="button" className="ws-btn ws-btn--sm"

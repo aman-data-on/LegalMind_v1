@@ -113,14 +113,14 @@ describe("the final contract (PackageCard)", () => {
     expect(held).not.toContain("Download");
     const open = renderToStaticMarkup(<PackageCard version={version()} versions={versions} filesOpen />);
     expect(open).toContain("Legal records the decision on it next.");
-    expect(open).toContain("PDF");
+    expect(open).toMatch(/<\/svg> Preview<\/button>/);   // the files, previewed first (UX Batch 2)
     expect(open).toContain("What is in Annexure A (3)");
   });
   it("says when it went out", () => {
     const sent = renderToStaticMarkup(<PackageCard version={version({ sent_at: "2026-11-04T10:00:00Z" })}
                                                    versions={versions} filesOpen={false} />);
     expect(sent).toContain("Recorded as sent on 4 Nov 2026");
-    expect(sent).toContain("PDF");
+    expect(sent).toMatch(/<\/svg> Preview<\/button>/);
   });
 });
 

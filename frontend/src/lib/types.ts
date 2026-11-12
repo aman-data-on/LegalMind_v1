@@ -322,6 +322,9 @@ export interface DocumentVersion {
   extraction_status: string | null;
   /** QA-037: why a FAILED version could not be read (present only then) */
   unreadable_reason?: string;
+  /** B3 page 1: a Markdown upload read before ingest v11 — its stored text keeps the marks
+   *  (present only then, `GET /contracts/{id}` only) */
+  reader_outdated?: true;
   uploaded_by: string;
   created_at: string | null;
   /** Declared (2026-09-06), from locked 42.4's `metadata` JSONB: present only
@@ -431,6 +434,11 @@ export interface Review {
   document_accessible: boolean;
   /** AB-100 — the owner sent this Review to the caller (their queue first). */
   sent_to_you?: boolean;
+  /** B3 p2: since when it is with Legal (earliest live assignment or open escalation) —
+   *  present only then */
+  with_legal_since?: string;
+  /** B3 p2: who holds it now, by name; empty when nobody is assigned */
+  assigned_to?: string[];
   /** Batch 1 (e) — this caller HOLDS the Review (assigned to them, or with Legal and
    *  assigned to nobody): its points are theirs to decide. */
   yours?: boolean;

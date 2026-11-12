@@ -94,7 +94,8 @@ describe("one status set", () => {
     const html = renderToStaticMarkup(<PointStatusLegend />);
     const words = Object.values(POINT_STATUS);
     // Batch 1 (d): "In our favour" is its own mark
-    expect(words).toEqual(["Matches our standard", "In our favour", "Open point", "Decided", "Missing"]);
+    // UX Batch 2: StatusChip's words, plus Decided — never "Open point" for two statuses
+    expect(words).toEqual(["Matches", "In our favour", "Change needed", "Missing", "Needs a decision", "Decided"]);
     for (const w of words) expect(html).toContain(w);
     expect(new Set(html.match(/lucide-[a-z-]+/g)).size).toBeGreaterThanOrEqual(5);
   });

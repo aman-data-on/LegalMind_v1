@@ -10,9 +10,7 @@
  * Polling stops after ~2 minutes with a plain message. Nothing is decided here.
  */
 
-import { useState } from "react";
-
-import { ApiError, api, describeError, toApiError } from "./api";
+import { ApiError, api, toApiError } from "./api";
 
 export type PdfOutcome =
   | { kind: "file"; blob: Blob; name: string | undefined }
@@ -60,25 +58,10 @@ export function saveBlob(blob: Blob, name: string | undefined): void {
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-/** A PDF button's state: idle → "Preparing the PDF…" while the worker makes it → saved,
- *  or a plain message. `error` keeps the ApiError so a 409 gate can list its points. */
-export function usePdfDownload(path: string) {
-  const [busy, setBusy] = useState(false);
-  const [waiting, setWaiting] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<unknown>(null);
-  async function download() {
-    setBusy(true); setWaiting(false); setMessage(null); setError(null);
-    try {
-      const got = await fetchPdf(path, { onWaiting: () => setWaiting(true) });
-      if (got.kind === "file") saveBlob(got.blob, got.name);
-      else setMessage(got.message);
-    } catch (cause) {
-      setError(cause);
-      setMessage(describeError(cause));
-    } finally {
-      setBusy(false); setWaiting(false);
-    }
-  }
-  return { busy, waiting, message, error, download, label: waiting ? "Preparing the PDF…" : null };
+/** A Word file at `path` (`?format=docx`), saved under the name the server gives it. */
+export async function downloadWord(path: string): Promise<void> {
+  const response = await api.pdfResponse(path);
+  if (!response.ok) throw await toApiError(response, response.headers.get("X-Request-Id") ?? "-");
+  const name = /filename\*=UTF-8''([^;]+)/i.exec(response.headers.get("Content-Disposition") ?? "")?.[1];
+  saveBlob(await response.blob(), name ? decodeURIComponent(name) : undefined);
 }

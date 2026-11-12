@@ -14,6 +14,7 @@ import { api, describeError } from "@/lib/api";
 import type { Contract, WebsiteDocument } from "@/lib/types";
 import { Review } from "./Review";
 import { Setup } from "./Setup";
+import { toastFailure } from "@/components/Toast";
 
 /** Every document the reader may pick, not just the first page.
  *  ponytail: capped at 2,000 in a native select; add a search box beyond that. */
@@ -57,7 +58,7 @@ export function DiffTalkPage({ left, right, onChange }: {
   if (left && right) {
     return (
       <>
-        <PageHeader wide title="Diff-Talk" />
+        <PageHeader wide title="Compare two contracts" />
         <Review key={`${left}|${right}`} left={left} right={right}
                 onChange={(side) => (side === "left" ? onChange("", right) : onChange(left, ""))} />
       </>
@@ -65,12 +66,12 @@ export function DiffTalkPage({ left, right, onChange }: {
   }
   return (
     <div className="lm-page">
-      <PageHeader title="Diff-Talk"
+      <PageHeader title="Compare two contracts"
                   meta={<span>Compare our document with a client contract, clause by clause. Colours mark wording changes, not whether they are acceptable.</span>} />
       <Setup left={left} right={right} website={website} documents={documents}
              listError={listError} onChange={onChange}
              onUploaded={async (side, ref) => {
-               await refresh().catch(() => undefined);
+               await refresh().catch(toastFailure("The document list could not be refreshed"));
                if (ref) onChange(side === "left" ? ref : left, side === "right" ? ref : right);
              }} />
     </div>

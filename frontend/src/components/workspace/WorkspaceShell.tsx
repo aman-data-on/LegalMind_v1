@@ -20,6 +20,7 @@ import { loginPath, useSession } from "@/lib/session";
 import { IconChevronDown, IconMenu, IconSparkle } from "./icons";
 import { activeNavHref, navItemsFor } from "./model";
 import { BellToggle, NotificationPanel, useNotifications } from "./Notifications";
+import { LoadingState } from "@/components/Feedback";
 
 /** The floating Ask button steps aside while the reader scrolls down a list and comes back
  *  on the way up or at the top (the standard FAB behaviour) — so it never sits over the
@@ -137,12 +138,15 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   // restricted" for an authenticated user on every hard navigation. The
   // signed-out state renders the same quiet placeholder while the redirect
   // above lands — never a restricted flash, never an empty shell.
+  // Round 2: the shell itself, with the wordmark and a skeleton, never a blank page — the
+  // nav waits (it is permission-shaped), the page announces "Loading…" once.
   if (loading || !identity) {
     return (
       <div className="ws">
-        <p className="ws-visually-hidden" role="status" aria-live="polite">
-          Loading…
-        </p>
+        <header className="ws-shell">
+          <span className="ws-shell__word"><span className="ws-shell__word-a">Legal</span><span className="ws-shell__word-b">Mind</span></span>
+        </header>
+        <main id="ws-main" className="ws-main"><div className="lm-page"><LoadingState rows={5} /></div></main>
       </div>
     );
   }
@@ -185,6 +189,13 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
         </nav>
         <span className="ws-shell__spacer" />
         <div className="ws-shell__bar" ref={barRef} onKeyDown={onBarKey}>
+          {/* B3 p2: on a phone Ask lives here, in the app bar — a floating button there
+              covered list rows (WCAG 2.4.11); above 760px this is not drawn */}
+          {can(P.ASSIST_ASK) ? (
+            <Link className="ws-shell__ask" href="/dashboard/ask" aria-label="Ask">
+              <IconSparkle size={18} />
+            </Link>
+          ) : null}
           {/* AM-273 m3 (AB-150): the caller's own notices, a fixed sentence and a link. */}
           <div className="ws-shell__bell">
             <BellToggle unread={notes.list.unread} open={open === "bell"}

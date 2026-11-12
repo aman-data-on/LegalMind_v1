@@ -45,8 +45,9 @@ import { useEffect, useState } from "react";
 
 import { api, describeError } from "@/lib/api";
 import { sectionRef } from "@/lib/documentTypes";
-import { readerWord, requirementTitle, userStatus } from "./findingLanguage";
+import { requirementTitle, userStatus } from "./findingLanguage";
 import type { ClauseChange, DocumentVersion, VersionComparison as Comparison } from "@/lib/types";
+import { StatusChip, chipStatus } from "@/components/StatusChip";
 
 type Load =
   | { kind: "loading" }
@@ -190,7 +191,7 @@ function Result({
           {shown.map((clause) => (
             <li key={`${clause.status}-${clause.section_number}`} className="ws-compare__row">
               <p className="ws-compare__clause">
-                <span className="ws-mono">{sectionRef(clause.section_number) ?? "—"}</span>
+                <span className="ws-num">{sectionRef(clause.section_number) ?? "—"}</span>
                 {clause.section_title ? (
                   <span className="ws-compare__title">{clause.section_title}</span>
                 ) : null}
@@ -218,12 +219,9 @@ function Result({
                     /* The reader's word in the reader's colour: this chip wore
                        `--ws-classify` while every other surface showing the
                        same word wore ok/warn/bad (2026-09-09). */
-                    <span
-                      key={finding.finding_id}
-                      className={`ws-chip ws-chip--fill ws-chip--status-${userStatus(finding).toLowerCase()}`}
-                    >
-                      {readerWord(finding)}
-                      {finding.requirement_code ? ` · ${requirementTitle({ code: finding.requirement_code })}` : ""}
+                    <span key={finding.finding_id} className="ws-compare__finding">
+                      <StatusChip status={chipStatus(userStatus(finding), finding.in_our_favour)} />
+                      {finding.requirement_code ? ` ${requirementTitle({ code: finding.requirement_code })}` : ""}
                     </span>
                   ))}
                 </p>
@@ -269,7 +267,7 @@ function Side({ side, was = false }: { side: NonNullable<ClauseChange["before"]>
         {side.truncated_end ? <span className="ws-compare__cut">…</span> : null}
       </blockquote>
       {side.page_number !== null ? (
-        <span className="ws-compare__page ws-mono">p. {side.page_number}</span>
+        <span className="ws-compare__page ws-num">p. {side.page_number}</span>
       ) : null}
     </div>
   );

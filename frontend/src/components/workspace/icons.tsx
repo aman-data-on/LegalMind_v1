@@ -53,6 +53,7 @@ import {
   FileDiff,
   FileMinus,
   FilePlus,
+  PencilLine,
   Replace,
   FileText,
   Lightbulb,
@@ -124,6 +125,7 @@ export const IconArrowDown = decorative(ArrowDown);
 export const IconCopy = decorative(Copy);
 export const IconList = decorative(ListOrdered);
 export const IconFilePlus = decorative(FilePlus);
+export const IconPencilLine = decorative(PencilLine);
 export const IconFileMinus = decorative(FileMinus);
 export const IconReplace = decorative(Replace);
 export const IconScale = decorative(Scale);

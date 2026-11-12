@@ -60,10 +60,11 @@ describe("the counter-proposal card (AM-152)", () => {
       label: "Constitution §13 — illustrative clause language (Counsel validation point)",
       text: "Either Party may terminate this Agreement for convenience upon thirty (30) days’ prior written notice to the other Party.",
     }} />);
-    expect(html).toContain("Recommended wording to send back");
+    expect(html).toContain("Wording to send back");
     expect(html).toContain("<blockquote");
     expect(html).toContain("thirty (30) days’ prior written notice");
-    expect(html).toContain("illustrative clause language (Counsel validation point)");
+    // B3 p1: the source line is a Legal detail — absent for a reader without legal.review
+    expect(html).not.toContain("illustrative clause language (Counsel validation point)");
   });
 });
 
@@ -94,8 +95,8 @@ describe("under an AI answer: the review's own findings on the clauses it cited 
     expect(html).toContain("The clause waives our position");
     expect(html).toContain("Business angle");
     expect(html).toContain("Up to ₹90,84,000 of committed fees is not secured");
-    expect(html).toContain("no approved clause wording exists");
-    expect(html).toContain("Our position — no approved wording to send");   // never "send back"
+    expect(html).not.toContain("no approved clause wording exists");   // the source line is Legal's (B3 p1)
+    expect(html).toContain("No standard wording yet — ask Legal");   // never "send back"
     // another clause's finding is never in the cited list — only under "Also in this
     // contract", folded below it (2026-10-27)
     const cited = html.split("Also in this contract")[0]!;
@@ -239,7 +240,7 @@ describe("the legal angle (AM-159/AM-160)", () => {
 
   it("leads with the recommendation, then the open points in order, the rest folded", () => {
     const html = renderToStaticMarkup(<LegalAngleView angles={legal} />);
-    expect(html).toContain("Open points (6)");
+    expect(html).toContain("Points to settle (6)");
     expect(html.indexOf("Sign after 6 changes")).toBeGreaterThan(-1);
     expect(html.indexOf("Sign after 6 changes")).toBeLessThan(html.indexOf("1.1 · page 1"));
     // page 2: a point is two lines — the standards' sentences are on its card and in

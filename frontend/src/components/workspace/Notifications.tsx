@@ -14,6 +14,7 @@ import { pollWhileVisible } from "@/lib/poll";
 
 import { IconBell } from "./icons";
 import { formatDateTime } from "@/lib/dates";
+import { toastFailure } from "@/components/Toast";
 
 const POLL_MS = 120_000;
 
@@ -21,15 +22,18 @@ const POLL_MS = 120_000;
  *  reader out (QA-027). */
 export function useNotifications(open: boolean, signedIn: boolean) {
   const [list, setList] = useState<NotificationList>({ unread: 0, items: [] });
-  const reload = useCallback(() => {
-    api.notifications().then(setList).catch(() => undefined);
+  // the reader opening the bell hears a failure; the 2-minute background poll stays quiet
+  // (a toast per missed poll would be noise) and the next poll tries again
+  const reload = useCallback((report = false) => {
+    api.notifications().then(setList)
+      .catch(report ? toastFailure("Notifications could not be loaded") : () => undefined);
   }, []);
   useEffect(() => {
     if (!signedIn) return;
     reload();
     return pollWhileVisible(reload, POLL_MS);
   }, [reload, signedIn]);
-  useEffect(() => { if (open && signedIn) reload(); }, [open, signedIn, reload]);
+  useEffect(() => { if (open && signedIn) reload(true); }, [open, signedIn, reload]);
   return { list, reload };
 }
 

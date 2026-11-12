@@ -472,7 +472,7 @@ test.describe("the 3-column redesign (2026-08-31)", () => {
     const USER_WORDS = ["Matches our standard", "Change needed", "Missing", "Needs a decision"];
     await expect(panel.locator(".ws-tiles")).toHaveCount(0);
     await expect(panel.locator(".ws-attn__count")).toContainText(/1 open point/);
-    const open = panel.getByRole("region", { name: /Open points \(\d+\)/ });
+    const open = panel.getByRole("region", { name: /Points to settle \(\d+\)/ });
     const first = open.locator(".ws-open__go").first();
     await expect(first).toBeVisible();
     const words = await first.innerText();

@@ -39,6 +39,8 @@ import { NewContractChooser } from "@/components/newcontract/NewContractChooser"
 import { HomeQueue, useTasks } from "@/components/workspace/TodoViews";
 import { PageHeader } from "@/components/page/PageHeader";
 import { IconPlus, IconSearch } from "@/components/workspace/icons";
+import { ErrorState } from "@/components/Feedback";
+import { SegmentedFilter } from "@/components/SegmentedFilter";
 
 const PAGE_SIZE = 25;
 
@@ -305,6 +307,17 @@ function DocumentsListView() {
         <details className="ws-home__filter" ref={filterRef}>
           <summary className="ws-btn">Filter{activeFilters ? ` · ${activeFilters}` : ""}</summary>
           <div className="ws-home__filterpanel">
+            {stagesHeld.length ? (
+              <label className="ws-field ws-home__stagefield">
+                <span className="ws-field__label">Stage</span>
+                <select value={stageFilter} onChange={(event) => { setStageFilter(event.target.value as typeof stageFilter); setPage(1); }}>
+                  <option value="">All stages</option>
+                  {stagesHeld.map((code) => (
+                    <option key={code} value={code}>{`${STAGE_LABEL[code] ?? code} (${summary?.stages?.[code] ?? 0})`}</option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             <label className="ws-field">
               <span className="ws-field__label">Type</span>
               <select value={typeFilter} onChange={(event) => { setTypeFilter(event.target.value); setPage(1); }}>
@@ -337,15 +350,12 @@ function DocumentsListView() {
 
       {/* A scope FILTER, not a tablist: two pressed-state buttons re-query one region. */}
       {canSeeDepartment ? (
-        <div className="ws-filter ws-home__chips" role="group" aria-label="Which deals">
-          <button type="button" aria-pressed={scope === "own"} onClick={() => { setScope("own"); setPage(1); }}>
-            My deals
-          </button>
-          <button type="button" aria-pressed={scope === "department"}
-                  onClick={() => { setScope("department"); setPage(1); }}>
-            {identity?.department ? `${identity.department.name} deals` : "Department deals"}
-          </button>
-        </div>
+        <SegmentedFilter label="Which deals" value={scope}
+                         onChange={(next) => { setScope(next); setPage(1); }}
+                         segments={[{ id: "own", label: "My deals", text: "My deals", always: true },
+                           { id: "department", always: true,
+                             label: identity?.department ? `${identity.department.name} deals` : "Department deals",
+                             text: identity?.department ? `${identity.department.name} deals` : "Department deals" }]} />
       ) : null}
       {canSeeDepartment && scope === "department" && !identity?.department ? (
         <p className="ws-pane__note" role="note">
@@ -355,35 +365,22 @@ function DocumentsListView() {
 
       {/* Where every deal stands (`AM-260`): only the stages holding a deal, in the deal's
           own order, one line that scrolls sideways on a phone. */}
+      {/* round 3: on a wide screen the stages are one visible control; at 640px and below
+          they live in the Filter panel (one filter control on a phone, never two) */}
       {stagesHeld.length ? (
-        <div className="ws-filter ws-home__chips" role="group" aria-label="Filter by stage">
-          <button type="button" aria-pressed={stageFilter === ""}
-                  onClick={() => { setStageFilter(""); setPage(1); }}>
-            All stages
-          </button>
-          {stagesHeld.map((code) => (
-            <button key={code} type="button" aria-pressed={stageFilter === code}
-                    onClick={() => { setStageFilter(stageFilter === code ? "" : code); setPage(1); }}>
-              {STAGE_LABEL[code]}
-              <span className="ws-filter__n">{summary?.stages?.[code] ?? 0}</span>
-            </button>
-          ))}
+        <div className="ws-home__stages">
+          <SegmentedFilter label="Stage" value={stageFilter}
+                           onChange={(code) => { setStageFilter(code); setPage(1); }}
+                           segments={[{ id: "", label: "All stages", text: "All stages", always: true },
+                             ...stagesHeld.map((code) => ({ id: code, label: STAGE_LABEL[code], text: STAGE_LABEL[code] ?? code,
+                               count: summary?.stages?.[code] ?? 0 }))]} />
         </div>
       ) : null}
 
       {error ? (
-        <div className={`ws-state ws-state--${stale ? "warn" : "error"}`} role="alert">
-          <p className="ws-home__errtitle">
-            {stale ? "These results could not be refreshed." : "Contracts could not be loaded."}
-          </p>
-          <p>
-            {describeError(error)}
-            {stale ? " The rows below are the last ones loaded successfully." : ""}
-          </p>
-          <button type="button" className="ws-btn ws-btn--sm" onClick={() => void load()}>
-            Try again
-          </button>
-        </div>
+        <ErrorState title={stale ? "These results could not be refreshed" : "Contracts could not be loaded"}
+                    error={error} onRetry={() => void load()}
+                    {...(stale ? { fix: "The rows below are the last ones that loaded. Try again in a moment." } : {})} />
       ) : null}
 
       {contracts === null && !error ? (

@@ -167,9 +167,9 @@ export function Review({ left, right, onChange }: {
     // No clipboard API at all (a plain-http address) throws before any promise —
     // so it runs inside one, and every failure shows the list to copy by hand.
     Promise.resolve().then(() => navigator.clipboard.writeText(list))
-      .then(() => setCopied({ ok: true, text: "Copied — paste it into an email or chat to Legal." }))
+      .then(() => setCopied({ ok: true, text: "Copied. Paste it into an email or chat to Legal." }))
       .catch(() => setCopied({ ok: false, list,
-        text: "This browser blocked copying. The list is selected below — press Ctrl+C (⌘C on a Mac)." }));
+        text: "This browser blocked copying. The list is selected below. Press Ctrl+C (⌘C on a Mac)." }));
   }
 
   if (state.kind === "loading" || !choicesLoaded) return <Skeleton split={split} />;
@@ -571,7 +571,7 @@ function DiffBlock({ row, index, number, split, full, current, pick, folded, foc
           </h2>
           <p className="ws-dt__cardmeta">
             <span className="ws-dt__kind">
-              <kind.Icon size={13} /> {rewritten ? "Rewritten — read both" : kind.label}
+              <kind.Icon size={13} /> {rewritten ? "Rewritten: read both" : kind.label}
             </span>
             {row.status === "CHANGED" && row.left && row.right && !rewritten
               ? <span>{changedSentences(row.left, row.right)} differ</span> : null}

@@ -20,6 +20,7 @@ import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { DocumentVersion, SnapshotSummary } from "@/lib/types";
 import { useFindingsStateOptional } from "./findingsState";
+import { ErrorState } from "@/components/Feedback";
 
 type State =
   | { kind: "loading" }
@@ -152,9 +153,7 @@ export function AnalyzeControl({
         </div>
       ) : null}
       {state.kind === "error" ? (
-        <div className="ws-state ws-state--error" role="alert">
-          <p>{describeError(state.error)}</p>
-        </div>
+        <ErrorState title="The check could not be started" error={state.error} />
       ) : null}
     </div>
   );

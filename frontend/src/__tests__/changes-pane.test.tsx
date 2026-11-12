@@ -59,25 +59,25 @@ const answered = (answer: Answer, over: Record<string, unknown> = {}) => ({
 describe("who may answer (AM-250)", () => {
   it("gives the owner no accept control on a change a holder decides", () => {
     const html = card(change(), list());
-    expect(html).toContain(">Keep ours</button>");
+    expect(html).toContain(">Keep our wording</button>");
     expect(html).toContain("Ask Legal");
-    expect(html).not.toContain("Accept theirs");
+    expect(html).not.toContain("Accept their wording");
     expect(html).not.toContain("Your Legal Decision");
     expect(html).not.toContain("disabled=\"\"");
   });
 
   it("lets the owner accept once a holder's decision accepts it", () => {
-    expect(card(change({ holder_accepted: true }), list())).toContain("Accept theirs");
+    expect(card(change({ holder_accepted: true }), list())).toContain("Accept their wording");
   });
 
   it("puts the holder's decision in place, and nothing to ask", () => {
     const html = card(change(), list({ can_decide: true }));
     expect(html).toContain('role="radiogroup"');
-    expect(html).toContain("Accept theirs");
+    expect(html).toContain("Accept their wording");
     expect(html).not.toContain("Ask Legal");
     const panel = compose(change(), list({ can_decide: true }), "accept_theirs");
     expect(panel).toContain("Record your Legal Decision on each point below");
-    expect(panel).not.toContain(">Accept theirs</button>");      // the decision, not the answer
+    expect(panel).not.toContain(">Accept their wording</button>");      // the decision, not the answer
   });
 
   it("never nests the Legal Decision's form inside the answer's (B3)", () => {
@@ -96,15 +96,15 @@ describe("who may answer (AM-250)", () => {
                                 route_reason: "NO_STANDARD_MEASURES_IT" });
     const html = compose(unmeasured, list({ can_answer: false, can_decide: true }), "accept_theirs");
     expect(html).toContain("recorded as your answer, not a Legal Decision");
-    expect(html).toContain(">Accept theirs</button>");
+    expect(html).toContain(">Accept their wording</button>");
     expect(html).toContain("(required)");
     expect(card(unmeasured, list())).not.toContain("recorded as your answer");   // owner
   });
 
   it("gives the owner both answers on a formatting-only change", () => {
     const html = card(change({ route: "owner", route_reason: "FORMATTING_ONLY", review: { before: [], after: [] } }), list());
-    expect(html).toContain("Keep ours");
-    expect(html).toContain("Accept theirs");
+    expect(html).toContain("Keep our wording");
+    expect(html).toContain("Accept their wording");
   });
 
   it("shows a reader the change and no control at all", () => {
@@ -210,8 +210,8 @@ describe("the actions each person has (S2, AM-291 r2)", () => {
     expect(actionsFor(change({ route: "owner" }), list())).toEqual(["keep_ours", "accept_theirs"]);
     expect(actionsFor(change(), list())).toEqual(["keep_ours"]);
     const html = card(change(), list());
-    expect(html).not.toContain("Write our wording");
-    expect(html).not.toContain("Use our standard");
+    expect(html).not.toContain("Write new wording");
+    expect(html).not.toContain("Use our standard wording");
     expect(html).not.toContain("Internal note");
     expect(html).not.toContain('role="radiogroup"');
   });
@@ -220,7 +220,7 @@ describe("the actions each person has (S2, AM-291 r2)", () => {
     expect(actionsFor(change(), list(LAWYER)))
       .toEqual(["keep_ours", "accept_theirs", "use_standard", "write_wording"]);
     const html = card(change(), list(LAWYER));
-    for (const label of ["Keep ours", "Accept theirs", "Use our standard", "Write our wording"]) {
+    for (const label of ["Keep our wording", "Accept their wording", "Use our standard wording", "Write new wording"]) {
       expect(html).toContain(`<span>${label}</span>`);
     }
   });
@@ -281,9 +281,11 @@ describe("Write our wording (AM-284) and the notes (AM-285)", () => {
 
   it("keeps line 1 (the review's word) apart from line 2 (who answers)", () => {
     const html = card(change(), list());
-    // the one status set's icon, then the review's word (AM-291 r1)
-    expect(html).toMatch(/class="cx-line1"><span class="ws-status ws-status--review"[^>]*>.*?<\/span><strong>Change needed<\/strong>/);
-    expect(html).toMatch(/class="cx-line2"[^>]*><strong>With Legal<\/strong>/);
+    // the review's word as the one StatusChip (AM-291 r1; UX Batch 2: same hue and icon as Points)
+    expect(html).toMatch(/class="cx-line1"><span class="lm-chip lm-chip--change" data-status="CHANGE_NEEDED"[^>]*>.*?<\/svg>Change needed<\/span>/);
+    // B3 p1: where the reader asks Legal, "With Legal" folds into the one Legal line
+    expect(html).not.toContain('class="cx-line2"');
+    expect(html.match(/Legal decides this one\./g)).toHaveLength(1);
     expect(whoLine(change(), list(LAWYER))).toBe("Yours to answer");
   });
 });
@@ -303,7 +305,7 @@ describe("what still stops our reply (R6, AM-293)", () => {
   it("offers no Prepare while anything is open, and says how many", () => {
     const html = renderToStaticMarkup(<ReplyBar contractId="c" versions={[]} onVersionCreated={() => {}}
       onPick={() => {}} list={list({ changes: rows, summary: { total: 4, untracked: 0 } })} />);
-    expect(html).toContain("3 still open before the reply");
+    expect(html).toContain("3 left to answer");
     expect(html).not.toContain("Prepare our reply");
   });
 
@@ -357,14 +359,14 @@ describe("what each change does for us (AM-299)", () => {
   it("lets the owner accept a better or a same change in one click, and asks Legal only on a worse one", () => {
     for (const c of [better, same]) {
       const html = card(c, list());
-      expect(html).toContain(">Accept theirs</button>");
+      expect(html).toContain(">Accept their wording</button>");
       expect(html).not.toContain("Ask Legal");
       expect(html).toContain("The deal owner can accept it without Legal.");
     }
     const html = card(worse, list());
     expect(html).toContain("Worse for us");
     expect(html).toContain("Ask Legal");
-    expect(html).not.toContain(">Accept theirs</button>");
+    expect(html).not.toContain(">Accept their wording</button>");
   });
 
   it("confirms a together-acceptance in plain words: who, why, and that Legal can reopen it", () => {
@@ -390,10 +392,13 @@ describe("P1 — a version nobody declared (owner, 2026-11-09)", () => {
                    changes={{ state: { kind: "error", error }, setState: () => {},
                               reload: () => {}, enabled: true }} />);
     expect(html).toContain("Whose paper is this version?");
-    expect(html).toContain("Version 2 (client-v2.docx) is");
+    expect(html).toContain("Version 2 (client-v2.docx)");
     expect(html).not.toContain("Version 1");
-    expect(html).toContain(">ours</button>");
+    expect(html).toContain(">Mark as ours</button>");
     expect(html).not.toContain("Try again");
+    // UX Batch 2 round 2: a question, not a failure — no alert, no red rule, no reference
+    expect(html).toContain("lm-state--notice");
+    expect(html).not.toMatch(/role="alert"|lm-state--error|reference/i);
   });
 
   it("offers the declaration only to those who may make it, and confirms it is final", () => {
@@ -406,9 +411,9 @@ describe("P1 — a version nobody declared (owner, 2026-11-09)", () => {
     viewer.canUpload = false;
     const reader = render();
     viewer.canUpload = true;
-    expect(reader).not.toContain(">ours</button>");
+    expect(reader).not.toContain(">Mark as ours</button>");
     expect(reader).toContain("Ask the deal owner to say whose paper it is.");
-    expect(render()).toContain(">ours</button>");
+    expect(render()).toContain(">Mark as ours</button>");
     expect(declareConfirmLine(2, "CLIENT_MODIFIED"))
       .toBe("Declare version 2 the client\u2019s? This can\u2019t be changed later.");
     expect(declareConfirmLine(3, "COMPANY_DRAFT")).toContain("version 3 ours?");

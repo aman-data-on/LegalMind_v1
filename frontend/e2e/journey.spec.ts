@@ -263,8 +263,10 @@ test("journey: a revised version is a real new analysis; v1 stays historically v
   await page.goto(`/dashboard/reviews?id=${v1.reviewId}`);
   await expect(page.getByText(/was checked against our standard terms on \d+ point/)).toBeVisible();
 
-  // And the reviews queue lists both analyses.
+  // And both reports still open by their own links. (The legacy queue is Legal's since
+  // UX Batch 2: this owner is sent to Contracts.)
+  await page.goto(`/dashboard/reviews?id=${review2.id}`);
+  await expect(page.getByText(/was checked against our standard terms on \d+ point/)).toBeVisible();
   await page.goto("/dashboard/reviews");
-  await expect(page.locator(`tr[data-review-id="${v1.reviewId}"]`)).toBeVisible();
-  await expect(page.locator(`tr[data-review-id="${review2.id}"]`)).toBeVisible();
+  await expect(page).toHaveURL(/\/contracts$/);
 });

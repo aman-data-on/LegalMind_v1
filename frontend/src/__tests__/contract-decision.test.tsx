@@ -34,7 +34,7 @@ describe("the decision on the contract (AM-174)", () => {
     const angles = { legal: { actionable: 2, matching: 0,
       items: [item("a"), item("b")] } } as unknown as ReviewAngles;
     const html = renderToStaticMarkup(<LegalAngleView angles={angles} decided={new Set(["a"])} />);
-    expect(html).toContain("Open points (1)");
+    expect(html).toContain("Points to settle (1)");
     expect(html).toContain("§b · page 1");
     expect(html).not.toContain("§a · page 1");
   });

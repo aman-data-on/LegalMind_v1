@@ -33,6 +33,10 @@ import type { Pagination, Review } from "@/lib/types";
 
 import { ReviewReportPage } from "@/components/workspace/ReviewReportPage";
 import { formatDate } from "@/lib/dates";
+import { ErrorState } from "@/components/Feedback";
+import { LegalOnly } from "@/components/RetiredFor";
+import { PageHeader } from "@/components/page/PageHeader";
+import { StackTable } from "@/components/StackTable";
 
 const PAGE_SIZE = 25;
 
@@ -84,20 +88,15 @@ function ReviewsQueueView() {
   }
 
   return (
-    <>
-      <div className="ws-context">
-        <h1>Reviews</h1>
-        {pagination ? (
-          <span className="ws-context__meta ws-mono">{pagination.total} total</span>
-        ) : null}
-      </div>
+    <div className="lm-page ws-docs--queue">
+      {/* the same header and edge as the To-do and Legal tabs beside it (B3 page 2) */}
+      <PageHeader title="Reviews" meta={pagination?.total ? <span>{pagination.total} total</span> : null} />
       {/* `--queue` scopes the fixed column widths in workspace.css to this
           four-column table. Without them the columns size to content, and the
           two the visual baseline masks (Document, Created) still drive that
           sizing — so a longer document name in one run moved every column and
           failed job 15 on 7% of pixels with no visible change. */}
-      <div className="ws-docs ws-docs--queue">
-        <TodoViews />
+      <TodoViews />
         <div className="ws-filter" role="group" aria-label="Filter by status">
           {STATUS_FILTERS.map((filter) => (
             <button
@@ -116,10 +115,7 @@ function ReviewsQueueView() {
         </div>
 
         {error ? (
-          <div className="ws-state ws-state--error" role="alert">
-            <h2>Reviews could not be loaded.</h2>
-            <p>{describeError(error)}</p>
-          </div>
+          <ErrorState title="Reviews could not be loaded" error={error} onRetry={() => void load()} />
         ) : null}
 
         {reviews === null && !error ? (
@@ -149,17 +145,7 @@ function ReviewsQueueView() {
         ) : null}
 
         {reviews !== null && reviews.length > 0 ? (
-          <div className="ws-docs__table">
-            <table>
-              <thead>
-                <tr>
-                  <th scope="col">Document</th>
-                  <th scope="col">Status</th>
-                  <th scope="col">Analysed</th>
-                  <th scope="col">Report</th>
-                </tr>
-              </thead>
-              <tbody>
+          <StackTable columns={[{ label: "Document" }, { label: "Status" }, { label: "Analysed" }]}>
                 {reviews.map((review) => {
                   const attention = ATTENTION_STATUSES.has(review.status);
                   return (
@@ -176,30 +162,26 @@ function ReviewsQueueView() {
                             {review.document_name ?? review.contract_id.slice(0, 8)}
                           </Link>
                         ) : (
-                          <span className="ws-docs__name" title="The document itself is not open to your account — the Report is">
+                          // B3: one link per row — the report, when the document is not open to you
+                          <Link href={`/dashboard/reviews?id=${review.id}`} title="Opens the report">
                             {review.document_name ?? review.contract_id.slice(0, 8)}
-                          </span>
+                          </Link>
                         )}
                         {review.document_type ? (
                           <span className="ws-chip ws-chip--type ws-docs__type">{review.document_type}</span>
                         ) : null}
                       </td>
                       <td>
-                        <span className={`ws-chip${attention ? " ws-chip--fill ws-chip--outcome-fill" : ""}`}
+                        <span className={`ws-chip${attention ? " lm-lozenge" : ""}`}
                               title={review.status}>
                           {reviewStatusLabel(review.status)}
                         </span>
                       </td>
-                      <td className="ws-mono">{formatDate(review.created_at) || "—"}</td>
-                      <td>
-                        <Link href={`/dashboard/reviews?id=${review.id}`}>Report</Link>
-                      </td>
+                      <td className="ws-num">{formatDate(review.created_at) || "—"}</td>
                     </tr>
                   );
                 })}
-              </tbody>
-            </table>
-          </div>
+          </StackTable>
         ) : null}
 
         {pagination && pagination.total > pagination.page_size ? (
@@ -207,7 +189,7 @@ function ReviewsQueueView() {
             <button type="button" className="ws-btn" disabled={pagination.page <= 1} onClick={() => setPage((p) => p - 1)}>
               Previous
             </button>
-            <span className="ws-mono">
+            <span className="ws-num">
               Page {pagination.page} of {Math.ceil(pagination.total / pagination.page_size)}
             </span>
             <button
@@ -220,8 +202,7 @@ function ReviewsQueueView() {
             </button>
           </nav>
         ) : null}
-      </div>
-    </>
+    </div>
   );
 }
 
@@ -230,7 +211,8 @@ function ReviewsRouteInner() {
   return reviewId ? (
     <ReviewReportPage key={reviewId} reviewId={reviewId} />
   ) : (
-    <ReviewsQueueView />
+    // the queue is Legal's (UX Batch 2); a report still opens by its own link
+    <LegalOnly><ReviewsQueueView /></LegalOnly>
   );
 }
 

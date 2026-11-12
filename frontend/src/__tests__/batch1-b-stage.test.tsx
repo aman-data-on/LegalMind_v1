@@ -34,9 +34,9 @@ describe("the final contract waits on open points", () => {
 describe("one turn marker", () => {
   it("is drawn only when the caller says it is this reader's turn", () => {
     const stage = { stage: "CLIENT_RETURNED" as const, since: new Date().toISOString(), days: 0 };
-    expect(renderToStaticMarkup(<StageBadge stage={stage} />)).not.toContain("our turn");
+    expect(renderToStaticMarkup(<StageBadge stage={stage} />)).not.toContain("Your turn");
     const marked = renderToStaticMarkup(<StageBadge stage={stage} ourTurn />);
-    expect(marked).toContain(", our turn");
+    expect(marked).toContain(">Your turn<");
     expect(marked).toContain("ws-dealstage--turn");
   });
 });

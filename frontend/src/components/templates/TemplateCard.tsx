@@ -13,16 +13,19 @@ import { useId, type ReactNode } from "react";
 import { shortDate } from "@/components/workspace/model";
 import { requirementTitle } from "@/components/workspace/findingLanguage";
 import { blankPath, cardName, engineWords, legalLine, reviewCopyPath, type TemplateCardData } from "@/lib/templates";
-import { DownloadMenu } from "./DownloadMenu";
+import { PreviewButton } from "@/components/PreviewPanel";
 
 import "./card.css";
 
-/** The blank (published) or the marked draft (awaiting approval), Word or PDF. */
+/** The blank (published) or the marked draft (awaiting approval): previewed as the exact
+ *  PDF, with Download PDF and Word inside the preview (UX Batch 2, one preview). */
 export function CardDownload({ t }: { t: TemplateCardData }) {
   const name = cardName(t);
   return t.awaiting_approval
-    ? <DownloadMenu variant="link" align="start" path={reviewCopyPath(t)} kind="Draft" text="Download draft" label={`Download draft: ${name}`} />
-    : <DownloadMenu variant="link" align="start" path={blankPath(t)} text="Download blank" label={`Download blank: ${name}`} />;
+    ? <PreviewButton path={reviewCopyPath(t)} text="Preview draft" label={`Preview draft: ${name}`}
+                     title={`Draft, awaiting approval: ${name}, version ${t.version}`} />
+    : <PreviewButton path={blankPath(t)} text="Preview blank" label={`Preview blank: ${name}`}
+                     title={`Blank template: ${name}, version ${t.version}`} />;
 }
 
 export function TemplateCard({ t, radio, actions }: {
@@ -44,8 +47,8 @@ export function TemplateCard({ t, radio, actions }: {
       ) : null}
       <span className="tc__head">
         <span id={`${id}-n`} className="tc__name">{cardName(t)}</span>
-        {t.recommended ? <span id={`${id}-r`} className="tc__badge">Recommended</span> : null}
-        {t.awaiting_approval ? <span className="tc__badge tc__badge--wait">Awaiting approval</span> : null}
+        {t.recommended ? <span id={`${id}-r`} className="ws-chip">Legal recommends this one</span> : null}
+        {t.awaiting_approval ? <span className="ws-chip">Awaiting approval</span> : null}
       </span>
       {t.purpose ? <span id={`${id}-p`} className="tc__purpose">{t.purpose}</span> : null}
       {line ? <span id={`${id}-l`} className="tc__legal" data-points={points?.length || undefined}>{line}</span> : null}

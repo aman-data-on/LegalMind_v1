@@ -9,8 +9,8 @@
  *
  * Why it exists. The live audit found raw SCREAMING_SNAKE enums rendered straight to
  * legal professionals across the Reviews queue, the report, the Legal queue and the
- * findings pane. `LEGAL_REVIEW` is not a status a lawyer recognises; "Awaiting legal
- * decision" is the same fact in their language. Locked Step 30 keeps its state names;
+ * findings pane. `LEGAL_REVIEW` is not a status a lawyer recognises; "With Legal"
+ * is the same fact in their language. Locked Step 30 keeps its state names;
  * only the label changes.
  *
  * TWO DELIBERATE EXCEPTIONS, and they are the product's own vocabulary rather than
@@ -30,7 +30,7 @@ const REVIEW_STATUS_LABELS: Record<string, string> = {
   UPLOADED: "Uploaded",
   PROCESSING: "Analysing",
   ANALYSIS_COMPLETE: "Analysis complete",
-  LEGAL_REVIEW: "Awaiting legal decision",
+  LEGAL_REVIEW: "With Legal",   // PLAIN-LANGUAGE §2.2: one word for one fact
   RESOLVED: "Decided",
   CLOSED: "Closed",
   ANALYSIS_FAILED: "Analysis failed",
@@ -321,7 +321,7 @@ export function stageWords(code: string, viewer: StageViewer = "owner"): string 
  * CHANGES are the client's edits in the open round, POINTS the gaps against our standard
  * still undecided. "yours / total" wherever both apply. Nothing here counts anything. */
 
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+export const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 /** One label per action, sentence case — every button and link that does the act says it
  *  in these words (home, To-do, the contract header, the Changes tab). */
@@ -430,3 +430,45 @@ export function contractDisplayName(name: string): string {
       at > 0 && SMALL_WORDS.has(w) ? w : w[0]!.toUpperCase() + w.slice(1));
   }).join("");
 }
+
+/** The shared states and components' own words (UX Batch 2; PLAIN-LANGUAGE.md §2.6, §5):
+ *  an error says what failed and the fix, never an apology; a button is a verb. */
+export const FEEDBACK_COPY = {
+  retry: "Try again",
+  dismiss: "Dismiss",
+  defaultFix: "Check your connection and try again. If it keeps failing, tell your administrator.",
+  reference: (id: string) => `Error reference for support: ${id}`,
+  loading: "Loading…",
+  chooseFile: "Choose file",
+  chooseAnother: "Choose another file",
+  dropTitle: "Drag and drop your file here",
+  dropOr: "or choose one from your computer",
+  fileHint: "PDF, Word, Markdown or text, up to 25 MB",
+  preview: "Preview",
+  preparingPreview: "Preparing preview…",
+  previewFailed: "The preview could not be shown",
+  downloadPdf: "Download PDF",
+  downloadWord: "Download Word",
+  openPdf: "Open the PDF in a new tab",
+  noInlinePdf: "This browser can’t show the PDF here",
+  noInlinePdfFix: "Open it in a new tab, or download it below. It is the same file.",
+  close: "Close",
+} as const;
+
+/** The point-status chip's words: exactly these, on every screen (PLAIN-LANGUAGE §2.1).
+ *  "Decided" is a second line beside a status, never instead of it (rule 14). */
+export const STATUS_CHIP_WORDS = {
+  MATCHES: "Matches",
+  CHANGE_NEEDED: "Change needed",
+  MISSING: "Missing",
+  NEEDS_DECISION: "Needs a decision",
+  IN_OUR_FAVOUR: "In our favour",
+  decided: "Decided",
+} as const;
+
+/** B3 page 1: a version read before a formatting fix (`reader_outdated`) — what it means and
+ *  the one way out. Nothing in a review changes; the same file comes in as a new version. */
+export const READER_OUTDATED = {
+  title: "This file was read before a formatting fix",
+  body: "Marks such as ** or ## may show in the text. Upload the same file again as a new version to read it cleanly. Nothing in your review changes.",
+};

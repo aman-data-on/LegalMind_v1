@@ -40,8 +40,9 @@ import { documentTypeLabel, nameFromFilename } from "@/lib/documentTypes";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 
-import { IconCheckCircle, IconFile, IconUploadCloud, IconXCircle } from "./icons";
+import { IconCheckCircle, IconFile, IconXCircle } from "./icons";
 import { contractHref } from "./model";
+import { FilePicker } from "@/components/FilePicker";
 
 type Stage = "idle" | "selected" | "uploading" | "extracted" | "suggesting" | "analyzing";
 
@@ -98,7 +99,6 @@ export function UploadContract({ firstRun, onClose }: {
   const [contractType, setContractType] = useState("");
   const [stage, setStage] = useState<Stage>("idle");
   const [error, setError] = useState<unknown>(null);
-  const [dragging, setDragging] = useState(false);
   const [contractId, setContractId] = useState<string | null>(null);
   const contractIdRef = useRef<string | null>(null);
   const [versionId, setVersionId] = useState<string | null>(null);
@@ -199,39 +199,12 @@ export function UploadContract({ firstRun, onClose }: {
 
   if (!file) {
     return (
-      <div
-        className={`ws-drop${dragging ? " ws-drop--over" : ""}`}
-        onDragOver={(event) => {
-          event.preventDefault();
-          setDragging(true);
-        }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={(event) => {
-          event.preventDefault();
-          setDragging(false);
-          choose(event.dataTransfer.files?.[0] ?? null);
-        }}
-      >
-        <span className="ws-drop__icon" aria-hidden="true"><IconUploadCloud size={28} /></span>
-        <p className="ws-drop__title">Drag and drop your file here</p>
-        <p className="ws-drop__or">or click to browse</p>
-        <label className="ws-btn ws-btn--primary ws-drop__pick">
-          Choose File
-          <input
-            ref={fileInput}
-            type="file"
-            accept=".pdf,.docx,.md,.txt"
-            className="ws-visually-hidden"
-            onChange={(event) => choose(event.target.files?.[0] ?? null)}
-          />
-        </label>
-        <span className="ws-drop__hint">PDF, DOCX, Markdown or text, up to 25 MB</span>
-        {error ? (
-          <p className="ws-field__error" role="alert">
-            {typeof error === "string" ? error : describeError(error)}
-          </p>
-        ) : null}
-      </div>
+      <FilePicker primary inputRef={fileInput} onFile={choose}
+                  error={error ? (
+                    <p className="ws-field__error" role="alert">
+                      {typeof error === "string" ? error : describeError(error)}
+                    </p>
+                  ) : null} />
     );
   }
 
@@ -242,7 +215,7 @@ export function UploadContract({ firstRun, onClose }: {
           <span className="ws-upload-file__icon" aria-hidden="true"><IconFile size={20} /></span>
           <span className="ws-upload-file__meta">
             <span className="ws-upload-file__name">{file.name}</span>
-            <span className="ws-upload-file__sub ws-mono">
+            <span className="ws-upload-file__sub ws-num">
               {formatFileSize(file.size)} · {fileTypeLabel(file.name)}
             </span>
           </span>
@@ -287,7 +260,7 @@ export function UploadContract({ firstRun, onClose }: {
   return (
     <div className="ws-intake" aria-labelledby="ws-upload-title">
       <h3 className="ws-intake__title">
-        {file.name} <span className="ws-mono ws-intake__size">{formatFileSize(file.size)}</span>
+        {file.name} <span className="ws-num ws-intake__size">{formatFileSize(file.size)}</span>
       </h3>
 
       {/* The live checklist — every step is a real, already-happened (or

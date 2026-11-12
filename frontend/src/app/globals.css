@@ -41,12 +41,12 @@
  * — what `shadcn init` writes — also pulls `preflight.css`. That was measured
  * against this app rather than assumed, and it is not acceptable here:
  *
- *   ul, ol { list-style: none; margin: 0; padding: 0 }   17 <ul> / 14 <ol>, and
+ *   ul, ol { list-style: none; margin: 0; padding: 0}   17 <ul> / 14 <ol>, and
  *       nothing below re-styles them -> the admin roster and roles screens lose
  *       their bullets and indentation, which moves the ws-admin baseline.
  *   a { color: inherit; text-decoration: inherit }        38 links, and only
  *       `.topbar__nav a`, `.login a` and `.table-card a` are styled below.
- *   blockquote { margin: 0 }                              9 occurrences.
+ *   blockquote { margin: 0}                              9 occurrences.
  *   * { box-sizing: border-box }                          already set at the
  *       top of this file, so preflight's copy is pure redundancy.
  *
@@ -156,39 +156,104 @@
 }
 
 :root {
-  /* Base palette — unchanged values, now the single source every token below draws from. */
-  --ink: #1a1c1f;
-  --muted: #5b6169;
-  --line: #d8dce1;
-  --surface: #ffffff;
-  --page: #f6f7f9;
-  --attention: #8a4b00;
-  --attention-bg: #fff6e8;
-  --error: #8a1414;
-  --error-bg: #fdeeee;
-
   /*
-   * Newly named, not newly invented: these formalize colors that already existed
-   * as hardcoded hex values in the classification badge family below. Naming them
-   * makes the mapping from color to state-axis meaning explicit and reusable,
-   * per DESIGN.md's "one accent language for state" principle — no hue changes.
+   * --- The one foundation (UX Batch 2, 2026-11-11) ---
+   * ONE type scale, ONE colour-role set, ONE spacing and radius scale, read by
+   * every surface: these legacy screens, the `.ws` application, sign-in and the
+   * Tailwind/shadcn primitives (the shared `--text-*` / `--radius-*` names below
+   * point here). Every older token name is now an ALIAS of a role here, so a value
+   * changes in one place. Sources and measurements:
+   * /root/legalmind-clm-local/audit/BATCH2-DESIGN.md (from DESIGN-FOUNDATION.md).
    */
-  --success: #1f6b2f;
-  --success-bg: #eef7ee;
+
+  /* Type: 24 / 18 / 16 / 15 / 14 / 13 / 12, and 17 for contract text.
+     Nothing renders under 12px (the floor). Weights 400 / 500 / 600 only. */
+  --t-page: 1.5rem;        --t-page-lh: 2rem;          /* 24/32  the one h1 */
+  --t-section: 1.125rem;   --t-section-lh: 1.625rem;   /* 18/26  h2, pane titles */
+  --t-subsection: 1rem;    --t-subsection-lh: 1.5rem;  /* 16/24  h3, card titles */
+  --t-body: 0.9375rem;     --t-body-lh: 1.5rem;        /* 15/24  sentences */
+  --t-dense: 0.875rem;     --t-dense-lh: 1.25rem;      /* 14/20  rows, inputs, buttons */
+  --t-caption: 0.8125rem;  --t-caption-lh: 1.125rem;   /* 13/18  metadata, helper text */
+  --t-label: 0.75rem;      --t-label-lh: 1rem;         /* 12/16  chips, table headers */
+  --t-legal: 1.0625rem;    --t-legal-lh: 1.65;         /* 17/28  contract text, serif (owner) */
+  --w-regular: 400; --w-medium: 500; --w-semibold: 600;
+
+  /* Faces (DD-8, self-hosted in dashboard/fonts.css, now loaded app-wide). */
+  --font-sans: "IBM Plex Sans", "IBM Plex Sans Fallback", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "IBM Plex Mono", "IBM Plex Mono Fallback", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --font-serif: "Source Serif 4", "Source Serif 4 Fallback", Georgia, "Times New Roman", serif;
+  --font-plex-sans: "IBM Plex Sans", "IBM Plex Sans Fallback";
+  --font-plex-mono: "IBM Plex Mono", "IBM Plex Mono Fallback";
+  --font-source-serif: "Source Serif 4", "Source Serif 4 Fallback";
+
+  /* Colour roles. Text pairs measured (WCAG relative luminance) on white / paper. */
+  --c-text: #0e1420;          /* 18.4 */
+  --c-text-2: #2b3444;        /* 12.5 */
+  --c-text-3: #5b6478;        /* 5.93 / 5.39 — never on --c-viewer */
+  --c-line: #e4e7ee;          /* decorative dividers */
+  --c-line-strong: #808899;   /* control edges 3.56 / 3.23 (WCAG 1.4.11) */
+  --c-surface: #ffffff;
+  --c-page: #f2f4f8;
+  --c-viewer: #dfe3eb;
+  --c-action: #2563eb;        /* 5.17; links, primary, focus, selection */
+  --c-action-hover: #1d4ed8;  /* white on it 6.70 */
+  --c-action-tint: #eff4ff;
+  --c-error: #d52222;         /* system failure only, never a legal status: 5.15 / 4.67 */
+  --c-error-tint: #fdecec;    /* error text on it 4.51 */
+  /* a system warning (a paused model, a blocked action) — never a point status, never the
+     Change-needed orange: amber text on its tint 5.0:1 */
+  --c-warning: #a85c05;  --c-warning-tint: #fdf3e3;
+  --c-error-hover: #b91c1c;   /* a confirmed destructive button, pressed */
+  --c-on-action: #ffffff;     /* text and icons on a filled action, dark or error surface */
+  --c-highlight: #fdf0c2;     /* the reader's own highlight in a document (never a status) */
+  --c-highlight-edge: #e5c355;
+  --c-highlight-hover: #fbe89e;
+  /* the neutral lozenge: stages and lifecycle (Drafting, With Legal, Awaiting approval,
+     Retired, Signed). Ink on paper with a control-strength edge: it never borrows a status hue */
+  --c-state: #2b3444;  --c-state-tint: #f2f4f8;  --c-state-edge: #808899;
+
+  /* Point status: one hue + one icon + one word on every screen (StatusChip).
+     Text on its own tint: match 4.55, change/missing 4.75, decision 5.62,
+     favour 4.91, decided 11.4. Never colour alone; never confidence. */
+  --c-status-match: #11803a;     --c-status-match-tint: #e9f7ee;
+  --c-status-change: #c2410c;    --c-status-change-tint: #fff3ea;
+  --c-status-missing: #c2410c;   --c-status-missing-tint: #fff3ea;
+  --c-status-decision: #4f46e5;  --c-status-decision-tint: #eef2ff;
+  --c-status-favour: #0f766e;    --c-status-favour-tint: #e6f6f4;
+  --c-status-done: #2b3444;      --c-status-done-tint: #f2f4f8;
+  /* the client's text in a redline — the rule beside a clause wholly theirs (Compare's value) */
+  --c-diff-client-rule: #2f9e5b;
+
+  /* Spacing 4·8·12·16·24·32·48·64; 2px only for borders and focus offsets. */
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px;
+  --s-5: 24px; --s-6: 32px; --s-7: 48px; --s-8: 64px;
+
+  /* Radius 4 inputs · 8 buttons/chips/cards · 12 dialogs · 999 avatars/counts. */
+  --r-control: 4px; --r-card: 8px; --r-dialog: 12px; --r-round: 999px;
+
+  /* ---- Legacy names, now aliases of the roles above ---- */
+  --ink: var(--c-text);
+  --muted: var(--c-text-3);
+  /* a divider (1.4:1, decorative). Control edges use --c-line-strong, never this. */
+  --line: #d8dce1;
+  --surface: var(--c-surface);
+  --page: var(--c-page);
+  --attention: var(--c-warning);
+  --attention-bg: var(--c-warning-tint);
+  --error: var(--c-error);
+  --error-bg: var(--c-error-tint);
+  --success: var(--c-status-match);
+  --success-bg: var(--c-status-match-tint);
   --indeterminate: #5a3d8a;
   --indeterminate-bg: #f3eefb;
-  --accent: #1b4f9c;
+  --accent: var(--c-action);
 
-  /* Focus ring — new. Uses --accent so keyboard focus reads as an interface
-     affordance, distinct from the state-axis colors above. */
-  --focus-ring: 0 0 0 3px rgba(27, 79, 156, 0.35);
+  /* Focus ring, in the action colour so focus reads as an interface affordance. */
+  --focus-ring: 0 0 0 3px rgb(37 99 235 / 0.35);
 
   /*
    * Deep surface — the "workspace environment" voice (DD-3; retinted to the
-   * owner-supplied navy palette in DD-4). A deep ground for identity/environment
-   * moments, with its own on-color pair. Deliberately generic names (not
-   * --login-*): the language may later extend to other environment moments, and
-   * pages must consume it as a system, not fork it. Consumed only by /login today.
+   * owner-supplied navy palette in DD-4), consumed only by /login.
    */
   --ink-deep: oklch(0.18 0.025 258);
   --surface-deep: oklch(0.22 0.025 258);
@@ -197,59 +262,56 @@
   --on-deep: oklch(0.97 0.005 258);
   --on-deep-muted: oklch(0.78 0.02 258);
   --on-deep-faint: oklch(0.55 0.02 258);
-  /* The one vivid action color, used only on deep surfaces (DD-4 submit). */
-  --accent-vivid: oklch(0.58 0.16 258);
+  /* The sign-in action. GP-7: the former oklch(0.58 0.16 258) carried white text at
+     4.35:1; the action hover blue carries it at 6.70:1. */
+  --accent-vivid: var(--c-action-hover);
   --link-on-deep: oklch(0.72 0.13 258);
 
-  /*
-   * Display voice — serif, for identity and single-task headings only (DD-3).
-   * System-resident faces; no font is downloaded and no dependency added.
-   * Body text everywhere stays on the sans stack.
-   */
-  --font-display: Georgia, "Iowan Old Style", "Times New Roman", Times, serif;
+  /* One family: the display voice is the product sans (GP-21: no Georgia outside
+     contract text). Kept as a name so existing rules keep reading it. */
+  --font-display: var(--font-sans);
 
-  /* Type scale — values match the sizes already in use; nothing here changes a
-     single rendered font size, it only gives the existing sizes names. */
-  --text-xs: 0.78rem;
-  --text-sm: 0.86rem;
-  --text-base: 0.9375rem;
-  --text-md: 1rem;
-  --text-lg: 1.1rem;
-  --text-xl: 1.35rem;
+  /* The shared type names (Tailwind's theme declares them too; these win). */
+  --text-xs: var(--t-label);
+  --text-sm: var(--t-dense);
+  --text-base: var(--t-body);
+  --text-md: var(--t-subsection);
+  --text-lg: var(--t-section);
+  --text-xl: var(--t-page);
   --weight-regular: 400;
-  --weight-medium: 550;
-  --weight-semibold: 650;
+  --weight-medium: 500;
+  --weight-semibold: 600;
 
-  /* Spacing scale — a 4px-based progression covering the increments already used
-     ad hoc (0.25rem…2rem) so future rules stop re-deriving them per page. */
   --space-1: 0.25rem;
   --space-2: 0.5rem;
-  --space-3: 0.65rem;
+  --space-3: 0.75rem;
   --space-4: 1rem;
   --space-5: 1.5rem;
   --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
 
-  /* Radius scale — 4px/6px already existed inline; --radius-lg is new, reserved
-     for a future genuine overlay (a confirmation dialog), not used yet. */
-  --radius-xs: 3px;
+  --radius-xs: 4px;
   --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 10px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
 
   /* Named breakpoints (documentation only — CSS custom properties cannot appear
-     in an @media condition). Referenced by DESIGN_SYSTEM.md and by the literal
-     values used in the @media rules below; kept in sync by hand. */
+     in an @media condition). */
   --breakpoint-sm: 640px;
   --breakpoint-md: 960px;
 }
 
 * { box-sizing: border-box; }
+/* the browser's default bold is 700, which Plex does not load (it renders 600): say 600.
+   Contract text keeps its own serif 700 (`.ws-row … strong`), a real loaded face. */
+b, strong, th { font-weight: var(--w-semibold); }
 
 body {
   margin: 0;
   background: var(--page);
   color: var(--ink);
-  font: var(--text-base)/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font: var(--text-base)/1.55 var(--font-sans);
 }
 
 /*
@@ -276,19 +338,19 @@ body {
   flex-wrap: wrap;
 }
 .topbar__brand {
-  font-family: var(--font-display); font-weight: 700; font-size: 1.35rem;
-  letter-spacing: -0.01em; color: #fff;
+  font-family: var(--font-display); font-weight: 600; font-size: var(--t-page);
+  letter-spacing: -0.01em; color: var(--c-on-action);
 }
 /* Two-tone wordmark (owner, 2026-09-02) — the same split the new shell uses.
    The brand blue is repeated as a literal here rather than shared: this legacy
    stylesheet and workspace.css deliberately never reference each other's
    variables (see the file banner), and the legacy screens are being retired. */
-.topbar__brand-a { color: #fff; }
+.topbar__brand-a { color: var(--c-on-action); }
 .topbar__brand-b { color: #0055aa; }
 .topbar__nav { display: flex; gap: var(--space-5); flex: 1; flex-wrap: wrap; }
 .topbar__nav a { color: var(--on-deep-muted); text-decoration: none; padding: 0.35rem 0; display: flex; align-items: center; gap: 0.45rem; }
 .topbar__nav a:hover { color: var(--on-deep); }
-.topbar__nav a.active { color: #fff; box-shadow: inset 0 -2px 0 var(--accent-vivid); }
+.topbar__nav a.active { color: var(--c-on-action); box-shadow: inset 0 -2px 0 var(--accent-vivid); }
 .nav-icon { display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .nav-label { display: inline-block; }
 .topbar__identity { display: flex; align-items: center; gap: 0.75rem; color: var(--on-deep-muted); }
@@ -310,7 +372,7 @@ body {
 
 /* Page titles carry the display voice (DD-5 finish standard). */
 h1 {
-  font-family: var(--font-display); font-size: 1.6rem;
+  font-family: var(--font-display); font-size: var(--t-page);
   font-weight: 600; letter-spacing: -0.01em; margin: 0 0 var(--space-4);
 }
 h2 { font-size: var(--text-lg); margin: 1.5rem 0 0.5rem; }
@@ -335,7 +397,7 @@ h3 { font-size: var(--text-md); margin: 0; }
 
 table { width: 100%; border-collapse: collapse; background: var(--surface); }
 th, td { text-align: left; padding: 0.5rem 0.65rem; border-bottom: 1px solid var(--line); }
-th { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+th { font-size: var(--text-xs); color: var(--muted); }
 
 /* Wraps a wide table so it scrolls inside its own box on a narrow viewport
    instead of forcing the page to scroll or silently clipping a column (audit
@@ -386,7 +448,7 @@ th { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.04e
   button { font: inherit; padding: 0.4rem 0.8rem; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); cursor: pointer; }
   button:disabled { color: var(--muted); cursor: not-allowed; }
   label { display: block; margin-bottom: 0.6rem; font-size: var(--text-md); }
-  input, select, textarea { font: inherit; width: 100%; padding: 0.4rem; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+  input, select, textarea { font: inherit; width: 100%; padding: 0.4rem; border: 1px solid var(--c-line-strong); border-radius: var(--radius-sm); }
 }
 
 /* Class subjects — unlayered, and still beating both @layer base above and every
@@ -451,8 +513,11 @@ textarea:focus-visible,
 .decision-history--superseded { color: var(--muted); }
 .decision-history blockquote { margin: 0.2rem 0; padding-left: 0.6rem; border-left: 2px solid var(--line); }
 
-.banner { border-radius: var(--radius-sm); padding: 0.7rem 0.9rem; margin-bottom: var(--space-4); }
-.banner--error { background: var(--error-bg); border: 1px solid #e5b3b3; color: var(--error); }
+.banner { border-radius: var(--radius-sm); padding: var(--s-3) var(--s-4); margin-bottom: var(--space-4); }
+/* round 2: no stray paragraph margin above the message (the sign-in error had 24px) */
+.banner > p { margin: 0; }
+.banner > p + p { margin-top: var(--s-1); }
+.banner--error { background: var(--error-bg); border: 1px solid var(--c-error); color: var(--error); }
 .banner__fields { margin: 0.3rem 0 0; padding-left: 1.1rem; font-size: var(--text-sm); }
 
 .access-restricted { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); padding: var(--space-5); }
@@ -475,7 +540,7 @@ textarea:focus-visible,
 .btn:disabled { cursor: not-allowed; opacity: 0.6; }
 /* DD-5: on light surfaces the primary action uses --accent (~7:1 with white
    text); --accent-vivid stays the primary on deep surfaces (/login). */
-.btn--primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn--primary { background: var(--accent); color: var(--c-on-action); border-color: var(--accent); }
 .btn--primary:hover:not(:disabled) { background: #16407e; }
 .btn--secondary { background: var(--surface); color: var(--ink); border-color: var(--line); }
 .btn--secondary:hover:not(:disabled) { background: var(--page); }
@@ -547,7 +612,8 @@ textarea:focus-visible,
 .login__tri--b {
   bottom: -100px; right: -60px;
   border-left: 200px solid transparent; border-right: 200px solid transparent;
-  border-bottom: 240px solid oklch(0.32 0.09 60 / 0.55);
+  /* B3 p7: the navy family of the other shapes, not the Change-needed hue */
+  border-bottom: 240px solid oklch(0.30 0.06 258 / 0.55);
   animation: login-float-b 14s ease-in-out infinite;
 }
 .login__tri--c {
@@ -571,19 +637,19 @@ textarea:focus-visible,
 .login__top {
   position: relative; z-index: 2;
   display: flex; align-items: center;
-  padding: 18px 32px;
+  padding: 16px 32px;
   border-bottom: 1px solid var(--line-deep);
 }
 .login__brand {
-  margin: 0; font-family: var(--font-display); font-weight: 700;
-  font-size: 1.5rem; letter-spacing: -0.01em; color: #fff;
+  margin: 0; font-family: var(--font-display); font-weight: 600;
+  font-size: var(--t-page); letter-spacing: -0.01em; color: var(--c-on-action);
 }
 .login__main {
   position: relative; z-index: 2; flex: 1;
   /* Owner request: the card starts just below the header rule instead of
      floating at the vertical center. */
   display: flex; align-items: flex-start; justify-content: center;
-  padding: 40px 24px 48px;
+  padding: 48px 24px 48px;
 }
 
 /* — the card — */
@@ -592,19 +658,19 @@ textarea:focus-visible,
   background: oklch(0.22 0.025 258 / 0.92);
   backdrop-filter: blur(6px);
   border: 1px solid var(--line-deep);
-  border-radius: 14px;
-  padding: 64px 34px 58px;
+  border-radius: 12px;
+  padding: 64px 32px 58px;
   box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.5);
   animation: login-card-in 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 /* Spacing rhythm matched to the owner's reference screenshot (2026-08-21):
    centered heading, ~24px field gaps, a large pause before the primary action,
    tight equal gaps between sign-in controls, and small print inside the card. */
-.login h1 {
-  font-family: var(--font-display); font-weight: 600; color: #fff;
+.login__tagline {
+  font-family: var(--font-display); font-weight: 600; color: var(--c-on-action);
   /* Sized so the one-line tagline spans the same width as the inputs below. */
-  font-size: 1.875rem; margin: 0 0 44px; text-align: center;
-  white-space: nowrap;
+  font-size: var(--t-page); margin: 0 0 48px; text-align: center;
+  white-space: nowrap; text-wrap: balance;
 }
 
 /* — form, dark-scoped — */
@@ -612,12 +678,13 @@ textarea:focus-visible,
 .login .field { margin-bottom: 0; }
 .login .field__label {
   color: var(--on-deep-muted); font-size: var(--text-xs);
-  font-weight: var(--weight-semibold); margin-bottom: 6px;
+  font-weight: var(--weight-semibold); margin-bottom: 8px;
 }
 .login input {
-  color: #fff; background: var(--input-deep);
-  border: 1.5px solid oklch(0.32 0.03 258); border-radius: 8px;
-  padding: 11px 14px;
+  color: var(--c-on-action); background: var(--input-deep);
+  /* GP-7 round 2: the field edge at 3:1 or more on the deep card (was oklch 0.32, 1.38:1) */
+  border: 1.5px solid var(--on-deep-faint); border-radius: 8px;
+  padding: 12px 16px;
   transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 .login input:focus-visible {
@@ -640,8 +707,8 @@ textarea:focus-visible,
 }
 
 .login__submit {
-  width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px;
-  background: var(--accent-vivid); color: #fff;
+  width: 100%; display: flex; align-items: center; justify-content: center; gap: 12px;
+  background: var(--accent-vivid); color: var(--c-on-action);
   border: none; border-radius: 8px; padding: 12px 16px;
   font: inherit; font-size: var(--text-base); font-weight: var(--weight-semibold);
   cursor: pointer; margin-top: 32px;
@@ -649,10 +716,10 @@ textarea:focus-visible,
   transition: filter 0.18s ease;
 }
 .login__submit:hover:not(:disabled) { filter: brightness(1.08); }
-.login__submit:disabled { background: oklch(0.55 0.14 258 / 0.7); color: #fff; cursor: default; }
+.login__submit:disabled { background: oklch(0.55 0.14 258 / 0.7); color: var(--c-on-action); cursor: default; }
 .login__spinner {
   width: 15px; height: 15px; border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.35); border-top-color: #fff;
+  border: 2px solid rgba(255, 255, 255, 0.35); border-top-color: var(--c-on-action);
   animation: login-spin 0.7s linear infinite;
 }
 
@@ -685,12 +752,12 @@ textarea:focus-visible,
 @keyframes login-spin { to { transform: rotate(360deg); } }
 
 @media (max-width: 640px) {
-  .login__top { padding: 14px var(--space-4); }
+  .login__top { padding: 16px var(--space-4); }
   .login__main { padding: var(--space-6) var(--space-4); }
-  .login__card { padding: 34px 22px 32px; }
+  .login__card { padding: 32px 24px 32px; }
   /* The input-width heading fit is a desktop measurement; on a narrow card the
      line must wrap rather than clip. */
-  .login h1 { white-space: normal; font-size: 1.5rem; }
+  .login__tagline { white-space: normal; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -706,15 +773,15 @@ textarea:focus-visible,
 .login__toplink { margin: 0; font-size: var(--text-md); color: var(--on-deep-muted); }
 .login a { color: var(--link-on-deep); text-decoration: none; }
 .login a:hover { color: oklch(0.8 0.1 258); text-decoration: underline; }
-.login a:focus-visible { outline: none; box-shadow: 0 0 0 3px oklch(0.6 0.12 258 / 0.5); border-radius: 3px; }
+.login a:focus-visible { outline: none; box-shadow: 0 0 0 3px oklch(0.6 0.12 258 / 0.5); border-radius: 4px; }
 
 .login__google {
-  display: flex; align-items: center; justify-content: center; gap: 10px;
+  display: flex; align-items: center; justify-content: center; gap: 12px;
   width: 100%; margin-top: var(--space-4);
   /* 12px vertical on a 20px line-box clears the 44px minimum touch target the
      previous 10px did not. */
-  padding: 12px 14px; min-height: 44px;
-  background: #fff; border: 1px solid #dde1e7; border-radius: 8px;
+  padding: 12px 16px; min-height: 44px;
+  background: var(--c-surface); border: 1px solid #dde1e7; border-radius: 8px;
   font-size: var(--text-sm); font-weight: var(--weight-semibold);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
   transition: box-shadow 0.18s ease;
@@ -736,16 +803,16 @@ textarea:focus-visible,
  * case, not an error the user did something wrong in.
  */
 .login__sso-alert {
-  margin: var(--space-4) 0 0; padding: 10px 12px;
+  margin: var(--space-4) 0 0; padding: 12px 12px;
   border-radius: 8px; border: 1px solid oklch(0.45 0.06 258 / 0.6);
   background: oklch(0.3 0.03 258 / 0.5);
   font-size: var(--text-xs); line-height: 1.6; color: var(--on-deep-muted);
   animation: login-fade 0.2s ease-out;
 }
 
-.login__alt { text-align: center; font-size: var(--text-sm); color: var(--on-deep-muted); margin: 40px 0 0; }
+.login__alt { text-align: center; font-size: var(--text-sm); color: var(--on-deep-muted); margin: 48px 0 0; }
 /* Small print inside the card bottom, mirroring the reference's notice position. */
-.login__note { text-align: center; font-size: var(--text-xs); color: var(--on-deep-faint); line-height: 1.6; margin: 32px 0 0; }
+.login__note { text-align: center; font-size: var(--text-xs); color: var(--on-deep-muted); /* GP-7: was --on-deep-faint, 3.56:1 */ line-height: 1.6; margin: 32px 0 0; }
 
 /*
  * --- Content finish (DD-5, first applied on /contracts) ---
@@ -808,7 +875,7 @@ textarea:focus-visible,
   padding: 0.45rem 0.9rem; font-weight: var(--weight-medium); cursor: pointer;
 }
 .seg button + button { border-left: 1px solid var(--line); }
-.seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--c-on-action); }
 .seg button:disabled { color: var(--line); cursor: not-allowed; }
 
 /* A Finding whose Evaluations still need a decision is findable by scanning
@@ -828,8 +895,7 @@ textarea:focus-visible,
   border-radius: var(--radius-sm);
 }
 .decision__label {
-  margin: 0 0 0.35rem; font-size: var(--text-xs); font-weight: var(--weight-semibold);
-  letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent);
+  margin: 0 0 0.35rem; font-size: var(--text-xs); font-weight: var(--weight-semibold); color: var(--accent);
 }
 /* Escalation stays visually a request: quiet, dashed, muted. */
 .escalation { margin-top: 0.9rem; padding-top: 0.7rem; border-top: 1px dashed var(--line); }
@@ -840,9 +906,9 @@ textarea:focus-visible,
    blobs scroll inside their own box instead of widening the table. */
 .code-input {
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 0.82rem;
+  font-size: var(--t-caption);
 }
-pre { overflow-x: auto; margin: 0.3rem 0; font-size: 0.82rem; }
+pre { overflow-x: auto; margin: 0.3rem 0; font-size: var(--t-caption); }
 
 /* ---- assist ask panel (AB-3/AB-4) ------------------------------------------
    A refusal is the system working, not failing: it renders on a quiet surface,
@@ -890,10 +956,10 @@ pre { overflow-x: auto; margin: 0.3rem 0; font-size: 0.82rem; }
   padding-left: var(--space-3);
   border-left: 2px solid var(--line);
   color: var(--muted);
-  font-size: 0.9em;
+  font-size: var(--t-caption);
 }
 .ask-citation-score {
-  font-size: 0.8em;
+  font-size: var(--t-caption);
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
@@ -994,12 +1060,218 @@ pre { overflow-x: auto; margin: 0.3rem 0; font-size: 0.82rem; }
   justify-items: start; gap: 0.75rem; padding: 2rem 1.5rem; max-width: 30rem; margin: 0 auto;
   color: var(--ink); background: var(--page);
 }
-.notfound__brand { margin: 0; font-family: var(--font-display); font-weight: 700; color: var(--accent); }
+.notfound__brand { margin: 0; font-family: var(--font-display); font-weight: 600; color: var(--accent); }
 .notfound h1 { margin: 0; font-size: var(--text-xl); }
 .notfound p { margin: 0; color: var(--muted); }
 .notfound__home {
   margin-top: 0.5rem; padding: 0.55rem 1rem; border-radius: var(--radius-sm);
-  background: var(--accent); color: #fff; font-weight: var(--weight-medium); text-decoration: none;
+  background: var(--accent); color: var(--c-on-action); font-weight: var(--weight-medium); text-decoration: none;
 }
 .notfound__home:hover { filter: brightness(1.08); }
 .notfound__home:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/*
+ * --- Shared components (UX Batch 2) ---
+ * StatusChip, ErrorState / LoadingState / EmptyState, Toast, FilePicker, PreviewPanel.
+ * Root tokens only (--t-*, --c-*, --s-*, --r-*), so each reads the same inside `.ws`,
+ * on sign-in and on the legacy screens. Specs: audit/BATCH2-DESIGN.md §3.
+ */
+
+/* Status chip: non-interactive, word + 14px icon + hue on its tint, 12/16 500, radius 8. */
+.lm-chip {
+  display: inline-flex; align-items: center; gap: var(--s-1);
+  padding: 2px var(--s-2); border-radius: var(--r-card);
+  font-family: var(--font-sans); font-size: var(--t-label); line-height: var(--t-label-lh);
+  font-weight: var(--w-medium); white-space: nowrap; vertical-align: middle;
+}
+.lm-chip svg { flex: none; }
+.lm-chip--match { color: var(--c-status-match); background: var(--c-status-match-tint); }
+.lm-chip--change { color: var(--c-status-change); background: var(--c-status-change-tint); }
+.lm-chip--missing { color: var(--c-status-missing); background: var(--c-status-missing-tint); }
+.lm-chip--decision { color: var(--c-status-decision); background: var(--c-status-decision-tint); }
+.lm-chip--favour { color: var(--c-status-favour); background: var(--c-status-favour-tint); }
+.lm-chipstack { display: inline-flex; flex-direction: column; align-items: flex-start; gap: var(--s-1); }
+.lm-chip__decided {
+  display: inline-flex; align-items: center; gap: var(--s-1);
+  font-size: var(--t-caption); line-height: var(--t-caption-lh); color: var(--c-status-done);
+}
+
+/* States: one block at the top of the region that would hold the content. */
+.lm-state {
+  display: flex; gap: var(--s-3); align-items: flex-start;
+  margin: var(--s-4) 0; padding: var(--s-4);
+  font-family: var(--font-sans); color: var(--c-text-2);
+  border-radius: var(--r-card); max-width: 72ch;
+}
+.lm-state__text { min-width: 0; }
+.lm-state__icon { display: inline-flex; flex: none; margin-top: 2px; color: var(--c-text-3); }
+.lm-state .lm-state__title {
+  margin: 0 0 var(--s-1); font-size: var(--t-subsection); line-height: var(--t-subsection-lh);
+  font-weight: var(--w-semibold); color: var(--c-text);
+}
+.lm-state .lm-state__body { margin: 0 0 var(--s-1); font-size: var(--t-body); line-height: var(--t-body-lh); }
+.lm-state .lm-state__acts { margin: var(--s-3) 0 0; }
+.lm-state .lm-state__ref { margin: var(--s-3) 0 0; font-size: var(--t-caption); line-height: var(--t-caption-lh); color: var(--c-text-3); }
+.lm-state--error { background: var(--c-surface); border: 1px solid var(--c-line); border-left: 3px solid var(--c-error); }
+.lm-state--error .lm-state__icon { color: var(--c-error); }
+.lm-state--loading { display: block; color: var(--c-text-3); padding: var(--s-2) 0; }
+.lm-state--empty {
+  flex-direction: column; align-items: center; text-align: center;
+  margin: var(--s-6) auto; padding: var(--s-6) var(--s-4); max-width: 44ch;
+}
+.lm-state--empty .lm-state__icon { margin: 0 0 var(--s-1); }
+/* Skeleton rows: shape only, a fixed height, no shimmer (DESIGN.md). */
+.lm-skel { display: grid; gap: var(--s-2); margin-top: var(--s-2); }
+.lm-skel__row { display: block; height: 40px; border-radius: var(--r-control); background: var(--c-line); }
+.lm-skel__row:nth-child(3n + 2) { width: 88%; }
+.lm-skel__row:nth-child(3n) { width: 64%; }
+
+/* Toasts: bottom centre, one line, above dialogs. */
+.lm-toaster {
+  position: fixed; left: 50%; bottom: var(--s-5); transform: translateX(-50%); z-index: 60;
+  display: grid; gap: var(--s-2); width: min(32rem, calc(100vw - 2 * var(--s-4)));
+  pointer-events: none;
+}
+.lm-toast {
+  pointer-events: auto; display: flex; align-items: flex-start; gap: var(--s-2);
+  padding: var(--s-3) var(--s-2) var(--s-3) var(--s-4);
+  background: var(--c-text); color: var(--c-surface); border-radius: var(--r-card);
+  box-shadow: 0 8px 24px rgb(14 20 32 / 0.24);
+  font-family: var(--font-sans); font-size: var(--t-dense); line-height: var(--t-dense-lh);
+}
+.lm-toast--failure { background: var(--c-surface); color: var(--c-text); border: 1px solid var(--c-line); border-left: 3px solid var(--c-error); }
+.lm-toast__icon { display: inline-flex; flex: none; margin-top: 2px; }
+.lm-toast--failure .lm-toast__icon { color: var(--c-error); }
+.lm-toast__text { margin: 0; flex: 1; min-width: 0; display: grid; gap: 2px; }
+.lm-toast__title { font-weight: var(--w-medium); }
+.lm-toast__body { color: inherit; opacity: 0.85; }
+.lm-toast--failure .lm-toast__body { opacity: 1; color: var(--c-text-2); }
+.lm-toast__close {
+  flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; margin: -4px 0; padding: 0; border: 0; border-radius: var(--r-control);
+  background: transparent; color: inherit; cursor: pointer;
+}
+.lm-toast__close:hover { background: rgb(127 127 127 / 0.18); }
+.lm-toast__close:focus-visible { outline: 2px solid var(--c-action); outline-offset: 2px; }
+
+/* File picker: the drop zone's own focus ring, drawn when its hidden input has focus. */
+.lm-drop .ws-drop__pick:focus-within { outline: 2px solid var(--c-action); outline-offset: 2px; }
+.lm-drop[data-disabled] { opacity: 0.6; }
+.lm-drop[data-disabled] .ws-drop__pick { cursor: not-allowed; }
+/* compact: one row inside a form — the button, then the file's name over the hint */
+.lm-drop--compact {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center;
+  column-gap: var(--s-3); row-gap: 2px; padding: var(--s-3) var(--s-4); text-align: left;
+}
+.lm-drop--compact .ws-drop__pick { grid-column: 1; grid-row: 1 / span 2; }
+.lm-drop--compact .ws-drop__title { grid-column: 2; grid-row: 1; margin: 0; font-size: var(--t-dense); font-weight: var(--w-medium); overflow-wrap: anywhere; }
+.lm-drop--compact .ws-drop__hint { grid-column: 2; grid-row: 2; font-size: var(--t-caption); }
+.lm-drop--compact .ws-drop__or { display: none; }
+.lm-drop--compact > :not(.ws-drop__pick, .ws-drop__title, .ws-drop__hint, .ws-drop__or) { grid-column: 1 / -1; }
+
+/* Preview: the exact PDF in a wide dialog; a full-height sheet on a phone. */
+.lm-preview .ws-modal__box {
+  max-width: min(60rem, 100%); height: min(88vh, 60rem);
+  display: grid; grid-template-rows: auto 1fr auto; gap: 0; padding: 0;
+  border-radius: var(--r-dialog); overflow: hidden;
+}
+.lm-preview__head {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s-3);
+  padding: var(--s-3) var(--s-3) var(--s-3) var(--s-5); border-bottom: 1px solid var(--c-line);
+}
+.lm-preview .lm-preview__title { margin: 0; font-size: var(--t-section); line-height: var(--t-section-lh); font-weight: var(--w-semibold); }
+.lm-preview__close { display: inline-flex; align-items: center; justify-content: center; padding: 0; width: 36px; }
+.lm-preview__body { min-height: 0; background: var(--c-viewer); display: flex; flex-direction: column; overflow: auto; }
+.lm-preview__body > .lm-state { margin: var(--s-5); }
+.lm-preview__frame { flex: 1; width: 100%; min-height: 0; border: 0; background: var(--c-viewer); display: flex; }
+.lm-preview__frame > .lm-state { margin: auto; }
+.lm-preview__foot {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--s-3);
+  padding: var(--s-3) var(--s-5); border-top: 1px solid var(--c-line); background: var(--c-surface);
+}
+.lm-preview__open { font-size: var(--t-caption); }
+.lm-preview__acts { display: inline-flex; flex-wrap: wrap; gap: var(--s-2); }
+.lm-preview__acts .ws-btn { display: inline-flex; align-items: center; gap: var(--s-2); white-space: nowrap; }
+@media (max-width: 640px) {
+  .ws-modal.lm-preview { padding: 0; align-items: stretch; }
+  .lm-preview .ws-modal__box { max-width: none; height: 100dvh; border-radius: 0; }
+  .lm-preview__acts { width: 100%; }
+  .lm-preview__acts .ws-btn { flex: 1; justify-content: center; min-height: 44px; }
+}
+
+/* Visually hidden, outside `.ws` too (sign-in's h1, GP-21). */
+.lm-visually-hidden {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+}
+/* a clause's status chip and the standard it was checked against, on one line */
+.ws-compare__finding { display: inline-flex; align-items: center; gap: var(--s-2); }
+
+/* The neutral lozenge: a stage or lifecycle state — With Legal, Awaiting approval, Retired,
+   Draft, Signed, Recommended. Ink on paper, no status hue (StatusChip owns the hues). */
+.lm-lozenge, .ws-chip.lm-lozenge {
+  display: inline-flex; align-items: center; gap: var(--s-1);
+  /* round 3: a decorative edge and the chip radius — a label, never the shape of a control */
+  padding: 2px var(--s-2); border: 1px solid var(--c-line); border-radius: var(--r-card);
+  background: var(--c-state-tint); color: var(--c-state);
+  font-family: var(--font-sans); font-size: var(--t-label); line-height: var(--t-label-lh); font-weight: var(--w-medium);
+  white-space: nowrap; vertical-align: middle;
+}
+
+/* The filter control (SegmentedFilter): joined segments, square-ish corners, never a pill,
+   never a status hue. Selected = ink fill. Collapses to a native select when it cannot fit. */
+.lm-seg { position: relative; min-width: 0; max-width: 100%; margin-bottom: var(--s-3); }
+.lm-seg__row { display: inline-flex; flex-wrap: nowrap; max-width: 100%; }
+/* the measuring copy lives in a clipped, invisible box: it never widens the page */
+.lm-seg__measurebox { position: absolute; inset: 0; overflow: hidden; visibility: hidden; pointer-events: none; }
+.lm-seg__measure { width: max-content; max-width: none; }
+.lm-seg__item {
+  display: inline-flex; align-items: center; gap: var(--s-1); white-space: nowrap; margin: 0;
+  min-height: 32px; padding: var(--s-1) var(--s-3);
+  font-family: var(--font-sans); font-size: var(--t-dense); line-height: var(--t-dense-lh); font-weight: var(--w-medium);
+  color: var(--c-text-2); background: var(--c-surface); cursor: pointer;
+  border: 1px solid var(--c-line-strong); border-radius: 0;
+}
+.lm-seg__item + .lm-seg__item { margin-left: -1px; }
+.lm-seg__item:first-child { border-radius: var(--r-control) 0 0 var(--r-control); }
+.lm-seg__item:last-child { border-radius: 0 var(--r-control) var(--r-control) 0; }
+.lm-seg__item:hover:not([aria-pressed="true"]) { background: var(--c-page); color: var(--c-text); }
+.lm-seg__item[aria-pressed="true"] { position: relative; z-index: 1; background: var(--c-text); border-color: var(--c-text); color: var(--c-on-action); }
+.lm-seg__item:focus-visible { position: relative; z-index: 2; outline: 2px solid var(--c-action); outline-offset: 2px; }
+.lm-seg__item svg { flex: none; }
+.lm-seg__n { font-size: var(--t-caption); font-weight: var(--w-regular); font-variant-numeric: tabular-nums; opacity: 0.85; }
+/* the label sits ABOVE the field (round 3), never beside it — so it never wraps */
+.lm-seg__select { display: inline-grid; gap: var(--s-1); max-width: 100%; }
+.lm-seg__label { margin: 0 0 var(--s-1); font-size: var(--t-caption); line-height: var(--t-caption-lh); color: var(--c-text-3); }
+.lm-seg__select .lm-seg__label { margin: 0; }
+/* wrap: separate toggle buttons 8px apart, on at most two rows (the component counts them) */
+.lm-seg--wrap .lm-seg__row { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.lm-seg--wrap .lm-seg__measure { width: 100%; }
+.lm-seg--wrap .lm-seg__item, .lm-seg--wrap .lm-seg__item:first-child, .lm-seg--wrap .lm-seg__item:last-child { border-radius: var(--r-control); }
+.lm-seg--wrap .lm-seg__item + .lm-seg__item { margin-left: 0; }
+.lm-seg__select select {
+  min-height: 36px; max-width: 100%; padding: var(--s-1) var(--s-6) var(--s-1) var(--s-3);
+  font: inherit; font-size: var(--t-dense); color: var(--c-text);
+  border: 1px solid var(--c-line-strong); border-radius: var(--r-control); background-color: var(--c-surface);
+}
+@media (max-width: 640px) { .lm-seg__item, .lm-seg__select select { min-height: 44px; } }
+
+/* Point marks (PointStatus): StatusChip's hues, on an icon alone */
+.lm-mark--match { color: var(--c-status-match); }
+.lm-mark--change { color: var(--c-status-change); }
+.lm-mark--missing { color: var(--c-status-missing); }
+.lm-mark--decision { color: var(--c-status-decision); }
+.lm-mark--favour { color: var(--c-status-favour); }
+.lm-mark--decided { color: var(--c-status-done); }
+.lm-state--notice { background: var(--c-surface); border: 1px solid var(--c-line); border-left: 3px solid var(--c-action); }
+.lm-state--notice .lm-state__icon { color: var(--c-action); }
+.lm-state--notice p { margin: var(--s-2) 0 0; }
+.lm-toaster__region { display: grid; gap: var(--s-2); }
+/* an empty or error state that IS the page: its h1 is the page title size */
+.lm-state h1.lm-state__title { font-size: var(--t-page); line-height: var(--t-page-lh); }
+/* round 2: a lozenge never touches the link after it (the Legal queue's "Report") */
+.lm-lozenge + a, .lm-lozenge + .ws-link { margin-left: var(--s-2); }
+/* the one restricted note (style only — AccessRestricted's words and behaviour are unchanged) */
+.access-restricted h2 { margin-top: 0; }
+.access-restricted .hint { font-style: normal; color: var(--c-text-3); }
+.lm-state .lm-state__acts { display: flex; flex-wrap: wrap; gap: var(--s-2); }

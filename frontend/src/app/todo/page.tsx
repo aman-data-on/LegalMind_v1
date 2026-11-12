@@ -9,24 +9,17 @@
 
 import { PageHeader } from "@/components/page/PageHeader";
 import { TaskList, TodoViews, useTasks } from "@/components/workspace/TodoViews";
-import { describeError } from "@/lib/api";
+import { ErrorState, LoadingState } from "@/components/Feedback";
 
 export default function TodoPage() {
-  const { tasks, contracts, error } = useTasks();
+  const { tasks, contracts, error, reload } = useTasks();
   return (
     <div className="lm-page ws-home">
       <PageHeader title="To-do"
-                  meta={tasks ? <span>{tasks.length === 1 ? "1 task waiting on you" : `${tasks.length} tasks waiting on you`}</span> : null} />
+                  meta={tasks?.length ? <span>{tasks.length === 1 ? "1 task waiting on you" : `${tasks.length} tasks waiting on you`}</span> : null} />
       <TodoViews />
-      {error ? (
-        <div className="ws-state ws-state--error" role="alert">
-          <h2>Your to-do could not be loaded.</h2>
-          <p>{describeError(error)}</p>
-        </div>
-      ) : null}
-      {tasks === null && !error ? (
-        <p className="ws-pane__note" role="status" aria-live="polite">Loading your to-do…</p>
-      ) : null}
+      {error ? <ErrorState title="Your to-do could not be loaded" error={error} onRetry={reload} /> : null}
+      {tasks === null && !error ? <LoadingState label="Loading your to-do…" rows={4} /> : null}
       {tasks !== null && tasks.length === 0 ? (
         <p className="ws-hq__clear">
           Nothing is waiting on you. Decisions, client replies and answers to your questions appear here.

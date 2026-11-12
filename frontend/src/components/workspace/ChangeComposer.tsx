@@ -21,8 +21,9 @@ import { useSeesLegalPosition } from "@/lib/session";
 import type { Evaluation, Finding } from "@/lib/types";
 
 import { DecisionControl } from "./DecisionControl";
-import { readerWord, requirementTitle } from "./findingLanguage";
+import { requirementTitle } from "./findingLanguage";
 import { IconArrowLeft, IconLock } from "./icons";
+import { StatusChip, chipStatus } from "@/components/StatusChip";
 
 export const NO_STANDARD = "No standard clause is published for this point yet.";
 /** A THEIRS point not confirmed in exactly one clause: the reply cannot place wording. */
@@ -186,7 +187,7 @@ export function AnswerComposer({ change, list, actions, contractId, details, onA
               {/* named only when there are several — one point is the card's line 1 */}
               {several ? (
                 <p className="cx-decide__name">
-                  <strong>{readerWord(read)}</strong> · {requirementTitle({ code: read.requirement_code })}
+                  <StatusChip status={chipStatus(read.user_status, read.in_our_favour)} /> {requirementTitle({ code: read.requirement_code })}
                 </p>
               ) : null}
               {evaluations.map((evaluation) => (

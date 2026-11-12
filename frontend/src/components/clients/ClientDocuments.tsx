@@ -26,6 +26,7 @@
  * immutability), and this list makes that visible rather than merely true.
  */
 
+import { Plus } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -360,7 +361,7 @@ function VersionRow({
 
   return (
     <li className="ws-cl__ver">
-      <span className="ws-cl__ver-n ws-mono">v{version.version_number}</span>
+      <span className="ws-cl__ver-n ws-num">v{version.version_number}</span>
       <span className="ws-cl__ver-main">
         {role ? (
           <span className={`ws-cl__role ws-cl__role--${versionRoleTone(version.version_role)}`}>
@@ -504,9 +505,12 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
   }
 
   const analyzed = bucket === "analyzed" || bucket === "needs_attention";
+  const primaryShown = (!!current && !analyzed && !contract.signed && can(P.REVIEW_CREATE)) || !!analyzed;
+  const menuShown = (can(P.CONTRACT_UPDATE) || can(P.CONTRACT_ARCHIVE) || can(P.DOCUMENT_UPLOAD)) && isMine;
   return (
     <>
-      <tr className={bucket === "needs_attention" ? "ws-tr--attention" : undefined}>
+      {/* B3 p5: no unexplained row rule — the status in the row says it */}
+      <tr>
         <td>
           {/* `title` keeps the full name reachable when the CSS below clamps
               a long one to two lines — a hover/long-press affordance, not a
@@ -572,7 +576,7 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
             <span className="ws-cl__absent">No file yet</span>
           )}
         </td>
-        <td data-label="Last updated" className="ws-mono">{relativeTime(contract.updated_at)}</td>
+        <td data-label="Last updated" className="ws-num">{relativeTime(contract.updated_at)}</td>
         <td className="ws-cl__rowacts">
           {/* Analyze where there is a document and no analysis; Review where
               there is one. One control, saying which it is. */}
@@ -585,13 +589,23 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
           ) : null}
           {analyzed ? (
             <Link className="ws-btn ws-btn--sm" href={`/dashboard?id=${contract.id}`}>
-              Review
+              Open
             </Link>
+          ) : null}
+          {/* §B3-P5/§FINAL: a contract with no file yet gets its one act; "No file yet" is the Versions column's */}
+          {versions.length === 0 && isMine && can(P.DOCUMENT_UPLOAD) && !contract.archived_at ? (
+            <>
+              <button type="button" className="ws-btn ws-btn--sm ws-btn--primary"
+                      onClick={() => onUploadNewVersion(contract.id)}>Upload</button>
+            </>
+          ) : versions.length === 0 ? (
+            <Link className="ws-btn ws-btn--sm" href={`/dashboard?id=${contract.id}`}>Open</Link>
           ) : null}
           {/* The existing comparison, in the workspace that owns it — only
               where there are two versions to compare. Never a control that
               opens onto nothing. */}
-          {versions.length > 1 ? (
+          {/* one button and ⋯ per row (re-review R3): beside Analyze/Review, Compare is a menu item */}
+          {versions.length > 1 && !(menuShown && primaryShown) ? (
             <Link className="ws-btn ws-btn--sm"
                   href={`/dashboard?id=${contract.id}&compare=1`}>
               Compare
@@ -601,9 +615,13 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
               needs CONTRACT_UPDATE, removing/deleting need CONTRACT_ARCHIVE
               (the same grant `AM-55` already gates the permanent delete
               with), both additionally scoped to the caller's own document. */}
-          {(can(P.CONTRACT_UPDATE) || can(P.CONTRACT_ARCHIVE) || can(P.DOCUMENT_UPLOAD))
-           && isMine ? (
+          {menuShown ? (
             <DocMenu label={`More actions for ${contract.name}`}>
+              {versions.length > 1 && primaryShown ? (
+                <Link role="menuitem" className="ws-menu__item" href={`/dashboard?id=${contract.id}&compare=1`}>
+                  Compare versions
+                </Link>
+              ) : null}
               {can(P.CONTRACT_UPDATE) && !contract.archived_at ? (
                 <button type="button" role="menuitem" className="ws-menu__item"
                         onClick={() => setEditingDoc(true)}>
@@ -727,7 +745,7 @@ export function ClientDocuments({ client, onChanged }: {
       <header className="ws-cl__docs-head">
         <h2 id="ws-cl-docs-title">Legal documents</h2>
         {contracts.length > 0 ? (
-          <span className="ws-cl__docs-count ws-mono">
+          <span className="ws-cl__docs-count ws-num">
             {contracts.length}
           </span>
         ) : null}
@@ -759,7 +777,7 @@ export function ClientDocuments({ client, onChanged }: {
                     setUploadTarget(undefined);
                     setLinkOpen(false);
                   }}>
-            {uploadOpen ? "Close" : "+ Upload document"}
+            {uploadOpen ? "Close" : <><Plus size={16} aria-hidden="true" /> Upload document</>}
           </button>
         ) : null}
       </header>
@@ -787,7 +805,7 @@ export function ClientDocuments({ client, onChanged }: {
           {canUpload && !uploadOpen ? (
             <button type="button" className="ws-btn ws-btn--primary"
                     onClick={() => setUploadOpen(true)}>
-              + Upload document
+              <Plus size={16} aria-hidden="true" /> Upload document
             </button>
           ) : null}
         </div>

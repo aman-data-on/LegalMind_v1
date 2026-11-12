@@ -26,10 +26,11 @@ import type { ReportBlock, Review, ReviewReport } from "@/lib/types";
 
 import { STAGE_LABELS } from "@/lib/labels";
 
-import { StatusIcon } from "./AnalysisPanel";
 import { ExportControl } from "./ExportControl";
-import { USER_STATUS_LABELS, USER_STATUS_TONE, type UserStatus } from "./findingLanguage";
+import { USER_STATUS_LABELS, type UserStatus } from "./findingLanguage";
 import { IconArrowLeft } from "./icons";
+import { StatusChip, chipStatus } from "@/components/StatusChip";
+import { EmptyState, ErrorState } from "@/components/Feedback";
 
 type Load =
   | { kind: "loading" }
@@ -93,16 +94,10 @@ export function ReviewReportPage({ reviewId }: { reviewId: string }) {
   if (state.kind === "error") {
     const notFound = state.error instanceof ApiError && state.error.isNotFound;
     return (
-      <div className={`ws-state${notFound ? "" : " ws-state--error"}`} role={notFound ? "note" : "alert"}>
-        <h2>{notFound ? "Not found." : "The report could not be loaded."}</h2>
-        {notFound ? (
-          <p>
-            <Link href="/dashboard/reviews">Back to reviews</Link>
-          </p>
-        ) : (
-          <p>{describeError(state.error)}</p>
-        )}
-      </div>
+      notFound ? (
+        <EmptyState heading="h1" title="Not found" body="Go back to your contracts to find the one you need."
+                    action={<Link className="ws-btn ws-btn--primary" href="/contracts">Go to Contracts</Link>} />
+      ) : <ErrorState heading="h1" title="The report could not be loaded" error={state.error} onRetry={() => void load()} />
     );
   }
 
@@ -111,7 +106,9 @@ export function ReviewReportPage({ reviewId }: { reviewId: string }) {
   return (
     <>
       <div className="ws-context">
-        <Link className="ws-context__back" href="/dashboard/reviews" aria-label="Back to reviews">
+        {/* back to where the reader came from: Legal's queue, or the contract (UX Batch 2) */}
+        <Link className="ws-context__back" href={can(P.LEGAL_REVIEW) ? "/dashboard/reviews" : `/contracts/${review.contract_id}`}
+              aria-label={can(P.LEGAL_REVIEW) ? "Back to reviews" : "Back to the contract"}>
           <IconArrowLeft size={18} />
         </Link>
         <h1>{review.document_name ?? "Review report"}</h1>
@@ -155,11 +152,7 @@ const STATUS_OF_WORD = Object.fromEntries(
 function StatusWord({ text }: { text: string }) {
   const status = STATUS_OF_WORD[text];
   if (!status) return <>{text}</>;
-  return (
-    <span className={`ws-finding__det ws-finding__det--${USER_STATUS_TONE[status]} ws-reportdoc__status`}>
-      <StatusIcon status={status} size={12} />{text}
-    </span>
-  );
+  return <StatusChip status={chipStatus(status)} />;
 }
 
 /** Plain blocks, as the download carries them. */

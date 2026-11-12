@@ -157,6 +157,13 @@ export function safeNext(raw: string | null): string {
     ? raw : "/dashboard";
 }
 
+/** One permission, failing closed (false) where no session is mounted — for a presentation
+ *  choice inside a component that also renders standalone (the Ask dock's model picker). */
+export function useCanQuietly(permission: string): boolean {
+  const context = useContext(SessionContext);
+  return context ? context.can(permission) : false;
+}
+
 export function useSeesLegalPosition(): boolean {
   const { can } = useSession();
   return can("legal_position.view");

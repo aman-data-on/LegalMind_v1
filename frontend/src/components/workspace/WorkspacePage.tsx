@@ -32,7 +32,7 @@ import { ApiError, api, describeError } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { Contract, Counterparty, DocumentVersion, ReviewAssignments } from "@/lib/types";
-import { ACTION, contractDisplayName, contractStatusLabel, type StageViewer } from "@/lib/labels";
+import { ACTION, READER_OUTDATED, contractDisplayName, contractStatusLabel, type StageViewer } from "@/lib/labels";
 import { canSendToLegalFor, nextStep, runStep, useStep, type StepKind } from "@/lib/nextStep";
 import { PageHeader } from "@/components/page/PageHeader";
 import { documentSourceChip, isOurs } from "@/lib/documentTypes";
@@ -60,9 +60,11 @@ import { StageBadge } from "./StageBadge";
 import { UploadDocument } from "./UploadDocument";
 import { VersionComparison } from "./VersionComparison";
 import { PaneBoundary } from "./PaneBoundary";
-import { IconUploadCloud, IconX } from "./icons";
+import { IconCheck, IconUploadCloud, IconX } from "./icons";
 import { PhoneBar, WorkspaceLayout, arrowTab, useMinWidth, type PhoneView, type Region } from "./WorkspaceLayout";
 import { templateName } from "@/lib/templates";
+import { toastFailure } from "@/components/Toast";
+import { EmptyState, ErrorState, NoticeState } from "@/components/Feedback";
 
 type Load =
   | { kind: "loading" }
@@ -255,14 +257,15 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
   if (state.kind === "error") {
     const notFound = state.error instanceof ApiError && state.error.isNotFound;
     return (
-      <div className={`ws-state${notFound ? "" : " ws-state--error"}`} role={notFound ? "note" : "alert"}>
-        <h2>{notFound ? "Not found." : "The workspace could not be loaded."}</h2>
+      // 49.5 r1 / 52.4: "Not found" is the one answer for every cause; the way back is the
+      // nav word (Contracts). A failure offers Try again and the same way back.
+      <div className="lm-page">
         {notFound ? (
-          <p>
-            <Link href="/dashboard">Back to documents</Link>
-          </p>
+          <EmptyState heading="h1" title="Not found" body="Go back to your contracts to find the one you need."
+                      action={<Link className="ws-btn ws-btn--primary" href="/contracts">Go to Contracts</Link>} />
         ) : (
-          <p>{describeError(state.error)}</p>
+          <ErrorState heading="h1" title="This contract could not be opened" error={state.error}
+                      onRetry={() => void load()} back={{ href: "/contracts", label: "Go to Contracts" }} />
         )}
       </div>
     );
@@ -333,19 +336,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
                           onClick={() => setCompareOpen((open) => !open)}>
       {compareOpen ? "Hide version comparison" : "Compare versions"}</button>);
   }
-  if (phone && version && versions.length > 1) {
-    // the phone's version choice: one group in ⋯ instead of a select row above the document
-    overflow.unshift(<div key="vers" role="group" aria-label="Version" className="ws-menu__group">
-      {versions.map((v) => (
-        <button key={v.id} type="button" role="menuitemradio" aria-checked={v.id === version.id}
-                className="ws-menu__item" onClick={() => openVersion(v.id)}>
-          {versionOption(v.version_number,
-                         roleOf(v),
-                         v.id === latest?.id)}
-        </button>
-      ))}
-    </div>);
-  }
+  // B3 p7: the phone chooses a version in the header select, not in ⋯
   // N5: our own version downloads from ⋯ at any stage — said to be a draft while a point
   // is open; the server still gates a reply or final contract with an open point (AM-293)
   if (version && can(P.DOCUMENT_DOWNLOAD) && !version.reply && !version.package && !version.final_copy) {
@@ -380,7 +371,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
     // type's website document when there is one.
     overflow.push(<Link key="dt" role="menuitem" className="ws-menu__item" href={`/dashboard/diff?${new URLSearchParams({
       left: WEBSITE_KEY_BY_TYPE[contract.contract_type ?? ""] ?? "", right: version.id })}`}>
-      Compare in Diff-Talk</Link>);
+      Compare with our document</Link>);
   }
 
   /** One tap on the phone's bar: a region, the Changes view, or Ask's sheet. */
@@ -417,7 +408,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
       <div className="ws-record">
       <RecordHeader contract={contract} latest={latest} version={version} view={view}
                     viewer={viewer} canAnswer={canAnswer} company={company} packageReady={!!pkg.plan?.available}
-                    versionMeta={version && !phone ? (versions.length > 1 ? (
+                    versionMeta={version && (!phone || versions.length > 1) ? (versions.length > 1 ? (
                       <select className="ws-version" aria-label="Version" value={version.id}
                               onChange={(event) => openVersion(event.target.value)}>
                         {versions.map((v) => (
@@ -529,6 +520,15 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
                      filesOpen={stageCode === "READY_TO_SEND" || stageCode === "READY_TO_SIGN" || stageCode === "SIGNED"} />
       ) : null}
       {view === "document" ? <AmendmentsPanel contract={contract} canStart={canAmend} /> : null}
+      {/* B3 page 1: an old Markdown reading keeps its marks; a pinned reading is never re-read
+          (rules 16/17), so the way out is the same file as a new version */}
+      {version && versions.find((v) => v.id === version.id)?.reader_outdated ? (
+        <NoticeState title={READER_OUTDATED.title} body={READER_OUTDATED.body}>
+          {canUpload ? (
+            <button type="button" className="ws-btn" onClick={uploadToggle}>Upload new version</button>
+          ) : null}
+        </NoticeState>
+      ) : null}
       {version ? (
         <PrepareFinal contractId={contract.id} nextVersion={(latest?.version_number ?? 0) + 1}
                       onPrepared={() => { setView("document"); openVersion(null); }} />
@@ -780,13 +780,13 @@ function RecordHeader({
             {assign?.can_send && reviewId ? (
               <button type="button" className="ws-linkbtn"
                       onClick={() => void api.withdrawReview(reviewId, holder.user_id)
-                        .then((got) => assigned({ ...assign, assigned: got.assigned })).catch(() => undefined)}>
+                        .then((got) => assigned({ ...assign, assigned: got.assigned })).catch(toastFailure("The review was not withdrawn"))}>
                 Withdraw
               </button>
             ) : null}
           </span>
         ) : null}
-        {signedAt ? <span className="lm-signed-on">Signed on {shortDate(signedAt)}</span> : null}
+        {signedAt ? <span className="lm-signed-on"><IconCheck size={14} />Signed on {shortDate(signedAt)}</span> : null}
       </>}
       secondary={<>
         {secondary}

@@ -128,7 +128,7 @@ describe("the four reader words wear one tone each, in one order", () => {
     // The label order matches the tone order — a tile cannot wear one word and
     // another word's colour.
     expect(Array.from(html.matchAll(/ws-tile__label">([^<]+)</g)).map((m) => m[1]))
-      .toEqual(["Matches our standard", "Change needed", "Missing", "Needs a decision"]);
+      .toEqual(["Matches", "Change needed", "Missing", "Needs a decision"]);   // the chip's words (round 3)
   });
 
   it("draws the four words once — tiles only, no bar and no ring (owner, 2026-10-21)", () => {
@@ -149,24 +149,27 @@ describe("the four reader words wear one tone each, in one order", () => {
   });
 
   it("marks a Requires modification card amber and a Needs a decision card red", () => {
-    expect(tones(card(FINDINGS[2]!), "ws-finding__mark--")).toEqual(["warn"]);
-    expect(tones(card(FINDINGS[0]!), "ws-finding__mark--")).toEqual(["bad"]);
-    expect(tones(card(FINDINGS[1]!), "ws-finding__mark--")).toEqual(["ok"]);
+    // UX Batch 2: the card's one status is the StatusChip, in the fixed hue for its word
+    const chip = (html: string) => Array.from(html.matchAll(/lm-chip--(match|change|missing|decision|favour)/g)).map((m) => m[1]);
+    expect(chip(card(FINDINGS[2]!))).toEqual(["change"]);
+    expect(chip(card(FINDINGS[0]!))).toEqual(["decision"]);
+    expect(chip(card(FINDINGS[1]!))).toEqual(["match"]);
   });
 
   it("gives the loud solid chip to Needs a decision, not to Requires modification", () => {
     // The chip class carries the status, and the stylesheet gives
     // `--status-needs_decision` the solid red fill. Asserted as the class the
     // card renders, since a static render cannot read the stylesheet.
-    expect(card(FINDINGS[0]!)).toContain("ws-chip--status-needs_decision");
-    expect(card(FINDINGS[2]!)).toContain("ws-chip--status-requires_modification");
+    // UX Batch 2: the one StatusChip, its tone named by the status it carries
+    expect(card(FINDINGS[0]!)).toContain('lm-chip lm-chip--decision" data-status="NEEDS_DECISION"');
+    expect(card(FINDINGS[2]!)).toContain('lm-chip lm-chip--change" data-status="CHANGE_NEEDED"');
   });
 
   it("never shows a tone without its word", () => {
     // Rule 12 and DESIGN.md: colour is never the only carrier. Every tone that
     // renders on a tile has its label beside it.
     const html = summary();
-    for (const status of USER_STATUS_ORDER) expect(html).toContain(USER_STATUS_LABELS[status]);
+    for (const word of ["Matches", "Change needed", "Missing", "Needs a decision"]) expect(html).toContain(word);
   });
 
   it("leaves the tiles out for a reader without Legal's review (S1) — absent, not greyed", () => {
