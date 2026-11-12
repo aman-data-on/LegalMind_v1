@@ -75,7 +75,7 @@ export default function ConfigurationPage() {
   const [publishing, setPublishing] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
-  const [sort, setSort] = useState("code");
+  const [sort, setSort] = useState("name");
   const [filters, setFilters] = useState<RequirementFilters>(NO_FILTERS);
 
   // Only for an account that may see it — no refused request before "Access
@@ -97,7 +97,7 @@ export default function ConfigurationPage() {
   }, [load]);
 
   const plan = publishPlan(requirements, selected);
-  const shown = sortRequirements(filterRequirements(requirements, filters), sort);
+  const shown = sortRequirements(filterRequirements(requirements, filters), sort, stdName);
   const filtering = isFiltered(filters);
   const setFilter = (key: keyof RequirementFilters) => (value: string) =>
     setFilters((current) => ({ ...current, [key]: value }));

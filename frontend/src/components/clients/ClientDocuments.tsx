@@ -592,6 +592,16 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
               Open
             </Link>
           ) : null}
+          {/* §B3-P5: a contract with no file yet (an amendment started here) gets its one act */}
+          {versions.length === 0 && isMine && can(P.DOCUMENT_UPLOAD) && !contract.archived_at ? (
+            <>
+              <span className="ws-cl__absent">No file yet</span>{" "}
+              <button type="button" className="ws-btn ws-btn--sm ws-btn--primary"
+                      onClick={() => onUploadNewVersion(contract.id)}>Upload</button>
+            </>
+          ) : versions.length === 0 ? (
+            <Link className="ws-btn ws-btn--sm" href={`/dashboard?id=${contract.id}`}>Open</Link>
+          ) : null}
           {/* The existing comparison, in the workspace that owns it — only
               where there are two versions to compare. Never a control that
               opens onto nothing. */}

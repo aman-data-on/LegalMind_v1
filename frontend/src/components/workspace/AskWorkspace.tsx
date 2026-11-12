@@ -235,6 +235,8 @@ export function AskWorkspace() {
   const activeId = useSearchParams().get("id");
 
   const [conversations, setConversations] = useState<ConversationSummary[] | null>(null);
+  /** §B3-P3: the chat list (or its search) could not be read — said, never "No conversations" */
+  const [listFailed, setListFailed] = useState(false);
   const [turns, setTurns] = useState<ConversationTurn[]>([]);
   const [scope, setScope] = useState<Scope>({ contractId: null, documentName: null });
   const [loadingChat, setLoadingChat] = useState(false);
@@ -308,11 +310,13 @@ export function AskWorkspace() {
 
   const loadConversations = useCallback(async () => {
     try {
+      setListFailed(false);
       const { items } = await api.conversations({ page_size: 50, has_document: "false" });
       setConversations(items);
     } catch {
-      // The rail is orientation; asking works without it.
+      // The rail is orientation; asking works without it — but a failure is said, with a retry
       setConversations([]);
+      setListFailed(true);
     }
   }, []);
 
@@ -329,7 +333,8 @@ export function AskWorkspace() {
     let cancelled = false;
     const timer = window.setTimeout(() => {
       api.conversations({ page_size: 50, has_document: "false", q: term })
-        .then(({ items }) => { if (!cancelled) setFound({ term, items }); }, () => undefined);
+        .then(({ items }) => { if (!cancelled) setFound({ term, items }); },
+              () => { if (!cancelled) setListFailed(true); });
     }, 250);
     return () => { cancelled = true; window.clearTimeout(timer); };
   }, [canAsk, search, conversations]);
@@ -832,15 +837,16 @@ export function AskWorkspace() {
               <span className="ws-chat__brandmark" aria-hidden="true"><IconMessage size={15} /></span>
               <span><span className="ws-shell__word-a">Legal</span><span className="ws-shell__word-b">Mind</span></span>
             </Link>
+            {/* §B3-P3: New chat and Hide sidebar share one row */}
+            <Link className="ws-chat__new" href="/dashboard/ask" onClick={resetChat} aria-label="New chat">
+              <IconPlus size={15} /> New chat
+            </Link>
             <button type="button" className="ws-chat__iconbtn ws-chat__collapse"
                     aria-label="Hide sidebar" title="Hide sidebar"
                     onClick={() => { railToggledRef.current = true; setRailHidden(true); }}>
               <IconPanel size={16} />
             </button>
           </div>
-          <Link className="ws-chat__new" href="/dashboard/ask" onClick={resetChat} aria-label="New chat">
-            <IconPlus size={15} /> New chat
-          </Link>
           {/* Filters what is ALREADY loaded. `GET /conversations` allow-lists only
               `contract_id` (49.6 r3), so there is no server-side search to call and
               none is invented here — the field says it searches this list. */}
@@ -858,7 +864,15 @@ export function AskWorkspace() {
             />
           </div>
           <nav aria-label="Recent chats">
-            {conversations === null ? (
+            {listFailed ? (
+              <div className="ws-chat__railempty" role="alert">
+                <p>Your chats could not be loaded.</p>
+                <button type="button" className="ws-btn ws-btn--sm"
+                        onClick={() => { setConversations(null); void loadConversations(); }}>
+                  Try again
+                </button>
+              </div>
+            ) : conversations === null ? (
               <p className="ws-pane__note" role="status" aria-live="polite">
                 Loading…
               </p>

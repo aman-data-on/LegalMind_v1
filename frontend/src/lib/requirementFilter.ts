@@ -56,8 +56,9 @@ export const STATUS_LABELS: ReadonlyArray<{ code: string; label: string }> = [
  * name them in the filter — one vocabulary, one place.
  */
 export const EVALUATOR_LABELS: ReadonlyArray<{ code: string; label: string }> = [
-  { code: "NUMERIC_COMPARISON", label: "Numeric comparison" },
-  { code: "PRESENCE", label: "Presence" },
+  // §B3-P5: what the check does, in words
+  { code: "NUMERIC_COMPARISON", label: "Compares a number" },
+  { code: "PRESENCE", label: "Checks the clause is there" },
   // AM-146: the third evaluator (one of a fixed list, e.g. courts at Pune); S1b — the
   // raw "CATEGORICAL" showed on the Standards screen
   { code: "CATEGORICAL", label: "One of a fixed list" },
@@ -82,11 +83,14 @@ export function latestVersion(requirement: Requirement) {
 /** Orders the list. Code is the default because it is how every other record —
  *  a fixture, a snapshot item, an explanation — refers to a standard. */
 export const SORTS: ReadonlyArray<{ value: string; label: string }> = [
+  { value: "name", label: "Name" },
   { value: "code", label: "Code" },
   { value: "recent", label: "Recently changed" },
 ];
 
-export function sortRequirements(rows: Requirement[], sort: string): Requirement[] {
+export function sortRequirements(rows: Requirement[], sort: string,
+                                 nameOf?: (r: Requirement) => string): Requirement[] {
+  if (sort === "name" && nameOf) return [...rows].sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
   if (sort !== "recent") return [...rows].sort((a, b) => a.code.localeCompare(b.code));
   const changed = (r: Requirement) => latestVersion(r)?.created_at ?? "";
   // Newest first; a standard with no version sorts last rather than first, because

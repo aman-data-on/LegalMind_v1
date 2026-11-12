@@ -217,6 +217,22 @@ test.describe("Ask — the AI workspace", () => {
     await expect(page.getByLabel("Your question")).toBeVisible();
   });
 
+  test("On a phone an open chat offers a named New chat that starts over (§B3-P3)", async ({
+    page,
+  }) => {
+    // seeded through the API: an empty chat — no question is asked, no model is called
+    const { id } = await postOk(page, "/conversations", {});
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/dashboard/ask?id=${id}`);
+    const fresh = page.getByRole("link", { name: "New chat" }).and(page.locator(".ws-chat__newphone"));
+    await expect(fresh).toBeVisible();
+    const box = await fresh.boundingBox();
+    expect(box!.height).toBeGreaterThanOrEqual(44);
+    await fresh.click();
+    await expect(page).toHaveURL(/\/dashboard\/ask$/);
+    await expect(page.locator("h1")).toHaveText("Ask");
+  });
+
   test("A chat is renamed and deleted from the rail, through the server (AM-116)", async ({
     page,
   }) => {

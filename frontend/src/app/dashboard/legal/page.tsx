@@ -64,7 +64,7 @@ const WORDS = {
   emptyAllHint: "A point appears here when it needs one.",
   emptyYours: "No points wait for your decision.",
   emptyYoursHint: "Points with your colleagues are under All with Legal.",
-  columns: [{ label: "Point" }, { label: "Status" }, { label: "Contract" }, { label: "Waiting" },
+  columns: [{ label: "Point" }, { label: "Status" }, { label: "Contract" }, { label: "Waiting, oldest first" },
             { label: "Assigned to" }],
   nobody: "Not assigned",
 };

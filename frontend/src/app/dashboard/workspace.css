@@ -7769,3 +7769,19 @@ a.ws-askglobal[data-away]:not(:focus-visible) {
 /* two page blocks in a row (Templates + What we can offer): one section gap, not 96 + 24 */
 .ws .lm-page:has(+ .lm-page), .ws:has(.ws-askglobal) .lm-page:has(+ .lm-page) { padding-bottom: var(--ws-s6); }
 .lm-page + .lm-page { padding-top: 0; }
+/* §B3-P3: New chat and Hide sidebar on one row */
+.ws-chat__brand { justify-content: space-between; gap: var(--ws-s2); }
+.ws-chat__brand a.ws-chat__new { flex: 1 1 auto; }
+/* §B3-P3: the send-back wording reads as a quote on the card (no box), Copy beside it */
+.ws-finding > .ws-counter { background: none; border: 0; border-left: 3px solid var(--ws-accent);
+  border-radius: 0; padding: var(--ws-s1) 0 var(--ws-s1) var(--ws-s4); }
+.ws-finding > .ws-counter .ws-counter__text { margin: 4px 0 0; font-family: var(--ws-serif, serif);
+  font-size: var(--t-body); line-height: 1.6; color: var(--ws-ink-900); }
+/* §B3-P5 — Contracts: the stage cell wraps (days on their own line), never overflows */
+.ws-dealstage { white-space: normal; flex-wrap: wrap; row-gap: 0; }
+.ws-dealstage__days { flex-basis: 100%; }
+/* the Ask launcher never rests near the last row on a wide screen either */
+@media (min-width: 761px) { .ws:has(.ws-askglobal) .lm-page { padding-bottom: 128px; } }
+/* Standards: name buttons are real targets, chevrons on the text's line */
+.ws-std__name { min-height: 24px; align-items: center; text-align: left; }
+.ws-std__twist { flex: none; }
