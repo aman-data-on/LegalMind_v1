@@ -1,0 +1,13 @@
+/* AM-318 — the end of the deal cycle: the Final card, the closed tabs, the Final chip. */
+.lm-final { border-left: 3px solid var(--ws-ok); }
+.lm-final__agreed { margin: var(--ws-s2) 0 0; padding-left: 1.2em; display: grid; gap: 4px; }
+.lm-closed { max-width: 60ch; margin: var(--ws-s5) auto; text-align: start; }
+.lm-closed .ws-btn { min-height: 44px; }
+.ws-dealstage--final { font-weight: 600; }
+.ws-record__quiet { color: var(--ws-ink-500, inherit); }
+/* the Final card says what to do next on a phone too (the reply banner's compact rule
+   hides a sub line): one card, one next step */
+@media (max-width: 899px) {
+  .ws .ws-replynote.lm-final { flex-wrap: wrap; }
+  .ws .ws-replynote.lm-final .ws-replynote__sub { display: block; }
+}

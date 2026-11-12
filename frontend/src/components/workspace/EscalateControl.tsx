@@ -12,6 +12,7 @@ import { useState } from "react";
 
 import { ErrorBanner } from "@/components/Feedback";
 import { api } from "@/lib/api";
+import { ASK_LEGAL_COPY } from "@/lib/labels";
 import type { Finding } from "@/lib/types";
 
 export function EscalateControl({
@@ -60,15 +61,15 @@ export function EscalateControl({
       <ErrorBanner error={error} />
       {finding.escalated ? (
         <p>
-          Escalated for authorized review — a request, not an approval.{" "}
+          {ASK_LEGAL_COPY.asked}{" "}
           <button type="button" className="ws-escalate__link" onClick={() => void withdraw()} disabled={busy}>
-            Withdraw
+            {ASK_LEGAL_COPY.withdraw}
           </button>
         </p>
       ) : open ? (
         <form onSubmit={escalate}>
           <label className="ws-visually-hidden" htmlFor={`escalate-${finding.id}`}>
-            Why does this need authorized review?
+            {ASK_LEGAL_COPY.why}
           </label>
           <input
             id={`escalate-${finding.id}`}
@@ -76,11 +77,11 @@ export function EscalateControl({
             required
             value={reason}
             onChange={(event) => setReason(event.target.value)}
-            placeholder="Why does this need authorized review?"
+            placeholder={ASK_LEGAL_COPY.why}
             disabled={busy}
           />
           <button type="submit" className="ws-btn" disabled={busy}>
-            {busy ? "Escalating…" : "Escalate"}
+            {busy ? ASK_LEGAL_COPY.busy : ASK_LEGAL_COPY.submit}
           </button>
           <button type="button" className="ws-escalate__link" onClick={() => setOpen(false)} disabled={busy}>
             Cancel
@@ -88,7 +89,7 @@ export function EscalateControl({
         </form>
       ) : (
         <button type="button" className="ws-escalate__link" onClick={() => setOpen(true)}>
-          Escalate for authorized review
+          {ASK_LEGAL_COPY.open}
         </button>
       )}
     </div>

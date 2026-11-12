@@ -51,8 +51,18 @@
         "from_unit": "MONTHS",
         "to_unit": "YEARS"
       }
+    ],
+    "not_applicable_to": [
+      "MSA"
     ]
   },
+  "_owner_rulings": [
+    "2026-11-04 — NOT AN MSA TERM: Constitution §12's 5-year retention of customer",
+    "registration information is LeapSwitch's own statutory duty under the CERT-In",
+    "Directions of 28 April 2022 (§12 Legal Basis), not a term the customer agrees to.",
+    "So an MSA is never measured against this standard (the signed MSA's eKYC clause",
+    "states no period either). The published TOS still states it and is still measured."
+  ],
   "evaluation_rules": {
     "evaluator": "NUMERIC_COMPARISON",
     "_note": "comparison semantics live in tested code (44.29); deviation disposition lives in the Legal Rule, never here"

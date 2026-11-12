@@ -372,7 +372,7 @@ def test_uploading_a_document_indexes_it(api, db, seeded, user, storage):
     response = api.post(
         f"/api/v1/contracts/{contract_id}/document-versions",
         content=build_docx(PARAGRAPHS),
-        headers={"content-type": DOCX_MIME, "x-filename": "msa.docx"})
+        headers={"content-type": DOCX_MIME, "x-version-role": "COMPANY_DRAFT", "x-filename": "msa.docx"})
     assert response.status_code == 201
     document_version_id = response.json()["data"]["document_version"]["id"]
 

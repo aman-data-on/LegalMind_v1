@@ -144,7 +144,7 @@ def test_endpoint_suggests_for_a_visible_version(api, db, seeded, user, storage,
     contract_id = created.json()["data"]["id"]
     up = api.post(f"/api/v1/contracts/{contract_id}/document-versions",
                   content=build_docx(PARAGRAPHS),
-                  headers={"content-type": DOCX_MIME, "x-filename": "acme-msa.docx"})
+                  headers={"content-type": DOCX_MIME, "x-version-role": "COMPANY_DRAFT", "x-filename": "acme-msa.docx"})
     version_id = up.json()["data"]["document_version"]["id"]
 
     _fake_raw(monkeypatch, "TYPE: MSA\nREASON: The opening line names it.")

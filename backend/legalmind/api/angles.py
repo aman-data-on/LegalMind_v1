@@ -182,10 +182,13 @@ def _where(row) -> str | None:
     e = row["evidence"]
     if e is None:
         return None
-    # the document's own number, never an added sign (owner, 2026-09-10)
-    parts = [e.section_number or None, e.section_title,
+    # the document's own number, never an added sign (owner, 2026-09-10); said as a
+    # reader says it — "Clause 5.3, page 5" (page 2 critic round, AM-291 r5)
+    number = (e.section_number or "").rstrip(".")
+    parts = [f"Clause {number}" if number else None,
              f"page {e.page_number}" if e.page_number is not None else None]
-    return " · ".join(p for p in parts if p) or None
+    said = ", ".join(p for p in parts if p)
+    return (said[0].upper() + said[1:]) if said else None
 
 
 def _days(actual: dict) -> str:
@@ -371,22 +374,23 @@ def _enforceability(code: str, legal_position: bool) -> dict:
 
 #: AM-156 — the action a reader takes on a Finding, in the Constitution's own terms
 #: (§24.3, §24.4, §25.1): never "reject", never "approved"; a person always decides.
-ACCEPT = "Accept — it matches our position"
-SEND_WORDING = "Send our wording; accepting the difference is a Legal decision"
-NO_WORDING = "Legal decides — no approved wording exists for this point"
-MUST_CHANGE = ("Must change before signing — only an authorised approver may grant an "
-               "exception (Constitution §25.1)")
-READ_IT = "A person must read this clause before it can be relied on"
+#: AM-291 r5 (S1b): plain words for every reader; the § behind each stays in the comment
+#: above and in Legal details, never in the sentence.
+ACCEPT = "Accept — it matches our standard"
+SEND_WORDING = "Ask them to use our wording"                       # accepting it: Legal
+NO_WORDING = "Legal decides — we have no approved wording for this"
+MUST_CHANGE = "Must change before signing — not negotiable"        # §25.1 exception only
+READ_IT = "Legal must read this clause before we rely on it"
 #: AM-159 — a point the document states more than once, differently (locked 45C.2), and a
 #: point the Constitution defines no boundary for (§23.4: "must not infer or invent a
 #: boundary").
-CONFLICT_DECIDE = ("The document states this point more than once, differently — a "
-                   "person decides which governs")
-FAVOURABLE = ("Differs from our standard in our favour — a person confirms it; do not "
-              "send our wording, which would ask the other side for less")
+CONFLICT_DECIDE = ("The contract says this more than once, differently — Legal decides "
+                   "which one counts")
+FAVOURABLE = ("In our favour — Legal confirms it; don't send our wording, it would ask "
+              "them for less")
 #: AM-239 — accepted by the approved favourable rule; a person may still look.
-ACCEPT_FAVOURABLE = "Accept — it differs from our position in our favour"
-UNDEFINED = "Legal decides — the Constitution defines no boundary for this point (§23.4)"
+ACCEPT_FAVOURABLE = "Accept — it differs from our standard in our favour"
+UNDEFINED = "Our standards don't cover this — Legal decides"          # §23.4
 
 
 def _in_our_favour(row) -> bool:
@@ -394,7 +398,8 @@ def _in_our_favour(row) -> bool:
     provider — never inferred (`rule_config.in_our_favour`)."""
     actual = row.get("actual") or {}
     return (row.get("document_type") or "") in parties.PROVIDER_TYPES and in_our_favour(
-        actual.get("cap_value"), actual.get("cap_unit"), row.get("standard") or {})
+        actual.get("cap_value"), actual.get("cap_unit"), row.get("standard") or {},
+        actual.get("cap_party"))
 
 
 def action(row, has_wording: bool) -> str:
@@ -415,7 +420,7 @@ def action(row, has_wording: bool) -> str:
     if cls == "CONFLICT":
         return CONFLICT_DECIDE
     number = row["evidence"].section_number if row.get("evidence") is not None else None
-    return f"A person must read clause {number} before it can be relied on" if number \
+    return f"Legal must read clause {number} before we rely on it" if number \
         else READ_IT                        # where it is, page and title, shows apart
 
 
@@ -423,11 +428,10 @@ def action(row, has_wording: bool) -> str:
 #: A recommendation, never a decision: only an authorised reviewer records one, and the
 #: system never recommends "Reject" (Constitution §24.3/§25.1).
 ACCEPT_WORDS = "Accept"
-EXCEPTION_WORDS = "Accept as an exception — a person decides"
-REVISE_WORDS = "Request revised wording"
-NOT_NEGOTIABLE_WORDS = ("Request revised wording — not negotiable "
-                        "(Constitution §24.4, §25.1)")
-LEGAL_REVIEW_WORDS = "Seek legal review"
+EXCEPTION_WORDS = "Accept as an exception — Legal decides"
+REVISE_WORDS = "Ask them to change the wording"
+NOT_NEGOTIABLE_WORDS = "Must change — not negotiable"               # §24.4, §25.1
+LEGAL_REVIEW_WORDS = "Ask Legal to look at this"
 
 
 def recommend(action_text: str, uncertain: bool = False) -> str:
@@ -612,7 +616,7 @@ def _action_rank(text: str) -> int:
 #: what a person does with an observation (AM-159); a precedence rule is information
 _OBSERVATION_ACTION = {
     consistency.RENEWAL_TWO_WAYS: CONFLICT_DECIDE,
-    consistency.SUBJECT_TO: "A person reads these clauses together",
+    consistency.SUBJECT_TO: "Legal reads these clauses together",
     consistency.PRECEDENCE: None,
     consistency.NO_NONPAYMENT_REMEDY: UNDEFINED,
     consistency.OUR_DETAILS: "Correct our own details before signing",
@@ -629,41 +633,51 @@ def recommendation(items: list[dict], observed: dict, measured: int,
     """AM-160 — one line, computed from the actions above and nothing else: a
     recommendation an authorised person decides on (§24.3, §25.1), never a score, a level
     or a decision of the system's own. With nothing measured there is nothing to
-    recommend — no line at all, whatever was observed (no claim about our positions)."""
+    recommend — no line at all, whatever was observed (no claim about our positions).
+
+    S1b — ONE count, so every surface agrees (AM-291 r5): `items` are the open points
+    (the Summary's "Open points (N)"). Of them, a point "needs Legal" unless the approved
+    rule already accepts it (ACCEPT/ACCEPT_FAVOURABLE) — the same set `review_progress`
+    counts as `required`. Things the document says twice or about us (`observed`) are
+    counted apart, never mixed into the points."""
     if not measured:
         return None
     def n(count: int, word: str) -> str:
         return f"{count} {word}{'s' * (count != 1)}"
+    checks = sum(o.get("action") is not None for o in observed["structural"])
+    also = f" Also check {n(checks, 'thing')} in the contract." if checks else ""
     if decided and not items:
         # AM-179 (2026-10-22): every point a person had to act on is decided — the
         # recommendation no longer counts them; what follows is the contract decision
-        return (f"Every point is decided ({n(decided, 'point')}); the decision on the "
-                "contract follows (§24.3).")
+        return (f"Every point is decided ({n(decided, 'point')}) — the decision on the "
+                f"contract is next.{also}")
     must = sum(i["action"] == MUST_CHANGE for i in items)
     change = sum(i["action"] == SEND_WORDING for i in items)   # NO_WORDING: decide
-    decide = len(items) - must - change + sum(
-        o.get("action") is not None for o in observed["structural"])
-    tail = f"; a person must decide or read {n(decide, 'point')} first" if decide else ""
+    accepted = sum(i["action"] in (ACCEPT, ACCEPT_FAVOURABLE) for i in items)
+    decide = len(items) - must - change - accepted
+    kept = (f" {n(accepted, 'point')} {'differs' if accepted == 1 else 'differ'} in our "
+            "favour and can stay." if accepted else "")
+    tail = f" and Legal must look at {decide} more" if decide else ""
     if must:
-        more = f", and {n(change, 'other change')} proposed" if change else ""
-        return (f"Recommendation: do not sign as drafted — {n(must, 'point')} must "
-                f"change before signing{more}{tail}. Only an authorised approver may "
-                "grant an exception (§25.1).")
+        more = f", {n(change, 'more')} to ask them to change" if change else ""
+        return (f"Not ready to sign: {n(must, 'point')} must change{more}{tail}."
+                f"{kept}{also}")
     if change:
-        return (f"Recommendation: sign after {n(change, 'change')}{tail}. An authorised "
-                "person decides (§24.3).")
+        return (f"Sign after {n(change, 'change')} to ask them for{tail}. Legal "
+                f"decides.{kept}{also}")
     # a deviation with no approved wording still differs from our positions (review r27)
     differ = sum(i.get("classification") in ("DEVIATION", "MISSING") for i in items)
     if decide and differ:
-        return (f"Recommendation: a person must decide or read {n(decide, 'point')} "
-                f"before signing; {n(differ, 'point')} "
-                f"{'differs' if differ == 1 else 'differ'} from our positions with no "
-                "approved wording to send.")
-    if decide:
-        return ("Recommendation: no point differs from our positions, but a person must "
-                f"decide or read {n(decide, 'point')} before signing.")
-    return ("No point differs from our positions — a person still reviews before final "
-            "sign-off (§25.2).")
+        return (f"Not ready to sign: Legal must look at {n(decide, 'point')}; "
+                f"{n(differ, 'point')} {'differs' if differ == 1 else 'differ'} from our "
+                f"standards and we have no approved wording to send.{kept}{also}")
+    if decide or checks:
+        what = f"Legal must look at {n(decide, 'point')}" if decide else \
+            f"check {n(checks, 'thing')} in the contract"
+        return (f"Nothing differs from our standards, but {what} before signing."
+                f"{kept}{also if decide else ''}")
+    return ("Nothing differs from our standards — Legal still reviews before signing."
+            + kept)
 
 
 def _proposals(db: DBSession, sections: set[str]) -> dict[str, dict[str, str]]:

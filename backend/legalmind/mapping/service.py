@@ -36,11 +36,12 @@ class MappingRun:
         return self.results[requirement_version_id].state
 
 
-#: A DOCX header or footer row (``metadata.part``, parsing._docx_furniture): page
+#: A header, footer or table-of-contents row (``metadata.part``; parsing._docx_furniture,
+#: _page_furniture, _mark_contents — the last two since legalmind-ingest-v10): page
 #: furniture, never a clause. Nothing read them before legalmind-ingest-v5, so leaving
 #: them out keeps every clause reader's input exactly as it was (BR-4). Footnotes,
 #: endnotes and text boxes are body content and stay.
-PAGE_FURNITURE = ("header", "footer")
+PAGE_FURNITURE = ("header", "footer", "contents")
 
 
 def body_rows(rows: Iterable[M.DocumentEvidence]) -> list[M.DocumentEvidence]:

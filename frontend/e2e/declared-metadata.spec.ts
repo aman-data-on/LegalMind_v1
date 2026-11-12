@@ -53,7 +53,7 @@ async function uploadOnly(page: Page): Promise<{ contractId: string; versionId: 
   const upload = await page.request.post(`/api/v1/contracts/${contract.id}/document-versions`, {
     headers: {
       "Content-Type": f.document.mime,
-      "X-Filename": f.document.filename,
+      "X-Version-Role": "COMPANY_DRAFT", "X-Filename": f.document.filename,
       "X-CSRF-Token": await csrfToken(page),
     },
     data: readFileSync(f.document.path),
@@ -66,7 +66,11 @@ test("the keys are absent until declared, round-trip, reach the list, and freeze
   const { contractId, versionId } = await uploadOnly(page);
 
   const bare = (await (await page.request.get(`/api/v1/document-versions/${versionId}`)).json()).data;
-  for (const key of Object.keys(DECLARED)) expect(bare, `${key} omitted, not nulled`).not.toHaveProperty(key);
+  // AM-324 r4: the upload itself says whose paper it is (source with it); the rest is absent
+  expect(bare.source).toBe("ORGANIZATION");
+  for (const key of Object.keys(DECLARED).filter((k) => k !== "source")) {
+    expect(bare, `${key} omitted, not nulled`).not.toHaveProperty(key);
+  }
 
   const declared = await declare(page, versionId, DECLARED);
   expect(declared.status()).toBe(200);
@@ -118,15 +122,17 @@ test("the workspace says whose paper it is, who it is with, and when it took eff
   // bheja hai" — answered where the reviewer reads, not only in the dialog
   // that records it. Declared facts render; undeclared ones stay absent.
   await page.goto(`/dashboard?id=${contractId}`);
-  const meta = page.locator(".ws-context__meta");
+  // S1: the client sits in the header; whose paper and the date sit on its bar
+  const meta = page.locator(".ws-record");
   await expect(meta.getByText("Their document")).toBeVisible();
   await expect(meta.getByText(DECLARED.counterparty)).toBeVisible();
-  await expect(meta.getByText("Effective 2026-07-28")).toBeVisible();
+  // plain words since the CLM header (no mono chip): the date as a reader writes it
+  await expect(meta.getByText("Effective 28 Jul 2026")).toBeVisible();
 
   // Cleared → the chip goes, rather than becoming an empty or "unknown" one.
   expect((await declare(page, versionId, { counterparty: null })).status()).toBe(200);
   await page.reload();
-  await expect(page.locator(".ws-context__meta")).toBeVisible();
+  await expect(page.locator(".ws-record")).toBeVisible();
   await expect(meta.getByText(DECLARED.counterparty)).toHaveCount(0);
   await expect(meta.getByText("Their document")).toBeVisible();
 });

@@ -27,10 +27,12 @@ import { Suspense, useCallback, useEffect, useState } from "react";
 import { api, describeError } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
+import { TodoViews } from "@/components/workspace/TodoViews";
 import { reviewStatusLabel } from "@/lib/labels";
 import type { Pagination, Review } from "@/lib/types";
 
 import { ReviewReportPage } from "@/components/workspace/ReviewReportPage";
+import { formatDate } from "@/lib/dates";
 
 const PAGE_SIZE = 25;
 
@@ -95,6 +97,7 @@ function ReviewsQueueView() {
           sizing — so a longer document name in one run moved every column and
           failed job 15 on 7% of pixels with no visible change. */}
       <div className="ws-docs ws-docs--queue">
+        <TodoViews />
         <div className="ws-filter" role="group" aria-label="Filter by status">
           {STATUS_FILTERS.map((filter) => (
             <button
@@ -140,7 +143,7 @@ function ReviewsQueueView() {
             <p>
               {status
                 ? "Nothing visible to your account has this status."
-                : "Reviews appear once a document is analysed. Upload a contract on the Documents page and analysis starts in the flow."}
+                : "Reviews appear once a document is analysed. Upload a contract on the Dashboard to start."}
             </p>
           </div>
         ) : null}
@@ -187,7 +190,7 @@ function ReviewsQueueView() {
                           {reviewStatusLabel(review.status)}
                         </span>
                       </td>
-                      <td className="ws-mono">{review.created_at ? review.created_at.slice(0, 10) : "—"}</td>
+                      <td className="ws-mono">{formatDate(review.created_at) || "—"}</td>
                       <td>
                         <Link href={`/dashboard/reviews?id=${review.id}`}>Report</Link>
                       </td>

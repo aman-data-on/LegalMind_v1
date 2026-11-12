@@ -55,6 +55,13 @@ QUEUE_ANALYSIS = "analysis"
 TASK_INDEX_DOCUMENT_VERSION = "legalmind.assist.index_document_version"
 QUEUE_ASSIST = "assist"
 
+# The client-facing PDF (`AM-293` r2): LibreOffice in the worker only. On the assist
+# queue — derived output, never a legal record — so a slow conversion never delays an
+# analysis, and the worker unit's ``--queues analysis,assist`` needs no change.
+TASK_RENDER_PDF = "legalmind.drafting.render_pdf"
+#: `AM-302`: a blank template's (or a DRAFT's review copy's) PDF, the same way
+TASK_RENDER_BLANK_PDF = "legalmind.drafting.render_blank_pdf"
+
 celery_app = Celery("legalmind")
 
 celery_app.conf.update(
@@ -92,9 +99,11 @@ celery_app.conf.update(
     # kills the process, which rolls the transaction back — so a Review is never left
     # half-analysed by a timeout.
     task_time_limit=config.analysis_time_limit_seconds(),
-    # Never above the hard limit: Celery 5.7 refuses soft > hard (job 12 uses 30 s).
-    task_soft_time_limit=min(config.analysis_time_limit_seconds(),
-                             max(config.analysis_time_limit_seconds() - 60, 60)),
+    # Celery >= 5.7 refuses a soft limit above the hard one (a limit under 60 s).
+    task_soft_time_limit=min(
+        config.analysis_time_limit_seconds(),
+        max(config.analysis_time_limit_seconds() - 60, 60),
+    ),
 
     # --- how long a lost message stays lost -------------------------------
     # `task_acks_late` alone does NOT make recovery prompt, which is the kind of thing

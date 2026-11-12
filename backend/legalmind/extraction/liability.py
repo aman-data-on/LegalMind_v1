@@ -167,6 +167,11 @@ class LiabilityExtractionConfig:
     #: secret": §15's own carve-out). A sentence naming one never states this one: "such
     #: obligations shall continue for so long as … a trade secret" is no second period.
     other_positions: tuple[str, ...] = ()
+    #: AM-304 — what the law will not let anyone limit, in the standard's own sourced
+    #: words: a carve-out of only these leaves the cap as it reads. AM-313: the standard's
+    #: `approved_carve_outs` (a class its Constitution section takes out of the cap)
+    #: join it.
+    lawful_floor: tuple[str, ...] = ()
 
     @property
     def is_usable(self) -> bool:
@@ -204,6 +209,8 @@ class LiabilityExtractionConfig:
             general_scope=block.get("general_scope") or SCOPE_GENERAL,
             cap_context_terms=tuple(block.get("cap_context_terms") or ()),
             other_positions=tuple(block.get("other_positions") or ()),
+            lawful_floor=(*(block.get("lawful_floor") or ()),
+                          *(block.get("approved_carve_outs") or ())),
         )
 
 
@@ -322,31 +329,62 @@ def cap_disapplied(clauses: list[Clause]) -> tuple[Clause, ...]:
 #: AM-195 (2026-10-26, amends AM-164's protected list): Constitution §9 (L1.14) — "No
 #: separate multiplier or super-cap has been approved ... for confidentiality, IP
 #: infringement, data-breach, privacy, cybersecurity, or other exceptional claims". A
-#: sentence that takes one of THOSE classes out of the cap leaves it uncapped there; what
-#: the law will not let anyone limit (fraud, death, personal injury) stays protected.
-_SECTION_9_CLASSES = re.compile(
-    r"\b(?:confidential\w*|data\s+(?:protection|breach|security|privacy)|privacy|"
-    r"cyber\s*security|security\s+(?:breach|incident)|intellectual\s+property|"
-    r"infringe\w*|indemnif\w*|indemnit\w*)", re.I)
+#: sentence that takes a class of claims out of the cap leaves it uncapped there.
+#: AM-304 (2026-11-04): ANY class but the lawful floor — what the law will not let anyone
+#: limit, in the standard's configured words (`lawful_floor`, the published TOS §13) —
+#: is such a carve-out: indemnities, payment, wilful misconduct, gross negligence too.
 _CAP_NOT_FOR = re.compile(
-    r"\b(?:cap|limitation|limit)\b.{0,80}?\b(?:shall|will|does|do)\s+not\s+"
+    r"\b(?:cap|limitations?|limits?)\b.{0,80}?\b(?:shall|will|does|do)\s+not\s+"
     r"(?:apply|extend)\s+(?:to|in\s+respect\s+of)\b(?P<rest>.*)"
-    r"|(?P<head>.*)\b(?:shall|will)\s+not\s+be\s+subject\s+to\s+(?:the|any)\s+"
-    r"(?:cap|limitation)", re.I)
+    r"|\bnothing\s+in\s+(?:this|these)\s+\w+\s+(?:shall\s+)?(?:limits?|excludes?)"
+    r"(?:\s+or\s+excludes?)?\b(?P<list>.*)"
+    r"|(?P<head>.*)\b(?:shall|will)\s+(?:not\s+be\s+subject\s+to|be\s+excluded\s+from|"
+    r"be\s+outside)\s+(?:the|any)\s+(?:cap|limitation)"
+    r"|(?P<bare>.*)\b(?:shall|will)\s+be\s+(?:uncapped|unlimited)\b", re.I)
+_ITEM_MARK = re.compile(r"\(\s*(?:[a-z]|[ivx]+)\s*\)|[:;,.]", re.I)
+#: words that name no class of claim: connectives and the parties' generic names
+_NO_CLASS = frozenset({
+    "a", "an", "the", "any", "all", "of", "for", "or", "and", "by", "to", "in", "from",
+    "under", "arising", "out", "with", "respect", "such", "its", "their", "his", "her",
+    "either", "each", "party", "party's", "parties", "parties'", "liability",
+    "liabilities", "liable", "claims", "claim", "loss", "losses", "leapswitch",
+    "leapswitch's", "customer", "customer's", "provider", "provider's", "supplier",
+    "supplier's", "company", "company's", "you", "your", "we", "our", "us",
+    "agreement", "terms", "this", "these",
+})
 
 
-def cap_carved_out(clauses: list[Clause]) -> tuple[tuple[Clause, str], ...]:
-    """The clauses that take a §9-named class of claims out of the cap, with the class
-    named (AM-195). Read over every clause, as `cap_disapplied` is."""
+def _beyond_floor(said: str, floor: tuple[str, ...]) -> str | None:
+    """The first listed item that is not the lawful floor, or None. An item is the floor
+    when every word it uses is a word of a configured floor phrase (or names no class:
+    "or for fraud", "liability that cannot be excluded by law")."""
+    vocabulary = _NO_CLASS | {w for phrase in floor for w in _words(phrase)}
+    for item in _ITEM_MARK.split(said):
+        if any(w not in vocabulary for w in _words(item)):
+            return " ".join(item.split())
+    return None
+
+
+def _words(text: str) -> list[str]:
+    return re.findall(r"[a-z][a-z']*", text.lower().replace("\u2019", "'"))
+
+
+def cap_carved_out(clauses: list[Clause], floor: tuple[str, ...] = ()
+                   ) -> tuple[tuple[Clause, str], ...]:
+    """The clauses that take a class of claims beyond the lawful floor out of the cap,
+    with that class named (AM-195, AM-304). Read over every clause, as `cap_disapplied`
+    is."""
     found = []
     for clause in clauses:
         text = " ".join((clause.content or "").split())
         for sentence in re.split(r"(?<=\.)\s+", text):   # "9.1" never splits
             m = _CAP_NOT_FOR.search(sentence)
-            said = (m.group("rest") or m.group("head") or "") if m else ""
-            hit = _SECTION_9_CLASSES.search(said)
+            said = next((g for g in m.groups() if g), "") if m else ""
+            if m and m.group("list") and not re.search(r"\bliab", said, re.I):
+                said = ""          # "Nothing in this Agreement limits our right to …"
+            hit = _beyond_floor(said, floor) if said else None
             if hit:
-                found.append((clause, hit.group(0)))
+                found.append((clause, hit))
                 break
     return tuple(found)
 
@@ -997,7 +1035,11 @@ def _about_this_term(body: str, config: LiabilityExtractionConfig) -> bool:
         if notice and _phrase_span(s, ("notice",)) is None:
             return False
         if _find_magnitude(s, config.units) is not None:
-            return not words or _phrase_span(s, words) is not None
+            # a figure beside the basis word alone is a neighbour's (2026-11-04: "inform
+            # us 10 days prior to the date of invoice" is a GST notice, no payment
+            # period) — the topic beyond the basis word, as the basis reading requires
+            return (not words or _phrase_span(s, words) is not None) \
+                and _names_topic(s, config)
         # QA-018: a period in another unit ("payable within three (3) weeks of the
         # invoice date", "30 working days") is found, its figure unread — but only in a
         # sentence naming the term's OWN basis words; a topic word alone ("invoice")

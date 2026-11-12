@@ -14,7 +14,9 @@ depend on a reachable database.
 
 from __future__ import annotations
 
-from sqlalchemy import create_engine
+from collections.abc import Callable
+
+from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session as DBSession
 from sqlalchemy.orm import sessionmaker
@@ -60,3 +62,27 @@ def reset() -> None:
         _engine.dispose()
     _engine = None
     _sessionmaker = None
+
+
+def on_rollback(db: DBSession, fn: Callable[[], object]) -> None:
+    """Run ``fn`` if the transaction open now — or one enclosing it — rolls back, and
+    never once it commits. A savepoint opened and rolled back later leaves it alone
+    (``after_soft_rollback`` fires for every savepoint, so the ancestry is checked)."""
+    mine = db.get_nested_transaction() or db.get_transaction()
+    live = [mine is not None]
+
+    def rolled_back(_session: DBSession, previous: object) -> None:
+        tx = mine
+        while live[0] and tx is not None:
+            if tx is previous:
+                live[0] = False
+                fn()
+            tx = tx.parent
+
+    def committed(_session: DBSession) -> None:
+        live[0] = False
+
+    # ponytail: the rollback listener stays on the session until it is closed (one per
+    # request or job); remove it on commit if a session ever lives long
+    event.listen(db, "after_soft_rollback", rolled_back)
+    event.listen(db, "after_commit", committed, once=True)

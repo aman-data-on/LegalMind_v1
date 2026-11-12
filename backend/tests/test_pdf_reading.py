@@ -420,7 +420,9 @@ CORPUS_PDFS = ["AUP-cloudpe.pdf", "AUP-leapswitch.pdf", "MSA-Feb.pdf",
                "SLA-leapswitch.pdf", "TOS-cloudpe.pdf", "TOS-leapswitch.pdf"]
 # sha256[:16] of the numbered section_number sequence, measured with the parser
 # BEFORE the 2026-10-15 changes: tables, rotation and OCR must not move a clause.
-NUMBERED_BEFORE = {"MSA.pdf": "7b769554a27a57d7",
+# MSA.pdf (legalmind-ingest-v10, 2026-11-09): + "1", its "1." printed above DEFINITIONS
+# (`_bare_heading`); every other number unchanged.
+NUMBERED_BEFORE = {"MSA.pdf": "386dff4aaa5d7f30",
                    "MSA-GRP-2026-07-30.pdf": "6586288bb2e4ff83",
                    "TOS-leapswitch.pdf": "20f4febbb893732e"}
 
@@ -441,8 +443,9 @@ def test_every_approved_pdf_still_reads_complete(name):
         numbers = "\n".join(s.section_number for s in result.segments if s.section_number)
         assert hashlib.sha256(numbers.encode()).hexdigest()[:16] == NUMBERED_BEFORE[name]
     if name == "TOS-leapswitch.pdf":       # its 25% banner image is not a scan (BR-8)
+        # (its browser-print header and footer are page furniture rows since v10)
         assert all(s.source_type is EvidenceSourceType.NATIVE_TEXT
-                   for s in result.segments)
+                   for s in result.segments if s.metadata.get("part") is None)
 
 
 def test_the_sla_credit_rows_stay_under_issuance_of_service_credits():

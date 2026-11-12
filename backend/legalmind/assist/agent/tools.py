@@ -1231,6 +1231,20 @@ def show_capabilities(ctx: ToolContext, a: ShowCapabilitiesArgs) -> ToolResult:
 
 
 FIND_DOCUMENTS_MAX = 200
+#: `AM-318`: the final contract a deal ends at — agreed, signed in another tool
+FINAL_AGREED = "the final agreed contract (not a draft), to be signed outside LegalMind"
+
+
+def version_status(role: str | None, final: bool) -> str:
+    """How the model is told what a version is: executed, the final agreed contract
+    (a final copy or Annexure package, `AM-318`), or a draft."""
+    if role == "FINAL_SIGNED":
+        return "executed"
+    return FINAL_AGREED if final else "draft or unsigned"
+
+
+#: the SQL test for a final contract version (`negotiation.final_of`)
+FINAL_SQL = "(v.metadata ? 'final_copy_of' OR v.metadata ? 'package_of')"
 
 
 def find_documents(ctx: ToolContext, a: FindDocumentsArgs) -> ToolResult:
@@ -1244,12 +1258,12 @@ def find_documents(ctx: ToolContext, a: FindDocumentsArgs) -> ToolResult:
     pats = [f"%{t}%" for t in sorted(tokens)]
     rows = ctx.db.execute(text(
         "SELECT DISTINCT ON (c.id) c.id, c.name, c.contract_type, v.id, "
-        "v.metadata->>'version_role', v.original_filename "
+        "v.metadata->>'version_role', v.original_filename, " + FINAL_SQL + " "
         "FROM contracts c JOIN document_versions v ON v.contract_id = c.id "
         "WHERE lower(c.name) LIKE ANY(:p) OR lower(v.original_filename) LIKE ANY(:p) "
         "ORDER BY c.id, v.version_number DESC"), {"p": pats}).all()
     found: list[tuple[int, dict]] = []
-    for cid, name, ctype, vid, role, filename in rows:
+    for cid, name, ctype, vid, role, filename, final in rows:
         # The cap counts documents the reader may read: capped before the check, a
         # common word ("msa") let unreadable ones crowd readable ones out (2026-10-13).
         # ponytail: one readability check per name match; push the scope into SQL if
@@ -1264,8 +1278,7 @@ def find_documents(ctx: ToolContext, a: FindDocumentsArgs) -> ToolResult:
         if hits:
             found.append((hits, {"document_version_id": str(vid), "name": name,
                                  "document_type": ctype,
-                                 "status": "executed" if role == "FINAL_SIGNED"
-                                 else "draft or unsigned",
+                                 "status": version_status(role, final),
                                  "selected": cid == ctx.contract_id}))
     found.sort(key=lambda x: (-x[0], x[1]["name"]))
     return ToolResult(tool="find_documents",

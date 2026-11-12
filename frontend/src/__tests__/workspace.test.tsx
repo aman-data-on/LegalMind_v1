@@ -8,15 +8,18 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { EscalateControl } from "@/components/workspace/EscalateControl";
-import { DOCUMENT_TYPES, documentSourceChip, documentSourceLabel, documentTypeLabel, nameFromFilename, typeHintFromFilename } from "@/lib/documentTypes";
+import { DOCUMENT_TYPES, documentSourceChip, documentSourceLabel, documentTypeLabel, isOurs, nameFromFilename, typeHintFromFilename } from "@/lib/documentTypes";
 import { contractStatusLabel } from "@/lib/labels";
 import {
   activeNavHref,
+  contractHref,
+  contractTabFromPath,
   analysisCell,
   pickVersion,
   groupByPage,
   locationLabel,
   navItemsFor,
+  todoViews,
   outlineOf,
   partLabel,
   reviewOrder,
@@ -106,7 +109,8 @@ describe("navigation by absence AND by existence (52.3 + the 2026-08-30 cleanup)
     const user = new Set([P.CONTRACT_VIEW, P.REVIEW_VIEW, P.ASSIST_ASK]);
     const items = navItemsFor((p) => user.has(p));
     expect(items).toEqual([
-      { href: "/dashboard", label: "Dashboard" },
+      { href: "/contracts", label: "Contracts" },
+      { href: "/todo", label: "To-do", also: ["/dashboard/reviews", "/dashboard/legal"] },
       { href: "/dashboard/clients", label: "Client Profiles" },
       { href: "/dashboard/ask", label: "Ask" },
     ]);
@@ -134,12 +138,14 @@ describe("navigation by absence AND by existence (52.3 + the 2026-08-30 cleanup)
     expect(admin.map((i) => i.href)).not.toContain("/dashboard/clients");
   });
 
-  it("the active item is the LONGEST matching href, so Dashboard never lights on a sibling screen", () => {
+  it("the active item is the LONGEST matching href, so Contracts never lights on a sibling screen", () => {
     const items = navItemsFor(() => true);
-    expect(activeNavHref("/dashboard", items)).toBe("/dashboard");
-    expect(activeNavHref("/dashboard/0a1b2c3d-0000-4000-8000-000000000000", items)).toBe("/dashboard");
-    expect(activeNavHref("/dashboard/reviews", items)).toBe("/dashboard/reviews");
-    expect(activeNavHref("/dashboard/reviews/0a1b2c3d", items)).toBe("/dashboard/reviews");
+    expect(activeNavHref("/contracts", items)).toBe("/contracts");
+    expect(activeNavHref("/contracts/0a1b2c3d-0000-4000-8000-000000000000/changes", items)).toBe("/contracts");
+    /* AM-264: Reviews and Legal are To-do views, so they light To-do. */
+    expect(activeNavHref("/todo", items)).toBe("/todo");
+    expect(activeNavHref("/dashboard/reviews", items)).toBe("/todo");
+    expect(activeNavHref("/dashboard/reviews/0a1b2c3d", items)).toBe("/todo");
     expect(activeNavHref("/dashboard/ask/0a1b2c3d", items)).toBe("/dashboard/ask");
     /* `/dashboard/clients` is a longer match than `/dashboard`, so opening a
      * client keeps Client Profiles lit and does not also light the Dashboard. */
@@ -147,19 +153,30 @@ describe("navigation by absence AND by existence (52.3 + the 2026-08-30 cleanup)
     expect(activeNavHref("/login", items)).toBeNull();
   });
 
-  it("legal.review is what turns Reviews into a destination, and adds the Legal queue", () => {
-    /* The queue says something the Dashboard cannot only once `legal.review`
+  it("legal.review adds the Reviews and Legal queues — as To-do views, not nav items (AM-264)", () => {
+    /* The queue says something the Contracts list cannot only once `legal.review`
      * widens `GET /reviews` past the caller's own contracts (`REC-09`). */
     const counsel = new Set([P.CONTRACT_VIEW, P.REVIEW_VIEW, P.LEGAL_REVIEW, P.ASSIST_ASK]);
     const items = navItemsFor((p) => counsel.has(p));
     expect(items.map((i) => i.href)).toEqual([
-      "/dashboard",
-      "/dashboard/reviews",
-      "/dashboard/legal",
-      "/dashboard/clients",
-      "/dashboard/ask",
+      "/contracts", "/todo", "/dashboard/clients", "/dashboard/ask",
     ]);
-    expect(activeNavHref("/dashboard/legal", items)).toBe("/dashboard/legal");
+    expect(activeNavHref("/dashboard/legal", items)).toBe("/todo");
+    expect(todoViews((p) => counsel.has(p)).map((v) => v.href)).toEqual([
+      "/todo", "/dashboard/reviews", "/dashboard/legal",
+    ]);
+    const owner = new Set([P.CONTRACT_VIEW, P.REVIEW_VIEW]);
+    expect(todoViews((p) => owner.has(p)).map((v) => v.href)).toEqual(["/todo"]);
+  });
+
+  it("contract links read /contracts/{id}, and the path names the tab (AM-263)", () => {
+    expect(contractHref("c1")).toBe("/contracts/c1");
+    expect(contractHref("c1", "changes")).toBe("/contracts/c1/changes");
+    expect(contractHref("c1", { version: 3 })).toBe("/contracts/c1/versions/3");
+    expect(contractTabFromPath("/contracts/c1")).toEqual({ tab: "document" });
+    expect(contractTabFromPath("/contracts/c1/changes")).toEqual({ tab: "changes" });
+    expect(contractTabFromPath("/contracts/c1/versions/3")).toEqual({ tab: "versions", version: 3 });
+    expect(contractTabFromPath("/contracts/c1/versions/x")).toEqual({ tab: "versions" });
   });
 
   it("configuration.view offers the screen that publishes the snapshot analysis pins", () => {
@@ -184,7 +201,8 @@ describe("navigation by absence AND by existence (52.3 + the 2026-08-30 cleanup)
       P.CONFIGURATION_VIEW, P.AUDIT_VIEW, P.USER_MANAGE,
     ]);
     for (const item of navItemsFor((p) => everyone.has(p))) {
-      expect(item.href).not.toMatch(/^\/(contracts|reviews|configuration|audit|admin)(\/|$)/);
+      // `/contracts` is the CURRENT home (AM-262), no longer a retired legacy address
+      expect(item.href).not.toMatch(/^\/(reviews|configuration|audit|admin)(\/|$)/);
     }
   });
 });
@@ -209,7 +227,7 @@ describe("EscalateControl", () => {
         onChanged={() => {}}
       />,
     );
-    expect(html).toContain("Escalate for authorized review");
+    expect(html).toContain(">Ask Legal</button>");
     expect(html).toContain("<button");
     // Quiet register (master prompt: escalation is visually distinct from a
     // decision) — never the primary-button class the decision control uses.
@@ -224,7 +242,8 @@ describe("EscalateControl", () => {
         onChanged={() => {}}
       />,
     );
-    expect(html).toContain("a request, not an approval");
+    // a request in plain words — Legal decides, the asker does not (S1)
+    expect(html).toContain("You asked Legal to look at this. Asking is not an approval — Legal decides.");
     expect(html).toContain("Withdraw");
   });
 });
@@ -412,5 +431,18 @@ describe("Avatar", () => {
     expect(photo).toContain("googleusercontent.com");
     expect(renderToStaticMarkup(<Avatar name="Aman Singh" />)).toContain(">A<");
     expect(renderToStaticMarkup(<Avatar name="Aman Singh" picture={null} />)).not.toContain("<img");
+  });
+});
+
+describe("isOurs — the server's rule (P1, owner 2026-11-09)", () => {
+  it("counts only a declared draft or our paper by source; an undeclared version is no one's", () => {
+    expect(isOurs({ version_role: "COMPANY_DRAFT" })).toBe(true);
+    expect(isOurs({ source: "ORGANIZATION" })).toBe(true);
+    expect(isOurs({})).toBe(false);
+    expect(isOurs({ version_role: null, source: null })).toBe(false);
+    expect(isOurs({ version_role: "CLIENT_MODIFIED", source: "ORGANIZATION" })).toBe(false);
+    expect(isOurs({ version_role: "FINAL_SIGNED" })).toBe(false);
+    expect(isOurs({ source: "COUNTERPARTY" })).toBe(false);
+    expect(isOurs(null)).toBe(false);
   });
 });

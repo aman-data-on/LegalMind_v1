@@ -109,10 +109,14 @@ test.describe("LEGAL-02 — confidential fields are absent, not null", () => {
      * label all fail it, and none of them can fail silently.
      *
      * The pair matters as much as the assertion: the with-permission test below
-     * asserts the SAME set plus "company standard", from the same code path. So
+     * asserts the SAME set plus "our standard", from the same code path. So
      * the two together prove this screen discriminates on the permission rather
      * than never rendering the field at all. */
-    expect(await labelsOf(evaluation)).toEqual(["contract", "next step"]);
+    // CLM Page 2 (M7, 2026-11-03): once the point's case has loaded, the card head says what
+    // the contract does, so its "Contract" and "Next step" rows go; for this owner the face
+    // shows no labelled fact at all, and the with-permission test below gets "our standard"
+    // from the same code path.
+    await expect.poll(() => labelsOf(evaluation)).toEqual([]);
 
     // The scoped Evaluation is still fully identified — omission removes the legal
     // position, not the audit trail (45B.10 / AM-19).
@@ -175,7 +179,9 @@ test.describe("LEGAL-02 — a caller WITH the permission does receive it", () =>
     /* The same exact set as the without-permission test, plus the one label the
        permission adds. Asserted as a set for the same reason: it is what makes
        that test's absence meaningful rather than vacuous. */
-    expect(await labelsOf(evaluation)).toEqual(["contract", "company standard", "next step"]);
+    // polled: "Contract" shows only until the point's case has loaded (the card head then
+    // says what the contract does), so the settled set is the one asserted
+    await expect.poll(() => labelsOf(evaluation)).toEqual(["our standard"]);
 
     // And it is real, renderable content — not dead markup sitting unreachable
     // in a disclosure nobody can open: expanding it makes the chip visible.

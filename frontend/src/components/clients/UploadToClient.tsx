@@ -27,7 +27,7 @@
 
 import { useRef, useState } from "react";
 
-import { api, describeError, uploadFirstDocument } from "@/lib/api";
+import { api, describeError, uploadFirstDocument, type UploadRole } from "@/lib/api";
 import { chainAnalysis } from "@/lib/analysisChain";
 import {
     VERSION_ROLES,
@@ -46,11 +46,11 @@ const SUPPORTED = [".pdf", ".docx", ".md", ".txt"];
 function preflight(file: File): string | null {
   const name = file.name.toLowerCase();
   if (!SUPPORTED.some((ext) => name.endsWith(ext))) {
-    return "This file type is not supported. Please choose a PDF, DOCX, Markdown or text file.";
+    return "This file type is not supported. Choose a PDF, DOCX, Markdown or text file.";
   }
-  if (file.size === 0) return "This file is empty. Please choose another file.";
+  if (file.size === 0) return "This file is empty. Choose another file.";
   if (file.size > MAX_UPLOAD_BYTES) {
-    return "This file exceeds the 25 MB limit. Please choose a smaller file.";
+    return "This file exceeds the 25 MB limit. Choose a smaller file.";
   }
   return null;
 }
@@ -89,6 +89,7 @@ export function UploadToClient({ client, onDone, initialContractId }: {
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     if (!file) return;
+    if (!role) { setError(new Error("Choose whose paper this version is.")); return; }
     setBusy(true);
     setError(null);
     try {
@@ -109,8 +110,8 @@ export function UploadToClient({ client, onDone, initialContractId }: {
       setStep("Uploading…");
       // a revision of an existing contract is never discarded; a new one is, if refused
       const uploaded = intoContractId
-        ? await api.uploadDocument(contractId, file)
-        : await uploadFirstDocument(contractId, file);
+        ? await api.uploadDocument(contractId, file, role as UploadRole)
+        : await uploadFirstDocument(contractId, file, role as UploadRole);
 
       // AM-64 (owner, 2026-09-13): the reader never selects a type. The assist
       // lane's CONFIDENT inference is recorded and audited as the intake does
@@ -131,19 +132,7 @@ export function UploadToClient({ client, onDone, initialContractId }: {
         }
       }
 
-      // What this version IS. Declared before analysis on purpose: locked 33.7
-      // freezes a version's declared metadata once a Review exists, so the
-      // order here is the difference between a recorded role and a 409.
-      if (role) {
-        setStep("Recording what this version is…");
-        try {
-          await api.declareVersion(uploaded.document_version.id,
-                                   { version_role: role });
-        } catch {
-          // Best-effort: the document is uploaded and safe. The version list
-          // offers the same choice again rather than losing the upload over it.
-        }
-      }
+      // What this version IS travels with the file (AM-324 r4) — before any Review.
 
       setStep("Starting the review…");
       await chainAnalysis(contractId, can(P.REVIEW_CREATE));
@@ -185,8 +174,7 @@ export function UploadToClient({ client, onDone, initialContractId }: {
           </select>
           {intoContractId ? (
             <span className="ws-field__help">
-              Added as the next version. The versions already there are kept
-              exactly as they are.
+              Added as the next version. Earlier versions are kept.
             </span>
           ) : null}
         </label>
@@ -194,10 +182,12 @@ export function UploadToClient({ client, onDone, initialContractId }: {
         <label className="ws-field">
           <span className="ws-field__label">Version</span>
           <select value={role} onChange={(event) => setRole(event.target.value)}
-                  disabled={busy}>
-            <option value="">Not classified</option>
-            {VERSION_ROLES.map((r) => (
-              <option key={r.role} value={r.role}>{r.label} — {r.hint}</option>
+                  disabled={busy} required>
+            {/* AM-324 r4: whose paper it is, always said */}
+            <option value="" disabled>Choose whose paper it is…</option>
+            {/* AM-318 B8: signing happens in another tool — "signed" is never declared here */}
+            {VERSION_ROLES.filter((r) => r.role !== "FINAL_SIGNED").map((r) => (
+              <option key={r.role} value={r.role}>{`${r.label} — ${r.hint}`}</option>
             ))}
           </select>
         </label>

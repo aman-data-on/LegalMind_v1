@@ -130,7 +130,7 @@ describe("what the outcome means, in one sentence", () => {
 
 describe("what happens next", () => {
   it("names the person when the server flagged that one is needed", () => {
-    expect(nextStep(finding(), evaluation())).toMatch(/legal authority/i);
+    expect(nextStep(finding(), evaluation())).toMatch(/Legal decides/);
   });
 
   it("states a recorded decision as settled", () => {
@@ -148,15 +148,15 @@ describe("what happens next", () => {
     const withOutcome = nextStep(finding(), evaluation({ rule_outcome: "NOT_APPLICABLE" }));
     const without = nextStep(finding(), evaluation());
     expect(withOutcome).toBe(without);
-    expect(without).toMatch(/legal authority/i);
+    expect(without).toMatch(/Legal decides/);
     expect(without).not.toMatch(/rule|applicable/i);
   });
 
   it("keeps an escalated MATCH pointed at a person — never 'No action is needed' beside a decision flag", () => {
     const step = nextStep(finding({ classification: "MATCH", requires_decision: true, escalated: true }),
                           evaluation({ classification: "MATCH", requires_decision: true }));
-    expect(step).toMatch(/escalated/i);
-    expect(step).toMatch(/legal authority/i);
+    expect(step).toMatch(/Legal has been asked/);
+    expect(step).toMatch(/Legal decides/);
     expect(step).not.toMatch(/No action/);
   });
 
@@ -164,24 +164,24 @@ describe("what happens next", () => {
     const step = (c: string) => nextStep(finding({ classification: c, requires_decision: c !== "MATCH" }),
                                          evaluation({ classification: c, requires_decision: c !== "MATCH" }));
     expect(step("MATCH")).toBe("No action is needed.");
-    expect(step("DEVIATION")).toMatch(/needs to be modified, or someone with legal authority must decide/);
-    expect(step("MISSING")).toBe("The contract has no clause on this. Our wording needs to be added, or someone with legal authority must decide.");
+    expect(step("DEVIATION")).toMatch(/needs to change, or Legal decides/);
+    expect(step("MISSING")).toBe("The contract has no clause on this. Our wording needs to be added, or Legal decides.");
     for (const c of ["CONFLICT", "UNABLE_TO_EVALUATE"]) {
-      expect(step(c), c).toBe(`${c === "CONFLICT" ? "Two clauses say different things on this." : "The clause was found, but what it says on this could not be confirmed."} Someone with legal authority decides.`);
+      expect(step(c), c).toBe(`${c === "CONFLICT" ? "Two clauses say different things on this." : "The clause was found, but what it says on this could not be confirmed."} Legal decides.`);
     }
   });
 
   it("never pre-decides the legal outcome — no 'would make this Accepted' on any card (owner, 2026-09-09)", () => {
     for (const c of ["DEVIATION", "MISSING", "CONFLICT", "UNABLE_TO_EVALUATE"]) {
       const step = nextStep(finding({ classification: c }), evaluation({ classification: c }))!;
-      expect(step, c).toMatch(/legal authority/i);
+      expect(step, c).toMatch(/Legal decides/);
       expect(step, c).not.toMatch(/Accepted|would make|must be (modified|changed|amended)/i);
     }
   });
 
   it("routes Not accepted to a person and never suggests a self-service edit", () => {
     const step = nextStep(finding({ classification: "DEVIATION" }), evaluation({ classification: "DEVIATION" }), "REQUIRES_MODIFICATION");
-    expect(step).toBe("This does not match the company standard. The clause needs to be modified, or someone with legal authority must decide.");
+    expect(step).toBe("This does not match the company standard. The clause needs to change, or Legal decides.");
     expect(step).not.toMatch(/would make/);
   });
 });
@@ -293,13 +293,13 @@ describe("a recorded value as one phrase", () => {
 });
 
 describe("why this was flagged — the reasoning chain", () => {
-  it("runs Requirement → This document → Company standard → Result", () => {
+  it("runs This document → Our standard → Result (page 2: the requirement step said nothing)", () => {
     const steps = reasoningSteps(finding(), evaluation({ rule_outcome: "NOT_APPLICABLE", expected_value: { presence: "PRESENT" } }), 0);
     expect(steps.map((s) => s.label))
-      .toEqual(["Requirement", "This document", "Company standard", "Result"]);
-    expect(steps[1]!.text).toBe("No matching provision was found.");
-    expect(steps[2]!.text).toMatch(/expects this to be present/i);
-    expect(steps[3]!.text).toBe("Recorded as MISSING.");
+      .toEqual(["This document", "Our standard", "Result"]);
+    expect(steps[0]!.text).toBe("No matching provision was found.");
+    expect(steps[1]!.text).toMatch(/expects this to be present/i);
+    expect(steps[2]!.text).toBe("Recorded as MISSING.");
   });
 
   it("drops the standard step entirely when it is omitted for this caller", () => {
@@ -307,23 +307,23 @@ describe("why this was flagged — the reasoning chain", () => {
     // chain reads Requirement → This document → Result, with no empty row and
     // no "not available" placeholder standing in for a legal position.
     const steps = reasoningSteps(finding(), evaluation(), 0);
-    expect(steps.map((s) => s.label)).toEqual(["Requirement", "This document", "Result"]);
+    expect(steps.map((s) => s.label)).toEqual(["This document", "Result"]);
   });
 
   it("counts the passages it actually has, and says so when it has none", () => {
     const one = reasoningSteps(finding({ classification: "MATCH" }), evaluation({
       classification: "MATCH", actual_value: { presence: "PRESENT" }, evidence_refs: ["a"],
     }), 1);
-    expect(one[1]!.text).toMatch(/1 passage/);
+    expect(one[0]!.text).toMatch(/1 passage/);
     const many = reasoningSteps(finding({ classification: "MATCH" }), evaluation({
       classification: "MATCH", actual_value: { presence: "PRESENT" }, evidence_refs: ["a", "b", "c"],
     }), 3);
-    expect(many[1]!.text).toMatch(/3 passages/);
+    expect(many[0]!.text).toMatch(/3 passages/);
     // Present, but nothing cited — stated plainly rather than implied.
     const bare = reasoningSteps(finding({ classification: "MATCH" }), evaluation({
       classification: "MATCH", actual_value: { presence: "PRESENT" },
     }), 0);
-    expect(bare[1]!.text).toMatch(/no supporting passage/i);
+    expect(bare[0]!.text).toMatch(/no supporting passage/i);
   });
 
   it("never renders an empty step, which is what the old explainer did", () => {

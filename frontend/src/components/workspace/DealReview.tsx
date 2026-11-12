@@ -422,7 +422,7 @@ export function ContractMemo({ file, rows, answers, busy, onCorrect, onDraft }: 
       {reviewed ? (
         <div className="ws-deal__tools">
           <span className="ws-deal__where">Sending a point to Legal: upload the contract on the
-            Dashboard and use Send for review.</span>
+            Dashboard and use Send to Legal.</span>
           <span className="ws-deal__btns">
             <button type="button" className="ws-btn ws-btn--sm" onClick={() => {
               void navigator.clipboard?.writeText(memoMarkdown(file, open)).then(() => setCopied(true));

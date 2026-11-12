@@ -66,6 +66,7 @@ export function Dialog({
   titleId,
   dismissOnScrimClick = true,
   overlayClassName,
+  returnFocus,
   children,
 }: {
   onClose: () => void;
@@ -81,6 +82,9 @@ export function Dialog({
       hatch for a caller that needs a variant backdrop (e.g. the Upload
       dialog's blur) without changing every other dialog's overlay. */
   overlayClassName?: string;
+  /** Where focus goes on close, for a dialog opened from a control that is gone by then
+      (a menu item): Radix would otherwise refocus its absent Trigger, leaving the body. */
+  returnFocus?: () => HTMLElement | null | undefined;
   children: ReactNode;
 }) {
   return (
@@ -92,6 +96,10 @@ export function Dialog({
             aria-labelledby={titleId}
             aria-describedby={undefined}
             onKeyDown={(event) => event.stopPropagation()}
+            onCloseAutoFocus={returnFocus ? (event) => {
+              const to = returnFocus();
+              if (to) { event.preventDefault(); to.focus(); }
+            } : undefined}
             onInteractOutside={(event) => {
               if (!dismissOnScrimClick) event.preventDefault();
             }}

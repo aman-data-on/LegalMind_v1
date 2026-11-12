@@ -17,8 +17,46 @@ import { useEffect, useRef, useState } from "react";
 import * as P from "@/lib/permissions";
 import { loginPath, useSession } from "@/lib/session";
 
-import { IconBell, IconChevronDown, IconSparkle } from "./icons";
+import { IconChevronDown, IconMenu, IconSparkle } from "./icons";
 import { activeNavHref, navItemsFor } from "./model";
+import { BellToggle, NotificationPanel, useNotifications } from "./Notifications";
+
+/** The floating Ask button steps aside while the reader scrolls down a list and comes back
+ *  on the way up or at the top (the standard FAB behaviour) — so it never sits over the
+ *  row being read. Capture catches whichever element scrolls; rAF keeps it to one read a
+ *  frame. Hidden is presentation only: the link stays in the tab order and shows on focus. */
+function useHiddenOnScrollDown(): boolean {
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => {
+    // a scroller seen for the first time is taken to start at its top
+    let last = 0, frame = 0, source: EventTarget | null = null;
+    const read = () => {
+      frame = 0;
+      const el = source instanceof Element ? source : document.scrollingElement;
+      const y = el?.scrollTop ?? 0;
+      if (y <= 24) setHidden(false);
+      else if (Math.abs(y - last) > 4) setHidden(y > last);
+      else return; // a slow drag adds up until it passes the threshold
+      last = y;
+    };
+    const onScroll = (e: Event) => {
+      if (source !== e.target) { source = e.target; last = 0; }
+      if (!frame) frame = requestAnimationFrame(read);
+    };
+    document.addEventListener("scroll", onScroll, { capture: true, passive: true });
+    return () => {
+      document.removeEventListener("scroll", onScroll, { capture: true });
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, []);
+  return hidden;
+}
+
+const FIRST_SCREEN_FACES = [
+  '400 1em "IBM Plex Sans"', '500 1em "IBM Plex Sans"', '600 1em "IBM Plex Sans"',
+  '400 1em "Source Serif 4"', '700 1em "Source Serif 4"', 'italic 400 1em "Source Serif 4"',
+  '400 1em "IBM Plex Mono"',
+];
 
 /** The account's circle: the sign-in provider's profile photo when there is one, the
  *  first letter of the name otherwise — and again if the photo cannot be loaded. */
@@ -43,6 +81,9 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const items = navItemsFor(can);
   // One popover open at a time: the bell's panel or the account menu.
   const [open, setOpen] = useState<"bell" | "user" | null>(null);
+  /** page 2 — on a phone the sections are a menu, not a strip clipped at "Asi" */
+  const [navOpen, setNavOpen] = useState(false);
+  const notes = useNotifications(open === "bell", !loading && !!identity);
   const barRef = useRef<HTMLDivElement>(null);
   const toggleOf = (which: "bell" | "user") =>
     barRef.current?.querySelector<HTMLElement>(`[data-toggle="${which}"]`);
@@ -80,6 +121,13 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   // via router.replace — the same pattern `/` uses, since a Server-Component
   // redirect() does not complete through this app's provider tree (Next 16.3.1,
   // measured 2026-08-30).
+  const askAway = useHiddenOnScrollDown();
+  // Start every face the first screen draws while the page's data is still loading: a
+  // face fetched only when the document first uses it swapped in after the text was laid
+  // out and reflowed it (phone CLS, 2026-11-06). The fallback stays if one fails.
+  useEffect(() => {
+    for (const face of FIRST_SCREEN_FACES) void document.fonts?.load(face).catch(() => undefined);
+  }, []);
   useEffect(() => {
     if (!loading && !identity) router.replace(loginPath());
   }, [loading, identity, router]);
@@ -115,12 +163,21 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
         <Link className="ws-shell__word" href="/dashboard">
           <span className="ws-shell__word-a">Legal</span><span className="ws-shell__word-b">Mind</span>
         </Link>
-        <nav className="ws-shell__nav" aria-label="Primary">
+        <button type="button" className="ws-shell__navtoggle" aria-expanded={navOpen}
+                aria-controls="ws-shell-nav" aria-label="Menu"
+                onClick={() => setNavOpen((o) => !o)}
+                onKeyDown={(e) => { if (e.key === "Escape") setNavOpen(false); }}>
+          <IconMenu size={20} />
+        </button>
+        <nav id="ws-shell-nav" className="ws-shell__nav" aria-label="Primary"
+             data-open={navOpen ? "" : undefined}
+             onKeyDown={(e) => { if (e.key === "Escape") setNavOpen(false); }}>
           {items.map((item) => (
             <Link
               key={item.href}
               href={item.href}
               aria-current={activeNavHref(pathname, items) === item.href ? "page" : undefined}
+              onClick={() => setNavOpen(false)}
             >
               {item.label}
             </Link>
@@ -128,25 +185,13 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
         </nav>
         <span className="ws-shell__spacer" />
         <div className="ws-shell__bar" ref={barRef} onKeyDown={onBarKey}>
-          {/* No notifications endpoint exists yet (OD-15), so the panel says so
-              rather than showing a badge or items it cannot back. */}
+          {/* AM-273 m3 (AB-150): the caller's own notices, a fixed sentence and a link. */}
           <div className="ws-shell__bell">
-            <button
-              type="button"
-              className="ws-shell__belltoggle"
-              data-toggle="bell"
-              aria-haspopup="dialog"
-              aria-expanded={open === "bell"}
-              aria-label="Notifications"
-              onClick={() => setOpen(open === "bell" ? null : "bell")}
-            >
-              <IconBell size={17} />
-            </button>
+            <BellToggle unread={notes.list.unread} open={open === "bell"}
+                        onClick={() => setOpen(open === "bell" ? null : "bell")} />
             {open === "bell" ? (
-              <div className="ws-menu__list ws-shell__menu ws-shell__notes" role="dialog" aria-label="Notifications" data-pop="bell">
-                <strong tabIndex={-1}>Notifications</strong>
-                <span>Nothing to show. LegalMind does not send notifications yet, so there are no unread items.</span>
-              </div>
+              <NotificationPanel list={notes.list} reload={notes.reload}
+                                 onClose={() => setOpen(null)} />
             ) : null}
           </div>
         <div className="ws-shell__user">
@@ -192,7 +237,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
           pathname test here, so the rule is "this page already has Ask" rather
           than a list of routes that has to be kept in step with the router. */}
       {can(P.ASSIST_ASK) ? (
-        <Link className="ws-askglobal" href="/dashboard/ask">
+        <Link className="ws-askglobal" href="/dashboard/ask" data-away={askAway || undefined}>
           <IconSparkle size={17} />
           <span>Ask</span>
         </Link>

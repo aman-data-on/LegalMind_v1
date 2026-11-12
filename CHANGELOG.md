@@ -32,6 +32,103 @@ A PNG/JPEG in an Ask chat is read by the existing OCR (chat only; the Dashboard 
 `tools/eval_claims.py` (V-1: typed claims from real source text, perturbed, split dev / held-out / unseen by document, zero Gemini) and `assist/verification/structural.py` (V-2a: limb coverage, scope widening, unsupported conclusion, ABSTAIN), wired into `verify.judge` only on a claim already judged SUPPORTED, behind `LEGALMIND_STRUCTURAL_CHECK` — `off` by default, so stage 9's behaviour is unchanged; `shadow` logs, `on` can only refuse more. No lock touched. Ported from an uncommitted agent worktree.
 
 ### 2026-11-09 — Agent instruction files restructured to the official Claude Code guidance — merged (PR #288, `7510589`)
+### 2026-11-05 (later) — MSA template drafting decisions (`AM-312`, AB-165) — local DBs only, NOT deployed
+
+- Owner decision 2026-11-05 on Claude's drafting recommendation (no advocate has reviewed): "AUP" defined in
+  clause 1 (1.4, LeapSwitch's published AUP; later definitions renumber, every xref is by key), 16.2.5 "breach of
+  Applicable Laws", 16.2 lead-in kept; with 16.3/16.4 removed and 8.2's purchase order, published as
+  `MSA.LEAPSWITCH.APPROVED` v3 in `legalmind_clm_e2e` (demo v16). Special Conditions Q-1–Q-8 decided, Q-9
+  confirmed; `backend/config/templates/special_conditions/reference.json` `_note` no longer calls the deletion
+  lead a placeholder. Management pack v2 rebuilt (`/root/legalmind-clm-local/msa-for-management/v2/`).
+
+### 2026-11-05 — CLM: Special Conditions annexure, round 2, Terms in force, changes-only amendments, indemnity fix — committed on `feat/clm-p1-negotiate` (PR #287), NOT merged, NOT deployed
+
+- **Special Conditions annexure (`AM-307`):** the body never changes; accepted points go to "ANNEXURE A — SPECIAL
+  CONDITIONS" on a new page; `drafting/effective.py` is the text a version is read as, given to analysis as a
+  `clause_loader` (fail closed); package dry-run and POST, gates, audit events; UI U1–U6.
+- **Round 2 (`AM-308`/`AM-309`):** a later round on our final contract compares effective texts and its entries
+  add up; amendments after signing (`routers/amendments.py`, migration `b4f8e2a6d9c1`
+  `contracts.governed_by_contract_id`, 409 `NO_AMENDMENT_TEMPLATE`); change rows carry `target`/`in_package`;
+  Annexure A line per change, Amendments panel, Templates badge.
+- **Terms in force (`AM-309`):** `/contracts/{id}/terms` — the signed contract with its signed amendments applied,
+  each changed clause naming its amendment (omitted where the caller cannot read it).
+- **Changes-only amendments (`AM-310`, Q-9):** "Prepare amendment" lists only this amendment's changes from the
+  approved AMENDMENT template; restating the whole contract is Legal's choice, audited.
+- **Engine (`AM-311`):** a mutual §10 clause no longer speaks for the rest of the indemnity — a one-way, broader
+  customer indemnity or a one-sided defence/settlement right beside it is a DEVIATION, sub-clause named.
+- **Owner decisions:** MSA 17.3 (d)/(e) withdrawn pending management; clause 16 = Constitution §10 mutual framework;
+  the MSA published in the local e2e DB only. Since `AM-311` the publish gate holds INDEMNITY-MSA-001 on 16.3/16.4,
+  left for the lawyer.
+- **CI:** new job 17 installs LibreOffice Writer + Liberation/Carlito fonts and runs the PDF tests with
+  `LEGALMIND_SOFFICE` set; a LibreOffice skip fails the job. Every PDF test now keys on `LEGALMIND_SOFFICE`.
+- **Removed:** `backend/legalmind/drafting/reply_pdf.py` (PyMuPDF reading copy) and its one test — no caller in
+  the app, tools or frontend; the reply PDF is LibreOffice's (`AM-293`). The PyMuPDF-licence question for it is moot.
+
+### 2026-11-04 — The approved MSA template, our opening positions, engine fixes, "For us", playbook, blank download — local, NOT committed
+
+- **MSA template to the approved format** (`MSA.LEAPSWITCH.APPROVED`, from the owner's
+  `msa-approved-2025-07.docx`): house style rounds 1–6 — A4, Times New Roman 12, two indent ladders,
+  front matter, paired execution table, footer doc ID; Word compatibility mode 14 and a MARGIN
+  pre-publish check; underlined run-in titles; reading view shows house style and emphasis. Word
+  fixes (typos, cross-references in place of typed numbers, "LeapSwitch" as the defined short name).
+- **Positions:** first B (our ratified standard) on all five points, then the owner's opening
+  positions: 17.2 = **six months of the affected services' fees, mutual** (the approved file's
+  wording, made "either Party"); 8.5 = **seven days**. Change of control (21.7 + definition 1.6),
+  service discontinuation (6.6), 17.3 mutual lawful-floor carve-out. **17.3 (d)/(e) (payment and
+  indemnity outside the cap) pending management approval and a Constitution §9 amendment** — do not
+  publish that version. KYC-RETENTION-TOS-001 `not_applicable_to: ["MSA"]` (owner ruling).
+- **Engine:** venue "no …, then Bombay High Court" not read as exclusion; DATA-PURGE-MSA-001
+  measurable; payment period no longer reads 8.6's GST "10 days"; non-solicit and confidentiality
+  definition readings; the NDA term-notice standard ported off MSAs; carve-outs beyond the lawful
+  floor read UNLIMITED → CONFLICT (`AM-304`). Preflight ignores a space before punctuation.
+- **For us:** `effect_for_us` Better / No change / Fallback / Worse on every client change, bulk
+  accept of the first three by the deal owner (`AM-299`, `AM-301`, `AM-306`); a lower mutual cap on
+  our template passes the publish gate in our favour (`AM-303`).
+- **Playbook** "What we can offer" (`AM-305`), see the entry below. **Blank / review-copy download and
+  compare-on-return** (`AM-302`). **Management file**:
+  `/root/legalmind-clm-local/msa-for-management/LeapSwitch-MSA-template.docx` + `.pdf`.
+- **Templates page:** the check and the playbook always finish — "Couldn’t check right now — try
+  again" after 60 s or an error (`loadPlaybook`, test in `template-approval.test.tsx`); a hand-published
+  demo version reads "Demo — not approved by Legal" instead of its clause count (the label is read from
+  `source.label`, which the demo publish writes — the API read `demo_label` and showed nothing); each
+  card names the file it was imported from, so two MSA templates are told apart;
+  `GET /templates/{id}/check` on a non-draft is 409, not 500. Demo DB: the old reference MSA draft
+  RETIRED (not deleted).
+- Fixed from the full suite: the two playbook routes added to `permission_map.py`; router count 21.
+  Locks: AB-158…AB-160 (`AM-299`, `AM-301`–`AM-306`) on `records/clm-amendments-20261102`.
+
+### 2026-11-04 — What we can offer: the negotiation playbook (AB-160 `AM-305`) — local, NOT committed
+
+- `analysis/playbook.py` derives each point's line from our paper (opening) and the ratified
+  standard (limit); `drafting/playbook.py` reads it from a contract's own version or a published
+  template (temporary Review, rolled back, cached per template version + snapshot);
+  `GET /contracts/{id}/playbook`, `GET /templates/{id}/playbook` (`legal_position.view`).
+- UI: Summary "What we can offer", Changes card/row "Within/Beyond what we can offer", Templates
+  read-only per published template (sales see the Templates page for this view only).
+- Tests: `tests/legal_regression/test_playbook.py` (manager's examples agree with `effect_for_us`),
+  `src/__tests__/playbook.test.tsx`; `docs/api/openapi.json` regenerated.
+- Coordination: `drafting/playbook.py` repeats `publish._findings`' temporary-Review setup
+  (that one returns classifications only) — fold the two once the publish-gate work lands.
+  `tests/test_api_resources.py::test_import_tool_writes_ratified_standards_idempotently` fails
+  on `LIABILITY-MSA-001`'s new `favourable_outcome` (AM-303, not this change) — the test's
+  expected Legal Rule needs updating by its owner.
+
+### 2026-11-03 — Contract creation and lawyer review (AB-152…AB-154) — built and tested locally, NOT committed
+
+- Person-specific homes and one plain vocabulary; two-line points (reader word vs who answers); Legal details only for Legal.
+- Lawyer: Write our wording / Use our standard with client note (Word comment) + internal note (Legal only); access to contracts sent to Legal; own-contract second approver; decisions carried into the reply; AM-293 gate on download/send.
+- Document engine: templates + clause library, enterprise DOCX (style numbering, REF \w, tables, images, schedules, execution block), clean copy, preflight, LibreOffice PDF; reference NDA/MSA imported as drafts; template approval + publish gate; New contract with live preview and pre-create Legal check; counterparty legal fields; brand per contract.
+- Coordination: `test_evaluation_service` decider changed to a non-owner (AM-289); `test_rbac_personas` Lead negotiation writes (AM-259 r2); `test_import_boundaries` gains drafting/notifications/outbound.
+
+### 2026-11-02 — CLM Phase 1: negotiate and decide (AB-150, AB-151) — built and tested locally, NOT committed
+
+- One Changes tab per returned version: every change typed, "changed without tracking" flagged, routed to the deal owner, to Legal, or in our favour (fail closed); answers kept with history (`comparison_choices` append-only, `expected_version` 409); holders decide in place, second person enforced (`effective_decision`).
+- "Prepare our reply": the client's own DOCX with our tracked changes by "LeapSwitch Legal", ingested and reviewed as the next version; unplaceable answers listed then left as Word comments; round closed once the reply exists.
+- Deal stages, "Contracts" + readable paths, To-do, notifications (+ file-sink / relay mail), collaborators (read + negotiate), Ask files a returned copy. Migration `f7c2a9e4b1d6`. Enterprise UI pass (`08-PHASE1-UI-DESIGN-PASS.md`).
+- UI Pass 2 (owner review): reply reviewed automatically; `READY_TO_SEND`; reply notice with downloads; one header and one Ask surface; contract typesetting in the reading view; inline Word-style marks with Show/Hide.
+- Coordination note: `test_rbac_personas.py::test_the_lead_cannot_write_to_a_colleagues_deal` updated to `AM-259` r2 (the Lead may do negotiation writes; rename/archive/delete still refused); `test_import_boundaries.py` gains `drafting`, `notifications`, `outbound`.
+
+### 2026-11-09 — Agent instruction files restructured to the official Claude Code guidance — branch `docs/agent-instructions-20261109`, NOT committed
 
 No lock, rule or decision changed; guidance reorganised. `CLAUDE.md` 665 → 141 lines (all 23 rules and their IDs kept; history removed; the old file verbatim at `docs/00-project/archive/CLAUDE_MD_2026-11-09.md`). Path-scoped `.claude/rules/` (ui-ux, ask-rag, legal-engine-config, records-and-locks, testing), skills `local-stack`, `team-delivery`, `lock-amendment`, read-only agent `independent-verifier`. Contradictions fixed: MSA cap 6 vs 12 months, "two" standards/evaluators, Ask stage 6 "never built", commit-to-main git text, the `AM-239` favour form missing, DESIGN.md as binding; AGENTS.md §7/§8/§20 no longer advise stash, `add -A`, checkpoint commits or pushing without the owner, and it now carries the shared-working-tree section. Hooks proposed, not enabled: `docs/00-project/PROPOSED_HOOKS_2026-11-09.md`. Audit: `docs/00-project/AGENT_INSTRUCTIONS_AUDIT_2026-11-09.md`.
 

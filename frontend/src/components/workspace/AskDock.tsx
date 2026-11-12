@@ -95,7 +95,14 @@ export function AskDock({
   versionNumber,
   isLatest,
   onOpenVersion,
+  skipDraftSeq,
+  skipFocusSeq,
 }: {
+  /** Likewise the focus request already made before it mounted — the one that opened it is honoured. */
+  skipFocusSeq?: number | undefined;
+  /** Mounted lazily (`AskDockLazy`): the draft seq already handed to an earlier dock —
+   *  a later one is applied. Absent: whatever draft is there at mount is treated as seen. */
+  skipDraftSeq?: number | undefined;
   /** Null on the Research surface: a document-less conversation answered from the
    *  approved statute corpus and positions (2026-09-08). */
   contractId: string | null;
@@ -120,13 +127,11 @@ export function AskDock({
   const sideTabs = useSideTabs();
   const [localOpen, setLocalOpen] = useState(false);
   /* On a wide screen the workspace holds whether Ask is open (owner, 2026-10-08):
-     the "Ask" control in the Summary/Findings row opens it — as the third tab where
-     it shares that column, as its own column from 1680px — so the launcher at the
-     foot of the column is gone and the close button folds it back into that row. */
+     the "Ask" tab in the Summary/Findings row opens it, so the launcher at the foot
+     of the column is gone and the close button folds it back into that row. */
   const controlled = Boolean(sideTabs?.setAskOpen);
   const open = controlled ? Boolean(sideTabs?.askOpen) : localOpen;
   const setOpen = controlled ? sideTabs!.setAskOpen! : setLocalOpen;
-  const railed = sideTabs?.askRail ?? false;
   /** The chat on screen, read after an await: an answer belongs to the chat it was asked
    *  in. Switching chats waits while an answer is found, so this only ever moves between
    *  questions. */
@@ -314,7 +319,7 @@ export function AskDock({
   // screen — otherwise "Ask about this" would silently do nothing visible.
   /* Starts at the draft already handed over, so a dock mounted afresh (the layout
      moving it between arrangements) never replays a draft it already applied. */
-  const consumedSeq = useRef(askIntent?.draft?.seq ?? 0);
+  const consumedSeq = useRef(skipDraftSeq ?? askIntent?.draft?.seq ?? 0);
   /** The Finding the pending draft came from, if any — a retrieval hint for the
    *  NEXT send only, cleared the moment it is used so a later, unrelated question
    *  in the same conversation is not quietly seeded with a stale clause. */
@@ -349,7 +354,7 @@ export function AskDock({
      on load — so the input takes focus only when the reader asked for it, which the
      workspace counts in `askFocusSeq`; closing returns focus to the "Ask" control. */
   const askFocusSeq = sideTabs?.askFocusSeq ?? 0;
-  const seenFocusSeq = useRef(askFocusSeq);
+  const seenFocusSeq = useRef(skipFocusSeq ?? askFocusSeq);
   useEffect(() => {
     if (askFocusSeq === seenFocusSeq.current) return;
     seenFocusSeq.current = askFocusSeq;
@@ -385,8 +390,7 @@ export function AskDock({
    * the reader is in is the one Escape belongs to. An edit being written keeps
    * its Escape too: it cancels the edit, not the conversation. */
   useEffect(() => {
-    // Its own column covers nothing, so Escape has nothing to dismiss there.
-    if (!open || railed) return;
+    if (!open) return;
     function onKey(event: KeyboardEvent) {
       // Escape inside an IME composition cancels the composition, not the conversation.
       if (event.key !== "Escape" || isImeEnter({ nativeEvent: event, keyCode: event.keyCode })) return;
@@ -397,7 +401,7 @@ export function AskDock({
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [open, railed, close]);
+  }, [open, close]);
 
   const turnCount = turns.filter((turn) => turn.role === "USER").length;
 
@@ -461,7 +465,7 @@ export function AskDock({
               {isLatest ? " (latest)" : ", the version you are reading"}.
             </>
           ) : (
-            <>Answers come from the <strong>approved statutes</strong> and the organization&rsquo;s approved positions — cited by Act and section.</>
+            <>Answers come from the <strong>approved statutes</strong>, cited by Act and section, and our approved positions.</>
           )}
         </p>
 
@@ -491,9 +495,7 @@ export function AskDock({
           <Thread
             empty={!restoring && turns.length === 0 && pending === null}
             // The panel's heading already names it; the welcome says what Ask does here.
-            welcome={{ as: "p", title: "Ask what this document says about something. Every"
-              + " answer points at the passage it came from — or says plainly that the"
-              + " document does not answer it." }}
+            welcome={{ as: "p", title: "Ask what this document says about something. Every" + " answer points to its passage, or says the document does not answer it." }}
             suggestions={contractId ? SUGGESTED_QUESTIONS : []}
             onSuggestion={(text) => {
               runtime.thread.composer.setText(text);

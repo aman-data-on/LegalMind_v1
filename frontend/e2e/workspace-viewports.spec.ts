@@ -27,7 +27,10 @@ for (const viewport of [{ width: 1366, height: 768 }, { width: 1536, height: 864
       const { contractId } = await createAnalysedReview(page);
       await page.goto(`/dashboard?id=${contractId}`);
       await showDocument(page);
-      await expect(page.locator(".ws-tiles")).toBeVisible();
+      // CLM Page 2 (2026-11-03): the Summary's four tiles moved to Legal details; what the
+      // owner's side card shows is "What needs attention" and the open points list.
+      const heading = page.getByRole("heading", { name: "What needs attention", level: 2 });
+      await expect(heading).toBeVisible();
 
       // The side card never drops under its floor, and the document keeps the
       // largest share.
@@ -39,17 +42,13 @@ for (const viewport of [{ width: 1366, height: 768 }, { width: 1536, height: 864
       expect(paper).toBeGreaterThan(side);
       expect(paper).toBeGreaterThanOrEqual(520);
 
-      // Four tiles across (AB-104), each label at most two lines — never one letter per line.
-      const labels = page.locator(".ws-tile__label");
-      expect(await labels.count()).toBe(4);
-      for (const label of await labels.all()) {
-        const box = (await label.boundingBox())!;
-        expect(box.height, `"${await label.innerText()}" wrapped too far`).toBeLessThanOrEqual(36);
+      // Nothing in the side card is squeezed into letter-wrapped text: the heading stays on
+      // one line and each open point's name on at most two.
+      expect((await heading.boundingBox())!.height).toBeLessThanOrEqual(36);
+      for (const name of await page.locator(".ws-open__go").all()) {
+        const box = (await name.boundingBox())!;
+        expect(box.width, "an open point is laid out across the card").toBeGreaterThanOrEqual(300);
       }
-      // Two by two in the side card, or four across once it is wide — never 3 + 1.
-      const tiles = await page.locator(".ws-tile").all();
-      const tops = await Promise.all(tiles.map(async (t) => (await t.boundingBox())!.y));
-      expect([1, 2]).toContain(new Set(tops.map((y) => Math.round(y))).size);
 
       // The Contents prints the document's numbers, never an added "§".
       await expect(page.locator(".ws-outline__list")).not.toContainText("§");
@@ -60,8 +59,7 @@ for (const viewport of [{ width: 1366, height: 768 }, { width: 1536, height: 864
     });
 
     test("document hidden: the Summary uses the width; Ask opens from its row", async ({ page }) => {
-      // From 1680px Ask is its own column (owner, 2026-10-08); below, the third tab.
-      const askColumn = viewport.width >= 1680;
+      // Ask is the third tab at every width (owner, 2026-11-02); it never takes a column.
       const { contractId } = await createAnalysedReview(page);
       await page.goto(`/dashboard?id=${contractId}`);
       await showDocument(page);
@@ -70,29 +68,14 @@ for (const viewport of [{ width: 1366, height: 768 }, { width: 1536, height: 864
       const analysis = await width(page, ".ws-analysis");
       // At least 70% of what Ask leaves free, up to the 88rem measure — no 1024px
       // strip in the middle of a 1920px screen.
-      const free = viewport.width - (askColumn ? await width(page, ".ws-pane--ask") : 0);
+      const free = viewport.width;
       expect(analysis).toBeGreaterThanOrEqual(Math.min(free * 0.7, 1380));
-      // Wait for a tile before measuring tiles. `.all()` returns what matches NOW, so
-      // without this the next line can measure an empty list and assert a Set size of
-      // 0 against 1 — which is what it did at 1536×864 on 2026-09-16 while passing at
-      // 1366×768 and 1920×1080 in the same run. The sibling test above already waits
-      // on `.ws-tiles`; this waits on the tile itself, which is what is measured.
-      await expect(page.locator(".ws-tile").first()).toBeVisible();
-      const tops = await Promise.all((await page.locator(".ws-tile").all()).map(async (t) => (await t.boundingBox())!.y));
-      expect(new Set(tops.map((y) => Math.round(y))).size).toBe(1);
+      // The Summary's content uses that width (the tiles it measured moved to Legal details).
+      await expect(page.locator(".ws-open__go").first()).toBeVisible();
+      expect((await page.locator(".ws-open__go").first().boundingBox())!.width)
+        .toBeGreaterThanOrEqual(Math.min(free * 0.5, 900));
 
       const panel = page.locator(".ws-dock__panel");
-      if (askColumn) {
-        // Its own column: open beside the Summary, covering nothing; "Ask" in the
-        // row folds it away and brings it back.
-        await expect(panel).toBeVisible();
-        await expect(page.locator("#ws-pane-analysis")).toBeVisible();
-        await askOpener(page).click();
-        await expect(page.locator(".ws-pane--ask")).toBeHidden();
-        await askOpener(page).click();
-        await expect(panel).toBeVisible();
-        return;
-      }
       // The third tab: open → the whole column, the tabs still there; a tab click closes it.
       await askOpener(page).click();
       await expect(panel).toBeVisible();

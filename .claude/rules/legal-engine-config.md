@@ -25,9 +25,10 @@ touching mapping or extraction read `AM-54` (and `AM-60`, which removed its in-f
 ## Company positions
 
 - **The Legal Constitution governs company positions** (`AM-43`, AB-14). Canonical:
-  [LEGAL_CONSTITUTION_L1.16.md](../../docs/02-legal-domain/LEGAL_CONSTITUTION_L1.16.md) (`AM-300`,
-  L1.15 with one row's NDA counterparty name redacted; earlier L1.10 `AM-59` → L1.11 `AM-115` →
-  L1.12 `AM-129` → L1.13 `AM-131` → L1.14 `AM-163` → L1.15 `AM-243`;
+  [LEGAL_CONSTITUTION_L1.17.md](../../docs/02-legal-domain/LEGAL_CONSTITUTION_L1.17.md) (`AM-313`
+  as `AM-325` records it: L1.16 with §9 taking a Party's obligation to pay fees and charges due
+  outside the cap; earlier L1.10 `AM-59` → L1.11 `AM-115` → L1.12 `AM-129` → L1.13 `AM-131` →
+  L1.14 `AM-163` → L1.15 `AM-243` → L1.16 `AM-300` (one row's NDA counterparty name redacted);
   L1.5 superseded). The live website is authoritative for the published Privacy Policy, TOS,
   SLA and AUP (owner 2026-10-09; Ask reads them daily, `AM-130`). Its positions reach the
   evaluator **only** as ratified standard files; since `AM-79` it is also a retrievable

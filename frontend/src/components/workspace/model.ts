@@ -5,7 +5,9 @@
 
 import { extractionLabel } from "@/lib/labels";
 import * as P from "@/lib/permissions";
-import type { EvidenceRow } from "@/lib/types";
+import { documentTypeChip } from "@/lib/documentTypes";
+import type { Contract, EvidenceRow } from "@/lib/types";
+import { formatDate, formatDateTime } from "@/lib/dates";
 import { requirementTitle } from "./findingLanguage";
 
 /**
@@ -27,16 +29,19 @@ export function readiness(
   return "ready";
 }
 
-/** "3 h ago", "yesterday" — a plain-language age for a timestamp. Shared so the
- *  dashboard table and the Analysis panel can't drift into two tiers. */
+/** LOW 10 (cross-page pass): the ONE relative-time format, spelled out — "just now",
+ *  "12 minutes ago", "4 hours ago", "yesterday", "3 days ago", then the date. Every
+ *  list, queue and stage chip says an age this way. */
 export function relativeTime(iso: string | null | undefined): string {
   if (!iso) return "—";
   const seconds = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  const ago = (n: number, unit: string) => `${n} ${unit}${n === 1 ? "" : "s"} ago`;
   if (seconds < 90) return "just now";
-  if (seconds < 3600) return `${Math.round(seconds / 60)} min ago`;
-  if (seconds < 86400) return `${Math.round(seconds / 3600)} h ago`;
+  if (seconds < 3600) return ago(Math.round(seconds / 60), "minute");
+  if (seconds < 86400) return ago(Math.round(seconds / 3600), "hour");
   if (seconds < 172800) return "yesterday";
-  return `${Math.round(seconds / 86400)} d ago`;
+  if (seconds < 30 * 86400) return ago(Math.floor(seconds / 86400), "day");
+  return shortDate(iso);
 }
 
 export const READINESS_TEXT: Record<Readiness, string> = {
@@ -188,11 +193,25 @@ export function clauseFromText(
  */
 export function clauseOf(row: EvidenceRow): { number: string | null; title: string } {
   if (row.section_number) {
-    return { number: row.section_number, title: row.section_title ?? "" };
+    return { number: row.section_number, title: row.section_title ?? ownHeading(row) };
   }
   const derived = clauseFromText(row);
   if (derived) return derived;
   return { number: null, title: row.section_title ?? "" };
+}
+
+/**
+ * S1b (2026-11-03): the title of a row the parser numbered but left untitled — "2" /
+ * "TERMS GOVERNING PROVISION OF SERVICES:" showed as a bare "2" in the Contents. Its own
+ * first line, without the number it may repeat or a closing colon (`AM-57` r3: the
+ * row's recorded text, nothing re-extracted).
+ */
+function ownHeading(row: EvidenceRow): string {
+  const number = (row.section_number ?? "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const lead = new RegExp(`^${number}\\.?\\s*`);
+  return row.content.replace(/[\u200b\u00a0]/g, " ").split("\n")
+    .map((line) => line.replace(/\s+/g, " ").trim().replace(lead, "").replace(/:$/, "").trim())
+    .find((line) => line.length > 0) ?? "";
 }
 
 /**
@@ -342,12 +361,16 @@ export interface OutlineNode {
   children: OutlineNode[];
 }
 
+/** The unnumbered parts a numbered contract still has before clause 1. */
+const PREAMBLE = /^(?:RECITALS|BACKGROUND|PREAMBLE)$/i;
+
 const CONNECTIVES = new Set(["AND", "OR", "BETWEEN", "BY AND BETWEEN", "WHEREAS", "NOW THEREFORE"]);
 
 /** One short line, no sentence punctuation, set as a title: ALL CAPS or Title Case. */
 export function isTitleLine(text: string): boolean {
   const line = text.replace(/[​ ]/g, " ").replace(/\s+/g, " ").trim();
-  if (line.length === 0 || line.length > 90 || /[.;:,]$/.test(line)) return false;
+  // a closing colon still ends a heading ("SERVICES:"); a full stop or comma does not
+  if (line.length === 0 || line.length > 90 || /[.;,]$/.test(line)) return false;
   const letters = line.replace(/[^A-Za-z]/g, "");
   if (letters.length < 3) return false;
   if (letters.replace(/[^A-Z]/g, "").length / letters.length >= 0.6) return true;
@@ -355,18 +378,31 @@ export function isTitleLine(text: string): boolean {
   return words.length > 0 && words.every((w) => /^[A-Z]/.test(w));
 }
 
-export function outlineTree(rows: EvidenceRow[]): OutlineNode[] {
+export function outlineTree(all: EvidenceRow[]): OutlineNode[] {
+  // N11 #9 (2026-11-09): the Contents are the document's CLAUSES. A row outside them
+  // (header, footer, footnote, the table of contents) is never an entry; and where the
+  // document numbers its clauses, an unnumbered line — the cover's title, a bold
+  // "ACCOUNT MANAGEMENT …" between clauses, a party block — is not one either, only a part
+  // the document declares ("Schedule 1", "Annexure A"). A document with no numbering keeps
+  // its headings as before (CloudPe's terms).
+  const rows = all.filter((row) => !row.part);
+  const numbered = rows.some((row) => !!clauseOf(row).number && row.is_heading);
   const headed = rows.some((row) => row.is_heading);
   const roots: OutlineNode[] = [];
   const byNumber = new Map<string, OutlineNode>();
   let lastRoot: OutlineNode | null = null;
+  // A schedule or annexure numbers its own items ("1", "2" again): they belong to it,
+  // and a number seen in the body is never their parent (review 2026-11-09).
+  let part: OutlineNode | null = null;
   for (const row of rows) {
     const clause = clauseOf(row);
-    const heading = row.is_heading && isHeadingLine(row);
+    // a part the file declares is an entry even when its title row runs on into a table
+    const heading = (row.is_heading && isHeadingLine(row)) || !!row.annexure;
     if (heading && !clause.number && CONNECTIVES.has(row.content.trim().toUpperCase())) continue;
     // Pre-2026-09-05 documents carry no heading marker: `outlineOf`'s fallback.
     const fallback = !headed && !!row.section_title && isHeadingLine(row);
     if (!heading && !clause.number && !fallback) continue;
+    if (numbered && !clause.number && !row.annexure && !PREAMBLE.test(row.content.trim())) continue;
     const titled = heading || fallback || (clause.number !== null && isTitleLine(row.content));
     const node: OutlineNode = {
       row, number: clause.number, depth: 0, parentId: null, children: [],
@@ -379,8 +415,11 @@ export function outlineTree(rows: EvidenceRow[]): OutlineNode[] {
       for (let i = parts.length - 1; i > 0 && !parent; i -= 1) {
         parent = byNumber.get(parts.slice(0, i).join(".")) ?? null;
       }
-      if (!parent && parts.length > 1) parent = lastRoot;
+      if (!parent) parent = part ?? (parts.length > 1 ? lastRoot : null);
       byNumber.set(clause.number, node);
+    } else if (row.annexure) {
+      byNumber.clear();
+      part = node;
     }
     if (parent) {
       node.depth = parent.depth + 1;
@@ -472,11 +511,142 @@ export function locationLabel(row: EvidenceRow): string {
 export interface NavItem {
   href: string;
   label: string;
+  /** Other path prefixes this item owns — To-do's Reviews and Legal views (`AM-264`). */
+  also?: string[];
+}
+
+/** The readable contract link (`AM-263`): `/contracts/{id}`, `/contracts/{id}/changes`,
+ *  `/contracts/{id}/versions/{n}`. Old `/dashboard?id=` links redirect here. */
+/** What a version IS in the negotiation, in the version switcher's words (CLM, UI pass
+ *  2) — read from the declared role and the reply link, never from the number or date.
+ *  Null when nobody said; the caller then falls back to whose paper it is. */
+export function versionRoleLabel(
+  v: { version_role?: string; reply?: { to_version_id: string }; final_copy?: unknown; package?: unknown;
+       reference_copy_of?: string },
+  versions: { id: string; version_number: number }[],
+): string | null {
+  if (v.version_role === "FINAL_SIGNED") return "Signed";
+  if (v.final_copy || v.package) return "Final contract";      // AM-318
+  if (v.reference_copy_of) return "Agreed text, for reference";   // AM-323
+  if (v.reply) {
+    const theirs = versions.find((x) => x.id === v.reply!.to_version_id);
+    return theirs ? `Our reply to v${theirs.version_number}` : "Our reply";
+  }
+  return ROLE_WORDS[v.version_role ?? ""] ?? null;
+}
+
+/** The contract page's words for a declared version role — the version label and the
+ *  upload dialog's "What is this version?" both read these, so one role has one name. */
+export const ROLE_WORDS: Record<string, string> = {
+  COMPANY_DRAFT: "Our draft",
+  CLIENT_MODIFIED: "Client's markup",
+};
+
+export function contractHref(id: string, tab?: "changes" | { version: number }): string {
+  const base = `/contracts/${encodeURIComponent(id)}`;
+  if (!tab) return base;
+  return tab === "changes" ? `${base}/changes` : `${base}/versions/${tab.version}`;
+}
+
+/** The tab a contract path names — tab state for the workspace (`AM-263`). Anything
+ *  unrecognised is the Document tab, never an error. */
+export function contractTabFromPath(pathname: string):
+    { tab: "document" | "changes" | "versions"; version?: number } {
+  const [, , , tab, n] = pathname.split("/");
+  if (tab === "changes") return { tab: "changes" };
+  if (tab === "versions") {
+    const version = Number(n);
+    return Number.isInteger(version) && version > 0 ? { tab: "versions", version } : { tab: "versions" };
+  }
+  return { tab: "document" };
+}
+
+/**
+ * Whose home the app opens on (S1, CLM plan) — derived from PERMISSIONS, never from a
+ * role name (RBAC_MODEL), and presentation only: the server scopes every list and
+ * checks every write. A `legal.decision` holder works a review queue first; a
+ * `department.view` holder (the Lead) reads the team's contracts; anyone else who may
+ * see contracts reads their own. A second approver is not a permission — it is the
+ * To-do's `second_approval` items, wherever they appear (`oneTaskPerContract`).
+ */
+export type Persona = "legal" | "lead" | "owner";
+export function personaFor(can: (permission: string) => boolean): Persona {
+  if (can(P.LEGAL_DECISION)) return "legal";
+  if (can(P.DEPARTMENT_VIEW)) return "lead";
+  return "owner";
+}
+
+/** The home's heading, by persona and — for a Lead — the scope on screen. */
+export function homeTitle(persona: Persona, scope: "own" | "department" | "legal" = "own"): string {
+  if (persona === "legal") return "For my review";
+  return scope === "department" ? "Team contracts" : "My contracts";
+}
+
+/** The engine's chain — classification, rule outcome, codes, § references — is shown
+ *  only to a reader holding the legal position AND Legal's review permission (S1);
+ *  for anyone else that disclosure is absent, never greyed (SEC-07, LEGAL-02). */
+export function showsLegalDetails(can: (permission: string) => boolean): boolean {
+  return can(P.LEGAL_POSITION_VIEW) && can(P.LEGAL_REVIEW);
+}
+
+/** How a deal stage is worded for this reader: the lawyer holding a contract they do
+ *  not own reads "Your review" where its owner reads "With Legal". */
+export function stageViewer(can: (permission: string) => boolean, isOwner: boolean): "owner" | "legal" {
+  return !isOwner && can(P.LEGAL_DECISION) ? "legal" : "owner";
+}
+
+/** One task per contract per person (`AM-291`): the home and the To-do show the SAME
+ *  list — the server's To-do items, the most pressing kept where one contract carries
+ *  two, oldest first. Nothing is derived beyond choosing which server item to show. */
+const TASK_RANK: Record<string, number> = {
+  decide: 0, second_approval: 1, contract_decision: 1, changes_to_answer: 2, prepare_final: 3, reply_ready: 3,
+  client_returned: 4, answered: 5,
+};
+export function oneTaskPerContract<T extends { kind: string; contract_id: string; since: string | null }>(items: T[]): T[] {
+  const best = new Map<string, T>();
+  for (const item of items) {
+    const held = best.get(item.contract_id);
+    if (!held || (TASK_RANK[item.kind] ?? 9) < (TASK_RANK[held.kind] ?? 9)) best.set(item.contract_id, item);
+  }
+  return [...best.values()].sort((x, y) => (x.since ?? "").localeCompare(y.since ?? ""));
+}
+
+/** A date as a reader writes it: "2 Nov 2026". */
+export function shortDate(iso: string | null | undefined): string {
+  return formatDate(iso);
+}
+
+/** When a version arrived, to the minute — two uploads on one day still read apart. */
+export function uploadedAt(iso: string): string {
+  return formatDateTime(iso);
+}
+
+/** What tells two contracts apart (MED 5): client, type, which version and when it was
+ *  uploaded, and the record's reference. Parts, laid out by the caller — never one
+ *  "A · B · C" string; a missing fact is left out, never "—". */
+export function contractFacts(contract: Contract, client?: string | null): string[] {
+  const version = contract.latest_version ?? contract.document_versions?.[0] ?? null;
+  const who = client ?? version?.counterparty ?? null;
+  return [
+    who,
+    contract.contract_type ? documentTypeChip(contract.contract_type) : null,
+    version ? `Version ${version.version_number}${version.created_at ? `, uploaded ${uploadedAt(version.created_at)}` : ""}` : null,
+    `Ref ${contract.id.slice(0, 6).toUpperCase()}`,
+  ].filter((x): x is string => !!x);
 }
 
 export function navItemsFor(can: (permission: string) => boolean): NavItem[] {
   const items: NavItem[] = [];
-  if (can(P.CONTRACT_VIEW)) items.push({ href: "/dashboard", label: "Dashboard" });
+  // "Contracts" (`AM-262`, amending AM-38 r1): the list and each record live at /contracts.
+  if (can(P.CONTRACT_VIEW)) items.push({ href: "/contracts", label: "Contracts" });
+  /*
+   * To-do (`AM-264`): what is waiting on ME, server-resolved. The Reviews queue and the
+   * Legal queue are its views now, not nav items of their own — their screens are kept
+   * and reached from the To-do tabs, which light this item.
+   */
+  if (can(P.CONTRACT_VIEW) || can(P.REVIEW_VIEW)) {
+    items.push({ href: "/todo", label: "To-do", also: ["/dashboard/reviews", "/dashboard/legal"] });
+  }
   /*
    * Reviews is a QUEUE, and a queue is only a destination for someone who works
    * one (2026-09-04 audit). For a contract owner it listed one row per analysis
@@ -487,10 +657,7 @@ export function navItemsFor(can: (permission: string) => boolean): NavItem[] {
    * to other people's Reviews (`REC-09`), which is the point at which a queue
    * says something the Dashboard cannot.
    */
-  if (can(P.REVIEW_VIEW) && can(P.LEGAL_REVIEW)) {
-    items.push({ href: "/dashboard/reviews", label: "Reviews" });
-  }
-  if (can(P.LEGAL_REVIEW)) items.push({ href: "/dashboard/legal", label: "Legal" });
+  // AM-264: Reviews and Legal moved under To-do (see `todoViews`).
   /*
    * "Ask" — not "Ask History". Asking happens in a document (the workspace
    * dock); this screen is where the record of it lives. Naming the nav item
@@ -532,6 +699,11 @@ export function navItemsFor(can: (permission: string) => boolean): NavItem[] {
     // "Standards" — AB-12 §18: the Department Lead's word for it, not ours.
     items.push({ href: "/dashboard/configuration", label: "Standards" });
   }
+  // S4 (`AM-283`): templates are governed by whoever may approve them; the sales team
+  // reads what we can offer on each published one there (`AM-305`).
+  if (can(P.LEGAL_APPROVE_CUSTOMIZATION) || (can(P.CONTRACT_CREATE) && can(P.LEGAL_POSITION_VIEW))) {
+    items.push({ href: "/templates", label: "Templates" });
+  }
   // The control plane sits last — it is not part of the legal workflow (§H).
   if (can(P.USER_MANAGE) || can(P.AUDIT_VIEW)) items.push({ href: "/dashboard/admin", label: "Administration" });
   /*
@@ -551,12 +723,25 @@ export function navItemsFor(can: (permission: string) => boolean): NavItem[] {
  */
 export function activeNavHref(pathname: string, items: NavItem[]): string | null {
   let best: string | null = null;
+  let bestLength = -1;
   for (const item of items) {
-    if (pathname === item.href || pathname.startsWith(`${item.href}/`)) {
-      if (best === null || item.href.length > best.length) best = item.href;
+    for (const prefix of [item.href, ...(item.also ?? [])]) {
+      if ((pathname === prefix || pathname.startsWith(`${prefix}/`)) && prefix.length > bestLength) {
+        best = item.href;
+        bestLength = prefix.length;
+      }
     }
   }
   return best;
+}
+
+/** The To-do's views (`AM-264`): mine first, then the queues the caller works. The
+ *  Reviews queue keeps its old rule — a destination only for someone holding Legal work. */
+export function todoViews(can: (permission: string) => boolean): NavItem[] {
+  const views: NavItem[] = [{ href: "/todo", label: "My to-do" }];
+  if (can(P.REVIEW_VIEW) && can(P.LEGAL_REVIEW)) views.push({ href: "/dashboard/reviews", label: "Reviews" });
+  if (can(P.LEGAL_REVIEW)) views.push({ href: "/dashboard/legal", label: "Legal" });
+  return views;
 }
 
 /**
@@ -704,19 +889,34 @@ export interface ClauseStatus {
  * bucket). Presentation grouping of server fields only: `requires_decision`
  * is the server's, nothing is re-derived.
  */
-export function clauseStatusByEvidenceId(
-  findings: Array<{
-    classification: string;
-    requires_decision: boolean;
-    status?: string;
-    evidence: Array<{ id: string }>;
-  }>,
-): Map<string, ClauseStatus> {
+type MarkedFinding = {
+  classification: string;
+  requires_decision: boolean;
+  status?: string;
+  user_status?: string;
+  evidence: Array<{ id: string }>;
+  alsoMeasuredAgainst?: MarkedFinding[];
+};
+
+/** B7: a passage's mark is its point's state, read as the Points pane reads it
+ *  (`pointState`): open while any member is open, decided once decided, Acceptable as a
+ *  match — so the Contents icon and the list never disagree. Without the reader word (an
+ *  older payload) the classification decides, as before. */
+function markBucket(f: MarkedFinding): { bucket: StatusBucket; open: boolean } {
+  const statuses = new Set([f, ...(f.alsoMeasuredAgainst ?? [])].map((m) => m.status));
+  const kind = classificationBucket(f.classification);
+  if (statuses.has("AWAITING_CLARIFICATION") || statuses.has("DECISION_REQUIRED")) {
+    return { bucket: kind === "match" ? "review" : kind, open: true };
+  }
+  if (statuses.has("RESOLVED") && f.classification !== "MATCH") return { bucket: "decided", open: false };
+  if (f.user_status === "ACCEPTABLE") return { bucket: "match", open: false };
+  return { bucket: kind, open: f.requires_decision || kind !== "match" };
+}
+
+export function clauseStatusByEvidenceId(findings: MarkedFinding[]): Map<string, ClauseStatus> {
   const byEvidence = new Map<string, ClauseStatus>();
   for (const finding of findings) {
-    const bucket = finding.status === "RESOLVED" && finding.classification !== "MATCH"
-      ? "decided" : classificationBucket(finding.classification);
-    const attention = finding.requires_decision || (bucket !== "match" && bucket !== "decided");
+    const { bucket, open: attention } = markBucket(finding);
     for (const row of finding.evidence) {
       const current = byEvidence.get(row.id) ??
         { covered: false, attention: false, bucket: "match" as StatusBucket };
@@ -880,6 +1080,12 @@ export function rowPresentation(
     if (stripped === title && text.length <= 120) {
       return row.section_number.includes(".") ? "subheading" : "heading";
     }
+  }
+  // A numbered row whose own line is a title ("14" / "TERMINATION:") — the parser kept
+  // the number and no title (S1b); read as a heading, its words unchanged (AM-57 r3).
+  if (row.section_number && !row.section_title && !/^[\s§]*[\d.]+/.test(text)
+      && isTitleLine(text)) {
+    return row.section_number.includes(".") ? "subheading" : "heading";
   }
   if (ITEM_LEAD.test(text)) return "item";
   return "para";

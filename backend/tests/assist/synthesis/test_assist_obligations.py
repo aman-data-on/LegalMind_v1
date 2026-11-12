@@ -173,7 +173,7 @@ def test_endpoints_extract_and_read(api, db, seeded, user, storage, monkeypatch)
     contract_id = created.json()["data"]["id"]
     up = api.post(f"/api/v1/contracts/{contract_id}/document-versions",
                   content=build_docx(PARAGRAPHS),
-                  headers={"content-type": DOCX_MIME, "x-filename": "msa.docx"})
+                  headers={"content-type": DOCX_MIME, "x-version-role": "COMPANY_DRAFT", "x-filename": "msa.docx"})
     version_id = up.json()["data"]["document_version"]["id"]
 
     _fake_raw(monkeypatch,

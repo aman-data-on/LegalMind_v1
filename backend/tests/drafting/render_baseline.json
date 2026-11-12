@@ -1,0 +1,6 @@
+{
+  "_note": "The placeholder template rendered by the renderer of the logo-as-letterhead change (2026-11-06: the logo on the front page only), with its check_values, contract_ref \"T\", version_number 1, model_hash \"0\"*64. Was AM-307's ca1d73ba baseline. A contract without Special Conditions must render to exactly these bytes. Regenerate only from the commit that a later renderer change is measured against.",
+  "renderer_commit": "logo-letterhead-20261106",
+  "model_hash": "52d24d096ad3b30293ee88c21fdb0dbb8af7184953de65d5bb1eda3830567f8d",
+  "docx_sha256": "8dc04304538edf3b6adc9a7827aaa0fcc2991739dcf0a3de223d413949ca9c3e"
+}

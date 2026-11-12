@@ -6,12 +6,14 @@ produces no decision, no status and no resolution (36.15, 45A r18, 45B.14).
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind.db import models as M
+from legalmind.db.lookup import contract_principals
 from legalmind.domain.enums import (
     DecisionType,
     FindingClassification,
@@ -151,12 +153,30 @@ def requires_second_person(db: DBSession, ev: M.Evaluation) -> bool:
     return bool((config or {}).get("requires_second_person"))
 
 
+def own_contract(db: DBSession, ev: M.Evaluation, user_id: UUID) -> bool:
+    """`AM-289` r1 (reversing AM-170 O2): ``user_id`` owns or created the contract this
+    Evaluation belongs to, so their decision on it takes effect only once a second,
+    different holder of `legal.decision` confirms it. House policy and
+    segregation-of-duties practice (r4), not law."""
+    contract_id = db.execute(
+        select(M.Review.contract_id)
+        .join(M.Finding, M.Finding.review_id == M.Review.id)
+        .where(M.Finding.id == ev.finding_id)).scalar_one_or_none()
+    return contract_id is not None and user_id in contract_principals(db, contract_id)
+
+
+def second_person_needed(db: DBSession, ev: M.Evaluation, decided_by: UUID) -> bool:
+    """Whether a decision by ``decided_by`` needs a co-signature: the standard sets
+    ``requires_second_person`` (F-2, QA-044), or it is their own contract (`AM-289`)."""
+    return requires_second_person(db, ev) or own_contract(db, ev, decided_by)
+
+
 def _second_person_satisfied(db: DBSession, ev: M.Evaluation,
                              current: M.LegalDecision) -> bool:
     """Co-signature within the append-only chain (F-2): the current decision and the one
     before it share a type and have different actors. A clarification never needs it."""
     if (current.decision_type is DecisionType.REQUEST_CLARIFICATION
-            or not requires_second_person(db, ev)):
+            or not second_person_needed(db, ev, current.decided_by)):
         return True
     previous = db.execute(
         select(M.LegalDecision).where(
@@ -202,6 +222,40 @@ def finding_is_resolved(db: DBSession, finding: M.Finding, *,
     return True
 
 
+#: `AM-299` r3: the deal owner's acceptance of a change "Better for us" / "No change for
+#: us", carried onto our reply's own Finding (`analysis.negotiation.carry_acceptances`).
+#: The audit row IS the record — append-only, attributed — and never a Legal Decision.
+OWNER_ACCEPTANCE_CARRIED = "negotiation.acceptance_carried"
+
+
+#: `AM-317` r7 (owner, 2026-11-09, option a): a Legal Decision on an earlier version of
+#: the same contract stands for this Finding — byte-identical text read (spacing aside)
+#: against the same standard version (`workflow.decisions.carry_forward`). The audit row
+#: IS the record; no Legal Decision is copied, and an escalation reopens the point.
+DECISION_CARRIED_FORWARD = "decision.carried_forward"
+
+
+def carried_forward(db: DBSession, finding_id: UUID) -> dict | None:
+    """The carry record's after-state, or None."""
+    return db.execute(select(M.AuditEvent.after_state).where(
+        M.AuditEvent.action == DECISION_CARRIED_FORWARD,
+        M.AuditEvent.entity_type == "finding",
+        M.AuditEvent.entity_id == finding_id).limit(1)).scalar()
+
+
+def owner_accepted(db: DBSession, finding_id: UUID) -> bool:
+    return db.execute(select(M.AuditEvent.id).where(
+        M.AuditEvent.action == OWNER_ACCEPTANCE_CARRIED,
+        M.AuditEvent.entity_type == "finding",
+        M.AuditEvent.entity_id == finding_id).limit(1)).first() is not None
+
+
+#: `AM-326` r1: whether a carried decision's chain still stands NOW — set by
+#: `workflow.decisions` (this layer imports no workflow code); unset, the carry record
+#: alone is read, as before.
+CARRY_STANDS: Callable[[DBSession, M.Finding], bool] | None = None
+
+
 def derive_finding_status(db: DBSession, finding: M.Finding, *,
                          requirement_required: bool = True,
                          escalated: bool = False) -> FindingStatus:
@@ -232,7 +286,11 @@ def derive_finding_status(db: DBSession, finding: M.Finding, *,
 
     if outstanding_clarification:
         return FindingStatus.AWAITING_CLARIFICATION
-    if needs_decision:
+    carried = needs_decision and not escalated \
+        and carried_forward(db, finding.id) is not None                  # AM-317 r7
+    if carried and CARRY_STANDS is not None and not CARRY_STANDS(db, finding):
+        carried = False            # AM-326 r1: the chain no longer stands — Legal decides
+    if needs_decision and not owner_accepted(db, finding.id) and not carried:
         return FindingStatus.DECISION_REQUIRED
     if any(evaluation_requires_decision(
             classification=ev.classification, rule_outcome=ev.rule_outcome,

@@ -44,5 +44,5 @@ test("a filename containing a non-ASCII character uploads without error", async 
 
   // The upload succeeded and the flow carried straight through to the
   // workspace (AM-51) — proof the request reached the server and came back.
-  await page.waitForURL(/\/dashboard\?id=[0-9a-f-]{36}$/, { timeout: 45_000 });
+  await page.waitForURL(/\/(dashboard\?id=|contracts\/)[0-9a-f-]{36}$/, { timeout: 45_000 });
 });

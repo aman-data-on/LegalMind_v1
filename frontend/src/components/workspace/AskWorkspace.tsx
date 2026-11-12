@@ -1174,8 +1174,7 @@ export function AskWorkspace() {
                       <IconInfo size={15} />
                     </button>
                     <span id="ws-chat-filehint" role="tooltip" className="ws-chat__tip">
-                      Files attached here are read in this chat only. They are not added to the
-                      Dashboard and are not reviewed against our standards.
+                      Read in this chat only. Not added to the Dashboard or reviewed against our standards.
                     </span>
                   </span>
                 ) : null}

@@ -66,7 +66,7 @@ type TabKey = (typeof TABS)[number]["key"];
  * `.ws-cl__main` set no `overflow`), so the plain absolutely-positioned list is
  * correct and carries none of that machinery.
  */
-function ClientMenu({ children, label }: { children: ReactNode; label: string }) {
+export function ClientMenu({ children, label }: { children: ReactNode; label: string }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const toggleRef = useRef<HTMLButtonElement | null>(null);
@@ -144,9 +144,7 @@ function DeleteClientDialog({
       <h2 id="ws-cl-del-title">Delete this client profile?</h2>
       <p className="ws-modal__body"><strong>{client.name}</strong></p>
       <p className="ws-modal__body">
-        This removes the client profile only — its details, contacts and notes.
-        No documents are filed under it, so nothing else is affected. This
-        cannot be undone.
+        This deletes the profile, its contacts and notes. It has no documents, so nothing else changes. This cannot be undone.
       </p>
       {error ? (
         <p className="ws-field__error" role="alert">{describeError(error)}</p>
@@ -327,6 +325,7 @@ export function ClientWorkspace({ clientId }: { clientId: string }) {
   const location = clientLocation(client);
   const documents = client.documents ?? 0;
   const signed = client.signed_documents ?? 0;
+  const final = client.final_documents ?? 0;
 
   return (
     <div className="ws-cl ws-cl--work">
@@ -383,7 +382,7 @@ export function ClientWorkspace({ clientId }: { clientId: string }) {
               <div className="ws-cl__headcounts">
                 <span>{documentCountLabel(documents)}</span>
                 {documents > 0 ? (
-                  <span className="ws-cl__signed">{signed} signed</span>
+                  <span className="ws-cl__signed">{final} final{signed ? `, ${signed} signed earlier` : ""}</span>
                 ) : null}
               </div>
               {can(P.CONTRACT_UPDATE) ? (

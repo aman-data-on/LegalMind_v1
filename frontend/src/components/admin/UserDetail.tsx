@@ -199,8 +199,7 @@ export function UserDetail({
           </select>
         </label>
         <p className="ws-pane__note">
-          A Department Lead sees every deal owned by someone in their department. Moving this account
-          moves what its Lead can see; it does not move the deals themselves.
+          Moving this person changes which Department Lead sees their deals.
         </p>
       </section>
 
@@ -218,8 +217,7 @@ export function UserDetail({
           </button>
         </div>
         <p className="ws-pane__note">
-          Disabling signs the account out immediately and refuses every future sign-in. The
-          server refuses a change that would leave nobody able to administer the platform.
+          Disabling signs the person out and blocks sign-in. The last administrator cannot be disabled.
         </p>
       </section>
 

@@ -141,7 +141,8 @@ test("typing in the search box filters the table, and clearing it brings the row
   const name: string = contract.data.name;
 
   await page.goto("/dashboard");
-  const search = page.getByRole("textbox", { name: "Search contracts" });
+  // a `type="search"` input since the Contracts home (CLM S1, 2026-11-03): role searchbox
+  const search = page.getByRole("searchbox", { name: "Search contracts" });
   const rows = page.locator("tbody tr");
   await expect(rows.filter({ hasText: name })).toHaveCount(1);
 

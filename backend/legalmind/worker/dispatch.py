@@ -40,6 +40,7 @@ import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 from uuid import UUID
 
 from kombu.exceptions import OperationalError
@@ -49,7 +50,9 @@ from sqlalchemy.orm import Session as DBSession
 from legalmind import config
 from legalmind.analysis.service import AnalysisRun, assert_analysable, run_analysis
 from legalmind.db import models as M
+from legalmind.db.session import on_rollback
 from legalmind.domain import enums as E
+from legalmind.drafting.effective import effective_clauses
 from legalmind.observability.logs import log_event
 from legalmind.security.errors import SecurityError
 from legalmind.worker.app import (
@@ -94,13 +97,19 @@ class AnalysisDispatch:
 def dispatch_analysis(db: DBSession, review: M.Review, *,
                       actor_id: UUID | None = None,
                       request_id: str | None = None,
-                      review_anyway: bool = False) -> AnalysisDispatch:
+                      review_anyway: bool = False,
+                      after_commit: bool = False) -> AnalysisDispatch:
     """Run the analysis, or queue it — locked 55.1. ``review_anyway``: the owner's
     override of the not-a-contract gate (AM-245), carried in the job itself.
 
     Raises `AnalysisNotPermitted` in both modes for a Review that must not be
     analysed (43.28). Checking before enqueueing matters: a refusal the caller can
     see is worth more than a job that is silently discarded by the worker.
+
+    ``after_commit``: the Review was created in the caller's still-open transaction
+    (our prepared reply, `AM-251` r4), so the message is sent only once it commits —
+    a worker reading first would drop it as ``review_not_found``, and a rollback sends
+    nothing. The same hook `dispatch_indexing` uses, off the event loop.
     """
     broker = configure_broker()
     if broker is None:
@@ -109,7 +118,8 @@ def dispatch_analysis(db: DBSession, review: M.Review, *,
                 "analysis runs on the worker in production (55.1) and "
                 "LEGALMIND_BROKER_URL is not set; nothing was recorded")
         run = run_analysis(db, review, actor_id=actor_id, request_id=request_id,
-                           review_anyway=review_anyway)
+                           review_anyway=review_anyway,
+                           clause_loader=effective_clauses)          # AM-307
         return AnalysisDispatch(mode=DispatchMode.INLINE, review_id=review.id,
                                 review_status=run.review_status, run=run)
 
@@ -121,8 +131,8 @@ def dispatch_analysis(db: DBSession, review: M.Review, *,
     # depends on that cycle resolving.
     from legalmind.worker.tasks import analyse_review
 
-    try:
-        async_result = analyse_review.apply_async(
+    def send() -> Any:
+        return analyse_review.apply_async(
             kwargs={
                 # Identifiers only. Nothing about the document, the configuration or
                 # the legal position travels through the broker (53.3's instinct
@@ -138,6 +148,21 @@ def dispatch_analysis(db: DBSession, review: M.Review, *,
             },
             queue=QUEUE_ANALYSIS,
         )
+
+    if after_commit and db.in_transaction():
+        def publish() -> None:
+            try:
+                send()
+            except Exception as exc:     # never fails the request that committed
+                log_event("analysis.dispatch_failed", level=logging.WARNING,
+                          request_id=request_id, review_id=str(review.id),
+                          error=type(exc).__name__, operational_failure=True)
+
+        _after_commit(db, publish)
+        return AnalysisDispatch(mode=DispatchMode.QUEUED, review_id=review.id,
+                                review_status=review.status.value)
+    try:
+        async_result = send()
     except OperationalError as exc:
         # The broker was configured and is not answering — a 503 the caller can
         # retry, never a 500. Nothing was written (see the module docstring).
@@ -167,6 +192,20 @@ def dispatch_analysis(db: DBSession, review: M.Review, *,
 def _off_loop(fn: Callable[[], object]) -> None:
     """Run `fn` on a daemon thread (a seam the tests replace to run it inline)."""
     threading.Thread(target=fn, name="legalmind-index-publish", daemon=True).start()
+
+
+def _after_commit(db: DBSession, fn: Callable[[], object]) -> None:
+    """`fn` off the loop once the caller's transaction commits — never after that
+    transaction (or one enclosing it) rolled back: a later commit of the same session
+    sends nothing for rows that are gone."""
+    pending = [True]
+
+    def on_commit(*_: object) -> None:
+        if pending and pending.pop():
+            _off_loop(fn)
+
+    event.listen(db, "after_commit", on_commit, once=True)
+    on_rollback(db, pending.clear)
 
 
 def dispatch_indexing(db: DBSession, document_version_id: UUID, *,
@@ -240,19 +279,108 @@ def dispatch_indexing(db: DBSession, document_version_id: UUID, *,
     # indexed" — both left Ask saying the text was missing. A request that rolls back
     # sends nothing. The worker's retry on "not visible yet" stays as a second guard.
     if db.in_transaction():
-        pending = [True]
-
-        def on_commit(*_: object) -> None:
-            if pending and pending.pop():
-                # The routes commit on the event loop (`CommitBeforeResponse`): a
-                # publish here would freeze the API whenever the broker is slow or
-                # down. Off the loop, as `dispatch_ocr` runs its pass.
-                _off_loop(send)
-
-        event.listen(db, "after_commit", on_commit, once=True)
-        event.listen(db, "after_soft_rollback", lambda *_: pending.clear(), once=True)
+        # The routes commit on the event loop (`CommitBeforeResponse`): a publish
+        # there would freeze the API whenever the broker is slow or down. Off the
+        # loop, as `dispatch_ocr` runs its pass.
+        _after_commit(db, send)
         return DispatchMode.QUEUED.value
     return send()
+
+
+# --------------------------------------------------------------------------
+# The client-facing PDF — `AM-293` r2: LibreOffice in the worker only
+# --------------------------------------------------------------------------
+def dispatch_pdf(db: DBSession, version: M.DocumentVersion, kind: str, *,
+                 request_id: str | None = None) -> str:
+    """Render a reply's or a created contract's PDF on the worker; inline without a
+    broker, as analysis is (development only). Never raises: the version stands.
+
+    Unlike analysis, the record is written first — ``pdf: RENDERING`` in the caller's
+    transaction — because it has no terminal state to burn: a message lost after the
+    commit is re-dispatched by the next download once `pdf.STALE_S` has passed. The
+    message itself is sent from ``after_commit`` (a rollback sends nothing), as
+    `dispatch_indexing` does. Production without a broker records FAILED rather than
+    run LibreOffice inside a request."""
+    from legalmind.api.storage import get_storage
+    from legalmind.drafting import pdf
+    from legalmind.worker.app import QUEUE_ASSIST
+
+    if configure_broker() is None:
+        if config.environment() == "production":
+            pdf.mark(version, kind, pdf.FAILED, rendered_at=pdf._now(),
+                     error="the PDF worker is not configured on this server")
+            log_event("drafting.pdf.dispatch_failed", level=logging.WARNING,
+                      request_id=request_id, document_version_id=str(version.id),
+                      error="no_broker", operational_failure=True)
+            return "FAILED"
+        db.flush()                    # the render re-reads the version under a lock
+        try:
+            with db.begin_nested():
+                pdf.render_version(db, get_storage(), version.id, kind)
+        except Exception as exc:      # never fails the request that made the version
+            pdf.mark(version, kind, pdf.FAILED, rendered_at=pdf._now(),
+                     error=f"the PDF could not be made ({type(exc).__name__})")
+        return DispatchMode.INLINE.value
+
+    pdf.mark(version, kind, pdf.RENDERING)
+
+    def send() -> None:
+        try:
+            from legalmind.worker.tasks import render_pdf
+
+            render_pdf.apply_async(kwargs={"document_version_id": str(version.id),
+                                           "kind": kind, "request_id": request_id},
+                                   queue=QUEUE_ASSIST)
+        except Exception as exc:      # the stale-record redispatch is the retry
+            log_event("drafting.pdf.dispatch_failed", level=logging.WARNING,
+                      request_id=request_id, document_version_id=str(version.id),
+                      error=type(exc).__name__, operational_failure=True)
+
+    _after_commit(db, send)
+    return DispatchMode.QUEUED.value
+
+
+def dispatch_blank_pdf(db: DBSession, template_version_id: UUID, model_hash: str,
+                       kind: str, *, request_id: str | None = None) -> dict:
+    """A blank template's PDF (`AM-302`), as `dispatch_pdf` makes a contract's: inline
+    without a broker (development), FAILED without one in production, else the
+    RENDERING record first and the message after commit. Returns the record."""
+    from legalmind.api.storage import get_storage
+    from legalmind.drafting import pdf
+    from legalmind.worker.app import QUEUE_ASSIST
+
+    if configure_broker() is None:
+        if config.environment() == "production":
+            return pdf.mark_blank(db, template_version_id, model_hash, kind, pdf.FAILED,
+                                  rendered_at=pdf._now(),
+                                  error="the PDF worker is not configured on this server")
+        try:
+            with db.begin_nested():
+                rec = pdf.render_blank(db, get_storage(), template_version_id, kind)
+        except Exception as exc:      # never fails the request
+            rec = pdf.mark_blank(
+                db, template_version_id, model_hash, kind, pdf.FAILED,
+                rendered_at=pdf._now(),
+                error=f"the PDF could not be made ({type(exc).__name__})")
+        assert rec is not None            # the caller holds the template version
+        return rec
+    rec = pdf.mark_blank(db, template_version_id, model_hash, kind, pdf.RENDERING)
+
+    def send() -> None:
+        try:
+            from legalmind.worker.tasks import render_blank_pdf
+
+            render_blank_pdf.apply_async(kwargs={
+                "template_version_id": str(template_version_id), "kind": kind,
+                "request_id": request_id}, queue=QUEUE_ASSIST)
+        except Exception as exc:      # the stale-record redispatch is the retry
+            log_event("drafting.pdf.dispatch_failed", level=logging.WARNING,
+                      request_id=request_id,
+                      template_version_id=str(template_version_id),
+                      error=type(exc).__name__, operational_failure=True)
+
+    _after_commit(db, send)
+    return rec
 
 
 # --------------------------------------------------------------------------
@@ -505,12 +633,20 @@ def _run_ocr_in_background(document_version_id: UUID,
                         # said ocr_required, the superseded reading's chunks must go.
                         # On a first upload there are none yet, so this is a no-op.
                         index_safely(db, document_version_id, reindex=True)
+                    # AM-317 r6 / AM-321 r3: the owner's Review commits WITH the OCR
+                    # result, so nobody can see COMPLETED without it — an open tab's
+                    # chain then finds it (no second Review)
+                    opened = open_after_ocr(db, document_version_id,
+                                            request_id=request_id)
                     db.commit()
                     log_event("ingest.ocr.completed", request_id=request_id,
                               document_version_id=str(document_version_id),
                               run_status=run.status.value,
                               extraction_status=(row.extraction_status.value
                                                  if row.extraction_status else None))
+                if opened is not None:          # nobody need be watching
+                    with factory() as db:
+                        analyse_opened(db, opened, request_id=request_id)
             finally:
                 # Explicit, because closing a POOLED connection returns it to
                 # the pool WITHOUT ending the PostgreSQL session — so a
@@ -541,6 +677,83 @@ def _run_ocr_in_background(document_version_id: UUID,
                     db.commit()
         except Exception:                        # pragma: no cover - double fault
             pass
+
+
+def open_after_ocr(db: DBSession, document_version_id: UUID, *,
+                   request_id: str | None = None) -> UUID | None:
+    """`AM-317` r6 (audit N6; AM-321 r3): a scan whose OCR finished gets its Review in
+    the SAME transaction that records the OCR result — exactly what the workspace's
+    chain would have opened for its owner (`analysisChain.ts`): the latest published
+    snapshot, created by the contract's OWNER (who must hold ``review.create``, as
+    `POST /reviews` requires), audited with trigger ``ocr_completed``. Nothing when the
+    version already has a Review, did not complete, is a signed copy, reads as not a
+    contract (AM-245 — the owner's "Review anyway" stays theirs), or the contract is
+    archived. Never raises: a savepoint keeps the OCR result whatever happens here, and
+    "Analyse now" is the owner's way in. Returns the Review's id, analysed by
+    `analyse_opened` once committed."""
+    from sqlalchemy import select
+
+    from legalmind.analysis.service import paper_gate
+    from legalmind.drafting.publish import latest_snapshot
+    from legalmind.security import audit
+    from legalmind.security import permissions as P
+    from legalmind.security.resolver import has_permission
+    from legalmind.workflow.review_lifecycle import signed_copies
+
+    savepoint = db.begin_nested()
+    try:
+        version = db.get(M.DocumentVersion, document_version_id)
+        contract = db.get(M.Contract, version.contract_id) if version else None
+        snapshot = latest_snapshot(db)
+        if (version is None or contract is None or snapshot is None
+                or version.processing_status is not E.ProcessingStatus.COMPLETED
+                or contract.archived_at is not None
+                or not has_permission(db, contract.owner_id, P.REVIEW_CREATE)
+                or db.execute(select(M.Review.id).where(
+                    M.Review.document_version_id == version.id)).first() is not None
+                or version.id in db.execute(signed_copies([contract.id])).scalars().all()
+                or paper_gate(db, version.id) is not None):
+            savepoint.rollback()
+            return None
+        review = M.Review(contract_id=contract.id, document_version_id=version.id,
+                          configuration_snapshot_id=snapshot.id,
+                          status=E.ReviewStatus.DRAFT, created_by=contract.owner_id)
+        db.add(review)
+        db.flush()
+        audit.record(db, action=audit.REVIEW_CREATED, entity_type="review",
+                     entity_id=review.id, actor_id=None, request_id=request_id,
+                     after={"contract_id": str(contract.id),
+                            "document_version_id": str(version.id),
+                            "created_for": str(contract.owner_id),
+                            "trigger": "ocr_completed"})
+        savepoint.commit()
+        return review.id
+    except Exception as exc:
+        savepoint.rollback()
+        log_event("ingest.ocr.analysis_not_started", level=logging.WARNING,
+                  request_id=request_id, document_version_id=str(document_version_id),
+                  error=type(exc).__name__, operational_failure=True)
+        return None
+
+
+def analyse_opened(db: DBSession, review_id: UUID, *,
+                   request_id: str | None = None) -> None:
+    """Run (inline) or queue (55.1) the analysis of a Review `open_after_ocr` committed;
+    a Review an open tab already analysed is left as it is (43.28). Never raises."""
+    try:
+        review = db.get(M.Review, review_id)
+        if review is None or review.status is not E.ReviewStatus.DRAFT:
+            return
+        dispatch_analysis(db, review, actor_id=None, request_id=request_id,
+                          after_commit=True)
+        db.commit()
+        log_event("ingest.ocr.analysis_started", request_id=request_id,
+                  review_id=str(review_id))
+    except Exception as exc:
+        db.rollback()
+        log_event("ingest.ocr.analysis_not_started", level=logging.WARNING,
+                  request_id=request_id, review_id=str(review_id),
+                  error=type(exc).__name__, operational_failure=True)
 
 
 def interrupted_ocr_versions(db: DBSession) -> list[UUID]:

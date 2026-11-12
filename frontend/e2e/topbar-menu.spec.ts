@@ -31,7 +31,12 @@ test.describe("top bar — bell and account menu", () => {
   test("the bell opens an honest panel and only one popover is open at a time", async ({ page }) => {
     const bell = page.locator("[data-toggle='bell']");
     await bell.click();
-    await expect(page.getByRole("dialog", { name: "Notifications" })).toContainText("Nothing to show");
+    // CLM notifications are real now (decisions on this owner's points, earlier in the run),
+    // so the panel is honest either way: the plain empty sentence, or real items — and
+    // always the way to the to-do list.
+    const panel = page.getByRole("dialog", { name: "Notifications" });
+    await expect(panel).toContainText(/No notifications|has been decided|returned/);
+    await expect(panel).toContainText("Open your to-do");
 
     await page.locator("[data-toggle='user']").click();
     await expect(page.getByRole("dialog", { name: "Notifications" })).toHaveCount(0);

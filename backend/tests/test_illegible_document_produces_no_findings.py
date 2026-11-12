@@ -214,7 +214,7 @@ def test_the_upload_endpoint_still_succeeds_and_reports_the_real_state(
     uploaded = api.post(f"/api/v1/contracts/{contract_id}/document-versions",
                         content=build_pdf([mangle(READABLE_PAGE)]),
                         headers={"content-type": PDF_MIME,
-                                 "x-filename": "broken.pdf"})
+                                 "x-version-role": "COMPANY_DRAFT", "x-filename": "broken.pdf"})
     assert uploaded.status_code == 201, uploaded.text
 
     # Both statuses report FAILED, and they are separate axes on purpose (34.15):

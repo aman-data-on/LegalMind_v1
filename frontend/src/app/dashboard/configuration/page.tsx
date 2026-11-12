@@ -44,6 +44,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ChevronRight, Plus, Upload } from "lucide-react";
 
 import { AccessRestricted, PermissionGate } from "@/components/AccessRestricted";
+import { PageHeader } from "@/components/page/PageHeader";
 import { StandardForm } from "@/components/configuration/StandardForm";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EmptyState, ErrorBanner, Loading } from "@/components/Feedback";
@@ -100,7 +101,15 @@ export default function ConfigurationPage() {
   const setFilter = (key: keyof RequirementFilters) => (value: string) =>
     setFilters((current) => ({ ...current, [key]: value }));
 
-  if (!allowed) return <AccessRestricted what="legal configuration" />;
+  // The page keeps its h1 when access is refused; AccessRestricted itself stays an h2 note.
+  if (!allowed) {
+    return (
+      <div className="lm-page">
+        <PageHeader title="Standards" />
+        <AccessRestricted what="legal configuration" />
+      </div>
+    );
+  }
 
   async function createRequirement(event: React.FormEvent) {
     event.preventDefault();
@@ -133,52 +142,34 @@ export default function ConfigurationPage() {
   }
 
   return (
-    <div className="ws-admin">
+    <div className="lm-page ws-admin">
       {/*
         The same shell Administration uses — head, filter bar, one table — because
         this screen was the only one still stacking a card per row. At 40 ratified
         standards that is a scroll, not a screen, and a reader who has learned one
         list in this product had to learn a second one here.
       */}
-      <header className="ws-admin__head">
-        <div>
-          {/* The nav has always called this "Standards"; the page called itself
-              "Legal configuration", so the one word a reader arrives with did not
-              appear on the page they arrived at. */}
-          <h1>Standards</h1>
-          <p className="ws-pane__note">
-            The positions this organization measures every contract against. Changes
-            are versioned and reach no Review until they are published.
-          </p>
-        </div>
-        <div className="ws-detail__acts">
-          {/* Publishing lived at the BOTTOM of the page, so reaching it meant
-              scrolling past every standard. It is an act, like creating one, and
-              belongs beside the other act. */}
-          <PermissionGate granted={can(P.CONFIGURATION_PUBLISH)}>
-            <button
-              type="button"
-              className="ws-btn ws-btn--icon"
-              aria-expanded={publishOpen}
-              onClick={() => { setPublishOpen((open) => !open); setCreateOpen(false); }}
-            >
-              <Upload size={16} />
-              Publish snapshot
-            </button>
-          </PermissionGate>
-          <PermissionGate granted={can(P.CONFIGURATION_DRAFT)}>
-            <button
-              type="button"
-              className="ws-btn ws-btn--primary ws-btn--icon"
-              aria-expanded={createOpen}
-              onClick={() => { setCreateOpen((open) => !open); setPublishOpen(false); }}
-            >
-              <Plus size={16} />
-              New standard
-            </button>
-          </PermissionGate>
-        </div>
-      </header>
+      {/* The house page header. The nav calls this "Standards", so the page does too. */}
+      <PageHeader title="Standards"
+                  meta={<span>The positions every contract is measured against. A change applies only once it is published.</span>}
+                  secondary={(
+                    <PermissionGate granted={can(P.CONFIGURATION_PUBLISH)}>
+                      <button type="button" className="ws-btn ws-btn--icon" aria-expanded={publishOpen}
+                              onClick={() => { setPublishOpen((open) => !open); setCreateOpen(false); }}>
+                        <Upload size={16} />
+                        Publish a new version
+                      </button>
+                    </PermissionGate>
+                  )}
+                  primary={(
+                    <PermissionGate granted={can(P.CONFIGURATION_DRAFT)}>
+                      <button type="button" className="ws-btn ws-btn--primary ws-btn--icon" aria-expanded={createOpen}
+                              onClick={() => { setCreateOpen((open) => !open); setPublishOpen(false); }}>
+                        <Plus size={16} />
+                        New standard
+                      </button>
+                    </PermissionGate>
+                  )} />
 
       <ErrorBanner error={error} />
 
@@ -202,10 +193,7 @@ export default function ConfigurationPage() {
             </label>
           </div>
           <p className="ws-field__help">
-            The code names the position, not the document — it is how fixtures,
-            snapshots and explanations refer to it. A new standard starts as a draft:
-            it carries no version, affects no Review, and appears in nothing until it
-            is given one and published.
+            A new standard starts as a draft and affects no review until it is published.
           </p>
           <div className="ws-detail__acts">
             <button type="button" className="ws-btn" onClick={() => setCreateOpen(false)}>
@@ -221,13 +209,9 @@ export default function ConfigurationPage() {
       {publishOpen ? (
         <PermissionGate granted={can(P.CONFIGURATION_PUBLISH)}>
           <section className="ws-intake">
-            <h2 className="ws-intake__title">Publish a configuration snapshot</h2>
+            <h2 className="ws-intake__title">Publish a new version of our standards</h2>
             <p className="ws-pane__note">
-              Publishing activates the named draft Requirements and pins the latest
-              version of every active Requirement into an immutable snapshot. If any
-              active Requirement is missing its Company Standard, mapping rules or
-              evaluation rules, publishing is refused rather than producing a snapshot
-              that silently skips it.
+              Publishing saves every active Requirement into a new version that never changes. It is refused if one is missing its Company Standard, mapping rules or evaluation rules.
             </p>
             {/*
               A checkbox list, not a comma-separated field. Activating the AB-20 batch
@@ -246,14 +230,12 @@ export default function ConfigurationPage() {
                   <p className="ws-pane__note">
                     Nothing is in draft. Publishing now re-pins the{" "}
                     {plan.active.length} already-active Requirement
-                    {plan.active.length === 1 ? "" : "s"} into a fresh snapshot.
+                    {plan.active.length === 1 ? "" : "s"} into a new version.
                   </p>
                 ) : (
                   <>
                     <p className="ws-pane__note">
-                      Ticking a Requirement activates it (DRAFT &rarr; ACTIVE) and pins it
-                      into this snapshot. Leaving everything unticked publishes the
-                      active configuration as it stands.
+                      Ticked Requirements become active in this version. Leave all unticked to republish the active set.
                     </p>
                     {/* SELECT ALL — 39 individual ticks is the tedium the bulk-action
                         guideline names, and the owner hit it publishing AB-25. Buttons,
@@ -322,9 +304,7 @@ export default function ConfigurationPage() {
               <details className="ws-formsec">
                 <summary>Already active — {plan.active.length}</summary>
                 <p className="ws-pane__note">
-                  Every one is pinned into the snapshot whether or not anything above is
-                  ticked. That is what makes a snapshot the whole configuration rather
-                  than a diff.
+                  All of these are in every new version.
                 </p>
                 <ul className="ws-checks">
                   {plan.active.map((requirement) => (
@@ -339,9 +319,7 @@ export default function ConfigurationPage() {
                 <details className="ws-formsec">
                   <summary>Retired — {plan.retired.length}</summary>
                   <p className="ws-pane__note">
-                    These cannot be published, and publishing does not bring one back:
-                    reversing a retirement is an owner decision that goes through the
-                    standard file and the record (<code>AM-65</code>).
+                    These cannot be published or brought back from here.
                   </p>
                   <ul className="ws-checks">
                     {plan.retired.map((requirement) => (
@@ -369,10 +347,10 @@ export default function ConfigurationPage() {
             </form>
             {snapshot ? (
               <p className="ws-stated">
-                Snapshot <strong className="ws-stated__value">{snapshot.id}</strong> · {snapshot.requirement_count}{" "}
+                Version <strong className="ws-stated__value">{snapshot.id}</strong> · {snapshot.requirement_count}{" "}
                 Requirement{snapshot.requirement_count === 1 ? "" : "s"} ·{" "}
                 {snapshot.reused_existing
-                  ? "identical to an existing snapshot, which was reused"
+                  ? "identical to an existing version, which was reused"
                   : "newly created"}
                 . Use this id when starting a Review.
               </p>
@@ -446,7 +424,7 @@ export default function ConfigurationPage() {
               <p>
                 {filtering
                   ? "Try a broader filter — search matches the code and every version name."
-                  : "Which Requirements V1 ships with is an open decision, and their content must come from the organization's own legal material."}
+                  : "Standards appear here once Legal adds them."}
               </p>
             </div>
           ) : (
@@ -715,7 +693,7 @@ function RequirementRow({
               </select>
             </label>
             <label>
-              Company Standard (JSON) — the organization&rsquo;s own position
+              Company Standard (JSON)
               <textarea className="code-input" name="company_standard" rows={4} required defaultValue="{}" />
             </label>
             <label>

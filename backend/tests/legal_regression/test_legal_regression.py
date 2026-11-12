@@ -371,14 +371,14 @@ def _uncertain(build, db, code):
     return _findings(db, review)[code], coverage[code]["reason"]
 
 
-def test_a_tos_retention_standard_is_never_missing_on_an_msa_from_a_verification_clause(
-        build, db):
-    """Step 1 (2026-10-21): "KYC verification" confirms the topic, not the TOS retention
-    period; with no period stated the point is for Legal to confirm, never MISSING."""
-    found, reason = _uncertain(build, db, "KYC-RETENTION-TOS-001")
-    assert found["classification"] == "UNABLE_TO_EVALUATE"
-    assert found["actual"].get("reason") == "APPLICABILITY_UNCERTAIN"
-    assert "Legal to confirm it applies" in reason
+def test_a_tos_retention_standard_is_not_applicable_to_an_msa(build, db):
+    """Owner, 2026-11-04 (was Step 1, 2026-10-21: Legal to confirm): §12's 5-year KYC
+    retention is LeapSwitch's CERT-In duty, not an MSA term — never measured on an MSA,
+    however much "KYC verification" it states, and never MISSING."""
+    review, run = _review(build, db, ["KYC-RETENTION-TOS-001"], INAPPLICABLE)
+    assert "KYC-RETENTION-TOS-001" not in _findings(db, review)
+    coverage = {c["code"]: c for c in run.applicability}
+    assert coverage["KYC-RETENTION-TOS-001"]["outcome"] == "NOT_APPLICABLE"
 
 
 def test_an_nda_termination_standard_is_never_missing_on_an_msa(build, db):
@@ -443,25 +443,25 @@ def test_the_notice_case_states_contract_standard_gap_related_and_a_recommendati
     assert case["gap"] == "15 days in the contract vs our 30 days"
     assert (case["standard"]["section"], case["standard"]["value"]) == ("13", "30 days")
     assert {r["clause"] for r in case["related"]} == {"13.2", "13.3"}
-    assert case["recommendation"] in ("Request revised wording", "Seek legal review")
+    assert case["recommendation"] in ("Ask them to change the wording", "Ask Legal to look at this")
 
 
 def test_a_one_sided_cap_case_is_not_negotiable_and_shows_no_rupees(build, db):
     review, _ = _cap_case(build, db, ONE_SIDED)
     case = _case(db, review, CAP)
     assert case["gap"] == "The cap binds only LeapSwitch; our standard is a mutual cap"
-    assert case["recommendation"].startswith("Request revised wording — not negotiable")
+    assert case["recommendation"] == "Must change — not negotiable"
     assert not (case["business"] or {}).get("money")
 
 
 def test_an_uncertain_standard_case_recommends_legal_review(build, db):
-    review, _ = _review(build, db, ["KYC-RETENTION-TOS-001"], INAPPLICABLE)
-    case = _case(db, review, "KYC-RETENTION-TOS-001")
+    review, _ = _review(build, db, ["TERM-NOTICE-NDA-001"], INAPPLICABLE)
+    case = _case(db, review, "TERM-NOTICE-NDA-001")
     # owner, 2026-10-23: say what the clause states, then what a person confirms
-    assert case["gap"] == ("Clauses 5.2.2, 5.2.3 state no figure for this; our standard: "
-                           "5 years — written for another type of document: Legal to "
+    assert case["gap"] == ("Clause 7.1 states no figure for this; our standard: "
+                           "30 days — written for another type of document: Legal to "
                            "confirm it applies")
-    assert case["recommendation"] == "Seek legal review"
+    assert case["recommendation"] == "Ask Legal to look at this"
 
 
 def test_a_reader_without_positions_gets_the_case_without_our_value_or_source(build, db):

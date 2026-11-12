@@ -54,13 +54,13 @@ const CASE: FindingCase = {
               body: "That is the time LeapSwitch has to plan.", money: null },
   related: [{ evidence_id: "e-2", clause: "13.2", page: 2, relation: "early exit and what it costs",
               text: "There is no lock-in and no early termination charges shall apply." }],
-  recommendation: "Request revised wording",
+  recommendation: "Ask them to change the wording",
 };
 
 describe("the finding's case on the card (owner, 2026-10-21)", () => {
   it("leads with the contract's own words, clause and page", () => {
     const html = renderToStaticMarkup(<CaseContract kase={CASE} />);
-    expect(html).toContain("The contract says (Clause 13.1 · page 2)");
+    expect(html).toContain("Clause 13.1, page 2");             // page 2: said once, after it
     expect(html).toContain("15 days&#x27; notice");
   });
 
@@ -68,12 +68,14 @@ describe("the finding's case on the card (owner, 2026-10-21)", () => {
     expect(renderToStaticMarkup(<CaseContract kase={{ ...CASE, contract: null }} />)).toBe("");
   });
 
-  it("shows what the point is read with, the money, and the standard's source", () => {
-    const html = renderToStaticMarkup(<CaseContext kase={CASE} />);
+  it("shows what the point is read with, the money, and — for Legal — the standard's source", () => {
+    const html = renderToStaticMarkup(<CaseContext kase={CASE} legalDetails />);
     expect(html).toContain("Read with");
     expect(html).toContain("early exit and what it costs · clause 13.2 · page 2");
     expect(html).toContain("What it means for the business");
     expect(html).toContain("Where our standard comes from");
+    // S1: the source carries a § reference, so it is a Legal detail — absent otherwise
+    expect(renderToStaticMarkup(<CaseContext kase={CASE} />)).not.toContain("Where our standard comes from");
   });
 
   it("omits the standard's source for a reader without positions (SEC-07)", () => {

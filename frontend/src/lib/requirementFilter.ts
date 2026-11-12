@@ -58,6 +58,9 @@ export const STATUS_LABELS: ReadonlyArray<{ code: string; label: string }> = [
 export const EVALUATOR_LABELS: ReadonlyArray<{ code: string; label: string }> = [
   { code: "NUMERIC_COMPARISON", label: "Numeric comparison" },
   { code: "PRESENCE", label: "Presence" },
+  // AM-146: the third evaluator (one of a fixed list, e.g. courts at Pune); S1b — the
+  // raw "CATEGORICAL" showed on the Standards screen
+  { code: "CATEGORICAL", label: "One of a fixed list" },
 ];
 
 export function evaluatorLabel(evaluator: string | null | undefined): string {

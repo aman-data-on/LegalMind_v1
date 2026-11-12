@@ -27,6 +27,10 @@
      the current corporate law in L1.12. The counterparty redaction of L1.10 is carried over
      unchanged.))) -->
 
+> **📁 SUPERSEDED 2026-11-09 by [LEGAL_CONSTITUTION_L1.17.md](LEGAL_CONSTITUTION_L1.17.md) (`AM-313` as `AM-325` records it, AB-178).**
+> Retained unchanged as history. L1.17 adds to Section 9 that a Party's obligation to pay fees
+> and charges due is outside the liability cap; nothing else differs. Ask searches only the current version.
+
 **LEGAL MIND**
 
 **LEGAL CONSTITUTION**

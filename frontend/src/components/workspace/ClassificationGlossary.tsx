@@ -37,9 +37,7 @@ export function ClassificationGlossary() {
         ))}
       </dl>
       <p className="ws-pane__note">
-        Outcomes are produced by a deterministic engine from the company standard
-        published at the time of the analysis. None of them is a legal decision —
-        an authorized person records that.
+        Outcomes come from the company standard published at the time of the analysis. None of them is a legal decision; an authorized person records that.
       </p>
     </details>
   );

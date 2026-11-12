@@ -224,7 +224,7 @@ def test_t2_the_conflict_is_read_with_the_exit_clauses_and_never_settled_by_the_
     item = next(i for i in _angles(db, review)["legal"]["items"]
                 if i["requirement_code"] == "CONVENIENCE-NOTICE-MSA-001")
     assert {"13.2", "13.3"} <= {r["clause"] for r in item["related"]}
-    assert item["case"]["recommendation"] == "Seek legal review"
+    assert item["case"]["recommendation"] == "Ask Legal to look at this"
 
 
 def test_t2_money_is_exactly_fee_times_term(build, db):
@@ -249,10 +249,12 @@ def test_t3_an_inapplicable_standard_is_uncertain_while_a_valid_one_is_kept(buil
     paragraphs = [*INAPPLICABLE, "17. Limitation of Liability",
                   "17.1 The total aggregate liability of each party shall not exceed the fees "
                   "paid in the six (6) months preceding the claim."]
-    review, _ = _review(build, db, ["KYC-RETENTION-TOS-001", "LIABILITY-MSA-001"], paragraphs)
+    # TERM-NOTICE-NDA-001, not KYC-RETENTION-TOS-001: the owner ruled KYC retention not
+    # applicable to an MSA at all (2026-11-04)
+    review, _ = _review(build, db, ["TERM-NOTICE-NDA-001", "LIABILITY-MSA-001"], paragraphs)
     found = _findings(db, review)
-    assert found["KYC-RETENTION-TOS-001"]["classification"] == "UNABLE_TO_EVALUATE"
-    assert found["KYC-RETENTION-TOS-001"]["actual"].get("reason") == "APPLICABILITY_UNCERTAIN"
+    assert found["TERM-NOTICE-NDA-001"]["classification"] == "UNABLE_TO_EVALUATE"
+    assert found["TERM-NOTICE-NDA-001"]["actual"].get("reason") == "APPLICABILITY_UNCERTAIN"
     assert found["LIABILITY-MSA-001"]["classification"] == "DEVIATION"
 
 
@@ -267,10 +269,23 @@ def test_t4_who_may_decide(api, db, owner, requirement_version):
     assert _decide(api, ev, "ACCEPT_DEVIATION", expected=0).status_code == 403
     sign_in(api, db, stranger)
     assert _decide(api, ev, "ACCEPT_DEVIATION", expected=0).status_code == 404
-    # O2: an owner who holds legal.decision may decide their own points
-    grant(db, owner, _decider_role(db))
+    # AM-289 (2026-11-03) reverses AM-170 O2: an owner holding legal.decision may still
+    # record a decision on their own point, but it takes effect only once a SECOND,
+    # different holder confirms it (AM-240 r1's co-signature)
+    decider = _decider_role(db)
+    grant(db, owner, decider)
     sign_in(api, db, owner)
-    assert _decide(api, ev, "ACCEPT_DEVIATION", expected=0).status_code == 201
+    first = _decide(api, ev, "ACCEPT_DEVIATION", expected=0)
+    assert first.status_code == 201 and first.json()["data"]["is_effective"] is False
+    second = make_user(db)
+    grant_role(db, second, P.ROLE_USER)
+    grant(db, second, decider)
+    db.add(M.ReviewAssignment(review_id=review.id, user_id=second.id,
+                              assigned_by=owner.id))
+    db.flush()
+    sign_in(api, db, second)
+    confirmed = _decide(api, ev, "ACCEPT_DEVIATION", expected=1)
+    assert confirmed.status_code == 201 and confirmed.json()["data"]["is_effective"]
 
 
 def _decider_role(db):

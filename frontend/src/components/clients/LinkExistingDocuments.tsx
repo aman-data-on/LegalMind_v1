@@ -78,9 +78,7 @@ export function LinkExistingDocuments({ client, onClose, onLinked }: {
         </button>
       </header>
       <p className="ws-pane__note">
-        Documents already in LegalMind that are not yet filed under a client.
-        Linking one moves nothing and copies nothing — it records who the
-        document is with.
+        Documents not yet filed under a client. Linking one copies nothing.
       </p>
 
       <label className="ws-field">

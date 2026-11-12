@@ -23,6 +23,7 @@ from legalmind.evaluation.user_status import folded_user_status_counts
 from legalmind.security import audit as A
 from legalmind.workflow import contract_outcome as CO
 from legalmind.workflow import review_lifecycle as RL
+from legalmind.workflow.decisions import reader_justification
 from legalmind.workflow.errors import ReviewReadOnly
 from legalmind.workflow.review_progress import review_progress
 
@@ -179,7 +180,7 @@ def _decisions(db: DBSession, review: M.Review) -> list[dict[str, Any]]:
             "decided_by_name": (user.name or user.email) if user else None,
             "decided_at": (decision.created_at.isoformat()
                            if decision.created_at else None),
-            "justification": decision.justification,
+            "justification": reader_justification(decision.justification),
             "version_number": decision.version_number,
         }
     return sorted(current.values(), key=lambda d: d["decided_at"] or "")
@@ -203,6 +204,8 @@ def outcome_payload(db: DBSession, review: M.Review) -> dict[str, Any]:
         "ready": read_only is None
                  and review.status in {E.ReviewStatus.RESOLVED, E.ReviewStatus.CLOSED},
         "read_only": read_only,
+        # AM-318: on a final contract only Sign as is / Do not sign / On hold
+        "final": CO.is_final_copy(db, review),
         "history": [{"outcome": c.outcome.value, "suggested": c.suggested.value,
                      "justification": c.justification,
                      "decided_by_name": names.get(c.decided_by),

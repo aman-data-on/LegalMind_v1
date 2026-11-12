@@ -68,7 +68,17 @@ from legalmind.ingestion.validation import validate_upload
 # number; "50 Mbps" is a quantity, not clause 50; a clause running over a page break
 # is one segment on every PDF (its page footer left out). New readings only —
 # existing evidence is never re-parsed by this bump.
-PROCESSOR_VERSION = "legalmind-ingest-v9"
+# v10 (2026-11-09, CLM batch C — how faithfully a client's paper is read): a PDF's
+# repeated page headers/footers kept apart as `part` rows (34.10); a table of contents
+# kept as `part` contents, never clauses; a top-level "5." above its heading numbered;
+# a struck letter beside an inserted one in one PDF span split ("ixty (60)"); an image
+# strip OCR'd only as prose and placed where it stands, else flagged `unread_image`; a
+# numbered Word paragraph that is only a picture OCR'd as that clause; a blurred grey
+# scan no longer read as a redline, smoothed when tesseract is unsure, and its gutter
+# numbers put back on their clauses; ligature glyphs as letters; a DOCX with no Word
+# pagination record paginated by LibreOffice when configured. New readings only —
+# existing evidence is never re-parsed by this bump ("Re-read" re-reads on request).
+PROCESSOR_VERSION = "legalmind-ingest-v10"
 
 
 @dataclass(frozen=True)
@@ -128,6 +138,7 @@ def ingest_document(
     filename: str,
     declared_mime: str,
     defer_ocr: bool = False,
+    render_pages: bool = False,
 ) -> IngestResult:
     """Ingest one uploaded document. Raises only on validation rejection.
 
@@ -165,7 +176,10 @@ def ingest_document(
     db.add(version)
     db.flush()
 
-    run = process_document_version(db, storage, version, defer_ocr=defer_ocr)
+    # ``render_pages``: an uploaded client/contract file — pages laid out by LibreOffice
+    # when Word left no record (`parsing.parse_docx`); never a generated file.
+    run = process_document_version(db, storage, version, defer_ocr=defer_ocr,
+                                   render_pages=render_pages)
 
     return IngestResult(
         document_version=version,
@@ -209,6 +223,7 @@ def process_document_version(
     run_type: E.ProcessingRunType = E.ProcessingRunType.PARSE,
     defer_ocr: bool = False,
     run: M.DocumentProcessingRun | None = None,
+    render_pages: bool = False,
 ) -> M.DocumentProcessingRun:
     """Parse a stored document version into evidence.
 
@@ -238,7 +253,7 @@ def process_document_version(
 
     try:
         result = parsing.parse(storage.get(version.storage_key), version.mime_type,
-                               defer_ocr=defer_ocr)
+                               defer_ocr=defer_ocr, render_pages=render_pages)
     except parsing.ParseError as exc:
         # 34.9 / 34.4 — a document we cannot read yields no text, not invented
         # text. The affected Finding may later become UNABLE_TO_EVALUATE (34.17).

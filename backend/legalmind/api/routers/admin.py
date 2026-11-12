@@ -66,6 +66,7 @@ from legalmind.security.guards import (
 )
 from legalmind.security.resolver import effective_permissions
 from legalmind.security.sessions import revoke_all_for_user
+from legalmind.workflow.decisions import refresh_carried
 
 router = APIRouter(tags=["administration"], route_class=CommitBeforeResponse)
 
@@ -312,6 +313,7 @@ def delete_user(user_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
             guard.db.execute(delete(kind).where(kind.user_id == user_id))
         revoke_all_for_user(guard.db, user_id, "user erased")
         guard.db.flush()
+        refresh_carried(guard.db)            # AM-326 r1: their carried decisions fall
         A.record(guard.db, action="admin.user_erased", entity_type="user",
                  entity_id=user_id, actor_id=guard.user_id, request_id=guard.request_id,
                  after={"conversations_deleted": len(chats)})
@@ -384,6 +386,7 @@ def revoke_role(user_id: UUID, role_code: str,
         assert_legal_authority_preserved(guard.db, authorities_before)   # SEC-05
         assert_administrative_authority_preserved(guard.db, admins_before)
         _audit_role_change(guard, user_id, role, granted=False)
+        refresh_carried(guard.db)        # AM-326 r1: their carried decisions re-checked
     return data(serialize_user(guard.db, user))
 
 

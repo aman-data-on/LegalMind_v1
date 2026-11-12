@@ -48,7 +48,8 @@ test.describe("the Legal queue", () => {
     // The deep link: workspace, `?finding=`, and focus ON the finding card —
     // the ruler arrives beside the evidence, not at the top of a long page.
     await row.getByRole("link").first().click();
-    await expect(page).toHaveURL(`/dashboard?id=${contractId}&finding=${finding.id}`);
+    // AM-263: the contract is its own address now (the old link redirects there)
+    await expect(page).toHaveURL(`/contracts/${contractId}?finding=${finding.id}`);
     const card = page.locator(`article[data-finding-id="${finding.id}"]`);
     await expect(card).toBeVisible();
     await expect(card).toBeFocused();

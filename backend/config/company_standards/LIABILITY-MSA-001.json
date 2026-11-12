@@ -99,6 +99,8 @@
     "unit": "MONTHS",
     "basis": "FEES_PAID",
     "mutual": true,
+    "favourable_direction": "LOWER",
+    "_favourable_direction_note": "AM-303 (AB-158 addendum, owner 2026-11-04, the manager's point: our template opens with our best position), amending AM-239 r4 for this standard only: a LOWER mutual cap on the same basis is in LeapSwitch's favour on paper where LeapSwitch is the provider. Never a cap limiting one party only (AM-239 r2, Constitution §9) — the evaluator withholds the favour from a one-party cap.",
     "scope_key": "AGGREGATE",
     "extraction": {
       "cap_phrases": [
@@ -150,6 +152,16 @@
       },
       "exceptions": [],
       "general_scope": "AGGREGATE",
+      "lawful_floor": [
+        "death or personal injury caused by negligence",
+        "fraud or fraudulent misrepresentation",
+        "any liability that cannot be limited or excluded under applicable law"
+      ],
+      "_lawful_floor_note": "AM-304 (2026-11-04): the published Leapswitch TOS §13's own list ('Nothing in these Terms shall limit or exclude liability for: (a) ...; (b) ...; or (c) ...'). A carve-out of only these leaves the cap as it reads; any other class taken out of the cap is unlimited for those claims and a person's call (AM-195, AM-240).",
+      "approved_carve_outs": [
+        "a party's obligation to pay fees and charges due under this agreement"
+      ],
+      "_approved_carve_outs_note": "AM-313 (AB-166, owner decision 2026-11-05 on Claude's drafting recommendation; L1.17 by AM-325): Legal Constitution L1.17 \u00a79, Payment Obligations Outside the Cap \u2014 'a Party's obligation to pay fees and charges due under this Agreement' is not limited by the liability cap. A carve-out of this class leaves the cap as it reads, as the lawful floor does; an indemnity or any other class taken out of the cap is still unlimited for those claims and a person's call (AM-304 r2).",
       "composite_phrases": [
         "greater of",
         "the lesser of",
@@ -256,7 +268,8 @@
     "rule_type": "THRESHOLD",
     "configuration": {
       "deviation_outcome": "UNACCEPTABLE",
-      "unlimited_outcome": "UNACCEPTABLE"
+      "unlimited_outcome": "UNACCEPTABLE",
+      "favourable_outcome": "ACCEPTABLE"
     }
   },
   "_legal_rule_note": [

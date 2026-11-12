@@ -34,8 +34,11 @@ import {
 } from "@/components/workspace/findingLanguage";
 import type { Evaluation, Finding, Review, UserStatusWord } from "@/lib/types";
 
+/* S1: the Summary's tiles are a Legal detail — rendered for a holder of
+   legal_position.view + legal.review. `granted` is the reader under test. */
+let granted = new Set(["finding.view", "legal_position.view", "legal.review"]);
 vi.mock("@/lib/session", () => ({
-  useSession: () => ({ can: (permission: string) => permission === "finding.view" }),
+  useSession: () => ({ can: (permission: string) => granted.has(permission) }),
   useSeesLegalPosition: () => false,
 }));
 vi.mock("@/components/workspace/WorkspaceLayout", () => ({ useSideTabs: () => null }));
@@ -164,5 +167,17 @@ describe("the four reader words wear one tone each, in one order", () => {
     // renders on a tile has its label beside it.
     const html = summary();
     for (const status of USER_STATUS_ORDER) expect(html).toContain(USER_STATUS_LABELS[status]);
+  });
+
+  it("leaves the tiles out for a reader without Legal's review (S1) — absent, not greyed", () => {
+    granted = new Set(["finding.view", "legal_position.view"]);
+    try {
+      const html = summary();
+      expect(html).toContain("What needs attention");
+      expect(html).not.toContain("Legal details");
+      expect(html).not.toContain("ws-tile");
+    } finally {
+      granted = new Set(["finding.view", "legal_position.view", "legal.review"]);
+    }
   });
 });

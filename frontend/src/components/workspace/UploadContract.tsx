@@ -41,6 +41,7 @@ import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 
 import { IconCheckCircle, IconFile, IconUploadCloud, IconXCircle } from "./icons";
+import { contractHref } from "./model";
 
 type Stage = "idle" | "selected" | "uploading" | "extracted" | "suggesting" | "analyzing";
 
@@ -55,13 +56,13 @@ const CHECKLIST_ORDER: Stage[] = ["uploading", "extracted", "suggesting", "analy
 function preflightProblem(file: File): string | null {
   const name = file.name.toLowerCase();
   if (!SUPPORTED_EXTENSIONS.some((extension) => name.endsWith(extension))) {
-    return "This file type is not supported. Please choose a PDF, DOCX, Markdown or text file.";
+    return "This file type is not supported. Choose a PDF, DOCX, Markdown or text file.";
   }
   if (file.size > MAX_UPLOAD_BYTES) {
-    return "This file exceeds the 25 MB limit. Please choose a smaller file.";
+    return "This file exceeds the 25 MB limit. Choose a smaller file.";
   }
   if (file.size === 0) {
-    return "This file is empty. Please choose another file.";
+    return "This file is empty. Choose another file.";
   }
   return null;
 }
@@ -91,6 +92,8 @@ export function UploadContract({ firstRun, onClose }: {
   const router = useRouter();
   const fileInput = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
+  const [paper, setPaper] = useState<"ours" | "client" | null>(null);
+  const [paperMissing, setPaperMissing] = useState(false);
   const [name, setName] = useState("");
   const [contractType, setContractType] = useState("");
   const [stage, setStage] = useState<Stage>("idle");
@@ -137,6 +140,7 @@ export function UploadContract({ firstRun, onClose }: {
    *  now started explicitly rather than the instant a file is picked. */
   async function startUpload() {
     if (!file) return;
+    if (!paper) { setPaperMissing(true); return; }
     setError(null);
     setStage("uploading");
 
@@ -145,7 +149,10 @@ export function UploadContract({ firstRun, onClose }: {
       const contract = await api.createContract(name || file.name);
       setContractId(contract.id);
       contractIdRef.current = contract.id;
-      const uploaded = await uploadFirstDocument(contract.id, file);
+      // verifier item 7 / AM-324 r4: whose paper it is travels with the file — the
+      // server stores the role and Step 6's source in the same request
+      const uploaded = await uploadFirstDocument(contract.id, file,
+                                                 paper === "ours" ? "COMPANY_DRAFT" : "CLIENT_MODIFIED");
       uploadedVersionId = uploaded.document_version.id;
       setVersionId(uploadedVersionId);
     } catch (cause) {
@@ -187,7 +194,7 @@ export function UploadContract({ firstRun, onClose }: {
     }
     setStage("analyzing");
     await chainAnalysis(contractIdRef.current!, can(P.REVIEW_CREATE));
-    router.push(`/dashboard?id=${contractIdRef.current}`);
+    router.push(contractHref(contractIdRef.current!));   // AM-263: the contract's own address
   }
 
   if (!file) {
@@ -249,6 +256,17 @@ export function UploadContract({ firstRun, onClose }: {
             <IconXCircle size={18} />
           </button>
         </div>
+        <fieldset className="ws-field ws-upload-paper" aria-describedby={paperMissing ? "ws-upload-paper-error" : undefined}>
+          <legend className="ws-field__label">Whose paper is it?</legend>
+          {(["ours", "client"] as const).map((which) => (
+            <label key={which} className="ws-upload-paper__opt">
+              <input type="radio" name="ws-upload-paper" value={which} checked={paper === which}
+                     onChange={() => { setPaper(which); setPaperMissing(false); }} />
+              <span>{which === "ours" ? "Our draft" : "The client's paper"}</span>
+            </label>
+          ))}
+          {paperMissing ? <p className="ws-field__error" id="ws-upload-paper-error">Choose whose paper it is</p> : null}
+        </fieldset>
         {error ? (
           <p className="ws-field__error" role="alert">
             {error instanceof ApiError ? describeError(error) : String(error)}
@@ -284,7 +302,7 @@ export function UploadContract({ firstRun, onClose }: {
         <ChecklistRow done={stage === "analyzing"} active={stage === "suggesting"}>
           {stage === "analyzing" ? (
             recordedType ? (
-              <>Reviewed as <strong>{documentTypeLabel(recordedType)}</strong> — inferred from the document; one signal for the review, never a gate</>
+              <>Reviewed as <strong>{documentTypeLabel(recordedType)}</strong> — read from the document</>
             ) : (
               "Reviewing by content — the type can be added in Edit details"
             )

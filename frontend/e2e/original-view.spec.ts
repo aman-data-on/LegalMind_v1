@@ -62,7 +62,7 @@ async function uploadPdfContract(page: import("@playwright/test").Page) {
     {
       headers: {
         "Content-Type": "application/pdf",
-        "X-Filename": "structural.pdf",
+        "X-Version-Role": "COMPANY_DRAFT", "X-Filename": "structural.pdf",
         "X-CSRF-Token": await csrfToken(page),
       },
       data: STRUCTURAL_PDF,

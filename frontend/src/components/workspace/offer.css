@@ -1,0 +1,40 @@
+/* What we can offer (`AM-305`). Quiet type on the existing tokens: the only emphasis is
+   the sentence that says how far the deal owner may go. */
+.lm-offer { display: flex; flex-direction: column; gap: var(--ws-s2); }
+.lm-offer__intro { margin: 0; font-size: var(--ws-text-sm); color: var(--ws-ink-700); line-height: 1.45; }
+.lm-offer__list { list-style: none; margin: 0; padding: 0; }
+.lm-offer__point { display: grid; align-content: start; gap: 2px; padding: var(--ws-s2) 0 var(--ws-s2) var(--ws-s3);
+  border-left: 2px solid var(--ws-ink-100); }
+.lm-offer__point + .lm-offer__point { margin-top: var(--ws-s2); }
+.lm-offer__point[data-room] { border-left-color: var(--ws-ink-700); }
+.lm-offer__list--fixed { margin-top: var(--ws-s2); }
+.lm-offer__title { font-size: var(--ws-text-sm); font-weight: 650; color: var(--ws-ink-900); }
+.lm-offer__line { margin: 0; font-size: var(--ws-text-sm); line-height: 1.5; color: var(--ws-ink-700);
+  max-width: 68ch; }
+.lm-offer__line [data-room] { font-weight: 600; color: var(--ws-ink-900); }
+.lm-offer__legal { font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+.lm-offer__legal > summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; gap: 6px;
+  color: var(--ws-accent); font-weight: 600; list-style: none; }
+.lm-offer__legal > summary::-webkit-details-marker { display: none; }
+.lm-offer__legal > summary::before { content: ""; width: 6px; height: 6px; border: solid currentColor;
+  border-width: 0 1.5px 1.5px 0; transform: rotate(-45deg); transition: transform 120ms ease; }
+.lm-offer__legal[open] > summary::before { transform: rotate(45deg); }
+@media (prefers-reduced-motion: reduce) { .lm-offer__legal > summary::before { transition: none; } }
+.lm-offer__legal > summary:hover { color: var(--ws-accent-strong); }
+.lm-offer__legal > summary:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+.lm-offer__legal > p { margin: var(--ws-s1) 0 0; line-height: 1.5; }
+@media (pointer: coarse) { .lm-offer__legal > summary { min-height: 44px; } }
+
+/* On a client change: the phrase, then the playbook line it is measured by. */
+.lm-offer-hit { margin: 0 0 var(--ws-s2); padding: var(--ws-s2) var(--ws-s3); border-radius: 6px;
+  background: var(--ws-paper); border-left: 3px solid var(--ws-ink-700); }
+.lm-offer-hit[data-within] { background: var(--ws-ok-soft); border-left-color: var(--ws-ok); }
+.lm-offer-hit__said { display: flex; align-items: center; gap: 6px; margin: 0; font-size: var(--ws-text-sm);
+  font-weight: 600; color: var(--ws-ink-900); }
+.lm-offer-hit[data-within] .lm-offer-hit__said svg { color: var(--ws-ok); }
+/* a fallback is a concession, not a win: the attention tone, its own icon (AM-306) */
+.lm-offer-hit[data-fallback] { background: var(--ws-warn-soft); border-left-color: var(--ws-warn); }
+.lm-offer-hit[data-fallback] .lm-offer-hit__said svg { color: var(--ws-warn); }
+.lm-offer-hit__point { margin: 2px 0 0; font-size: var(--ws-text-sm); line-height: 1.5; color: var(--ws-ink-900); }
+.lm-offer-hit__point > span { font-weight: 600; color: var(--ws-ink-900); }
+@media (max-width: 760px) { .lm-offer__legal > summary { min-height: 44px; } }

@@ -128,10 +128,7 @@ export function ClientNotes({ client, onSaved }: {
                   placeholder="Anything worth knowing about this relationship"
                   onChange={(event) => { setText(event.target.value); setSaved(false); }} />
         <span className="ws-field__help">
-          Context for your colleagues, and visible to everyone who can see this
-          client. A note is not a legal record — the organisation&rsquo;s position
-          lives in an approved Company Standard, and a ruling on a document is a
-          Legal Decision.
+          Visible to everyone who can see this client. Notes are not a legal record.
         </span>
       </label>
       {error ? (
@@ -190,8 +187,7 @@ export function ClientActivityFeed({ clientId }: { clientId: string }) {
   if (rows.length === 0) {
     return (
       <p className="ws-pane__note">
-        Nothing has happened to this client yet. Activity appears here as
-        documents are uploaded, analyzed and decided.
+        No activity yet. Uploads, reviews and decisions appear here.
       </p>
     );
   }

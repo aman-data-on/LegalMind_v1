@@ -642,6 +642,23 @@ def test_indexing_is_sent_only_after_the_callers_commit(db, monkeypatch):
     assert len(threads) == 1                           # published off the loop
 
 
+def test_an_analysis_sent_after_commit_is_never_sent_after_a_rollback(
+        db, review, queued, monkeypatch):
+    """L5: `after_commit=True` carries the same rollback guard as indexing — and a
+    savepoint rolled back after the dispatch leaves the dispatch standing."""
+    monkeypatch.setattr(D, "_off_loop", lambda fn: fn())
+    D.dispatch_analysis(db, review, after_commit=True)
+    with pytest.raises(ValueError), db.begin_nested():
+        raise ValueError("an unrelated savepoint")
+    db.commit()
+    assert [c["kwargs"]["review_id"] for c in queued] == [str(review.id)]
+
+    D.dispatch_analysis(db, review, after_commit=True)
+    db.rollback()
+    db.commit()
+    assert len(queued) == 1                            # the rolled-back one: nothing
+
+
 def test_in_production_a_missing_broker_leaves_the_upload_unindexed_and_logged(
         db, no_broker, monkeypatch, caplog):
     """Indexing never fails the upload; in production it is not run inline either —

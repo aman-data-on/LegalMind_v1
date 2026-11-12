@@ -1263,12 +1263,13 @@ def _selected_document(ctx: tools.ToolContext) -> tuple[str | None, bool]:
         return None, False
     row = ctx.db.execute(text(
         "SELECT c.name, c.contract_type, v.version_number, "
-        "v.metadata->>'version_role' FROM contracts c JOIN document_versions v "
+        "v.metadata->>'version_role', " + tools.FINAL_SQL + " "
+        "FROM contracts c JOIN document_versions v "
         "ON v.contract_id = c.id WHERE v.id = :v"), {"v": version}).first()
     if row is None:
         return None, False
     executed = row[3] == "FINAL_SIGNED"
-    status = "executed" if executed else "draft or unsigned"
+    status = tools.version_status(row[3], bool(row[4]))         # AM-318
     title = generation.neutralise(row[0])
     # R5: the model told when the text is missing or incomplete — the user-facing
     # guarantee is the code-written note (`_run_turn`), never this sentence alone

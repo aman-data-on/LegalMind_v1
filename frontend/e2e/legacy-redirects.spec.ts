@@ -17,8 +17,9 @@ test.use({ storageState: storageStatePath("admin") });
 test("the retired URLs land on the screens that replaced them", async ({ page }) => {
   const { reviewId, contractId } = await createAnalysedReview(page);
   for (const [from, expected] of [
-    ["/contracts", "/dashboard"],
-    [`/contracts?id=${contractId}`, `/dashboard?id=${contractId}`],
+    ["/dashboard", "/contracts"],
+    [`/dashboard?id=${contractId}`, `/contracts/${contractId}`],
+    [`/contracts?id=${contractId}`, `/contracts/${contractId}`],
     ["/reviews", "/dashboard/reviews"],
     [`/reviews?id=${reviewId}`, `/dashboard/reviews?id=${reviewId}`],
     ["/audit", "/dashboard/admin/audit"],
