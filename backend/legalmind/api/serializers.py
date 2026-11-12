@@ -16,6 +16,7 @@ established by absence carries zero (49.7 r3, 45D.4.10). It is never ``null``.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 from uuid import UUID
 
@@ -138,15 +139,24 @@ def _constitution_for(db: DBSession, finding: M.Finding) -> dict[str, Any] | Non
             "basis": block.get("basis")}
 
 
+#: B3 page 1: a standard's own words that name where they come from — Legal's vocabulary,
+#: never shown to a reader without `legal.review` (PLAIN-LANGUAGE §3)
+_NAMES_SOURCE = re.compile(r"Constitution|§")
+
+
 def serialize_finding(db: DBSession, finding: M.Finding, *,
                       legal_position: bool,
+                      legal_sources: bool = True,
                       names: dict[str, str] | None = None) -> dict[str, Any]:
     """49.7 r1 — ``classification`` and ``evaluations`` travel together, always.
 
     There is deliberately no Finding-level ``rule_outcome``: none is persisted
     (J-2), and ``requires_decision`` is derived rather than stored (49.7 r2).
     ``names``: `negotiation.review_unit_names` for the Finding's Review — a list
-    caller reads it once; None reads it here.
+    caller reads it once; None reads it here. ``legal_sources``: whether the reader
+    holds `legal.review` — without it, a description that names its source document
+    ("the Constitution", a "§") is omitted, never reworded (rules 7/21: ratified text
+    is not edited here); the page then says the point in words built from the data.
     """
     escalated = is_escalated(db, finding.id)
     evaluations = db.execute(
@@ -183,7 +193,8 @@ def serialize_finding(db: DBSession, finding: M.Finding, *,
             # Explanatory text only (owner, 2026-09-09): what this requirement
             # checks, in plain words, from the ratified standard's own clause.
             # Never read by an evaluator; never a legal position (no value).
-            "description": rv.description if rv else None,
+            "description": (rv.description if rv and (legal_sources or not
+                            _NAMES_SOURCE.search(rv.description or "")) else None),
             "version_id": str(finding.requirement_version_id),
             "version_number": rv.version_number if rv else None,
             # AM-59 — which Constitution section states the position this

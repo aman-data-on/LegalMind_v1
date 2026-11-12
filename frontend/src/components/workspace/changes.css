@@ -381,3 +381,6 @@ button.cx-bar__open[aria-expanded="true"] svg { transform: rotate(-90deg); }
 .cx-whole__text { margin: 0; font-family: var(--ws-serif); font-size: var(--ws-text-base); line-height: 1.6;
   color: var(--c-text); white-space: pre-wrap; }
 .cx .cx-whole ins { text-decoration: none; background: none; color: inherit; }
+/* B3 p1: one left rule per clause — a whole client clause already carries the client rule, so
+   its selection is the paper background and the index row, not a second (blue) rule */
+.cx-passage[aria-current="true"]:has(.cx-whole) { border-left-color: transparent; }

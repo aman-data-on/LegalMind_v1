@@ -32,7 +32,7 @@ import { ApiError, api, describeError } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { Contract, Counterparty, DocumentVersion, ReviewAssignments } from "@/lib/types";
-import { ACTION, contractDisplayName, contractStatusLabel, type StageViewer } from "@/lib/labels";
+import { ACTION, READER_OUTDATED, contractDisplayName, contractStatusLabel, type StageViewer } from "@/lib/labels";
 import { canSendToLegalFor, nextStep, runStep, useStep, type StepKind } from "@/lib/nextStep";
 import { PageHeader } from "@/components/page/PageHeader";
 import { documentSourceChip, isOurs } from "@/lib/documentTypes";
@@ -64,7 +64,7 @@ import { IconCheck, IconUploadCloud, IconX } from "./icons";
 import { PhoneBar, WorkspaceLayout, arrowTab, useMinWidth, type PhoneView, type Region } from "./WorkspaceLayout";
 import { templateName } from "@/lib/templates";
 import { toastFailure } from "@/components/Toast";
-import { EmptyState, ErrorState } from "@/components/Feedback";
+import { EmptyState, ErrorState, NoticeState } from "@/components/Feedback";
 
 type Load =
   | { kind: "loading" }
@@ -532,6 +532,15 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
                      filesOpen={stageCode === "READY_TO_SEND" || stageCode === "READY_TO_SIGN" || stageCode === "SIGNED"} />
       ) : null}
       {view === "document" ? <AmendmentsPanel contract={contract} canStart={canAmend} /> : null}
+      {/* B3 page 1: an old Markdown reading keeps its marks; a pinned reading is never re-read
+          (rules 16/17), so the way out is the same file as a new version */}
+      {version && versions.find((v) => v.id === version.id)?.reader_outdated ? (
+        <NoticeState title={READER_OUTDATED.title} body={READER_OUTDATED.body}>
+          {canUpload ? (
+            <button type="button" className="ws-btn" onClick={uploadToggle}>Upload new version</button>
+          ) : null}
+        </NoticeState>
+      ) : null}
       {version ? (
         <PrepareFinal contractId={contract.id} nextVersion={(latest?.version_number ?? 0) + 1}
                       onPrepared={() => { setView("document"); openVersion(null); }} />

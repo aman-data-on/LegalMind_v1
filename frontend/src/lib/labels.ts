@@ -465,3 +465,10 @@ export const STATUS_CHIP_WORDS = {
   IN_OUR_FAVOUR: "In our favour",
   decided: "Decided",
 } as const;
+
+/** B3 page 1: a version read before a formatting fix (`reader_outdated`) — what it means and
+ *  the one way out. Nothing in a review changes; the same file comes in as a new version. */
+export const READER_OUTDATED = {
+  title: "This file was read before a formatting fix",
+  body: "Marks such as ** or ## may show in the text. Upload the same file again as a new version to read it cleanly. Nothing in your review changes.",
+};

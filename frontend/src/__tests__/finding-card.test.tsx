@@ -325,12 +325,12 @@ describe("the five required real-world cases (owner, 2026-09-08, third pass)", (
     const { before, inside } = splitAtDetails(html);
     expect(before).toMatch(/Residuals/);
     expect(before).toMatch(/does not include residuals, which the company standard requires/i);
-    expect(before).toMatch(/Not found/);
+    expect(before).toMatch(/Nothing — the contract has no clause on this/);
     // "Required", not "Found" — a presence-shaped Company Standard value
     // states what the standard requires, not that the standard was "found".
     expect(before).toMatch(/Required/);
     expect(before).toMatch(/data-status="MISSING"/);   // a required clause is missing
-    expect(before).toMatch(/Our wording needs to be added/);
+    expect(before).toMatch(/What to do<\/dt><dd[^>]*>(?:Read it and decide|Legal decides this one)/);
     // Nothing technical on the visible surface: no evaluator name, no raw
     // "presence" operator word, no scope key, no raw outcome label.
     expect(before).not.toMatch(/PRESENCE-v1/);
@@ -360,7 +360,7 @@ describe("the five required real-world cases (owner, 2026-09-08, third pass)", (
     // The locked word lives in the disclosure now; the face says "Needs a decision".
     expect(before).toMatch(/Needs a decision/);
     expect(inside).toMatch(/Needs Review/);
-    expect(before).toMatch(/Legal decides/);
+    expect(before).toMatch(/(?:Read it and decide|Legal decides this one)/);
     // Honest about having nothing to compare — never a guess, never silence. And
     // never "Not recorded" for the standard: it exists, the requirement above states
     // it (owner, 2026-10-09 — read as "we have no standard").
@@ -394,7 +394,7 @@ describe("the five required real-world cases (owner, 2026-09-08, third pass)", (
     // "No action is needed" is more useful to a Sales reader than silently
     // omitting the row, and it is a fact about the workflow state, not an
     // invented legal conclusion.
-    expect(before).toMatch(/What to do.*No action is needed/s);
+    expect(before).toMatch(/What to do.*Nothing to do/s);
     expect(before).not.toMatch(/PRESENCE-v1/);
     expect(before).not.toMatch(/GOVLAW-NDA-001/);
     expect(inside).toContain("PRESENCE-v1");
@@ -419,7 +419,7 @@ describe("the five required real-world cases (owner, 2026-09-08, third pass)", (
     // The approved zero-tolerance rule ruled this deviation UNACCEPTABLE, so the
     // reader sees Not accepted (owner's own example, 2026-09-09: 12 vs 6 months).
     expect(before).toMatch(/data-status="CHANGE_NEEDED"[^>]*>(?:<svg[\s\S]*?<\/svg>)Change needed</);
-    expect(before).toMatch(/needs to change/);
+    expect(before).toMatch(/What to do<\/dt><dd[^>]*>(?:Read it and decide|Legal decides this one)/);
     expect(before).not.toMatch(/Not acceptable/);
     expect(before).not.toMatch(/>!=</);
     expect(before).not.toMatch(/NUMERIC-COMPARISON-v1/);
@@ -496,7 +496,7 @@ describe("the status mark and the merged three-part comparison (owner, 2026-09-0
       } as unknown as Partial<Evaluation>,
     );
     const { before } = splitAtDetails(html);
-    expect(before).toMatch(/<dt>What to do<\/dt><dd[^>]*>No action is needed\.<\/dd>/);
+    expect(before).toMatch(/<dt>What to do<\/dt><dd[^>]*>Nothing to do\.<\/dd>/);
   });
 });
 
@@ -536,7 +536,7 @@ describe("the four-word status on the card face", () => {
   it("puts one Next step on every Needs-a-decision card without pre-deciding the outcome", () => {
     for (const classification of ["CONFLICT", "UNABLE_TO_EVALUATE"]) {
       const html = face({ classification }, { classification });
-      expect(html, classification).toMatch(/Legal decides\./);
+      expect(html, classification).toMatch(/(?:Read it and decide|Legal decides this one)\./);
       expect(html, classification).not.toMatch(/would make|modification/);
     }
   });
@@ -547,7 +547,7 @@ describe("the four-word status on the card face", () => {
         const html = face({ classification, requires_decision: true }, { classification, rule_outcome });
         if (classification === "DEVIATION") {
           expect(html, classification).toMatch(/data-status="CHANGE_NEEDED"[^>]*>(?:<svg[\s\S]*?<\/svg>)Change needed</);
-          expect(html, classification).toMatch(/needs to change/);
+          expect(html, classification).toMatch(/(?:Read it and decide|Legal decides this one)/);
         } else {
           expect(html, classification).toMatch(/data-status="MISSING"[^>]*>(?:<svg[\s\S]*?<\/svg>)Missing</);
           expect(html, classification).toMatch(/has no clause on this/);
@@ -581,7 +581,7 @@ describe("the four-word status on the card face", () => {
     expect(before).not.toMatch(/§9/);
     // Not accepted routes to a person; it never claims a self-service edit fixes it.
     expect(before).not.toMatch(/would make/);
-    expect(before).toMatch(/does not match the company standard/);
+    expect(before).toMatch(/(?:Read it and decide|Legal decides this one)/);
     // The engine's own words are still there, one click away.
     expect(inside).toMatch(/DEVIATION/);
     expect(inside).toMatch(/Not acceptable/);

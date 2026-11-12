@@ -32,7 +32,8 @@ vi.mock("@/components/workspace/Angles", async (original) => ({
     observations: { structural: [{ kind: "X", clauses: ["4"], evidence_ids: ["ev1"],
                                    text: "Clause 4 and clause 9 state two notice periods." }],
                     additional: [] },
-    counter_proposals: {},
+    counter_proposals: { f1: { kind: "DRAFTING_LANGUAGE", label: "Source",
+                               text: "Recommended wording to send back" } },
   }),
   FindingCounterProposal: () => <aside>Recommended wording to send back</aside>,
 }));

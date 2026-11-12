@@ -7200,6 +7200,8 @@ button.ws-open__go:hover { background: var(--ws-paper); }
 .ws-attn { display: grid; gap: 8px; justify-items: start; }
 .ws-attn__count, .ws-attn__changes { margin: 0; font-size: var(--t-caption); color: var(--ws-ink-700);
   line-height: 1.45; font-variant-numeric: tabular-nums; }
+/* B3 p1: the pane's key sentence reads at body size, not caption */
+.ws-attn__count { font-size: var(--t-body); color: var(--ws-ink-900); }
 /* a thin meter under its own words ("1 of 3 decided"), drawn only once a point is decided */
 .ws-attn .ws-stage__bar { margin: 2px 0 4px; height: 4px; border: 0; border-radius: 4px;
   appearance: none; background: var(--ws-ink-100); overflow: hidden; }
@@ -7665,3 +7667,22 @@ a.ws-askglobal[data-away]:not(:focus-visible) {
 }
 /* a page's one-line note belongs to the list under it, not a section of its own */
 .lm-page > .ws-pane__note { margin: 0 0 calc(-1 * var(--ws-s3)); }
+
+/* B3 page 1 — the plain card (PLAIN-LANGUAGE §4): label beside value, one row per fact, in
+   every layout (the wide three-column flow is for a scope's numbers, not for a quote and an
+   action). The send-back wording sits under "What to do", as that action's payload. */
+.ws-facts.ws-facts--card,
+.ws-workspace--wide[data-doc-open] .ws-facts.ws-facts--card {
+  grid-template-columns: max-content minmax(0, 1fr); grid-auto-flow: row; grid-template-rows: none;
+  grid-auto-columns: auto; align-items: baseline; column-gap: var(--ws-s3);
+}
+.ws-facts--card dt { margin-bottom: 0; }
+.ws-facts--card .ws-case__contract { margin: 0; }
+.ws-facts--card .ws-counter { margin-top: var(--ws-s2); }
+@container (max-width: 420px) {
+  .ws-facts.ws-facts--card { grid-template-columns: minmax(0, 1fr); row-gap: 2px; }
+  .ws-facts--card dd { margin-bottom: var(--ws-s2); }
+}
+
+/* B3 p1: the "read before a formatting fix" notice sits on the page's own inset, full width */
+.ws-viewpanel > .lm-state--notice { margin: var(--ws-s4) var(--ws-s4) 0; max-width: none; }

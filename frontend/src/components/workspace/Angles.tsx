@@ -125,8 +125,8 @@ function OpenPoint({ item, onOpen, words }: {
   onOpen?: ((id: string) => void) | undefined;
   words?: PointWords | undefined;
 }) {
-  // page 2 (AM-291 r1/r6): line 1 the point and the review's word, the place on the
-  // right; line 2 who has it or what was answered. The gap, the recommendation and the
+  // page 2 (AM-291 r1/r6): line 1 the point and the review's word; then its place; then
+  // who has it or what was answered. The gap, the recommendation and the
   // standards' sentences are on the point's card and in Legal details — not here.
   const body = (
     <>
@@ -135,8 +135,9 @@ function OpenPoint({ item, onOpen, words }: {
         {/* UX Batch 2: the one StatusChip, as on Points and Changes */}
         {words?.status ? <StatusChip status={words.status} />
           : words ? <span className="ws-open__word">{words.reader}</span> : null}
-        {item.where ? <span className="ws-open__where">{item.where}</span> : null}
       </span>
+      {/* B3 p1: the place is the name's metadata line, under it, never pushed off to the right */}
+      {item.where ? <span className="ws-open__where">{item.where}</span> : null}
       {words?.answer ? <span className="ws-open__who">{words.answer}</span> : null}
     </>
   );
@@ -213,7 +214,7 @@ export function LegalAngleView({ angles, onOpen, decided, words, withRecommendat
           decide (the Summary's "N points need Legal") plus any the approved rule
           accepts in our favour, which the recommendation counts apart. */}
       <h3 id="ws-angle-legal" className="ws-angle__title">
-        {allDecided ? "Where it differs from our standard" : "Open points"}{items.length ? ` (${items.length})` : ""}
+        {allDecided ? "Where it differs from our standard" : "Points to settle"}{items.length ? ` (${items.length})` : ""}
       </h3>
       {withRecommendation && angles.recommendation ? (
         <p className="ws-angle__recommendation">{withoutSectionRefs(angles.recommendation)}</p>

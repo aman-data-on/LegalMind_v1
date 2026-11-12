@@ -267,10 +267,11 @@ export function where(change: ClientChange): string {
 
 /** The four actions, by their `AM-291` r2 names. */
 export const ACTION_LABEL: Record<Answer, string> = {
-  keep_ours: "Keep ours",
-  accept_theirs: "Accept theirs",
-  use_standard: "Use our standard",
-  write_wording: "Write our wording",
+  // PLAIN-LANGUAGE §2.2: the whole object, every time (B3 p1)
+  keep_ours: "Keep our wording",
+  accept_theirs: "Accept their wording",
+  use_standard: "Use our standard wording",
+  write_wording: "Write new wording",
 };
 
 type Reader = Pick<ChangeList, "can_answer" | "can_decide" | "can_write_wording">;
@@ -405,7 +406,7 @@ export function historyLine(history: AnswerEntry[]): string {
     .join(" → ");
 }
 
-/** "Explain this" — assembled from what the review recorded and what code read; no
+/** "Why does this matter?" — assembled from what the review recorded and what code read; no
  *  sentence is written here that the server did not give. */
 export function explanation(change: ClientChange, versions: { from: number; to: number }): string[] {
   const out: string[] = [];

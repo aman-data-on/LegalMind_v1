@@ -26,8 +26,9 @@ import { createAnalysedReview, fixture, openFindingsTab, storageStatePath } from
 
 /** The fact labels an Evaluation renders, lowercased — see the note at the
  *  first call site for why case is not part of what LEGAL-02 asserts. */
-async function labelsOf(evaluation: import("@playwright/test").Locator): Promise<string[]> {
-  const labels = await evaluation.locator(".ws-facts dt").allInnerTexts();
+async function labelsOf(card: import("@playwright/test").Locator): Promise<string[]> {
+  // the card's own facts only (B3 p1); a further scope's sit inside its `.ws-evaluation`
+  const labels = await card.locator(":scope > .ws-facts dt").allInnerTexts();
   return labels.map((label) => label.trim().toLowerCase());
 }
 
@@ -116,7 +117,9 @@ test.describe("LEGAL-02 — confidential fields are absent, not null", () => {
     // the contract does, so its "Contract" and "Next step" rows go; for this owner the face
     // shows no labelled fact at all, and the with-permission test below gets "our standard"
     // from the same code path.
-    await expect.poll(() => labelsOf(evaluation)).toEqual([]);
+    // B3 p1: the card's own facts (the first evaluation's), read on the card
+    const card = page.locator(".ws-finding").first();
+    await expect.poll(() => labelsOf(card)).toEqual(["what it says", "what to do"]);
 
     // The scoped Evaluation is still fully identified — omission removes the legal
     // position, not the audit trail (45B.10 / AM-19).
@@ -181,7 +184,8 @@ test.describe("LEGAL-02 — a caller WITH the permission does receive it", () =>
        that test's absence meaningful rather than vacuous. */
     // polled: "Contract" shows only until the point's case has loaded (the card head then
     // says what the contract does), so the settled set is the one asserted
-    await expect.poll(() => labelsOf(evaluation)).toEqual(["what we need"]);   // B3 p1: the plain card label
+    const card = page.locator(".ws-finding").first();
+    await expect.poll(() => labelsOf(card)).toEqual(["what it says", "what we need", "what to do"]);
 
     // And it is real, renderable content — not dead markup sitting unreachable
     // in a disclosure nobody can open: expanding it makes the chip visible.

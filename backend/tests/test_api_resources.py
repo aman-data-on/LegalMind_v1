@@ -1001,6 +1001,33 @@ def test_contract_detail_lists_its_document_versions_newest_first(api, db, owner
     assert "processing_status" in versions[0]
 
 
+def test_a_markdown_version_read_before_ingest_v11_is_flagged(api, db, owner):
+    """B3 page 1: a .md read before `legalmind-ingest-v11` keeps its marks in the stored
+    text, and a pinned reading is never re-read (rules 16/17) — so the version says so
+    (`reader_outdated`) and the page offers a new version. A fresh read is not flagged,
+    nor is any non-Markdown version."""
+    sign_in(api, db, owner)
+    contract = api.post(f"{V1}/contracts", json={"name": "Markdown"}).json()["data"]
+    upload = api.post(
+        f"{V1}/contracts/{contract['id']}/document-versions",
+        content=b"1. Services\n\nThe provider will provide the services.\n",
+        headers={"Content-Type": "text/markdown", "X-Version-Role": "COMPANY_DRAFT",
+                 "X-Filename": "msa.md"})
+    assert upload.status_code in (200, 201), upload.text
+    version_id = uuid.UUID(upload.json()["data"]["document_version"]["id"])
+
+    def flagged() -> bool:
+        versions = api.get(f"{V1}/contracts/{contract['id']}").json()["data"]["document_versions"]
+        return bool(versions[0].get("reader_outdated"))
+
+    assert not flagged()                     # read by the current reader
+    for run in db.execute(select(M.DocumentProcessingRun).where(
+            M.DocumentProcessingRun.document_version_id == version_id)).scalars():
+        run.processor_version = "legalmind-ingest-v10"
+    db.flush()
+    assert flagged()
+
+
 # =====================================================================
 # 2026-08-31 UX correction — the two additive reads (Step 49 record)
 # =====================================================================
@@ -1916,3 +1943,36 @@ def test_creating_uploading_and_reviewing_leave_an_audit_trail(api, db, owner):
     assert api.delete(f"{V1}/contracts/{contract_id}").status_code == 204
     gone = db.query(M.AuditEvent).filter_by(action="contract.deleted").one()
     assert len(gone.before_state["document_versions"]) == 1
+
+
+def test_a_description_naming_its_source_reaches_only_legal(api, db, owner,
+                                                            requirement_version):
+    """B3 page 1: a standard's description that names its source ("the Constitution", a
+    "§") is Legal's vocabulary. A reader without `legal.review` gets no description at
+    all — never a reworded one (rules 7/21) — and the page says the point from the data.
+    A description that names no source reaches everyone, unchanged."""
+    from tests.conftest import make_evaluation, make_finding
+
+    review = make_review_for(db, owner)
+    finding = make_finding(db, review, requirement_version)
+    make_evaluation(db, finding, rule_outcome=E.RuleOutcome.APPROVAL_REQUIRED)
+    sourced = "Disputes are heard where the Constitution places them (§22)."
+
+    def description(user) -> str | None:
+        sign_in(api, db, user)
+        rows = api.get(f"{V1}/reviews/{review.id}/findings").json()["data"]
+        single = api.get(f"{V1}/findings/{finding.id}").json()["data"]
+        assert rows[0]["requirement"]["description"] == single["requirement"]["description"]
+        sign_out(api)
+        return single["requirement"]["description"]
+
+    requirement_version.description = sourced
+    db.flush()
+    assert description(owner) is None
+
+    grant(db, owner, bespoke_role(db, "SOURCES_REVIEW", [P.LEGAL_REVIEW]))
+    assert description(owner) == sourced
+
+    requirement_version.description = "Disputes are heard in Pune."
+    db.flush()
+    assert description(owner) == "Disputes are heard in Pune."

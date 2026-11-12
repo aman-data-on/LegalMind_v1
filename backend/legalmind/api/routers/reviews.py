@@ -508,9 +508,10 @@ def list_findings(
     # AM-179: the point each finding belongs to — the one fold every screen uses
     groups = group_ids(guard.db, [review_id], legal_position=guard.sees_legal_position)
     names = review_unit_names(guard.db, review_id)
+    sources = P.LEGAL_REVIEW in guard.permissions
     return paginated(
         [{**serialize_finding(guard.db, f, legal_position=guard.sees_legal_position,
-                              names=names),
+                              legal_sources=sources, names=names),
           "group_id": groups.get(f.id, str(f.id))}
          for f in rows],
         page=page.page, page_size=page.page_size, total=total)

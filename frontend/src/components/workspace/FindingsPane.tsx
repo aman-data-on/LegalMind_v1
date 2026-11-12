@@ -26,7 +26,7 @@
  * EDITABLE question to the Ask pane — the user sees exactly what is asked.
  */
 
-import { FindingCounterProposal, useReviewAngles } from "./Angles";
+import { CounterProposalCard, useReviewAngles } from "./Angles";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api, describeError } from "@/lib/api";
@@ -66,6 +66,7 @@ import {
   excerpt,
   basisWords,
   nextStep,
+  whatToDo,
   reasoningSteps,
   requirementTitle,
   type PresentedFinding,
@@ -691,6 +692,13 @@ export function FindingCard({ finding, onChanged, prepared, qualify, explanation
   const meaning = (explanation?.status === "ACCEPTED" && explanation.text)
     || finding.requirement.description?.trim()
     || findingSentence(finding, lead);
+  // B3 page 1, the plain card (PLAIN-LANGUAGE §4): what it says, what we need, what to do,
+  // first. Our wording to send back (`AM-152`) is the action's own payload; never on a point
+  // that matches or differs in our favour (Batch 1 d).
+  const proposal = state === "matches" || state === "favour" ? undefined
+    : angles?.counter_proposals[finding.id];
+  const todo = whatToDo(finding, lead, status, proposal?.kind === "DRAFTING_LANGUAGE", legalDetails);
+  const sides = lead ? faceSides(lead) : null;
   return (
     <article
       ref={cardRef}
@@ -763,10 +771,28 @@ export function FindingCard({ finding, onChanged, prepared, qualify, explanation
         </span>
       </header>
       {/* the contract's own words first (owner, 2026-10-21): a missing clause says so,
-          and the standard's description never reads as the contract's text */}
-      {kase ? <CaseContract kase={kase} focus={figureOf(lead?.actual_value)} /> : meaning ? (
-        <p className="ws-finding__lede">{meaning}</p>
-      ) : null}
+          and the standard's description never reads as the contract's text. "What we
+          need" is ABSENT — never hidden — without `legal_position.view` (LEGAL-02). */}
+      <dl className="ws-facts ws-facts--compare ws-facts--card">
+        <dt>What it says</dt>
+        <dd>
+          {kase?.contract ? <CaseContract kase={kase} focus={figureOf(lead?.actual_value)} />
+            : status === "MISSING" ? "Nothing — the contract has no clause on this"
+            : sides ? <SideValue side={sides.contract} /> : null}
+        </dd>
+        {lead && lead.expected_value !== undefined && sides ? (
+          <>
+            <dt>What we need</dt>
+            <dd><SideValue side={sides.standard} /></dd>
+          </>
+        ) : null}
+        <dt>What to do</dt>
+        <dd className="ws-facts__next">
+          {todo}
+          {proposal ? <CounterProposalCard proposal={proposal} /> : null}
+        </dd>
+      </dl>
+      {!kase && meaning ? <p className="ws-finding__lede">{meaning}</p> : null}
       {prohibition ? (
         // NOT ACCEPTED always shows its source: the Constitution section the
         // server cited, quoted verbatim. Without this the status is not shown.
@@ -778,10 +804,6 @@ export function FindingCard({ finding, onChanged, prepared, qualify, explanation
       {noted.length > 0 ? (
         <p className="ws-pane__note">Also noted across the document: {noted.join(" ")}</p>
       ) : null}
-      {/* `AM-152` — the Constitution's own wording to send back, on a deviation; never
-          on a point that matches or differs in our favour (Batch 1 d) */}
-      {state === "matches" || state === "favour" ? null
-        : <FindingCounterProposal reviewId={finding.review_id} findingId={finding.id} />}
       {finding.evaluations.map((evaluation, index) => (
         <EvaluationCard
           key={evaluation.id}
@@ -795,6 +817,8 @@ export function FindingCard({ finding, onChanged, prepared, qualify, explanation
           /* The folded standards are a fact about the FINDING, so they are
              named once, on the first evaluation — not repeated under each. */
           showFolded={index === 0}
+          /* the first evaluation's facts are the card's own, above */
+          facts={index > 0}
           kase={index === 0 ? kase : null}
           legalDetails={legalDetails}
         />
@@ -858,6 +882,7 @@ function EvaluationCard({
   showFolded = false,
   kase = null,
   legalDetails = false,
+  facts = true,
 }: {
   finding: PresentedFinding;
   status: UserStatus;
@@ -873,6 +898,8 @@ function EvaluationCard({
   /** The finding's case — shown once, on the first evaluation. */
   kase?: FindingCase | null;
   legalDetails?: boolean;
+  /** this evaluation's own comparison (a further scope); the first one's is the card's */
+  facts?: boolean;
 }) {
   const { point, target } = useHighlight();
   const attention =
@@ -892,7 +919,6 @@ function EvaluationCard({
   // page 2 (AM-291 r6): with the server's case on the card, its recommendation is the
   // engine's action sentence — a Legal detail; the face says who has the point (line 2)
   // and a holder decides right here. Without a case the plain next step stays.
-  const action = kase ? null : nextStep(finding, evaluation, status);
   // read by Legal itself (Legal details): the server's "Ask Legal to look at this" is
   // said as what Legal does with it
   const recommended = kase && !evaluation.current_decision
@@ -966,7 +992,7 @@ function EvaluationCard({
         */}
       {/* page 2: with a case, the gap line on the card head already says what the contract
           does ("2 separate limits stated" was the engine's shorthand for it) */}
-      {!kase || evaluation.expected_value !== undefined || action ? (
+      {facts ? (
       <dl className="ws-facts ws-facts--compare">
         {kase ? null : (
           <>
@@ -980,20 +1006,6 @@ function EvaluationCard({
           <>
             <dt>What we need</dt>
             <dd><SideValue side={standardSide} /></dd>
-          </>
-        ) : null}
-        {/* "Next step" as a third fact in the SAME comparison, not a separate
-            paragraph below it (owner, 2026-09-08, fourth pass — matching the
-            reference layout's three-column card). It is still a `dt`/`dd`
-            pair, still genuinely a term/definition, and CSS Grid's
-            `grid-auto-flow: column` (see .ws-facts--compare in workspace.css)
-            is what turns however many pairs exist — two without
-            `legal_position.view`, three with it — into that many side-by-side
-            columns, with no column count hardcoded either place. */}
-        {action ? (
-          <>
-            <dt>What to do</dt>
-            <dd className="ws-facts__next">{action}</dd>
           </>
         ) : null}
       </dl>

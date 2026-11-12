@@ -240,7 +240,7 @@ describe("the legal angle (AM-159/AM-160)", () => {
 
   it("leads with the recommendation, then the open points in order, the rest folded", () => {
     const html = renderToStaticMarkup(<LegalAngleView angles={legal} />);
-    expect(html).toContain("Open points (6)");
+    expect(html).toContain("Points to settle (6)");
     expect(html.indexOf("Sign after 6 changes")).toBeGreaterThan(-1);
     expect(html.indexOf("Sign after 6 changes")).toBeLessThan(html.indexOf("1.1 · page 1"));
     // page 2: a point is two lines — the standards' sentences are on its card and in

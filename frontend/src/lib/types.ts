@@ -322,6 +322,9 @@ export interface DocumentVersion {
   extraction_status: string | null;
   /** QA-037: why a FAILED version could not be read (present only then) */
   unreadable_reason?: string;
+  /** B3 page 1: a Markdown upload read before ingest v11 — its stored text keeps the marks
+   *  (present only then, `GET /contracts/{id}` only) */
+  reader_outdated?: true;
   uploaded_by: string;
   created_at: string | null;
   /** Declared (2026-09-06), from locked 42.4's `metadata` JSONB: present only
