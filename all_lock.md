@@ -28166,3 +28166,2145 @@ r16 ONLY A HEADING OR A SIGNATURE BLOCK ENDS A CITED SECTION. This supersedes r1
     never ends a section here. Measured on all active standards across 15 of our documents:
     the cited text is unchanged from r15.
 ```
+
+---
+
+## AB-150 — `AM-250` … `AM-279` (2026-11-02): product first — a lock in the way of a better product is amended (the CLM programme)
+
+**Origin.** The CLM R&D report (`docs/architecture/clm-rnd/00-CLM_RND_REPORT.md` §17, branch
+worktree `clm-rnd-20261102`; PROPOSAL) designed the contract lifecycle — create from a lawyer's
+template, negotiate the client's returns, sign, keep the dates — product first, and listed every
+lock the design collides with as a drafted amendment (§17.1, A-1 … A-30). Owner, 2026-11-02,
+on the product-first principle: *"it [is] not about what is locked and what is not — if [a]
+locked decision come[s] between how we want to build a product that is so user friendly, easy
+to use and [of] huge impact, then I would like to change that mistake or locked decision I made
+earlier in this project."* Asked to confirm §17.1, the owner said: *"yes do"*.
+
+**Owner decision 2026-11-02 — "Product first — a lock in the way of a better product is
+amended."** This batch records A-1 … A-30 as `AM-250` … `AM-279`, one AM per item in order.
+**Effective from this record forward; not retroactive** — no Review, Finding, Legal Decision,
+snapshot, audit row or historical text is changed by it, and every line above stays exactly
+where it is (rule 22). **Nothing is built by this record**: each AM authorises the design it
+names; building it follows the ordinary phase discipline (implement → test → measure → owner
+says commit). Line numbers cite `all_lock.md` as it stood at 27410 lines; quotes are verbatim
+(… marks an elision).
+
+**Still with the owner, NOT decided here** (report §16(a)): who receives
+`LEGAL_DECISION_AUTHORITY` first (§16(a)2 — `AM-250` sets the mechanism, grants nobody);
+G0-3 / C-19, the issuing entity and brand (§16(a)3 — C-19 stays open); the e-sign provider
+(§16(a)8 — `AM-274` applies to one provider the owner names); PyMuPDF's AGPL as the fallback
+renderer for client-facing PDFs (§16(a)7); who publishes templates and whether a
+`template.approve` / `document.generate` permission is wanted (§16(a)6 — no permission is added
+by this batch); the lawyer's decisions in §16(b), including every template, clause and annexure
+text (rule 21 — none exists until the lawyer supplies it).
+
+```text
+AM-250 (A-1) — Decision authority for negotiation.
+  Amends AB-12 r9 (all_lock.md:17036-17046): "**No approval workflow is imposed.** Nobody
+    in the initial workflow decides a deviation inside LegalMind. `legal.decision` /
+    `legal.approve_customization` stay in the catalogue and on `LEGAL_DECISION_AUTHORITY`,
+    which nobody holds; … **Accepted consequence, recorded:** a Review holding a deviation
+    reaches `LEGAL_REVIEW` … and stays there … The engineering recommendation to give the
+    Lead decision authority so Reviews can close was put to the owner and not taken;
+    granting `LEGAL_DECISION_AUTHORITY` later needs no further amendment." — and AB-12 r1
+    (:16968-16974) "granted to nobody by the initial workflow".
+  Now: r9's policy sentence "No approval workflow is imposed" and its accepted consequence
+    are withdrawn. r1 `LEGAL_DECISION_AUTHORITY` is granted to the holders the owner names
+    (recommended: every DEPARTMENT_LEAD and named lawyers), through the `AM-237` guards, the
+    first grant made by the owner; this record grants it to nobody. r2 A holder records a
+    Legal Decision from any screen showing the point (Findings, Changes, approval panel,
+    To-do) through the existing decision endpoints; Step 52's "decision controls attach to
+    the EVALUATION" and no-optimistic-UI hold; `AM-179` r2 names every Evaluation of a group
+    decision. 33.16 clarified: a client change and a Legal Decision render as separate rows,
+    never one implied from the other. r3 Second person per `AM-240` r1.
+  Unchanged: SEC-01, SEC-02, ROLE-05, S-8/S-9, the decision endpoints, the zero-tolerance
+    outcome (a deviation is never accepted by the system).
+
+AM-251 (A-2) — Human-directed generation and the reply file.
+  Amends PROD-07 / Step 37 (:5159-5171): "V1 explicitly excludes … Automatic legal clause
+    rewriting / Automatic modified DOCX/PDF generation / Automatic redlining / AI
+    negotiation / AI legal advice"; AB-3 (:16040-16044) "Out of V1 scope … automatic
+    redlining, clause rewriting …"; `AM-136` r9 (:23847-23848) "PHASE 2 IS NOT AUTHORISED:
+    generating a contract file from the choices stays out of V1".
+  Now: r1 A person-triggered DOCX/PDF, rendered deterministically (no model in the render
+    path), is in V1, containing only: a PUBLISHED template version's lawyer text, the
+    user's typed answers, the prior company version's text, the counterparty's text, and
+    wording a holder approved as a Legal Decision. A version carrying an undecided departure
+    we propose is never sent or downloaded client-facing (CR-13). Same inputs + renderer
+    version → identical text. r2 A reply DOCX writing w:ins/w:del only for answers recorded
+    in LegalMind is in V1; it is a PROPOSED version a person accepts before ingest (Step 1,
+    :61); refused while any change is unanswered. r4 Every file enters through
+    `ingest_document` and is reviewed. r5 Supersedes `AM-136` r9.
+  Unchanged: r3 "Automatic legal clause rewriting" by a model or the system, "AI
+    negotiation", "AI legal advice" and AB-3's "AI-generated authoritative legal decisions"
+    stay excluded; `AM-136` r2 stands. Discrepancy recorded, not resolved: `AM-25` (:15737)
+    calls this list "Step 38"; it is Step 37.
+
+AM-252 (A-3) — Selecting approved text is not rewriting.
+  Amends Step 37 "Automatic legal clause rewriting" (:5159-5171) and AB-3 "clause
+    rewriting" (:16040-16044), by clarification.
+  Now: inserting a verbatim, published, lawyer-approved template clause version, chosen by
+    code and applied by a person, is not rewriting. r1 Candidates are published template
+    clauses only, filtered by Constitution topic in code, ranked by the LOCAL embedding
+    model returning an id, never text (no egress). r2 The reply builder inserts only stored
+    template text (test-asserted). r3 A person applies it; the engine reviews the result.
+    r4 No generated fallback.
+  Unchanged: rewriting by a model or the system stays excluded (`AM-251` r3).
+
+AM-253 (A-4) — Per-change answers keep their history.
+  Amends `AM-136` r5 (:23834-23836) "SHARED, LAST WRITER WINS … A choice is replaced, never
+    versioned — its history is not a legal record."; r8 (:23845-23846) "NOT AUDITED PER
+    CHOICE"; r2 (:23822-23826) "no endpoint lists comparisons, pairs or the documents a
+    document was compared with".
+  Now: r5' choices are versioned rows (version_number, optional reason, decided_by,
+    created_at), current = highest, `legalmind_append_only()` (a cascade passes, `AM-176`
+    r1), `expected_version` → 409; existing rows migrate as version 1. r2' one endpoint
+    returns the choices for the consecutive version pairs of ONE readable contract (SEC-07
+    404 otherwise). r8' clicks stay unaudited (the rows are the history); one
+    `document.reply_prepared` audit event per reply built or accepted.
+  Unchanged: `AM-136` r2 (never a Finding or Legal Decision); cross-contract listing stays
+    forbidden; `AM-42` r3 is not amended for it.
+  Schema impact: `comparison_choices` + version_number, reason, decided_by, created_at,
+    append-only trigger (collected in `AM-279`).
+
+AM-254 (A-5) — The right rail carries the client's changes.
+  Amends `AM-57` r1 as amended by `AM-127` r1 (:18379-18382): "The wide workspace reads
+    LEFT contents index · CENTRE document · RIGHT findings/Ask. … the side card holding
+    Summary, Findings and Ask is the fixed right rail."
+  Now: r1 the rail's tab row reads Summary · Findings · Changes (once a client version
+    exists) · Ask. r2 Selecting a change lights its passage (as `AM-57` r2). r3 The document
+    keeps the centre. r4 Presentation only.
+  Unchanged: `AM-57` r2–r4.
+
+AM-255 (A-6) — Intra-sentence marks in version comparison.
+  Amends the owner boundary of 2026-09-04 (no all_lock.md record; recorded in
+    `frontend/src/components/workspace/VersionComparison.tsx:26-28`): "Deliberately NOT a Word-style visual diff
+    (the owner's own boundary): no intra-sentence word colouring, no redline."
+  Now (owner decision record): version comparison and Changes may mark intra-sentence
+    insertions and deletions; marks stay verdict-neutral (no red/green status colour,
+    33.16); "client added / client removed" text for screen readers.
+  Unchanged: 33.15's deterministic method; no model computes the diff.
+
+AM-256 (A-7) — A plain sentence per client change.
+  Amends `AM-224` r2 (:26922-26929): "Its own sentences are never shown; a checked reading
+    shows its quote under \"Read by the review model and checked against the clause —
+    Legal decides.\""
+  Now: "Its own sentences are never shown" reads "shown only as AM-256 permits". r1 One
+    descriptive sentence per change from the existing one-call-per-document triage, kept
+    only if every number is in that change's before/after text, it passes the `AM-49` r2
+    vocabulary screen and every content word is grounded; else `AM-224` r1's fixed words.
+    r2 Labelled "Plain summary by the assistant — read the clause"; no reader word, no
+    status colour. r3 Never a Finding. r4 Ships only after one labelled run (`AM-224` r7).
+  Unchanged: `AM-224` r1, r7; the flag stays off until measured. A code-built brief at the
+    top of the tab needs no amendment.
+
+AM-257 (A-8) — "Explain this", assembled by code. AMENDS NOTHING (design record).
+  References `AM-49` r2 (:17659-17666): "The reply is accepted only if it is exactly one
+    sentence within a fixed length; carries no judgment, advice, consequence or
+    acceptability vocabulary". `AM-49` r2 is NOT amended.
+  Records: "Explain this" is the `AM-49` sentence; `AM-152` r6's business angle; a pointer
+    to the `AM-152` r8 card; our position quoted only for `legal_position.view` holders
+    (omitted otherwise); where no business angle exists, the finding's `AM-156` r5 action
+    sentence and, where `change_triage` (`AM-224` r1) recorded one, its fixed reading —
+    never model-written consequence text. The earlier draft's model-written second sentence
+    on practical effect is withdrawn (model-written legal effect, close to "AI legal
+    advice"); if ever wanted it is an owner + lawyer choice.
+  Unchanged: payload (`AM-49` r1; `AM-30` t3; `AM-152` r5).
+
+AM-258 (A-9) — One status vocabulary and one action vocabulary.
+  Amends `AM-156` r5 (:24679-24683): "Every actionable finding carries an action in the
+    Constitution's own terms … 'Send our wording; accepting the difference is a Legal
+    decision' … or 'Legal decides — no approved wording exists'".
+  Now: one status vocabulary (`AM-184`'s four words, on every surface, Ask included) and
+    one code-owned action vocabulary — Keep our position · Send our wording · Accept theirs
+    · Ask someone with the right · A person must read this — never on assistant text.
+  Unchanged: r5's substance — never "reject", never "approved"; a §9 Unacceptable condition
+    still says only an authorised approver may grant an exception.
+
+AM-259 (A-10) — Contract collaborators.
+  Amends AB-12 r4 (:16991-16994): "**Writes are OWNER-only.** … A Lead who needs to act on
+    a colleague's deal takes ownership first."; AB-12 r3 "never widens a write (r4)";
+    `AM-136` r4 (:23831-23833) "AB-12's \"writes are owner-only\", unchanged". Step 24
+    r16/r17 narrowed accordingly.
+  Now: r1 new `contract_collaborators` (contract, user, added_by, added_at), same
+    department as the owner, added by the owner or the department Lead, audited. r2 The
+    owner, a collaborator or the department Lead may write negotiation answers, upload
+    versions, prepare the reply and record "sent", through one server-side resolver;
+    SEC-07 404 outside scope.
+  Unchanged: r3 archive, delete and transfer stay with the owner and the Lead; Legal
+    Decisions still need `legal.decision`; read scopes are unchanged.
+  Schema impact: `contract_collaborators` (collected in `AM-279`).
+
+AM-260 (A-11) — A derived negotiation status.
+  Amends, by clarification, AB-3 (:16040-16042) "Out of V1 scope … commercial transaction
+    lifecycle, transaction state machines, …"; and 42.3 / IMPL-01 (:14931-14932) "Adding
+    any table, column or enum not covered by a lock record or an approved amendment batch."
+  Now: AB-3's items mean commercial and financial transactions (orders, billing,
+    fulfilment, payment), not a contract's negotiation progress. r1 A derived negotiation
+    status — Drafting · Internal review · With client · Client returned · Ready to sign ·
+    Signed · On hold — computed from version roles, `document_versions.sent_at`/`sent_by`
+    (written once by POST /document-versions/{id}/sent or `AM-273`, audited
+    `document.version_sent`) and `contract_outcomes`. r2 Its own vocabulary
+    `NEGOTIATION_STAGE`, never sharing a field or enum with the five axes, the Review
+    lifecycle, `review_stage`, ContractStatus or ConfigStatus (REC-06). r3 No stored
+    status column; no endpoint writes a status.
+  Schema impact: r4 42.3 gains `document_versions.sent_at`, `sent_by` (collected in
+    `AM-279`).
+
+AM-261 (A-12) — One stage for the deal.
+  Amends `AM-179` r3 (:25741-25746) and its registry line (LOCKED_DECISIONS.md:247):
+    "`review_stage` from `GET /reviews/{id}/progress` is what every screen shows (AB-103)."
+  Now: r1 the contract header shows one stage word, the negotiation status (`AM-260`);
+    `review_stage` is its sub-line for the version on screen. r3 The version track is
+    navigation, labelled "Versions".
+  Unchanged: r2 `review_stage` keeps its values, derivation, endpoint and REC-06
+    separation; the Review screen and the report still show it.
+
+AM-262 (A-13) — The screen is named Contracts.
+  Amends `AM-38` r1 (:16918-16921): "The Documents screen is named **Dashboard**. Its route
+    is `/dashboard`, its heading is \"Dashboard\", and its navigation label is
+    \"Dashboard\"."
+  Now: label and heading "Contracts"; the route stays or moves with permanent redirects
+    keeping query strings.
+  Unchanged: no domain term is renamed.
+
+AM-263 (A-14) — Readable contract links.
+  Amends `AM-38` r2 (:16923-16925): "a single contract is still reached at
+    `/dashboard?id=…`, and no record id appears in a URL path segment."
+  Now: `/contracts/{id}[/changes | /versions/{n}]`; `?id=` links redirect.
+  Unchanged: SEC-07 / API-10 byte-identical 404, which applies to the path form.
+
+AM-264 (A-15) — A personal To-do.
+  Amends Step 52.6's screen list (docs/05-architecture/STEP_52_FRONTEND_ARCHITECTURE.md:
+    72-79; not in the all_lock.md:14729-14755 record): "Screens in V1 scope … | Review list
+    | Steps 9, 30 |".
+  Now: "Review list" becomes one view of a permission-scoped To-do — points awaiting my
+    decision · second approvals I owe · Reviews · drafts awaiting approval · client returns
+    on my deals — every item resolved server-side (rule 18); old URLs redirect.
+  Unchanged: FE-01 (no UI legal logic, gating presentation only).
+
+AM-265 (A-16) — Server drafts before v1.
+  Amends 42.3's table list / IMPL-01 (:14931-14932), as `AM-260`. `AM-70` r3 (:19288-19291,
+    "Any document blocks it, including an archived one.") is NOT amended and does not block.
+  Now: d1 `draft_answers` (template version, nullable counterparty ON DELETE SET NULL,
+    answers JSONB, owner, created_by, updated_at, expires_at). d2 Not a contract: `AM-70`
+    r3, Dashboard counts and the Lead's read scope do not reach it; the owner (and
+    `AM-259` collaborators) only, SEC-07 404; a hand-over is audited. d3 Swept N days after
+    the last edit, with notice, audited. d4 "Save as v1" consumes it in one transaction.
+  Schema impact: `draft_answers` (collected in `AM-279`).
+
+AM-266 (A-17) — Commercial terms printed in a contract are in V1.
+  Amends, by clarification, AB-3 (:16040-16041) "Out of V1 scope   e-signature, purchase
+    orders, billing, invoicing, payment settlement, …"; and `AM-42` r4 (:17167-17172) "the
+    PO link the manager drew cannot be completed by any V1 structure."
+  Now: AB-3's items mean PO, billing, invoicing and payment-settlement RECORDS and
+    PROCESSES, not commercial terms printed in a contract (ORDER_FORM is a V1 type,
+    `AM-72`). r1 Generating an ORDER_FORM from approved text with typed commercial fields
+    is in V1 under `AM-251`. r3 `AM-42` r4's PO-link sentence is superseded by `AM-267`.
+  Unchanged: r2 no invoice, payment, billing-schedule or PO-status table; payment
+    settlement stays out; no fee or tax identifier in a model payload (`AM-30` t3/t4);
+    `AM-42` r4's "NO deal/matter entity" stands.
+
+AM-267 (A-18) — One parent pointer: governed by.
+  Amends `AM-42` r3 (:17160-17165): "RELATEDNESS IS DERIVED, NOT STORED. … NO
+    document-to-document relationship table is created, and none is needed" (registry
+    paraphrase "none may be"); and r4 as `AM-266`.
+  Now: r1 new nullable `contracts.governed_by_contract_id` (FK, ON DELETE RESTRICT), only on
+    ORDER_FORM or AMENDMENT, the same non-null counterparty enforced by trigger, set by an
+    explicit human act, audited. r3 Parent and children resolve through the READ
+    traversal; an unreadable one is omitted, never nulled. r4 Deleting a parent with
+    children is refused with a reason.
+  Unchanged: r2 one parent pointer, not a join table; relatedness by counterparty
+    otherwise stays derived.
+  Schema impact: `contracts.governed_by_contract_id` + trigger (collected in `AM-279`).
+
+AM-268 (A-19) — Deal facts pre-filled from the requester's own file.
+  Amends `AM-30` t2 (:16188-16189) "Only the requester's question and the retrieved chunk
+    spans required to answer that one request may be sent … Never a whole Document
+    Version."; t4 (:16197-16199) "No counterparty name, signatory name, contract identifier
+    … is included in an egressing payload."; extends `AM-34` t1 (:16633-16638) "The
+    proposal pre-fills the intake select; the human confirms". Applies `AM-113` t2'/t3'/t4'
+    (owner D12) to the questionnaire.
+  Now: r1 the payload carries the requester's own file for THIS draft as user material,
+    size-capped, forbidden-key screened; never a stored Document Version. r2 A value
+    survives only if it is a verbatim substring (code-checked). r3 Never an
+    approved-options legal field; a differing term shows as a requested change. r4 A
+    person confirms each field. r5 Audit: model, prompt version, payload hash, field names,
+    never values. The payload carries client identifiers BY DESIGN (counterparty name,
+    signatory, CIN, GSTIN/PAN from the requester's own file) — a widening of `AM-30` t4
+    beyond the `AM-113`/D12 precedent, which was agent mode only; confirmed with this
+    batch (report §16(a)10 named it for explicit sight).
+  Unchanged: picking a visible Client Profile fills stored details with no model;
+    `AM-30` t3 (no internal legal position egresses); every other path's t4.
+
+AM-269 (A-20) — A contract may start from Ask or be filed from it.
+  Amends `AM-133` r1 (:23703-23706): "A file attached on the Ask page is the conversation's
+    material … never a Contract, never on the Dashboard, never analysed. A Contract, its
+    Review, Summary and Findings come only from the Dashboard upload."
+  Now: the second sentence reads "A Contract, its Review, Summary and Findings come only
+    from the Contracts upload, from a template draft the user saves as v1, or from a file
+    the reader explicitly files as a new version of a contract they own." r1 Ask returns
+    one card (type, template version, proposed values each with its source; Purpose
+    verbatim; approved-options fields never filled from chat); nothing exists until the
+    user saves v1. r2 Filing is offered by code only where the attachment aligns to a
+    contract the caller owns (server-side, no existence signal, `AM-25` r7); on tap it
+    enters the ordinary upload pipeline as Client modified.
+  Unchanged: r3 `AM-25` r4; `AM-133` r2–r3; an attached file not filed stays the chat's.
+
+AM-270 (A-21) — Ask beside the questionnaire.
+  Amends `AM-30` t2 / `AM-113` t2' (:22319-22322, material "pasted or attached in THIS
+    conversation") and `AM-30` t3 (:16191-16195) "No Company Standard value, Legal Rule,
+    threshold, rule configuration, Rule Outcome, Evaluation, Finding or other internal
+    legal position may be included in an egressing payload."
+  Now: the payload may carry the requester's own unsaved answers from this screen as user
+    material, and spans of the PUBLISHED template's clause text for the field asked about
+    (on the `AM-67` precedent). r1 The answers are the requester's own. r3 Constitution and
+    position text only to the positions permission. r4 Behind a flag, default off (as
+    `AM-114`); audited by hash.
+  Unchanged: r2 `AM-25` r3/r4 — compliance routes to the engine; `AM-30` t3 for every
+    internal position other than published template text. Lawyer help text per question
+    needs no model.
+
+AM-271 (A-22) — Structure proposals for a lawyer-supplied template draft.
+  Amends `AM-30` t2, t3 (as `AM-268`, `AM-270`) for LeapSwitch's own approved template
+    text, section by section.
+  Now: r1 the model returns tag spans and section ids; non-substring spans are discarded.
+    r2 A person accepts each; publishing stays behind the no-model gates. r3 Stored text is
+    byte-identical before and after (test). r4 Template-admin permission; audit by hash.
+  Unchanged: code (placeholders, numbering, content controls, ordinary analysis) does most
+    of it without a model; no template text is authored (rule 21).
+
+AM-272 (A-23) — The organization's own template text is configuration.
+  Amends, by clarification, locked 54.6 as extended by `AM-25` r9 / `AM-30`: 54.6
+    (:14830-14833) "Synthetic or cleared text only. Real counterparty contracts never enter
+    the repository."; `AM-25` r9 (:15805-15806) "no document and no clause text beyond short
+    cited excerpts enters this repository."
+  Now: the organization's OWN lawyer-approved template clause text, recorded with its source
+    (supplier, approval reference, SHA-256), is configuration and may live in
+    `backend/config/templates/`. `test_source_material.py` refuses template-shaped text with
+    no recorded lawyer source. Precedent: the redacted Constitution in docs/02-legal-domain/.
+  Unchanged: counterparty contracts and client-returned text never enter the repository;
+    the source documents stay in gitignored `legal-docs/`.
+
+AM-273 (A-24) — Notifications and outbound mail.
+  Amends `AM-30` t1 (:16184-16186) "Generation is the ONLY permitted egress."; t8
+    (:16214-16215) "Egress is allow-listed to one provider endpoint at the network layer,
+    deny-by-default elsewhere"; t10; `AM-25` r9; DD-9 (docs/design/DESIGN_DECISIONS.md:338)
+    "A notification bell is omitted for the same reason."
+  Now: m1 one LeapSwitch-controlled SMTP relay is added to the t8 allow-list with its test;
+    SMTP only in `legalmind/outbound`, under the import-boundary test. m2 To a client: only
+    the rendered client-facing file of the version the owner chose, to a recipient on that
+    Client Profile, sent by a user with `contract.update`, refused server-side (409) while
+    that version carries an undecided departure we propose (CR-13); never Findings,
+    positions or notes; records `sent_at`. m3 In-app notifications need no egress;
+    notification e-mail carries no clause text, position or counterparty name — only a
+    fixed sentence and a link resolved through normal authorization. m4 Audited with file
+    hash and recipient domain.
+  Unchanged: m5 Gemini (and the providers `AM-225` admitted) stay the only model egress;
+    C-17 is the precedent for naming a second, non-model egress.
+  Schema impact: `notifications` (collected in `AM-279`).
+
+AM-274 (A-25) — E-signature with one named provider.
+  Amends AB-3 "e-signature" and "hosted document processing" (:16040-16044); `AM-25` r9
+    (:15802-15805) "No hosted model API, no hosted embedding API, no hosted
+    document-processing service"; `AM-30` preamble (:16141) "The adjacent item \"hosted
+    document processing\" is NOT narrowed."; t1, t4, t8.
+  Now, for ONE e-sign provider the owner names (not yet named): e1 only a version with every
+    point decided and a SIGN_AS_IS / SIGN_WITH_CHANGES outcome, as the client-facing file
+    (no internal position). e2 t4 is carved out for that provider only, for signatory names
+    and e-mail addresses. e3 Written no-training and retention terms (and India residency
+    if the lawyer requires) before release. e4 A t8 allow-list entry with its test. e5 Every
+    send and callback audited with the file hash. e6 The signed file enters through
+    `ingest_document` as FINAL_SIGNED. e7 New `executions` table.
+  Unchanged: every other hosted document processing stays closed.
+  Schema impact: `executions` (collected in `AM-279`).
+
+AM-275 (A-26) — Key dates and reminders.
+  Amends IMPL-01 / 42.3 (tables) and `AM-30` t1 (e-mail, via `AM-273`); states that AB-3's
+    "commercial transaction lifecycle" does not cover a signed contract's own dates (k5).
+  Now: k1 new `contract_key_dates` (document version FK CASCADE, kind, date, evidence_id NOT
+    NULL, derivation) and `reminders`. k2 Dates only from the document's own stated figures
+    by arithmetic (`AM-152` r5 precedent); working days never calendar days (`AM-154`); no
+    conversion beyond `AM-62`; a blank or ambiguous figure gives "not determinable" and why
+    (rule 15). k3 A fact about text, never a Finding or lifecycle transition (`AM-35` t1);
+    READ traversal. k4 E-mail reminders under `AM-273`.
+  Schema impact: `contract_key_dates`, `reminders` (collected in `AM-279`).
+
+AM-276 (A-27) — A signed contract cannot be hard-deleted.
+  Amends `AM-55` r1 (:18205-18208): "`DELETE /contracts/{id}` is restored, unconditionally —
+    no branch on whether a Review exists." (`AM-70` r2, :19284-19286, "`AM-55` is not a
+    precedent that extends itself", stands.)
+  Now: "unconditionally" is narrowed — DELETE is refused (409, saying why) while a
+    FINAL_SIGNED version or an `executions` row exists; Archive stays. Each new history
+    table's cascade posture is ruled explicitly in `AM-279`. Named for the owner's sight:
+    it narrows the owner's own `AM-55` choice, and strengthens rule 17.
+  Unchanged: `AM-176` r1; DELETE of every other contract as `AM-55`.
+
+AM-277 (A-28) — LibreOffice headless for the client-facing PDF.
+  Amends the Step 39 stack (:6778-6779) "PDF:               PyMuPDF" / "DOCX:
+    python-docx" and IMPL-01 (:14936) "Any new technology, dependency or service beyond the
+    Step 39 stack." (rule 19; ARCH-06).
+  Now: LibreOffice headless (MPL-2.0) is added — worker image only, sandboxed, no network
+    route, converting only DOCX LegalMind rendered; version pinned and recorded with each
+    output.
+  Unchanged: PyMuPDF stays the reader and the Story PDF the fallback (its AGPL use for a
+    client-facing fallback is an owner question, report §16(a)7, not decided here).
+
+AM-278 (A-29) — docxcompose and pdfjs-dist.
+  Amends the Step 39 stack and IMPL-01 (rule 19), as `AM-277`.
+  Now: docxcompose (MIT), drafting module only, appending lawyer-supplied annexures
+    unchanged; pdfjs-dist (Apache-2.0), frontend Page view only.
+  Unchanged: no other dependency.
+
+AM-279 (A-30) — One collecting record for every new table and column.
+  Amends 42.3's table list and IMPL-01 (:14931-14932); `AM-174` r9 (:25656-25657) is the
+    latest base: "MIGRATION c6e2a9d4f1b7: CREATE TYPE contract_outcome; CREATE TABLE
+    contract_outcomes. 34 application tables."
+  Schema impact (authorised; built in forward-only, additive migrations, Step 55):
+    NEW TABLES  clause_versions · template_versions · contract_drafts · draft_answers
+                (`AM-265`) · contract_collaborators (`AM-259`) · executions (`AM-274`) ·
+                contract_key_dates, reminders (`AM-275`) · notifications (`AM-273`)
+    EXTENDED    comparison_choices + version_number, reason, decided_by, created_at,
+                append-only (`AM-253`)
+    COLUMNS     document_versions.sent_at, sent_by (`AM-260`) ·
+                contracts.governed_by_contract_id + trigger (`AM-267`)
+    NOT YET     the issuing-entity column (report G0-3) is authorised ONLY once the owner
+                decides C-19; this record does not authorise it.
+  Rules: constraints as named in report §11.1; `legalmind_append_only()` on every table that
+    holds history, a cascade passing (`AM-176` r1); each table's cascade posture ruled
+    explicitly in its migration (`AM-70` r2); the new table count is stated from the
+    migration, never by arithmetic (C-14 disputes the base).
+```
+
+**Not amended — safety, owner explicit (report §17.3).** Rules 7 and 21: LegalMind never
+invents legal wording, positions or source material; every template clause, rung and annexure
+comes from the lawyer, and no model output reaches a client without a holder's recorded
+approval. Pre-approved wording for people without the right is not proposed (it would change the
+zero-tolerance Legal Rule as legal policy, `AM-33`; it needs its own owner + lawyer lock). The
+zero-tolerance outcome itself: the engine never accepts a deviation — ACCEPTABLE only from MATCH
+or `AM-239`'s sourced favour form. Rule 18 and SEC-*: authentication → authorization in every
+query; SEC-01, SEC-02 / ROLE-05, SEC-07 omission and byte-identical 404. The append-only audit
+trail (rule 17) — `AM-253` and `AM-276` add to it; nothing removes from it. The Gemini cost
+guard: every model item (`AM-256`, `AM-268`–`AM-271`) is measured locally first and reports
+call counts, latency and tokens.
+
+**Proposed, owner choice pending, default OFF — NOT amended by this record (report §17.2).**
+Each needs the owner explicitly (and the lawyer where marked); no lock below changes until a
+later record appends it.
+
+```text
+A-31 (+ lawyer)  Reply with our position: the Constitution's Drafting Notes verbatim, holder-
+                 approved per contract (AM-152 r8, AM-156 r5/r13).
+A-32 (+ lawyer)  A fallback ladder per topic of lawyer-supplied wording, picked by a holder as
+                 a Legal Decision (zero-tolerance rule, AM-33 r3, AM-43 r3). No pre-approval.
+A-33 (+ lawyer)  Wording a named person types (DD-9 "Add custom clause"); legal changes only
+                 after a holder's APPROVE_CUSTOMIZATION.
+A-34 (+ lawyer)  "Fit our wording to their clause": defined terms, party labels and numbers
+                 only, holder-approved (AM-25 r3/r5; Step 37 / AB-3 clause rewriting).
+A-35 (+ lawyer)  Holder-only "Suggest a starting draft" where no approved wording exists
+                 (AM-25 r3; AM-152 r8).
+A-36 (+ lawyer)  "Draft cover e-mail" from recorded answers only (AM-235 r2 / AM-236 r6;
+                 AM-30 t3; AM-25 r3).
+A-37             A read-only Playbook of current positions for legal_position.view holders
+                 outside a deal (AB-12 r7; widens LEGAL-02's audience).
+A-38             A guest link for one version of one contract (AB-3 "multi-tenant external
+                 access"; a new unauthenticated principal — separate security review).
+A-39 (+ lawyer)  Further standards gain favourable_direction, each from the lawyer
+                 (AM-239 r2/r4; AM-33 r3).
+```
+
+---
+
+## AB-151 — `AM-280`, `AM-281` (2026-11-02): two corrections found by the Phase 1 independent review
+
+Owner delegation, 2026-11-02 (*"take ownership and complete phase one"*), under CLAUDE.md
+"Product first". Both narrow a record appended earlier the same day (AB-150); neither touches
+the safety list (rules 7/21, rule 18 / `SEC-*`, the append-only audit trail, the zero-tolerance
+outcome, the Gemini cost guard). Effective from this record forward; not retroactive.
+
+```text
+AM-280 — A collaborator reads the contract they were added to.
+  Amends AM-259 r3 ("read scopes are unchanged"). Found in review: a collaborator could
+    answer, upload and prepare the reply, but every read of the contract returned 404, so
+    the feature could not be used.
+  Now: r1 a contract collaborator may READ that one contract — its versions, its Reviews and
+    Findings as their own permissions allow (legal_position.view still governs positions;
+    SEC-07 omission unchanged), and its change list — and nothing else; r2 only while the
+    collaborator is ACTIVE and still in the owner's department, checked on every request
+    (a department move ends both the read and the write at once); r3 To-do names a contract
+    only where the caller can read it.
+  Unchanged: AM-259 r1/r2; archive, delete and transfer stay with the owner and the Lead;
+    Legal Decisions still need legal.decision; no other read scope widens.
+
+AM-281 — A holder answers a change no standard measures.
+  Narrows AM-250 for holder-route changes that carry NO Evaluation (unmeasured wording, a
+    clause the client deleted with no Finding, a new annexure). Found in review: such a
+    change could never be accepted by anyone, so the reply could only reject it.
+  Now: r1 a caller holding legal.decision who can read the contract may record
+    "accept theirs" on such a change as an ANSWER (comparison_choices, AM-253), with a
+    reason REQUIRED, audited with the actor; r2 it is not a Legal Decision, is never shown
+    as one, and never sets ACCEPTABLE; r3 where an Evaluation exists, acceptance still
+    requires an EFFECTIVE Legal Decision — second person where the standard sets
+    requires_second_person (AM-240 r1), and not superseded by an active escalation.
+  Unchanged: the zero-tolerance outcome (ACCEPTABLE only from MATCH or AM-239); the
+    contract owner without legal.decision still has only Keep our position / Ask someone
+    with the right on these changes.
+```
+
+---
+
+## AB-152 — `AM-282` … `AM-293` (2026-11-03): create contracts, the lawyer's own wording, one view per person (the CLM plan's lock records)
+
+**Origin.** The plan "Create contracts, lawyer review & replacement, role-based plain-language
+LegalMind" (revised after three adversarial reviews) was **approved by the owner on
+2026-11-03**. Owner decisions it records: the lawyer's tools from day one are *Use our
+standard* and *Write our wording* (a fallback ladder later); the brand is chosen per
+contract; on everything else — template text handling, the second approver, access —
+*"what your research tells"*. Its section "Lock records to append first" lists the twelve
+items below; this batch records them as `AM-282` … `AM-293`, one AM per item, in that order.
+The AB-150 items it builds on: A-33 (typed wording) and A-40 … A-42 (plan numbering).
+
+**Effective from this record forward; not retroactive** — no Review, Finding, Legal Decision,
+snapshot, audit row or historical text is changed by it, and every line above stays exactly
+where it is (rule 22). **Nothing is built by this record**; each AM authorises the design it
+names, built under the ordinary phase discipline (implement → test → measure → owner says
+commit). Line numbers cite `all_lock.md` as it stood at 27894 lines on branch
+`records/clm-amendments-20261102`; quotes are verbatim (… marks an elision). The ID range
+`AM-282`–`AM-299` and `AB-152`–`AB-159` was scanned on every ref and every worktree on
+2026-11-03 and found unused.
+
+**Still with the owner, NOT decided here:** who receives `LEGAL_DECISION_AUTHORITY` first
+(`AM-250`) and who the second approver is (`AM-289` names the rule, not the person); every
+template, clause and annexure text and every CloudPe MSA wording (rule 21 — the lawyer
+supplies it); PyMuPDF's AGPL for a client-facing PDF (AB-150 §16(a)7); the e-sign provider
+(`AM-274`); any stamp-duty rate or article (`AM-292` — the lawyer's answer is configuration).
+
+```text
+AM-282 (A-40) — In-app clause approval by a named lawyer is a recorded lawyer source.
+  Amends AM-272 (:27724-27726): "the organization's OWN lawyer-approved template clause text,
+    recorded with its source (supplier, approval reference, SHA-256), is configuration and
+    may live in `backend/config/templates/`." — and, by the same clarification, 54.6
+    (:14830-14833) "Synthetic or cleared text only. Real counterparty contracts never enter
+    the repository." and AM-25 r9 (:15805-15806) "no document and no clause text beyond
+    short cited excerpts enters this repository."
+  Now: r1 an approval recorded in LegalMind, clause by clause, by a named holder of
+    legal.approve_customization (AM-283) IS the "recorded lawyer source": supplier = that
+    person's user id, approval reference = the approval row's id, SHA-256 of the exact
+    approved text. r2 Reference and DRAFT template text (the reference NDA and MSA) is
+    loaded from gitignored `legal-docs/` by `tools/import_template.py` into DRAFT
+    `clause_versions` / `template_versions` rows and lives ONLY in the database until
+    approved; it never enters the repository, a fixture or a log. r3 The configuration
+    file under `backend/config/templates/` is written only from APPROVED text, after the
+    approval, carrying r1's source; `test_source_material.py` refuses any template-shaped
+    text without it. r4 Only a PUBLISHED template version is ever used for a client
+    (AM-251 r1); in-progress contracts stay pinned to their version.
+  Unchanged: counterparty contracts and client-returned text never enter the repository;
+    the source documents stay in `legal-docs/`; no template text is authored by LegalMind
+    (rule 21) — the importer copies, the lawyer approves.
+
+AM-283 — Who approves and publishes a template.
+  Settles AB-150's open item (:27438-27440): "who publishes templates and whether a
+    `template.approve` / `document.generate` permission is wanted (§16(a)6 — no permission
+    is added by this batch)"; amends AM-271 r4 (:27715) "Template-admin permission".
+  Now: r1 approving a clause version and publishing a template version are held by the
+    holders of legal.approve_customization — no new permission. r2 Publishing runs the
+    no-model gates (every clause approved; the composed file parsed and analysed in a
+    rolled-back review; every applicable standard MATCH; numbering, cross-references and
+    variables resolved) and refuses otherwise, with the reasons. r3 AM-271 r4's
+    "template-admin permission" reads legal.approve_customization. r4 No
+    `document.generate` permission: creating a contract from a published template is an
+    upload by another route and takes the permission the upload takes.
+  Unchanged: SEC-02 / ROLE-05 (no super-role bypass reaches legal.approve_customization);
+    the S-8 guards on granting it (AM-237).
+
+AM-284 (A-33) — "Write our wording", decided before the reply is rendered; notes to the client.
+  Amends AM-251 r1 (:27471-27476): "A person-triggered DOCX/PDF, rendered deterministically
+    (no model in the render path), is in V1, containing only: a PUBLISHED template version's
+    lawyer text, the user's typed answers, the prior company version's text, the
+    counterparty's text, and wording a holder approved as a Legal Decision."; and AM-252 r2
+    (:27491-27492): "The reply builder inserts only stored template text (test-asserted)."
+    A-33 stood in AB-150's "Proposed, owner choice pending" list (:27842-27843); the owner
+    chose it on 2026-11-03.
+  Now: r1 a holder of legal.approve_customization may TYPE replacement wording on a client
+    change ("Write our wording"). r2 DECIDED BEFORE RENDER: on a measured point the wording
+    is recorded first as a Legal Decision APPROVE_CUSTOMIZATION on that row's Evaluation,
+    carrying the wording's SHA-256 (second person per `requires_second_person`, AM-240 r1,
+    or AM-289); on an unmeasured change, through the AM-281 path with its required reason.
+    No decision → no reply; a reply whose review cannot be read (no snapshot, analysis
+    queued) fails closed. r3 AM-251 r1's last input reads "wording a holder typed and
+    approved as a Legal Decision whose recorded SHA-256 matches the text inserted". r4
+    AM-252 r2 reads "The reply builder inserts only stored template text or approved typed
+    wording whose hash matches its decision (test-asserted)." r5 "Use our standard" inserts
+    the verbatim published clause chosen in code by its `realises` codes against the
+    change's requirement codes (AM-252 r1–r3). r6 A typed "Note to client" goes into the
+    reply as a Word comment on that change; a typed "Internal note" never leaves LegalMind
+    (AM-285 r3). r7 Neither wording nor notes are ever AI-written: no model drafts,
+    completes or "improves" them.
+  Unchanged: AM-251 r3 — automatic clause rewriting by a model or the system, AI
+    negotiation and AI legal advice stay excluded; AM-252 r4 (no generated fallback); the
+    zero-tolerance outcome (an APPROVE_CUSTOMIZATION is a person's Legal Decision, never an
+    ACCEPTABLE from the engine).
+
+AM-285 (A-41) — comparison_choices carries the standard, the wording and the notes.
+  Amends AM-136 r1 (:23815-23819) "choice ('ours' | 'theirs', by a CHECK)" as extended by
+    AM-253 r5' (:27501-27503, versioned, append-only).
+  Now: r1 choice values 'ours' | 'theirs' | 'standard' | 'custom' (CHECK widened). New
+    nullable columns: clause_version_id (FK clause_versions; required when 'standard'),
+    wording, wording_sha256 (both required when 'custom'), client_note, internal_note. Rows
+    stay append-only versions (AM-253). r2 client_note is shown to every reader of the
+    contract and exported as a Word comment (AM-284 r6). r3 internal_note is serialised only
+    to holders of legal_position.view; for anyone else the key is OMITTED, never nulled
+    (SEC-07, LEGAL-02); it is filtered from the choices endpoint, from audit `after`
+    payloads and from notifications, and never written into a file.
+  Unchanged: AM-136 r2's "never a Finding, Classification, Rule Outcome, Legal Decision or
+    Review state"; AM-253 r8' (clicks unaudited; the rows are the history).
+  Schema impact: comparison_choices CHECK widened + clause_version_id, wording,
+    wording_sha256, client_note, internal_note.
+
+AM-286 (A-42) — A Client Profile carries the client's legal details.
+  Amends AM-42 r1 (:17143-17146): "NEW TABLE `counterparties` — `id` …, `name` (NOT NULL),
+    `industry` (nullable), `relationship_notes` (nullable), `created_by` …, `created_at`,
+    `updated_at`. The profile the manager asked for, and nothing more: no address book, no
+    contacts, no CRM pipeline."
+  Now: r1 new nullable columns on counterparties: entity_type, cin_or_llpin, pan, gstin,
+    registered_office, notice_address, notice_email, signatory_name, signatory_designation,
+    authority_reference. r2 Each is typed by a person or confirmed from the requester's own
+    file under AM-268 r2/r4 — never inferred, never invented (rule 21); empty stays empty.
+    r3 Format checks only (CIN/LLPIN, PAN, GSTIN shapes); no lookup service. r4 Visibility
+    as the profile's today (AM-42; a global counterparty list stays forbidden). r5 GSTIN and
+    PAN are stored for invoicing and the parties block may print them; nothing forces them
+    into a contract's text.
+  Unchanged: AM-42 r3 (relatedness derived), AM-70; AM-30 t4 on every model path except
+    AM-268's.
+  Schema impact: ten nullable columns on counterparties.
+
+AM-287 — C-19 resolved: the issuing entity and brand are chosen per contract.
+  Resolves C-19 (CONFLICTS.md:37, :569-591; registered by AM-43 r7); amends AM-279's
+    "NOT YET" line (:27813-27814): "the issuing-entity column (report G0-3) is authorised
+    ONLY once the owner decides C-19; this record does not authorise it." Owner,
+    2026-11-03: the brand is chosen per contract.
+  Now: r1 new `contracts.issuing_entity` (LEAPSWITCH | CLOUDPE, by a CHECK; nullable for
+    every existing contract), chosen by a person when the contract is created or uploaded,
+    audited; `template_versions.brand` the same values; a Company Standard may declare
+    `configuration.brand` (JSONB, Q2 route, no schema change). r2 Templates: an NDA for
+    LeapSwitch and for CloudPe; MSA templates LeapSwitch-only — the Constitution states "No
+    CloudPe MSA; CloudPe services are governed by the published CloudPe Terms of Service"
+    (LEGAL_CONSTITUTION_L1.15.md:308) — until the lawyer supplies CloudPe MSA text (rule
+    21). r3 EVALUATOR BRAND SCOPING (Constitution §5.2, L1.15:240): a standard with no
+    brand is entity-wide and applies as today; a brand-scoped standard applies only to a
+    contract of that brand and is never applied to the other brand's contract; where the
+    contract's brand is not recorded, a brand-scoped standard does not silently apply — the
+    point reads "Needs a decision", reason "brand not recorded" (§23.2, L1.15:939). r4 No
+    standard is given a brand by this record; until one is, every evaluation is unchanged.
+    r5 Nothing infers a brand for the evaluator (Ask's own reading, AM-145, stays Ask's).
+  Unchanged: Leapswitch Networks Pvt. Ltd. is the one contracting entity (L1.15:211); the
+    per-type standards and the zero-tolerance outcome.
+  Schema impact: contracts.issuing_entity; template_versions.brand.
+
+AM-288 — The lawyer reads, and negotiates on, the contracts that are theirs to review.
+  Amends REC-09 (:15260-15267): "A holder of `legal.review` MAY VIEW a Review that is in
+    Legal scope. This grants NEITHER ownership NOR Legal Decision authority."; AB-12 r4
+    (:16991-16994): "**Writes are OWNER-only.** … Department scope and Legal scope are read
+    scopes and never a way to alter someone else's paper"; AM-259 r2 (:27572-27575): "The
+    owner, a collaborator or the department Lead may write negotiation answers, upload
+    versions, prepare the reply and record \"sent\", through one server-side resolver".
+  Now: r1 a holder of legal.review reads the whole contract (versions, changes, Reviews,
+    Findings) when (a) its Review is in Legal scope (REC-09), (b) it is assigned to them
+    (AM-170 r4), or (c) they created it. r2 On those contracts a holder of legal.decision
+    may do negotiation writes — answers (AM-284/AM-285), a new version, prepare the reply,
+    record "sent" — through the AM-259 resolver. r3 NO global Legal read: a contract that
+    meets none of (a)–(c) is the byte-identical 404 (SEC-07). r4 The basis is checked on
+    every request and ends when it ends (withdrawal, a closed Review).
+  Unchanged: archive, delete and transfer stay with the owner and the Lead; Legal Decisions
+    still need legal.decision; legal_position.view still governs positions; AM-170 r5's open
+    question stands; SEC-01.
+
+AM-289 — A decision on one's own contract needs a second person.
+  Reverses AM-170 O2 as recorded at :25752-25753: "AM-170 (O2: an owner holding
+    legal.decision may decide their own points)"; extends AM-240 r1 (:27304).
+  Now: r1 a Legal Decision recorded by a person on a contract they own or created takes
+    effect only once a SECOND, different holder of legal.decision confirms it (AM-240 r1's
+    mechanism; one signature never resolves). r2 Delegation or assignment back to the
+    contract's owner or creator is refused. r3 Everything else: the lawyer alone, unless the
+    standard sets `requires_second_person`. r4 Basis: house policy and segregation-of-duties
+    practice — recorded as such, not as law.
+  Unchanged: AM-170 r2 ("Never the contract's owner" as the designated reviewer) now holds
+    for the decision too; SEC-01, SEC-02.
+
+AM-290 — Client paper first: rows keyed on findings, anchored on our template clause.
+  Amends AM-136 r1 (:23815-23817): "left_version_id (FK document_versions, ON DELETE
+    CASCADE, nullable) or left_key (a website document key, nullable) — exactly one, by a
+    CHECK"; and AM-253 r2' (:27503-27505): "one endpoint returns the choices for the
+    consecutive version pairs of ONE readable contract".
+  Now: r1 where a contract's first version is the client's paper, its change rows come from
+    that version's Findings; each row's left anchor is the stable key of the published
+    template clause that realises the Finding's requirement (`left_key` namespaced
+    `clause:<key>`, `clause_version_id` pinned). r2 A Finding with no realising clause still
+    gets a row, left side empty, and is answered by Keep ours / Write our wording / Ask
+    Legal only. r3 AM-253 r2' also returns these rows for that contract.
+  Unchanged: AM-136 r2 (no cross-contract listing; never a Finding or Legal Decision);
+    SEC-07 on every side.
+
+AM-291 — One vocabulary per person; the reader word and the answer kept apart.
+  Amends AM-184 r1 (:25844-25846): "MATCH → \"Matches our standard\"; DEVIATION → \"Change
+    needed\"; MISSING → \"Missing\" …"; AM-56 r3 (:18342-18349): "THE WORDS … Next step by
+    word: Acceptable \"No action is needed.\" … Needs a decision \"Someone with legal
+    authority needs to decide this.\""; AM-258 (:27560-27562): "one code-owned action
+    vocabulary — Keep our position · Send our wording · Accept theirs · Ask someone with
+    the right · A person must read this"; AM-260 r1 (:27585-27587): "Drafting · Internal
+    review · With client · Client returned · Ready to sign · Signed · On hold"; AM-261 r1
+    (:27599-27600): "the contract header shows one stage word, the negotiation status
+    (`AM-260`); `review_stage` is its sub-line"; AM-156 r5 (:24679-24684): "Every
+    actionable finding carries an action in the Constitution's own terms … built by code".
+  Now: r1 every point shows TWO lines, never one status (five axes; 33.16; RESOLVED ≠
+    MATCH): line 1, the reader word against our standard (AM-184's four words, unchanged);
+    line 2, who answers or what was answered — Yours to answer · With Legal · Waiting for
+    approval → Kept ours · Accepted theirs · Our wording · Our standard. A point closed by a
+    decision never reads "Matches our standard". r2 Actions: Accept theirs · Keep ours · Use
+    our standard · Write our wording · Ask Legal (AM-258's list, renamed). r3 Deal status,
+    worded per person: Drafting · With Legal ("Your review" to the reviewer) · Ready to send
+    · With client · Client replied · Ready to sign · Signed · On hold; "Ready to send" is a
+    derived stage, nothing stored (AM-260 r2/r3). r4 The header: title · client · status ·
+    owner · one action; review_stage moves into Legal details. r5 ONE label map in code
+    ("Constitution" → "our standards", "Escalate" → "Ask Legal", "Justification" →
+    "Reason", "snapshot" → "version", "evidence" → "where it says this"). r6 Engine detail —
+    classification, rule outcome, codes, § references, evidence, decision history and
+    AM-156 r5's action sentence — only in a collapsed "Legal details" for holders of
+    legal_position.view and legal.review. r7 Views derive from permissions, never role
+    names.
+  Unchanged: the five axes and their enums; AM-184 r2/r3; no confidence or probability word;
+    SEC-07 omission; AM-261 r2 (review_stage values and endpoint).
+
+AM-292 — Stamp duty and signatory authority are recorded before "Mark signed".
+  Amends AM-274 e1/e6 (:27755-27760) by adding a precondition; extends AM-279's table list.
+  Now: r1 "Mark signed" (and a signed copy's ingest as FINAL_SIGNED) is refused until the
+    contract carries an execution record: stamp mode (e-stamp | stamp paper | none, as the
+    person records it), stamp reference, state, duty paid as entered; and for each
+    signatory, name, designation and authority reference (board resolution or authority
+    letter). r2 LegalMind asserts NO stamp rate, article or requirement; any duty rule is
+    the lawyer's answer and enters only as configuration (rules 7, 21). r3 Append-only,
+    audited.
+  Schema impact: new `execution_records` (contract, document_version, stamp fields,
+    signatories JSONB, recorded_by, created_at), append-only.
+
+AM-293 — Nothing undecided is downloaded or sent; how the PDF is made.
+  Amends AM-251 r1 (:27474-27475) "A version carrying an undecided departure we propose is
+    never sent or downloaded client-facing (CR-13)" by naming its gates; narrows AM-277
+    (:27792-27793) "PyMuPDF stays the reader and the Story PDF the fallback".
+  Now: r1 GET …/content, the reply PDF and POST …/sent (mark_sent) each refuse (409, saying
+    why) a COMPANY_DRAFT reply with any undecided point. r2 The client-facing PDF is made by
+    LibreOffice in the worker only, from the CLEAN DOCX, its version recorded with each
+    output (AM-277). r3 PyMuPDF output is an internal reading copy only, never client-facing,
+    until the owner decides AB-150 §16(a)7.
+  Unchanged: AM-277's sandbox and no network route; AM-273 m2's 409.
+```
+
+**Not amended — safety.** Rules 7 and 21: LegalMind never invents legal wording, positions,
+stamp rates or source material; every template clause and CloudPe MSA text comes from the
+lawyer, and typed wording is a person's, never a model's. Rule 18 and SEC-*: authentication →
+authorization in every query; SEC-01, SEC-02 / ROLE-05; SEC-07 omission (an internal note is
+omitted, never nulled) and the byte-identical 404 (no global Legal read). The append-only audit
+trail (rule 17) — `AM-285` and `AM-292` add to it; nothing removes from it. The zero-tolerance
+outcome: the engine never accepts a deviation — ACCEPTABLE only from MATCH or `AM-239`'s
+sourced favour form; "Our wording" is a person's Legal Decision, never an engine result. The
+Gemini cost guard: nothing in this batch adds a model call.
+
+---
+
+## AB-153 — `AM-294` (2026-11-03): "Keep ours" on the client's paper
+
+Owner delegation, 2026-11-03 (*"take ownership"*; engineering ruling found while building AM-290).
+Narrows a record appended the same day; touches no safety item.
+
+```text
+AM-294 — On the client's paper there is nothing of ours to keep.
+  Amends AM-290 r2 (all_lock.md, AB-152): "A Finding with no realising clause still gets a
+    row, left side empty, and is answered by Keep ours / Write our wording / Ask Legal only."
+  Found while building: where the client's paper comes first, no version of ours exists, so
+    "Keep ours" has no text to restore.
+  Now: r1 on a client-paper-first row anchored on a published template clause (AM-290 r1),
+    "Keep ours" means "Use our standard" — the anchored clause, verbatim (AM-252). r2 On a
+    row with no anchor, the answers are Accept theirs / Write our wording / Ask Legal; "Keep
+    ours" is not offered, and the API refuses it with a plain message (NOTHING_OF_OURS).
+  Unchanged: AM-290 r1/r3; AM-284 (wording decided before the reply); AM-281 (an unmeasured
+    change answered by a holder with a reason); SEC-07 on every side.
+```
+
+---
+
+## AB-154 — `AM-295` (2026-11-03): a saved draft's version and lifetime
+
+Owner delegation, 2026-11-03 (*"take ownership"*; engineering record for a column added while
+building AM-279's `draft_answers`). Touches no safety item.
+
+```text
+AM-295 — A saved draft carries a version and expires.
+  Extends AM-279 (draft_answers, authorised there) by one column.
+  Now: r1 draft_answers.version (integer, starts at 1): every save sends expected_version and a
+    stale save is refused with 409, as every other write in LegalMind (AM-177). r2 A draft not
+    turned into a contract is removed after 30 days (LEGALMIND_DRAFT_TTL_DAYS; a draft is the
+    user's unfinished form, never a contract, a version or evidence). r3 Turning a draft into
+    v1 copies its answers into contract_drafts.values (AM-279), which is kept with the contract.
+  Unchanged: AM-279's table list; AM-293 r2 — the client-facing PDF is made in the worker only;
+    the current in-request rendering is a pre-release item to move, not an exception.
+```
+
+---
+
+## AB-155 — `AM-296` (2026-11-03): one vocabulary across the pages (AM-291, cross-page)
+
+Owner delegation, 2026-11-03 (*"take ownership"*; independent cross-page review of five CLM
+pages). Extends `AM-291` from one page to every page; touches no safety item.
+
+```text
+AM-296 — AM-291 holds across pages: two nouns, one count, one step, one status set.
+  Extends AM-291 (all_lock.md, AB-152): "every point shows TWO lines, never one status …
+    r4 The header: title · client · status · owner · one action … r5 ONE label map in code".
+  Extends AM-264 (AB-150): "A personal To-do … Permission-scoped, resolved server-side".
+  Found: one deal read four counts on five screens ("19 left", "Changes 82", "15 open
+    points", "1 of 82 answered"); the stage said "82 changes to answer" when all were
+    answered; the lawyer's action and every label changed per page.
+  Now: r1 Two nouns: CHANGES are the client's edits in the open round; POINTS are the gaps
+    against our standard still undecided on the latest version. Counted ONCE by the server
+    in one `counts` object on the contract detail, the contract list and each To-do item
+    (changes_total · changes_left · changes_left_for_me · points_open · points_for_me); a key
+    is absent when its source is unreadable or no round is open, never 0 in its place.
+    Every screen renders from it, "yours of total" wherever both apply.
+  r2 The stage line is read with the counts: once every change is answered it names what
+    happens next ("With Legal, 17 points"; to the deciding lawyer "Legal deciding 17
+    points"; "Changes answered, reply next"). The stage itself stays derived (AM-260 r2/r3).
+  r3 ONE primary action per person per stage, in the page header, resolved in the
+    presentation layer from the server's stage, counts and this reader's permissions
+    (rule 18: presentation only; every write checks again): Decide N points · Answer
+    changes · Prepare our reply · Send our reply · Send to Legal · Send to client ·
+    Create the contract. The To-do and the home say the same words.
+  r4 One task per contract per person: the home queue and the To-do are one list; a deal's
+    return and its changes are one item; a return whose open changes are all Legal's is not
+    the owner's task; a reply ready to send is a task ("reply_ready").
+  r5 One status set of four where a point stands — Matches our standard · Open point ·
+    Decided · Missing — with one icon each (colour never alone), in the document legend,
+    the Points filters and the Changes rows; a decided point is never "Matches" (rule 14).
+    The reader word of AM-291 r1 stays line 1 beside it.
+  r6 One page header (back link in words, title, stage, owner, quiet actions, the one
+    primary) and one page width; Templates at /templates (old addresses redirect); a draft
+    template's status is one word, "Draft", and its problems are counted once, from the
+    check, which always finishes (a result, or "did not finish" with Run again).
+  r7 One relative-time format, spelled out ("4 hours ago", "yesterday", "3 days ago").
+  Unchanged: the five axes and their enums; AM-291 r1 (two lines), r6 (Legal details);
+    AM-293 (nothing undecided leaves — "Send our reply" downloads and records, LegalMind
+    sends nothing itself); no confidence or probability word; SEC-07 omission; StatePill,
+    DecisionControl and EscalateControl untouched.
+```
+
+---
+
+## AB-156 — `AM-297` (2026-11-03): the execution record as built (AM-292 in AM-279's table)
+
+Owner delegation, 2026-11-03 (*"take ownership"*; building plan flow 5 "Final"). Settles the
+table name and the columns `AM-292` named only as "stamp fields"; touches no safety item.
+
+```text
+AM-297 — AM-292's record is AM-279's `executions` table, append-only, with these columns.
+  Extends AM-292 (all_lock.md, AB-152): "Schema impact: new `execution_records` (contract,
+    document_version, stamp fields, signatories JSONB, recorded_by, created_at), append-only."
+  and AM-279 (AB-150): "NEW TABLES … executions (`AM-274`)".
+  Found: AM-279 authorises `executions` and AM-292 names `execution_records` for the same
+    record; two tables would hold one fact twice.
+  Now: r1 ONE table, `executions` (migration e6b3d9a1c7f5); `execution_records` is not built.
+    r2 Columns: id, contract_id, version_number, stamp_method (E_STAMP | STAMP_PAPER |
+    NOT_STAMPED by a CHECK), stamp_reference, stamp_state, duty_paid (text as typed),
+    stamped_on, not_stamped_ack_by (who acknowledged "not stamped yet — it cannot be used as
+    evidence until stamped"), signatories JSONB (party, name, designation, authority kind and
+    reference, its date, signed on, wet ink / e-sign — recorded, no provider integration),
+    seal_used, witnesses JSONB, signed_document_version_id, differences_accepted_by +
+    differences_reason (together, by a CHECK), comparison JSONB (kept at signing),
+    signed_at, recorded_by, created_at. r3 Every save is a new row (current = highest
+    version_number = the expected_version a save names); `legalmind_append_only()` refuses
+    UPDATE/DELETE; a BEFORE INSERT trigger refuses any row after the signed one. r4 Every FK
+    RESTRICT (AM-276, ruled here per AM-279): a contract with an execution row is refused
+    DELETE (409) besides — archive stays. r5 "Mark signed" requires: the agreed version's
+    contract decision Sign as is / Sign after our changes (AM-174), no undecided point
+    (AM-293), the stamp recorded or the acknowledgement, name + designation + authority for
+    both parties, and the signed copy compared with the agreed version by the negotiation
+    change detection; a difference blocks unless a `legal.decision` holder accepts it, for
+    that copy, with a reason (audited). r6 FINAL_SIGNED is set only by "Mark signed" — the
+    version declaration refuses it (AM-292 r1).
+  Unchanged: AM-292 r2 (no stamp rate, article or requirement asserted; the duty is the
+    person's text); the five axes; audit append-only; no model call.
+```
+
+---
+
+## AB-157 — `AM-298` (2026-11-03): a contract signed outside LegalMind is filed as signed
+
+Coordinator ruling under the owner's delegation, 2026-11-03 (engineering). Amends `AM-297`
+r6 / `AM-292` r1 narrowly; touches no safety item.
+
+```text
+AM-298 — Filing an already-signed contract is its own path; Mark signed keeps every check.
+  Amends AM-297 r6 (all_lock.md, AB-156): "FINAL_SIGNED is set only by "Mark signed" — the
+    version declaration refuses it (AM-292 r1)."
+  Found: the executed copy of a contract signed outside LegalMind could no longer be filed
+    (upload, declare Final signed) — the industry-standard path Client Profiles used.
+  Now: r1 Declaring a version FINAL_SIGNED is allowed when the contract was NOT negotiated
+    in LegalMind: no execution record, no other version CLIENT_MODIFIED / sent / our reply,
+    no answered change, no contract decision on another version. It starts an `executions`
+    record with origin SIGNED_OUTSIDE (new column `executions.origin`, IN_LEGALMIND |
+    SIGNED_OUTSIDE by a CHECK, migration a8d4c2e6f1b9) naming that version as the copy;
+    stamp and signatories are optional, editable by the owner, never a blocker; the owner's
+    "Confirm the record" sets signed_at and the record is final (the sealed trigger).
+  r2 A contract negotiated in LegalMind reaches FINAL_SIGNED only by "Mark signed", every
+    AM-297 r5 check kept; the declaration is refused (409) and names Record signing.
+  r3 Upload: the existing version select offers "This contract is already signed".
+  r4 A version declared FINAL_SIGNED before AM-292 keeps its role; no record is required
+    and none is created; it reads "Signed outside LegalMind (no signing record)".
+  r5 Delete: a signed contract (FINAL_SIGNED version or execution record) is archived,
+    never deleted (AM-276 unchanged).
+  Unchanged: AM-292 r2 (no stamp rate asserted); audit append-only; the five axes.
+```
+
+---
+
+## AB-158 — `AM-299`, `AM-301` (2026-11-04): each client change says what it does for us, and only the worse ones go to Legal
+
+Manager request, pasted by the owner on 2026-11-04 (owner-approved product direction), in plain
+words: each change needs a column saying whether it is a positive or a negative change for us; a
+liability cap in an MSA of 6 months, against the Constitution's 12 months, is a positive thing
+for us; anything positive can be accepted easily; anything neutral can be accepted without
+approval; only the negative points should come for review. `AM-300` belongs to AB-147 (another
+session); the numbers here skip it.
+
+```text
+AM-299 — What a client change does for us, and who accepts it.
+  Amends, each narrowly:
+    the zero-tolerance Legal Rule as recorded (manager 2026-08-19, owner approval 2026-08-20)
+      — for NEUTRAL changes and for ROUTING only: a returned clause that still MATCHES every
+      standard it touches is accepted by the deal owner without Legal; nothing that differs
+      from a standard is ever ACCEPTABLE by this record (the Finding, its classification and
+      its Rule Outcome are untouched, rule 14).
+    AM-250 r2 / the negotiation routes (AB-150) — a MATCH after the change was "not positively
+      non-legal" and went to a holder; it is now the deal owner's (route reason
+      STILL_MATCHES_OUR_STANDARD).
+    AM-239 r1/r4 — for routing only, a mutual aggregate liability cap LOWER than the standard
+      (LIABILITY-MSA-001, LIABILITY-TOS-001; declared from the manager's request, never
+      inferred for any other standard) reads "Better for us" on LeapSwitch's provider paper
+      (AM-239 r2 types). The evaluator is unchanged: the cap stays a DEVIATION, outcome
+      UNACCEPTABLE, and its point on the next Review still needs a Legal Decision before our
+      reply leaves (AM-293).
+    AM-224 — its six code reasons ("moves risk onto LeapSwitch") now also make a change
+      "Worse for us"; the model's reading never decides the effect.
+  r1 Every change carries `effect_for_us`: POSITIVE "Better for us" | NEUTRAL "No change for
+     us" | NEGATIVE "Worse for us". Its own field — never a classification, rule outcome,
+     decision or review status (the five axes). Derived in code from what the engine
+     measured, never from a model:
+       POSITIVE = the favour route: every Finding on the returned clause is a DEVIATION
+         accepted under AM-239 or a lower cap under r1/AM-301;
+       NEUTRAL = formatting only (AB-150), or every Finding a MATCH;
+       for both, every row the client changed carries such a Finding, every standard that
+         measured our clause still measures theirs, and no AM-224 code reason is read;
+       NEGATIVE = everything else — a DEVIATION against us, MISSING, CONFLICT, UNABLE_TO_
+         EVALUATE, a one-party cap (§9, AM-239 r2), a move, a deletion, a clause nothing
+         measures, a Review not finished.
+     FAIL CLOSED: anything unmeasured or unclear is NEGATIVE ("Needs review"), never NEUTRAL.
+     AM-281's "same meaning" is not established deterministically in code, so it is not
+     read here.
+  r2 Routing follows the effect: POSITIVE and NEUTRAL are the deal owner's — accepted one by
+     one or together ("Accept all N better for us" / "… with no change for us",
+     POST /contracts/{id}/changes/accept, all or none); NEGATIVE alone goes to Legal and alone
+     offers Ask Legal. Every acceptance is an append-only answer row naming who accepted it
+     and, as its reason, the effect (unless the person gives one); the together-acceptance
+     is audited `negotiation.accepted_by_effect`. A Legal holder reopens any of them by
+     answering again; both rows stay in the history.
+  Unchanged: every evaluator and Finding; MATCH -> ACCEPTABLE only by comparison; AM-33 r3;
+    the reply gate AM-293; FEES_PAID and FEES_PAID_FOR_AFFECTED_SERVICES never comparable;
+    rule 18 (every write checked server-side); audit append-only.
+
+AM-301 — One-directional dominance of affected-services fees, for "Better for us" only.
+  Amends the owner ruling of 2026-08-18/19 (CLAUDE.md, the V1 configuration state: "FEES_PAID
+    and FEES_PAID_FOR_AFFECTED_SERVICES stay distinct — never add either to comparable_bases
+    or a conversion rule"; 45B.4) narrowly: the fees paid for the services giving rise to a
+    claim never exceed the total fees paid, so a cap of N months of affected-services fees,
+    N <= the standard's months of total fees, same unit and scope, mutual, is never worse for
+    us than the standard.
+  r1 Read ONLY to decide POSITIVE under AM-299 r1. Never a MATCH, never a conversion, never in
+     `comparable_bases`; the evaluator still returns UNABLE_TO_EVALUATE (45B.4).
+  r2 One direction only: total fees against an affected-services standard is never read, and
+     a cap of more months is NEGATIVE.
+  For the owner to confirm (listed, not assumed).
+```
+
+AB-158, appended the same day (2026-11-04) — coordinator's correction under the owner's
+delegation: an acceptance the deal owner gave must not come back to Legal on our reply.
+
+```text
+AM-299 r3 — An owner's acceptance is carried onto our reply's own Review, by row.
+  Amends AM-293 r1 (AB-152: our reply never leaves while its Review holds an undecided
+    point) — a point covered by a carried acceptance is decided, not undecided.
+  r3.1 When our reply (COMPANY_DRAFT, reply_to the client's version) is analysed, after
+       AM-284 r2's carry-forward, each Finding still DECISION_REQUIRED is decided by the deal
+       owner's acceptance when ALL hold: the change was "Better for us" or "No change for
+       us"; its current answer is accept theirs; the Finding's requirement was measured on
+       that row; and the reply clause it reads has exactly the accepted row's text (spacing
+       and clause number aside), one accepted row only. Anything else stays undecided.
+  r3.2 Recorded as one append-only audit row per Finding (`negotiation.acceptance_carried`,
+       actor the person who accepted, with the effect, their reason, the row and answer
+       version) — never a Legal Decision, never ACCEPTABLE: the engine's outcome stands.
+       The Finding's derived status reads RESOLVED (RESOLVED is not MATCH, rule 14), so the
+       point does not block /content, the reply PDF or mark sent, and is never counted as
+       undecided.
+  r3.3 "Worse for us" points keep the AM-293 gate; only a holder's Legal Decision opens it.
+```
+
+---
+
+## AB-159 — `AM-302` (2026-11-04): the blank template, filled outside LegalMind, checked when it comes back
+
+Owner requirement, 2026-11-04, in plain words: a salesperson must also be able to download
+just the blank template — open it in Google Docs, fill in the client's details and send it —
+designed as an enterprise CLM would, so the offline path stays safe: when the paper comes
+back, LegalMind recognises the template, compares the text with it, and every edit made
+outside shows as a change. The owner's plan adds, the same day: management approves a draft
+from a full review copy before it is published, and the publish records that approval.
+`AM-302` and `AB-159` were scanned on `main`, every worktree and every remote branch on
+2026-11-04 and found unused (AB-159 appears only inside AB-152's scan range).
+
+```text
+AM-302 — The blank template, the review copy, and the returned copy compared with its template.
+  Clarifies AM-251 r1 (:27471-27476) and AM-293 r1: a blank template is a PUBLISHED template
+    version's lawyer text with no answers — our approved text, not "a version carrying an
+    undecided departure we propose" — so downloading it client-facing is within r1.
+  Amends, each narrowly:
+    AM-251 r1 — for the REVIEW COPY only: a person-triggered file may carry a DRAFT
+      template version's text, internal only, headed "DRAFT FOR MANAGEMENT APPROVAL — not
+      for client use" (r4).
+    AM-271 "Unchanged: code (… content controls …)" and the renderer's locked content
+      controls (AB-150 drafting) — the blank and the review copy carry none, so Word and
+      Google Docs can fill them; a generated contract keeps them.
+    AM-290 r1 (client paper first) — a contract's first version that was made from our
+      blank (r5) is compared with that template, not listed as the client's own paper.
+  r1 GET /templates/{template_key}/blank?format=docx|pdf — the PUBLISHED version of the key
+     (or ?version=N): a DRAFT, APPROVED or unknown version is the same 404 as no template
+     (SEC-07); a RETIRED one is 409 naming the current version. Anyone holding
+     contract.create. Rendered by the house renderer from the template model with no
+     answers: a field our standard fixes (locked_value) is filled, every other field is a
+     highlighted bracketed placeholder in the form's own words ("[Client's legal name]"),
+     each conditional clause and schedule is kept with a bracketed note "[Optional: include
+     this only if … ; otherwise delete it.]". A DEMO-labelled local copy carries its label
+     in every page header. No text is composed (rules 7, 21).
+  r2 The footer carries the template ID LM-TPL-<key>-v<version>-<first 8 of the blank
+     model's hash>. The PDF is made by LibreOffice in the worker from the same DOCX (AM-293
+     r2): 202 while it is made, 503 PDF_NOT_MADE when it cannot be (the Word file still
+     downloads); its state is recorded as append-only audit rows (`template.blank_pdf`),
+     because a published template version is frozen by its trigger — no column is added.
+  r3 Every download is audited `template.blank_downloaded`: who, the template version, its
+     status, the format, the kind (blank or review) and the template ID.
+  r4 GET /templates/{template_id}/review-copy?format=docx|pdf — a DRAFT or APPROVED
+     version's full text for management, placeholders highlighted, headed as above, footer
+     LM-REVIEW-<key>-v<version>-<hash> (never linked back by r5). Only a holder of
+     legal.approve_customization or legal.decision, or the department Lead
+     (department.view); anyone else, and an unknown id, the same 404; a published version
+     409 (that is the blank). Audited as r3. A salesperson never sees it.
+  r5 When the paper comes back — any upload, the client's return or a copy signed outside
+     LegalMind (AM-298) — and no version of ours precedes it, the version is linked to the
+     template it was made from: by the LM-TPL ID anywhere in its text, else by structure
+     (a PUBLISHED or RETIRED template of the contract's type whose top-level clause headings
+     it carries, four in five and at least five, the most identical clauses breaking a tie).
+     Derived from the document's own text when read; nothing is stored.
+  r6 Its text is compared with that template's blank by the existing negotiation comparison
+     (AB-150 — no second differ): a placeholder matches whatever filled it; deleting an
+     optional part, as its note says, is not a change; every other difference is a change
+     on the Changes page with its effect_for_us (AM-299) and its route, answered and
+     replied to like any client change (our side is the template). Where the linked version
+     is older than the published one the page says "Made from an older template (vN); the
+     current one is vM."
+  r7 Publishing takes an optional approval reference (≤ 300 characters, e.g. "Management
+     approval, email of 5 Nov 2026"), recorded in the `template.published` audit row and
+     shown on the published template to its approvers. It records who approved the text
+     outside LegalMind; it changes nothing about who publishes (AM-283 r1) or the gates
+     (AM-283 r2).
+  Unchanged: AM-283 (only legal.approve_customization approves and publishes; every gate);
+    AM-293 r1's reply gates; the engine, every Finding and the zero-tolerance outcome — a
+    returned copy is reviewed by the same engine as any upload; rule 18 (every check is the
+    server's; the menu is presentation only); the append-only audit trail; no model call.
+```
+
+**Not amended — safety.** Rules 7 and 21: nothing here writes contract text — placeholders are
+the form's own labels, notes say only when a clause applies. Rule 18 and SEC-07: a DRAFT is a
+404 to a salesperson, byte-identical to no template. The audit trail only grows.
+
+AB-158, appended the same day (2026-11-04) — `AM-303`, on the owner's decision recording the
+manager's point: our template opens with OUR best position. `AM-302` is used by the blank
+template's code in clm-p1 (another session); this number follows it.
+
+```text
+AM-303 — Our own template may open better for us than the standard, and the publish gate
+         says so instead of refusing it.
+  Amends AM-239 r4 for LIABILITY-MSA-001 ONLY, and the publish gate's "every standard
+  MATCH" condition. AM-239 r1–r3, r2's provider-paper types and AM-33 r3 otherwise stand.
+  r1 LIABILITY-MSA-001 declares favourable_direction LOWER and the approved favourable rule
+     (favourable_outcome ACCEPTABLE): a mutual aggregate cap at fewer months on the same
+     basis, on paper where LeapSwitch is the provider, is a DEVIATION accepted in our favour.
+     Its classification stays DEVIATION (rule 14). LIABILITY-TOS-001 is untouched.
+  r2 Never a cap limiting one party only (AM-239 r2, Constitution §9 Unacceptable Position):
+     the evaluator withholds the favour from a one-party cap, and so does the gate.
+  r3 The publish gate (drafting.publish.in_our_favour) passes a Finding when every one of
+     its Evaluations is a MATCH, a DEVIATION the favourable rule accepted, or a mutual cap
+     no higher than ours on the same basis or on the affected services' fees (AM-299 r3 /
+     AM-301, one direction only, still never a MATCH). A CONFLICT, a MISSING, a higher cap,
+     a one-party cap or any other non-MATCH still refuses publication. The check report
+     marks such a standard "in_our_favour" and counts it as publishable.
+  r4 Unchanged: nothing outside the gate's decision is decided by this record. A Review of
+     client paper reads its outcomes as before (AM-293's gate for "Worse for us").
+  Tests: tests/test_favourable_direction.py (a lower mutual cap passes; a higher cap and a
+  one-sided cap still fail; affected-services fees pass only on a mutual cap);
+  tests/drafting/test_template_library.py.
+```
+
+AB-158, appended the same day (2026-11-04) — `AM-304`, the coordinator's fix of an engine
+gap the MSA draft exposed: a carve-out beyond the lawful floor read "in our favour".
+
+```text
+AM-304 — Any class of claims beyond the lawful floor taken out of the cap is unlimited for
+         those claims, and a person's call.
+  Amends AM-195 (whose class list named only §9's classes) and its sentence shapes.
+  r1 LIABILITY-MSA-001 and LIABILITY-TOS-001 declare `extraction.lawful_floor`, the
+     published Leapswitch TOS §13's own list: death or personal injury caused by
+     negligence; fraud or fraudulent misrepresentation; any liability that cannot be
+     limited or excluded under applicable law. A carve-out naming only these leaves the cap
+     as it reads.
+  r2 Any other class taken out of the cap — indemnities, payment obligations,
+     confidentiality, data, IP, wilful misconduct, gross negligence, anything — is read
+     UNLIMITED beside the cap. The result is CONFLICT, for a person (AM-240): never
+     ACCEPTABLE, never in our favour (AM-303 r3), never MATCH, and "Worse for us" on a
+     client change.
+  r3 The shapes read, in any clause: "<the cap/limitation(s)> shall not apply to …",
+     "Nothing in this Agreement/these Terms shall limit (or exclude) … liability for …",
+     "… shall not be subject to / be excluded from / be outside the cap", "… shall be
+     uncapped/unlimited". A "Nothing … limits" sentence that names no liability is not one.
+  Tests: tests/legal_regression/test_content_reading.py (our 17.3 (d)/(e) is CONFLICT; the
+  TOS §13 floor alone still MATCHes; a client markup taking indemnity out of the cap is
+  NEGATIVE). Golden corpus and legal_regression unchanged.
+```
+
+## AB-160 — `AM-305` (2026-11-04): what the deal owner can offer without Legal — the negotiation playbook
+
+Owner requirement 2026-11-04, from the manager's direction: our MSA opens with our best
+position; when a client pushes back, the salesperson must already know what can be conceded
+without Legal, and only something beyond that goes to Legal (industry name: negotiation
+playbook / fallback positions). `AM-305` and `AB-160` were scanned on `main`, every worktree
+(code comments included) and every remote branch on 2026-11-04 and found unused (`AM-304`
+was taken by the coordinator's AB-158 addendum the same afternoon).
+
+```
+AM-305 — The negotiation playbook is DERIVED, never authored
+  r1 Per point the engine measured on our paper: OPENING = what our own paper says, as the
+     engine read it (the single figure of the Evaluation on our version's Review, or on the
+     published template's rendered file read as the publish gate reads it — recognition off,
+     no model, no egress, a savepoint always rolled back); LIMIT = the ratified Company
+     Standard's own preferred/unit/basis/mutual, from the snapshot the Review ran on. No
+     figure is invented (rules 7/21); an opening the engine could not read as one figure is
+     left unsaid, never guessed.
+  r2 RANGE ("You can agree up to/down to <limit>. Anything more/less goes to Legal"): the
+     standard declares a favourable_direction the engine accepts without Legal (the approved
+     favourable rule, AM-239, no favourable_counsel_check, LeapSwitch the provider by the
+     declared type), or it is a cap a lower mutual figure of which is ours (AM-299 r3 /
+     AM-301). EXACT ("You can agree to <limit>. Anything else goes to Legal"): a numeric or
+     categorical standard without that. LEGAL_ONLY ("Legal decides any change"): everything
+     else. A one-party cap where the standard is mutual, or a basis other than the limit's
+     and not covered by AM-301's one-way dominance, is never inside the band.
+  r3 The playbook decides nothing (the five axes): a client change is "Within what we can
+     offer — you can accept" exactly when its effect_for_us (AM-299) is Better or No change
+     for us, and "Beyond what we can offer — Legal decides" otherwise; the band and
+     effect_for_us are held together by test (the manager's examples: 12 months of total
+     fees on our 6-month affected-services paper within; 18 months, a one-party cap and
+     30-day payment beyond; 15 and 21 days within).
+  r4 Fallbacks (intermediate steps) are read from a template clause version's
+     source.fallbacks — written only through the template approval flow, i.e. by a holder
+     of legal.approve_customization — and shown only when inside the band. None is seeded;
+     no write path is added by this record.
+  r5 Shown where the deal owner needs it: the contract's Summary ("What we can offer"), the
+     Changes page (each change on a playbook point), and the Templates page read-only per
+     published template. GET /contracts/{id}/playbook (READ scope) and
+     GET /templates/{id}/playbook (PUBLISHED only) both need legal_position.view (LEGAL-02);
+     out of scope is the byte-identical 404 (SEC-07). The Templates page and its nav entry
+     open to a holder of contract.create + legal_position.view for this read-only view —
+     presentation only; the template list, approval and publishing stay AM-283's.
+  Amends: none. Extends AM-299's Changes rows with the playbook phrase (presentation of the
+    same effect_for_us). No table, column or enum; no change to the engine, any Finding, the
+    zero-tolerance Legal Rule or the publish gate.
+```
+
+AB-160, appended the same day (2026-11-04) — `AM-306`, owner-approved through the coordinator,
+on the industry-standard playbook tiers (Preferred / Fallback / Escalate). `AM-306` was scanned
+on `main`, every worktree and every remote branch and found unused.
+
+```
+AM-306 — A step back from our paper inside our standard is a FALLBACK, its own effect
+  r1 effect_for_us gains a fourth value, FALLBACK ("Fallback — you can accept"), ordered
+     Better / No change / Fallback / Worse. It is derived in code: the change's route is the
+     deal owner's (every Finding MATCH or accepted under the favourable rule, AM-299/AM-239)
+     AND the client's figure is on the less favourable side of OUR PAPER's own figure for the
+     same standard — same unit, the standard's declared favourable_direction (or a lower
+     mutual cap, AM-299 r3), the same basis or AM-301's one-way dominance (N months of total
+     fees is never less than N months of the affected services' fees). On the owner's route
+     a figure that differs where code cannot say which way is FALLBACK too (fail closed to
+     the more cautious word, never to NEUTRAL).
+  r2 NEUTRAL ("No change for us") stays for changes whose figure did not move: formatting,
+     the same figure, a presence clause that still matches. POSITIVE stays the favour route
+     unless r1 finds the figure worse than ours. NEGATIVE is untouched: nothing here reaches
+     or lifts a row Legal decides (rule 15).
+  r3 A FALLBACK is accepted by the deal owner without Legal, one by one or together
+     (POST /contracts/{id}/changes/accept, effect FALLBACK), recorded with the reason
+     "Fallback — within what we can offer" and audited as negotiation.accepted_by_effect
+     with effect FALLBACK — never a Legal Decision; carried onto our reply like the other
+     two (AM-299 r3). The Changes page has a Fallback filter and count, icon and words.
+  Amends AM-299 r1 (three effects → four: an owner-route change that moved our figure was
+    "No change for us") and AM-305 r3 ("within" = Better, No change or Fallback). The engine,
+    every Finding, the zero-tolerance Legal Rule and the publish gate are unchanged.
+  Tests: tests/legal_regression/test_playbook.py — 6→3 months Better, formatting No change,
+    6→12 months of total fees Fallback, 6→18 Worse, 7→15 days Fallback, 7→30 Worse.
+```
+
+## AB-161 — `AM-307` (2026-11-04): the Special Conditions annexure and the effective contract
+
+Owner request 2026-11-04 (research `clm-rnd/10-ANNEXURE-LIFECYCLE-RESEARCH.md`, design
+`clm-rnd/11-ANNEXURE-SYSTEM-DESIGN.md`): when our template stays unchanged and the client's
+changes are accepted, the final contract carries them as a "Special Conditions" part listing
+every accepted change against the clause it varies. `AM-307` and `AB-161` were scanned on
+`main`, every worktree (code comments included) and every remote branch on 2026-11-04 and
+found unused. **It changes what Findings read, so the owner AND the lawyer confirm it before
+any real use**; until then the frame and the precedence clause exist only as DRAFT reference
+text and no template can produce a package.
+
+```
+AM-307 — Special Conditions annexure and the effective contract
+  r1 The template body of a final contract is the pinned template version, byte for byte
+     (its model rebuilds to v1's model_hash or the package is refused, BODY_CHANGED). Every
+     accepted change is ONE entry of a separate Special Conditions part of the same file:
+     a sequential number, the varied clause's number (a REF cross-reference) and heading as
+     in the pinned version, one operation — replaced, deleted, inserted after — and the
+     agreed text verbatim: the client's (its own clause number dropped), our wording, or our
+     standard's clause text. Keep ours, and an agreed text equal to the template's (spacing
+     and typography aside), give no entry. Nothing is paraphrased or composed (rules 7/21,
+     AM-251 r1).
+  r2 The lead sentences, the title, the opening and the optional initials line are a FRAME:
+     a clause version pinned in layout.special_conditions, approved by a holder of
+     legal.approve_customization like any clause (AM-283), never rendered as body. The
+     reference text (config/templates/special_conditions/reference.json) is DRAFT, labelled
+     "For management approval — Reference text — not approved by Legal", modelled only on
+     the Salesforce MSA operation wording, the BHEL GeM ATC conflict sentence and
+     Constitution §31.12; it is never seeded APPROVED. Deletion wording has no primary
+     source (research Q-3): the lawyer supplies it.
+  r3 Precedence (R-3, Constitution §8.2): a package is generated only from a template whose
+     layout.special_conditions names a pinned body clause as its precedence clause, that
+     clause and the frame APPROVED, and the template published. Otherwise no package
+     (SC_* blockers); the tracked-changes reply stays available. The executed MSA §24.10
+     conflict (Q-1) is the lawyer's before any real publish.
+  r4 What cannot be said as an entry fails closed, CANNOT_EXPRESS ("keep ours, or reply with
+     tracked changes"): a moved clause, a new annexure, front matter, the signature block, a
+     schedule, a clause with sub-clauses under it (replaced or deleted), a clause holding a
+     list, table or image (replaced), two answers on one clause, our standard needing the
+     contract's own values. An insertion is numbered after its anchor (17.2 → 17.2A; Q-5).
+  r5 Layout (R-5/R-6): the part starts on a new page; page numbers run on from the body
+     (never restarted); position after (default) or before the execution block is a template
+     setting; one file, one PDF (the worker's, AM-293 r2). Preflight adds the numbering
+     round-trip of the entries (lm:special-conditions), SC_NEW_PAGE on the PDF, and keeps
+     REF_NO_BOOKMARK, XREF_PDF, MARGIN, EXECUTION_SPLIT, PAGE_NUMBERS, BLANK and
+     UNDEFINED_TERM (a varied clause's quoted heading excepted). A contract without the part
+     renders byte-identically.
+  r6 Trace (R-7/R-8/R-12, SEC-07): doc_metadata.special_conditions keeps the client-facing
+     entries and an internal trace — per entry its answer row id and version, text sha256,
+     effect_for_us, the effective Legal Decision ids or the AM-281 holder answer's audit id.
+     An entry worse for us with neither is refused (SC_TRACE; our standard's own text
+     excepted). Who, why and notes are joined at read time; the internal note only with
+     legal_position.view, the key omitted otherwise. No internal position enters the file.
+     Audited contract.package_prepared {version, package_of, model_hash, renderer, entries
+     [n, target_key, op, choice_id, text_sha256]} — no notes.
+  r7 The effective contract (analysis/effective.py): a version that is a package, or follows
+     one in its contract, is read with each entry applied — the entry's rows (the file's own
+     evidence ids) in place of the clause, a deleted clause gone, an insertion after its
+     anchor; the part's title, opening and leads dropped. NOT_APPLIED, with its reason, when
+     the part is missing, a lead is not the approved frame's, a named clause or its heading
+     is not in the body, the precedence clause is changed, or (our own file) the entries
+     differ from the trace. Analysis of a NOT_APPLIED version is refused
+     (ANALYSIS_FAILED, special_conditions_unapplied); the change list reads both sides raw,
+     says special_conditions_not_applied and routes every row to a holder; a signed copy is
+     compared raw. Anything else — third-party paper, the golden corpus — is read exactly as
+     before.
+  r8 Gates: POST /contracts/{id}/package needs contract_negotiable + contract.update, the
+     dry-run entries_sha256 (409 STALE_PREVIEW), and every reply blocker cleared (409
+     PACKAGE_NOT_READY with blockers). Offered only where our side is v1 made from our
+     template; a client-paper deal, a blank-template deal or a round already answered with
+     tracked changes keeps the reply path (NOT_OUR_TEMPLATE / REDLINE_ROUND). A later round
+     on a sent package is not built (LATER_ROUND).
+  Amends: AM-251 r1 (a generated file may carry a Special Conditions part built only from
+    AM-251's own inputs, the body the pinned template text) · AM-293 r1 (the download, send
+    and PDF gates cover a package_of version as a reply_to one) · AM-284 r2 and AM-299 r3
+    (carried decisions and acceptances reach the package's own Review, on its effective
+    text) · AM-260 r1 (a package is our prepared version; re-answering its round is 409).
+  Not amended: rules 7/21 (frame, operation and precedence wording come from the lawyer),
+    rule 18/SEC-07, the append-only audit trail, zero tolerance (an entry worse for us needs
+    the Legal Decision), the Gemini cost guard (no model call). AM-267 (amendments) is not
+    built by this record.
+  Tests: backend/tests/drafting/test_special_conditions.py.
+```
+
+AB-161 addendum, appended the same day (2026-11-04) — `AM-307` r9, coordinator's review of the
+first rendered package (the lines above stand; this adds to them):
+
+```
+AM-307 r9 — the annexure's own words and lines
+  a  The reference frame's title is "Annexure A — Special Conditions" (research 10 §5) and the
+     annexure's section header carries it. Its opening names the agreement, its date and its
+     parties ({sc:agreement} the template's short title, {sc:date} its effective-date field,
+     {sc:parties} the parties' names): "These Special Conditions form an integral part of …
+     dated … between …". Still DRAFT reference text, "For management approval".
+  b  A lead names the varied clause by its own heading only — a clause's title, a sub-clause's
+     run-in title — and otherwise by number alone; never by its parent clause's heading.
+  c  An entry that opens on the varied clause's run-in title keeps that title's mark.
+  d  initials: true closes the annexure with both parties' lines (By / Name / Initials or
+     Signature / Date) in the signature table's style, kept with the last entry (R-6, Q-5).
+  e  The precedence sentence is a new DRAFT version of the body clause whose "Order of
+     Precedence" sub-clause holds it (MSA 21.3, its existing words kept) — never a second
+     clause stating precedence; a standalone precedence clause only where no such
+     sub-clause exists.
+```
+
+## AB-162 — `AM-308`, `AM-309` (2026-11-05): later rounds on a final contract, and amendments after signing
+
+Coordinator's build order under the owner's CLM delegation (design `clm-rnd/11-ANNEXURE-SYSTEM-DESIGN.md`
+§2, §6, §8; research R-7, R-9, R-11): what AB-161 left unbuilt. `AM-308`, `AM-309` and `AB-162`
+were scanned on `main`, every worktree (code comments included) and every remote branch on
+2026-11-05 and found unused (`AM-300` is held by PR #284). Like `AM-307`, both change what the
+change list and the engine read, so **the owner AND the lawyer confirm them before any real
+use**; no template can produce a package or an amendment until the lawyer's frame, precedence
+and amendment wording are approved.
+
+```
+AM-308 — A later round answers our final contract; its entries add up
+  r1 The client may return our final contract (a package) edited. That round compares our
+     package with their copy, each read as its Special Conditions vary it (AM-307 r7): the
+     change list is against the package's EFFECTIVE text, never its raw body.
+  r2 The agreed text of a clause is this round's answer, else the entry the previous final
+     contract carries, else the template's (design §2). The new package's entries are
+     therefore cumulative: entries this round does not touch carry as they were; an answered
+     change replaces the entry for its clause (or an inserted clause's own entry); an agreed
+     text equal to the template's gives no entry and removes the earlier one; an addition is
+     numbered after the earlier insertions on its anchor (17.2A, then 17.2B). The body stays
+     the pinned template, byte for byte. Our previous package must still rebuild from its
+     template and its own entries (BODY_CHANGED otherwise).
+  r3 A carried entry keeps its round's trace — the same answer row, renumbered — and the
+     Legal Decisions it named only while each is still the EFFECTIVE decision on its
+     Evaluation; SC_TRACE applies as in AM-307 r6. A changed entry needs a new answer in the
+     new round (R-7); re-answering a closed round stays 409. The new package records
+     `supersedes` (the package it replaces), and its frame (`special_conditions.frame`);
+     every later copy is read by the latest package before it.
+  r4 carry_decisions also carries from the package a later one supersedes (and an
+     amendment's first version from the package it copies): an unchanged entry reads the
+     very text its decision was made on. Same rules as AM-284 r2 otherwise; two different
+     decisions for one text carry nothing.
+  r5 Each change row gains `target {key, number, heading}` and `in_package` (replace ·
+     delete · insert · none · cannot) — what the final contract does to the clause the row
+     is about — from the package dry run's own derivation, never a second one. Absent where
+     no package can be made from the pair (our side not from our template, a
+     tracked-changes round, Special Conditions not applied). A side whose Special Conditions
+     could not be read blocks the package (SPECIAL_CONDITIONS_NOT_APPLIED).
+  r6 GET /templates rows carry `special_conditions {ready, missing[]}` (the detail's check).
+  Amends: AM-307 r8 ("A later round on a sent package is not built (LATER_ROUND)") — built
+    here; AM-307 r7 (the frame a package records is the one it is read by).
+  Not amended: rules 7/21, rule 18/SEC-07, the append-only audit trail, zero tolerance, the
+    Gemini cost guard (no model call).
+
+AM-309 — Amendments after signing (AM-267 built)
+  r1 POST /contracts/{id}/amendments starts an AMENDMENT of a SIGNED contract: a new
+     contract record owned by the caller (contract.create, contract.update to name the
+     client, the parent readable), the parent's client and issuing entity,
+     governed_by_contract_id the parent, audited contract.amendment_created. Migration
+     b4f8e2a6d9c1: the nullable column (FK, ON DELETE RESTRICT) and the trigger
+     legalmind_contract_governed_by — the child is an AMENDMENT or ORDER_FORM; the parent is
+     signed (a sealed execution record, or a version declared FINAL_SIGNED before the
+     signing step, AM-298 r4); the parent is neither an amendment nor governed by anything
+     (no amending an amendment, no chains, no self-parenting); both carry the same non-null
+     client, and a parent with children keeps its client and type.
+  r2 Its first version is a copy of the agreed final contract in force — the latest signed
+     amendment's, else the parent's — `copy_of` it, with its Special Conditions record and
+     template draft, reviewed like any upload; only where that agreed version is ours and
+     its signed copy matched it. Otherwise nothing is copied, said so ("starts_empty"), and
+     the amendment's text is uploaded. The same Changes flow follows (AM-308).
+  r3 "Prepare amendment" is the package of the amendment contract. It needs a PUBLISHED
+     template of type AMENDMENT whose frame Legal approved; none exists, so 409
+     NO_AMENDMENT_TEMPLATE "No approved amendment template yet." None is ever authored by
+     LegalMind (rules 7/21). With one, the amendment is the agreed text as amended — the
+     template body and every agreed entry, in the amendment frame's words; whether an
+     amendment instrument should instead list only its own changes is research Q-9, open.
+  r4 The amendment has its own Review, execution record and stamp (R-11); the parent's
+     sealed record is untouched.
+  r5 GET /contracts/{id} gains `governed_by` and `amendments[]`, each only where readable
+     through the READ traversal — omitted, never nulled (AM-267 r3). GET
+     /contracts/{id}/effective (an amendment's id answers for its contract): the signed
+     copy read as its Special Conditions vary it (`original`), then each signed amendment in
+     signing order (`current`), every changed clause with its original beside it (R-9).
+     Fail closed: an amendment applies only when its first version copies the text in force
+     before it and its own signed copy reads APPLIED; otherwise `current` is NOT_APPLIED
+     with the reason and states no clauses. 409 before the contract is signed.
+  Amends: AM-267 r1 ("only on ORDER_FORM or AMENDMENT, the same non-null counterparty
+    enforced by trigger") — the trigger also requires the parent SIGNED and never an
+    amendment; AM-307 ("AM-267 (amendments) is not built by this record") — built here.
+  Unchanged: AM-267 r2 (one parent pointer, no join table), r4 (a parent with children is
+    never deleted under them: RESTRICT, and a signed contract is archived, never deleted).
+  Not amended: rules 7/21, rule 18/SEC-07, the append-only audit trail, zero tolerance, the
+    Gemini cost guard. Stamp duty is recorded, never computed (AM-292 r2).
+  Tests: backend/tests/drafting/test_special_conditions.py (round 2),
+    backend/tests/drafting/test_amendments.py.
+```
+
+## AB-163 — `AM-310` (2026-11-05): Q-9 decided — an amendment is a changes-only instrument; restating is Legal's choice
+
+Coordinator's decision under the owner's CLM delegation, on the practice research
+`docs/architecture/clm-rnd/13-AMENDMENT-PRACTICE-RESEARCH.md` (Q-9, recommendation (c)). `AM-310`
+and `AB-163` were scanned on `main`, every worktree (code comments included) and every remote branch
+on 2026-11-05 and found unused (`AM-300` is held by PR #284). Research 13 is practice research, not
+LeapSwitch's legal position: **the restatement thresholds below are product heuristics for the
+lawyer to confirm**, and no amendment template is approved until the lawyer approves its wording.
+
+```
+AM-310 — Q-9: an amendment lists only its own changes; the whole contract restated is Legal's call
+  r1 Default, form (c) of research 13: "Prepare amendment" makes a CHANGES-ONLY instrument
+     from the published AMENDMENT template: its recitals name the governing contract (its
+     name and signing date) and the amendment's number, a Schedule of Changes lists THIS
+     amendment's own changes in the frame's fixed verbs (replaced / deleted / inserted
+     after), with the parent's clause numbers, then the template's own effective-date,
+     no-other-change, precedence and counterparts clauses and its signature blocks. Every
+     legal word is the template's; code fills only variables (the governing contract's name
+     and signing date, the amendment number, the parties' values from the governing
+     contract's own draft) and the change list. The effective date is a person's (a
+     request field; 409 EFFECTIVE_DATE without it), never guessed.
+  r2 Fail closed: a template that lacks a slot the instrument needs — the approved change
+     frame, a variable for the governing contract's name, its signing date or the effective
+     date, the no-other-change, precedence or counterparts clause (each pinned and
+     approved), or the signature blocks — is 409 AMENDMENT_TEMPLATE_INCOMPLETE naming each
+     missing slot. Nothing is written in its place (rules 7/21). A prior entry that would go
+     back to the template's own words cannot be said by the four verbs: CANNOT_EXPRESS.
+  r3 Form (b), the whole contract restated (the AM-309 r3 package: template body and every
+     agreed entry), only as an explicit choice (`form: restated`) by a holder of
+     legal.approve_customization — 403 for anyone else — audited
+     contract.amendment_restated. The UI shows it only as a secondary action with the
+     words "Restating the whole contract can be read as a new contract and may need fresh
+     stamp duty. Use only on Legal's advice." It may SUGGEST it (never select it) when the
+     contract already has three or more signed amendments, or a change's clause heading
+     names the parties, the Term or governing law/jurisdiction, each said as Legal's call.
+     Those triggers are heuristics (research 13 §2.2: no source states a number) for the
+     lawyer to confirm.
+  r4 The instrument's record is `metadata.amendment` (its entries and trace, the frame,
+     the effective date) with `basis`: the contract as amended (every agreed entry, in the
+     contract template's own frame). It is never a Special Conditions record, so the
+     engine reads the instrument as itself. The next amendment's first version is the
+     contract as amended, rebuilt from `basis` and `copy_of` the instrument.
+  r5 The conformed copy is the Terms in force view (GET /contracts/{id}/effective, AM-309
+     r5), a changes-only amendment applied clause by clause to the text in force before it,
+     after its signed copy matched the instrument. It says "For reference only, not
+     binding. The signed contract and its signed amendments govern." on the page and on
+     the printed copy ("Print or save as PDF"); it is never signed, stamped or stored as a
+     version. An amendment's own page links to it.
+  Amends: AM-309 r3 ("the amendment is the agreed text as amended … whether an amendment
+    instrument should instead list only its own changes is research Q-9, open") — Q-9 is
+    decided: changes only by default, the agreed text as amended only on Legal's choice.
+  Not amended: rules 7/21 (no amendment template is seeded; the demo database's DEMO
+    template is labelled DEMO and never leaves it), rule 18/SEC-07, the append-only audit
+    trail, zero tolerance, the Gemini cost guard; stamp duty is recorded, never computed.
+  Tests: backend/tests/drafting/test_amendments.py (changes-only composition, a missing
+    slot 409, the effective date, restatement refused for a non-holder and audited, the
+    second amendment from the contract as amended);
+    frontend/src/__tests__/amendment-instrument.test.tsx.
+```
+
+---
+
+## AB-164 — `AM-311` (2026-11-05): a mutual §10 clause does not speak for the rest of the indemnity
+
+**Defect, 2026-11-05:** the publish gate passed the approved MSA template with
+INDEMNITY-MSA-001 = MATCH although its clause 16 carried, beside the Constitution's own
+mutual 16.1, a one-way customer indemnity broader than §10 (16.3) and a defence and
+settlement procedure for LeapSwitch alone (16.4). Root cause: `AM-248` r1 read the paper
+whole — any mutual giver anywhere cancelled the one-sided reading, so the other
+sub-clauses of the same topic were never read. `AM-311`, `AM-310` and `AB-164` were
+scanned on `main`, every worktree and every remote branch before being taken.
+
+`AM-311` — One-sided indemnity beside a mutual one (extends `AM-248` r1; Constitution L1.15
+§10: "a defined mutual framework"; Unacceptable: "any materially broader, narrower,
+unilateral, or otherwise unusual indemnification provision")
+
+```text
+r1  BESIDE A MUTUAL CLAUSE. On negotiated customer paper (the AM-248 r1 scope: our TOS and
+    AUP excepted), where an indemnity is given both ways, the indemnity is still ONE_SIDED
+    (a DEVIATION, routed to a person; never MATCH) when any of its sub-clauses carries
+    (a) a customer's own indemnity naming a cause beyond §10's customer heads — any breach
+        of the agreement, of its representations, warranties or obligations, of
+        confidentiality, or negligence (recognition grammar, 35.4; §10's heads — content,
+        unlawful use, customer/end-user conduct, AUP violations, breach of applicable law
+        — are never beyond); or
+    (b) a defence or settlement right given to one side by name ("the Customer shall not
+        settle", "Leapswitch shall have the right to participate in the defence") that the
+        paper does not give the other side.
+r2  THE OFFENDING SUB-CLAUSE IS NAMED. The analysis record states the clause number and
+    the words that made it one-sided (REC-07).
+r3  UNCHANGED. A purely mutual §10 clause, with or without §10's customer heads, MATCHes;
+    no threshold and no position is added; the golden corpus and legal regression
+    expectations are unchanged.
+    Code: backend/legalmind/analysis/service.py `one_way_indemnity`.
+    Tests: backend/tests/test_indemnity_beside_mutual_am311.py (STRUCTURAL).
+```
+
+---
+
+## AB-165 — `AM-312` (2026-11-05): the MSA template's open drafting questions decided, and the Special Conditions confirmed
+
+**Who decided:** the owner, 2026-11-05, delegating the drafting calls to Claude ("you can
+take the decision as lawyer"). Every item below is recorded as **owner decision
+2026-11-05 on Claude's drafting recommendation**. No advocate has reviewed any of it; a
+qualified advocate's review is recommended before first real client use (not a blocker).
+`AM-312` and `AB-165` were scanned on `main`, every worktree and every remote branch
+before being taken (`AM-300` skipped as instructed).
+
+`AM-312` — Template wording, Special Conditions Q-1–Q-8, Q-9 confirmed, scope notes
+(amends `AM-307`'s and `AM-310`'s "owner AND lawyer to confirm before real use" to "owner
+confirmed; an advocate's review recommended")
+
+```text
+r1  THE MSA TEMPLATE (MSA.LEAPSWITCH.APPROVED, local legalmind_clm_e2e v3, published
+    2026-11-05 through the app's approve + publish by the local stand-in approver; model
+    hash 819405fa…, snapshot ff3f190d…; demo legalmind_clm_demo v16, labelled DEMO):
+    (a) "AUP" defined in clause 1 after "Applicable Laws" (1.4): "“AUP” shall mean
+        LeapSwitch’s Acceptable Usage Policy as published at www.leapswitch.com, as amended
+        from time to time." — the published AUP governs (owner ruling 2026-10-09); the
+        executed MSA's annexed AUP is a signed instrument and is not our template's. The
+        later definitions renumber; every cross-reference is by clause key, none by number.
+    (b) 16.2.5 "breach of applicable law" -> "breach of Applicable Laws" (the defined term).
+    (c) 16.2's lead-in "The Customer shall also indemnify LeapSwitch against claims arising
+        from:" stays as drafted.
+    (d) Recorded as done earlier on 2026-11-05: clause 16 is Constitution §10's mutual
+        framework (16.1 §10's illustrative clause, 16.2 §10's customer heads); 16.3/16.4
+        removed (AM-311's finding); 17.3 (d)/(e) withdrawn pending a Constitution §9
+        amendment; 8.2 "SOF" / "Service Order Form" -> "purchase order".
+    The publish gate (rolled back, then live in e2e): publishable, no preflight problem,
+    20 MATCH, PAYMENT DEVIATION and LIABILITY UNABLE_TO_EVALUATE both in our favour.
+r2  SPECIAL CONDITIONS (AM-307):
+    Q-1 21.3's sentence (the Special Conditions prevail only as to the specific terms they
+        amend) is accepted. The executed MSA's §24.10 is a signed instrument, untouched.
+    Q-2 The title is "Annexure A — Special Conditions"; "Annexure" is used throughout.
+    Q-3 The deletion lead stays "Clause {x} “{heading}” is deleted.", parallel to the
+        replace and insert leads (reference.json's note no longer calls it a placeholder).
+    Q-4 The integral-part opening is accepted.
+    Q-5 The annexure follows the execution block on a new page; the initials table is for
+        wet ink; an e-signature covers the whole instrument.
+    Q-6 An annexure executed with the MSA is one instrument with it. Each later amendment
+        is a separate instrument: Maharashtra Stamp Act Sch. I Art. 5(h)(B), ₹500 (Ord.
+        XII of 2024, research 13). Re-verify against the official source before real use;
+        stamp duty stays recorded, never computed.
+    Q-7 Commercial details (fee, date, service) belong in the customer's purchase order;
+        legal-term changes go in the Special Conditions.
+    Q-8 No side letters: every variation goes through the Special Conditions or an
+        Amendment.
+    AM-307 is confirmed by the owner on this recommendation.
+r3  Q-9 (AM-310) confirmed: changes-only amendments by default. The restatement heuristics
+    and the DEMO amendment wording stay suggestions.
+r4  SCOPE NOTES. TOS standards carry no brand tag: each brand's TOS is its own website's
+    (owner 2026-11-05; ruling 2026-10-09; C-19 unchanged). A lawyer in scope reads a CLOSED
+    review read-only (built, d6384586). Order Form and DPA: no standalone company form
+    exists (Constitution §20, §12.2); optional, made only if business asks; not blockers.
+r5  NOT AMENDED: rules 7/21 (no wording invented beyond the definitional and cross-
+    reference fixes above, which use the template's own terms), rule 18, the append-only
+    audit trail, zero tolerance, the Gemini cost guard. Nothing deployed; production
+    untouched. A qualified advocate's review is recommended before first real client use.
+    Data: backend/config/templates/special_conditions/reference.json (_note).
+```
+
+---
+
+## AB-166 — `AM-313` (2026-11-05): a Party's payment obligation is outside the liability cap (Constitution L1.16)
+
+**Who decided:** the owner, 2026-11-05, delegating the call to Claude "as LeapSwitch's lawyer,
+with Priyen's point": from LeapSwitch's side as the provider, the customer's obligation to pay
+must not be capped, which is industry standard. Recorded as **owner decision 2026-11-05 on
+Claude's drafting recommendation**; no advocate has reviewed it. 17.3 (e) (indemnification)
+stays out: the indemnity is now mutual (16.1), so (e) would also uncap LeapSwitch's own.
+`AM-313` and `AB-166` were scanned on `main`, every worktree and every remote branch before
+being taken. Amends `AM-304` r2 for this one class, and restates `AM-312` r1 (d)'s withdrawal
+of 17.3 (d) as reversed; (e)'s withdrawal stands.
+
+`AM-313` — The Legal Constitution L1.16 governs company positions, superseding L1.15 (amends
+`AM-243` r1's version and canonical path); its §9 takes a Party's payment obligation out of
+the cap, and the MSA template says so
+
+```text
+r1  WHICH TEXT. L1.16 is L1.15 with ONE addition, in Section 9 ("Payment Obligations Outside
+    the Cap"): the liability cap does not limit a Party's obligation to pay fees and charges
+    due under the agreement; carve-out language "a Party's obligation to pay fees and charges
+    due under this Agreement" (the v1 management PDF's 17.3 (d)); no other class leaves the
+    cap, and indemnification obligations remain within it. Its header and Document Version
+    row carry the history line "L1.16, 2026-11-05, owner decision on Claude's drafting
+    recommendation: payment obligations outside the cap". L1.15 is left byte-identical (no
+    superseded banner, as instructed); its knowledge source becomes SUPERSEDED on ingest
+    (assist/knowledge/constitution.py: CURRENT_FILE, SUPERSEDED_FILES, VERSIONS, tests).
+r2  THE STANDARD. LIABILITY-MSA-001 declares extraction.approved_carve_outs ["a party's
+    obligation to pay fees and charges due under this agreement"], citing L1.16 §9. It
+    joins AM-304's lawful floor: a carve-out of only the floor and this class leaves the cap
+    as it reads; any other class (an indemnity included) is still UNLIMITED beside the cap,
+    CONFLICT, a person's call (AM-304 r2). LIABILITY-TOS-001 is untouched; its
+    constitution.version stays L1.10 (rule 16). Re-imported (version 4) and published:
+    e2e snapshot 5650abef…, demo eb654e39…. Tests: tests/test_favourable_direction.py
+    (a mutual cap with only the (d) carve-out passes the gate; with (e) it is CONFLICT and
+    does not); the AM-304 tests in tests/legal_regression/test_content_reading.py unchanged.
+r3  THE TEMPLATE. MSA.LEAPSWITCH.APPROVED clause 17 re-adds "(d) a Party’s obligation to pay
+    fees and charges due under this Agreement", "; or" moved before (d). Local
+    legalmind_clm_e2e v4 (db0912e4…) published through the app's approve + publish by the
+    local stand-in approver (counsel@e2e.test); model hash 552bb6b3…, snapshot 5650abef…, PDF
+    checked. Gate: publishable, no preflight problem, 20 MATCH, PAYMENT-PERIOD-MSA-001
+    DEVIATION and LIABILITY-MSA-001 UNABLE_TO_EVALUATE both in our favour (AM-303 r3 /
+    AM-301: a mutual 6-month cap on the affected services' fees). Demo legalmind_clm_demo v17
+    (DEMO label). Management pack v2 rebuilt: 17.3 shows only (e) removed.
+r4  NOT AMENDED: AM-303 r3 (the gate passes the AM-301 affected-services UNABLE_TO_EVALUATE
+    on a mutual cap; a request to make every UNABLE_TO_EVALUATE refuse publication is left for
+    the owner, since it would amend AM-303 r3/AM-301 and block the owner-confirmed 6-month
+    affected-services cap); rules 7/21 (the wording is the v1 PDF's, the position the owner's);
+    rule 18; the append-only audit trail; zero tolerance; the Gemini cost guard. Nothing
+    deployed; production untouched. A qualified advocate's review is recommended before first
+    real client use.
+```
+
+---
+
+## AB-167 — `AM-314` (2026-11-05): a liability cap whose party is not read is never in our favour
+
+**Who decided:** the owner, 2026-11-05, delegating the call; recorded as **owner decision
+2026-11-05 on Claude's recommendation** (rule 15, fail closed). `AM-314` and `AB-167` were
+scanned on `main`, every worktree and every remote branch before being taken. Amends `AM-301`
+(and the `AM-303` r3 gate that relies on it) narrowly, in the stricter direction only.
+
+`AM-314` — the "lower cap in our favour" path reads a cap as mutual only when the words say so
+
+```text
+r1  THE DEFECT. lower_cap_in_our_favour (analysis/negotiation.py), used by every review's
+    negotiation view and by the publish gate (drafting/publish.py in_our_favour), accepted a
+    cap whose party (whose liability the cap limits) was not read as if it were mutual; the
+    evaluator's favourable rule against a mutual standard (evaluation/rule_config.py
+    in_our_favour via numeric.py, and api/angles.py) and the playbook band
+    (analysis/playbook.py within) did the same. A cap limiting only the customer's liability
+    whose party went unread could therefore pass as in LeapSwitch's favour: fail open.
+r2  THE RULE. A lower cap is in our favour (AM-301 / AM-303 r3 / AM-239 against a mutual
+    standard) only when its party is read as "both". A party not read is NOT in our favour:
+    the deviation stands and a person decides. A cap read as mutual behaves as before; a cap
+    read as one party's (LeapSwitch's or the customer's) was already refused and still is.
+r3  TESTS. tests/test_negotiation_effect.py: the case that pinned "no party read: mutual"
+    now expects False; a new test shows a customer-only ("theirs") and an unread cap are not
+    in our favour on the predicate and the evaluator's favourable rule. tests/drafting,
+    tests/legal_regression and the golden corpus pass with no changed expectation.
+r4  THE TEMPLATE. MSA.LEAPSWITCH.APPROVED v4 (db0912e4…) re-checked on local
+    legalmind_clm_e2e, rolled back: 17.2 "either Party" reads cap_party "both"; publishable,
+    no preflight problem, 20 MATCH, PAYMENT-PERIOD-MSA-001 DEVIATION and LIABILITY-MSA-001
+    UNABLE_TO_EVALUATE both in our favour, as under AM-313 r3.
+r5  NOT AMENDED: AM-299 r3 and AM-301's dominance (affected-services fees never exceed total
+    fees); AM-239 r2; zero tolerance; rules 7/18/21; the append-only audit trail. Nothing
+    deployed; production untouched.
+```
+
+---
+
+## AB-168 — `AM-315` (2026-11-06): the LeapSwitch MSA template v2 is approved by management
+
+**Who decided:** management, reported by the owner on 2026-11-06 ("approved"). `AM-315` and
+`AB-168` were scanned on `main`, every worktree and every remote branch before being taken.
+Records an approval; amends no rule.
+
+`AM-315` — MSA template v2 approved
+
+```text
+r1  WHAT IS APPROVED. The LeapSwitch MSA template v2 (5 Nov 2026) as sent to management:
+    the clean copy and the v1-to-v2 redline, with exactly the seven changes in its change
+    note: 17.3 (d) fees and charges due outside the cap and (e) indemnity removed (AM-313,
+    Constitution L1.16 §9); 16 mutual indemnity (Constitution §10, AM-311); 1.4 "AUP"
+    defined by the published website policy; 16.2.5 "Applicable Laws"; 8.2 "purchase
+    order" in place of the Service Order Form; the front page's Companies Act 1956 / 2013
+    wording; 21.3 the Special Conditions annexure governs only the terms it amends.
+r2  WHAT IT REPLACES. The earlier record "owner decision on Claude's drafting
+    recommendation" for these seven changes now also carries management's approval. It is
+    NOT an advocate's review: none has been made, and one is still recommended before first
+    use with a real client.
+r3  THE TEMPLATE IN THE APP. MSA.LEAPSWITCH.APPROVED v4 on local legalmind_clm_e2e (and its
+    demo equivalent) already carries this text; nothing is republished by this record.
+r4  NOT AMENDED: zero tolerance; rules 7/18/21; the append-only audit trail; the
+    Constitution (L1.16 stands). Nothing deployed; production untouched.
+```
+
+## AB-169 — `AM-316` (2026-11-09): templates that say what goes to Legal; the July 2025 MSA in use, the 2026 MSA awaiting approval
+
+**Who decided:** the owner, 2026-11-09 (keep Sayan's July 2025 MSA word for word as the MSA in
+use; "Recommended" is Legal's choice, not a count; the 2026 MSA is not approved by management
+yet and is shown, never used). `AM-316` and `AB-169` were scanned on `main`, every worktree
+(code comments included) and every remote branch before being taken. Research spec:
+`TEMPLATES-NEWCONTRACT-SPEC.md` (outside the repository). Amends `AM-283` (the publish gate's
+"every Finding must MATCH"), clarifies `AM-303`, amends `AM-302` r4 for a version awaiting
+approval; `AM-282` r4 (one PUBLISHED per key) unamended.
+
+`AM-316` — Known points, Legal's recommendation, a template awaiting approval
+
+```text
+r1  KNOWN POINTS (amends AM-283). A template version may declare, while DRAFT, the points it
+    sends to Legal on every deal: source.known_points = [requirement codes], frozen and
+    hashed with the version. The publish gate refuses unless the declared set EQUALS, both
+    ways, the set of the gate's own Findings that the Review sends to Legal
+    (DECISION_REQUIRED) or that are neither MATCH nor in our favour: an undeclared one is
+    NOT_DECLARED, a declared one the engine no longer finds is STALE. A non-empty list needs
+    an approval reference (APPROVAL_REFERENCE), recorded in template.published with the
+    points (code, name, classification). The gate only ALLOWS publishing with the list
+    declared; it never accepts a point — every Review made from the template still runs the
+    engine and the zero-tolerance Legal Rule sends each point to Legal.
+r2  AM-303 CLARIFIED, NOT WIDENED. A reading in our favour still passes; when the Review
+    sends it to Legal (the 2026 MSA's liability cap, UNABLE_TO_EVALUATE) it must be declared.
+r3  A TEMPLATE SAYS WHAT IT IS. source.catalogue = {name, purpose} (written while DRAFT);
+    the API returns name, purpose, known_points, recommended, awaiting_approval and
+    published_at, and no longer the imported file's name. The blank's file name and a
+    generated contract's default name use the template's name; the contract detail says
+    which template version it was made from (made_from). New contract offers every usable
+    template of a type and company (the one-per-type choice was code, not a lock).
+r4  RECOMMENDED IS LEGAL'S CHOICE. A holder of legal.approve_customization marks one
+    PUBLISHED template per (document type, company) as recommended, or clears it; stored as
+    the audit event template.recommended (no table, no column), the latest per pair wins.
+    Nothing is computed from the number of points; with none set, nothing is recommended
+    and nothing is preselected.
+r5  AWAITING APPROVAL. A not-yet-published version may be marked
+    source.catalogue.awaiting_approval (frozen with it): anyone who may create a contract
+    sees it, reads its text and downloads its draft, and can never create a contract from
+    it (drafts and Create still need PUBLISHED). Legal takes a published version out of use
+    with template.withdrawn (PUBLISHED → RETIRED, reason audited); a contract already made
+    from it keeps its pinned version (rule 16).
+r6  THE DRAFT DOWNLOAD (amends AM-302 r4 for r5's versions only). The review copy of a
+    version awaiting approval may be downloaded by anyone who may create a contract; every
+    review copy is headed on every page "DRAFT — NOT FOR USE WITH A CLIENT. For management
+    approval." (the file's header only — the clause text is never changed).
+r7  A TEMPLATE WITHOUT ANNEXURE A. A contract made from a template with no Special
+    Conditions set up is answered with tracked changes in the body: the final-contract
+    (Annexure A) plan says NO_ANNEXURE and offers no Annexure route; the change rows carry
+    no "final contract" line. Amendments unaffected.
+r8  APPLIED (local scratch DB only). MSA.LEAPSWITCH.ORIGINAL_2025 v1 — the July 2025 MSA
+    (owner-supplied file, sha256 32b461a2…508a) imported word for word through the JSON
+    route, v5's front matter and fields, no logo, no Annexure A — published with 11 measured
+    known points and set as recommended. MSA.LEAPSWITCH.APPROVED v5 withdrawn; v6 (v5's text
+    unchanged, 1 known point: liability) awaits management approval.
+r9  NOT AMENDED: zero tolerance; rules 7/13/16/18/21; 54.6 (no clause text in the
+    repository); the append-only audit trail; AM-282 r4. Nothing deployed; production
+    untouched.
+```
+
+## AB-170 — `AM-317` (2026-11-09): legal-safety corrections from the real-world audit, and a Legal Decision made once per deal on the same words
+
+**Who decided:** r7 — the owner, 2026-11-09 (B9, option a: "carry a Legal Decision forward to
+a new version only when the clause text is byte-identical and the same standard version
+applies; the moment the text or the standard differs, nothing carries"). r1–r6 — corrections
+requested in the CLM batch-A brief from Audit 3's 2026-11-09 run (findings N1, N2, N6, N8,
+N9); each fails CLOSED (rule 15) and none widens what code accepts without a person. `AM-317`
+and `AB-170` were scanned on `main`, every worktree (code comments included) and every remote
+branch before being taken (highest seen: `AM-316`, `AB-169`). Built on branch
+`feat/clm-p1-negotiate`. Amends locked Step 26 r10 and r12 (r7 only), narrows `AM-299` r1/r2
+and `AM-306` (r1/r2), amends `AM-305`'s opening for paper not ours (r4). `AM-284`/`AM-293`
+(our reply carries the client version's decisions as copied Legal Decisions) unamended.
+
+`AM-317` — Five legal-safety corrections; a decision stands across versions on the same words
+
+```text
+r1  NO CHANGE FOR US IS FORMATTING ONLY (narrows AM-299 r1; audit N1). A client change whose
+    clause still MATCHES our standard is NEUTRAL ("No change for us") only when its words
+    are the same — `negotiation.same_words`: the same word tokens in the same order, case,
+    punctuation, quote marks, dashes, ligatures, spacing and the clause's own number aside.
+    Any other changed word — an obligation verb ("shall endeavor to protect" -> "shall
+    protect"), a widened scope ("in any form", "by its nature"), a changed figure the engine
+    did not see move, an added or deleted clause — goes to a holder (Worse for us), for every
+    clause type. What the engine MEASURED keeps the owner's route: a figure moved in our
+    favour (POSITIVE, AM-239 / AM-299 r3 / AM-301) or inside our standard (FALLBACK, AM-306).
+r2  ACCEPTED TOGETHER: FORMATTING ONLY (narrows AM-299 r2 and AM-306's "alone or together").
+    `POST …/changes/accept` takes only NEUTRAL rows; a better-for-us or fallback change is
+    answered one by one, by the owner, audited as before. The screen offers "Accept all"
+    for NEUTRAL rows only.
+r3  A CHANGE IS PAIRED BY WHAT IT IS, ITS NUMBER LAST (audit N2). Our clause and the client's
+    are paired by exact text, then by a definition's own quoted term ("Business Day" means
+    …), then by similarity, and by clause number only where nothing says the two are on
+    different subjects (two different defined terms, or two headings with no word in
+    common). A clause none of these pairs is shown on one side only — added or removed —
+    never set beside an unrelated one.
+r4  WHAT WE START AT IS OURS (amends AM-305's opening; audit N9). The playbook's opening is
+    our paper's figure only on a version we made from a template or declared ours
+    (COMPANY_DRAFT). On any other paper — the client's, or an upload nobody declared ours —
+    the opening is the ratified standard's own position, never the document's figure.
+r5  A CLAUSE THE CONFIGURED WORDS POINT AT IS NEVER "NO CLAUSE" (rule 15; audit N8). Where a
+    numeric Requirement's confirmed clause states no figure (it would be MISSING) while
+    another clause scores positively on that Requirement's OWN configured words (an alias
+    such as "limitation on damages" in a heading, a heading term, a phrase), the mapping is
+    UNRESOLVED and the evaluator fails closed to UNABLE_TO_EVALUATE (Needs a decision) on
+    that clause and its numbered rows. No word is added to any configuration (rule 21).
+r6  A FINISHED SCAN IS ANALYSED WITH NOBODY WATCHING (audit N6). When a deferred OCR run
+    completes, the server opens the version's Review against the latest published snapshot
+    for the contract's OWNER (who must hold review.create), audited review.created with
+    trigger "ocr_completed", and dispatches the analysis (55.1 unchanged: queued where a
+    broker exists, inline otherwise). Nothing when the version already has a Review, is a
+    signed copy, reads as not a contract (AM-245's "Review anyway" stays the owner's), or
+    the contract is archived. A version with no analysis shows its owner "Analyse now".
+r7  A LEGAL DECISION IS MADE ONCE PER DEAL ON THE SAME WORDS (owner, option a; amends Step 26
+    r10 and r12). A point Legal decided on an earlier version of the SAME contract stands on
+    a later version when its Finding reads byte-identical text — `_text_hash`: spacing
+    collapsed, nothing else normalised — against the SAME requirement version and company
+    standard version, with the same classification and rule outcome. The nearest earlier
+    version holding the point is compared; a point carried there carries its ORIGINAL
+    decision on. The earlier decision must be ACCEPT_DEVIATION, NOT_APPLICABLE_TO_CONTRACT
+    or APPROVE_CUSTOMIZATION, effective, with no clarification pending, its decider still
+    holding legal.decision. Recorded as one audit row per Finding, decision.carried_forward
+    (actor none — code did it), naming the original decision(s), decider, version and the
+    standard version; NO Legal Decision is written or copied; the classification and rule
+    outcome are untouched (a carried point never reads as MATCH — five axes); the derived
+    Finding status reads RESOLVED, out of Legal's queue, until it is escalated, which
+    reopens it. The point says "Decided on version N by <name>, same wording". The moment a
+    word, the standard version or the outcome differs, nothing carries and the point is open
+    (rule 15). Step 26's core rule stands for everything else: a changed clause gets a fresh
+    evaluation, and the old decision is history, not approval.
+r8  NOT AMENDED: zero tolerance; rules 7/13/14/15/18/21; the append-only audit trail; the
+    evaluators; AM-284/AM-293's reply carry; AM-239; 54.6. Nothing deployed; production
+    untouched.
+```
+
+## AB-173 — `AM-321` (2026-11-09): corrections to `AM-317` after the independent verification — a carry stands only on Legal's latest word, and every figure counts
+
+**Who decided:** corrections found by the independent verifier of batch A (2026-11-09) and
+requested by the coordinator; each narrows `AM-317` toward failing closed (rule 15) and none
+widens what code accepts. `AM-321` and `AB-173` were scanned on `main`, every worktree (code
+comments included) and every remote branch before being taken; `AM-318` is in use by another
+session's work and `AM-319`/`AM-320`, `AB-171`/`AB-172` are left free as headroom for it.
+Corrects `AM-317` r1 and r7 (AB-170) and refines r6; `AM-317`'s text above is unchanged and
+is read with this record.
+
+`AM-321` — Corrections to AM-317 r1, r6 and r7
+
+```text
+r1  A CARRY STANDS ONLY ON LEGAL'S LATEST WORD, RE-CHECKED AT EVERY HOP (corrects AM-317 r7).
+    The earlier Finding a point would carry from is checked NOW: it must derive RESOLVED and
+    not be escalated. If it holds Legal Decisions of its own, its latest effective decision
+    is what stands — a later REJECT, a clarification request or an escalation on that
+    version replaces or breaks everything before it. Only a Finding with no decision of its
+    own may stand on a carry, and then the ORIGINAL decided Finding is checked again the same
+    way: still effective (not superseded, not before an active escalation, co-signed where a
+    second person is needed), of a carried type, its decider still holding legal.decision.
+    Any hop failing any check carries nothing; the point is open. A real decision on a later
+    version is what a still later version references.
+r2  EVERY FIGURE COUNTS (corrects AM-317 r1). `same_words` sets aside only each side's OWN
+    recorded clause number when the text opens with it; any other leading figure — the
+    first cell of a table row ("| 99.9 |" vs "| 95.0 |"), an unnumbered row ("30 days" vs
+    "90 days") — is a word like the rest, and a figure keeps its separators ("Rs. 1,000"
+    is not "Rs. 1.000"). Case, punctuation, quote marks, dashes, ligatures and spacing
+    stay aside.
+r3  ONE REVIEW PER SCAN (refines AM-317 r6). The owner's Review of a finished scan is opened
+    in the SAME transaction that records the OCR result, so no reader sees the version
+    COMPLETED without it; its analysis is dispatched once that commits. The workspace's chain
+    opens no Review for a version that already has one.
+r4  NOT AMENDED: everything AM-317 r8 names. Nothing deployed; production untouched.
+```
+
+## AB-171 — `AM-318` (2026-11-09): the deal cycle ends at the final clean copy — "Final"
+
+**Who decided:** the owner, 2026-11-06 — *"the deal cycle ENDS at the final clean copy;
+stamping and signing happen in another tool"* — with the builder's defaults told to the owner
+and not objected to: the end stage is named **Final**; the order is answer every change →
+Prepare final contract → Legal records "Sign as is" on the final copy → Final; no "Sign after
+our changes" on a final copy; amendments and Terms in force start from the final copy; a deal
+signed in LegalMind before this keeps "Signed on …" as read-only history; nothing is deleted
+(the execution/signing code is kept, unreachable from a new deal). The coordinator's brief for
+batch B (2026-11-09) names the locks this amends. `AM-318` and `AB-171` were scanned on `main`,
+every worktree (code comments included) and every remote branch before being taken — `AB-173`
+/ `AM-321` reserved them for this work. Amends `AM-260` r2/r3, `AM-292`, `AM-298`, `AM-267` r1
+as `AM-309` amended it, and `AM-307`'s "Send for signature"; the earlier records are unchanged
+and are read with this one.
+
+`AM-318` — Final: the end of the deal cycle
+
+```text
+r1  THE STAGE VOCABULARY GAINS FINAL (amends AM-260 r2). NEGOTIATION_STAGE adds FINAL, its
+    own value, never a value of the five legal axes, review_stage, ContractStatus or
+    ConfigStatus (REC-06). READY_TO_SIGN and SIGNED stay in the vocabulary: SIGNED for a
+    deal signed in LegalMind before this record, READY_TO_SIGN now read "Ready for the final
+    contract" (Legal decided a version that is not the final contract — the final copy is
+    next).
+r2  WHEN A DEAL IS FINAL (amends AM-260 r3's order). Derived, never stored: the latest
+    version is our final contract — the Annexure package (package_of, AM-307) or a final
+    copy (final_copy_of, r3) — and its current contract decision is Sign as is (not reopened
+    since). Checked after SIGNED and BEFORE the sent_at rule: recording that the final
+    contract was sent never moves a deal off Final. A final contract with no contract
+    decision yet is INTERNAL_REVIEW (Legal records the decision); On hold stays ON_HOLD; Do
+    not sign falls through as before. A client's new version is the latest again, so the
+    negotiation reopens.
+r3  THE FINAL CLEAN COPY (amends AM-307 r1 for the routes it refuses). Where the Annexure
+    package does not apply — the client accepted our version unchanged (NOTHING_TO_ANSWER),
+    the client's own paper (NOT_OUR_TEMPLATE), a tracked-changes round (REDLINE_ROUND), a
+    template without Annexure A (NO_ANNEXURE, AM-316 r7), the amendment returned
+    (AMENDMENT_ROUND) or every change keeping our wording (NO_ENTRIES) — "Prepare final
+    contract" makes a final copy: GET /contracts/{id}/final-copy is the dry run (blockers,
+    mode, what was agreed), POST makes it. Its source is the agreed text: our latest
+    declared version (copy), or the client's latest version with every recorded answer
+    applied exactly as "Prepare our reply" writes it (reply). Then every tracked change is
+    accepted and every comment removed (drafting.clean, Word's Accept All + Delete All
+    Comments); a PDF is copied as it is. It is ingested as our next version (Company draft,
+    final_copy_of the source, the answers it carries), reviewed like any upload, audited
+    contract.final_copy_prepared. Refused (409 FINAL_COPY_NOT_READY) while a change is
+    unanswered or an accepted change still needs a Legal Decision, when the answers must be
+    written into a client PDF, when an answer cannot be written exactly (never a final copy
+    missing an answer — rule 15), and when the latest version already is the final contract.
+    Its downloads are gated like a reply's until its Review has finished with nothing
+    undecided (AM-293 r1).
+r4  ON A FINAL CONTRACT ONLY SIGN AS IS, DO NOT SIGN OR ON HOLD (amends AM-174's options
+    for this case). "Sign after our changes" is refused on a final contract (server and
+    screen): its text is the agreed text. For more changes the client's version is uploaded.
+r5  NOTHING LEADS TO THE SIGNING SHEET (amends AM-292 and AM-307's "Send for signature").
+    "Send for signature" becomes "Download final contract": Word and PDF, plus an optional
+    "Record that you sent it" that never changes the stage. "Record signing", the stamp-duty
+    and signatory sheet and "Mark signed" are reached only from a deal already signed (its
+    read-only "Signing record"). No new upload may be declared FINAL_SIGNED from the
+    contract page or the Client Profile (amends AM-298 r1's entry point); the server path
+    and every legacy record stay. Notifications and outbound words say nothing of signing.
+r6  "SIGNED WAITS ON NOBODY" APPLIES TO FINAL (amends AM-298's list bucket and the To-do's
+    B10). A Final deal is "analyzed", waits on nobody in To-do, leaves "Your turn", reads
+    "Final copy ready" in the list and counts in the Client Profile's "Final" column (Final,
+    or signed before this record).
+r7  AN AMENDMENT STARTS FROM THE FINAL COPY (amends AM-267 r1 as AM-309 amended it). The
+    amendable parent is a contract that is Final, or signed before this record. The
+    governed-by trigger is REPLACED by migration c7e2a9f4d1b6 (never an edit of
+    b4f8e2a6d9c1): the parent holds an execution record with signed_at, a FINAL_SIGNED
+    version, or a final contract version (package_of / final_copy_of); the application
+    checks the rest (Sign as is, not reopened). The amendment's first version is a copy of
+    the final copy (a client-paper final copy is copied without a template draft). Terms in
+    force (AM-309) start from the final copy: "From the final copy of <date>"; an amendment
+    is "in force" once it is Final itself.
+r8  TWO CLOSING TASKS, IN THE SAME WORDS EVERYWHERE (extends AM-264). Legal: "Every point is
+    decided. Record the decision on the contract." — a Review with this person (B11), of the
+    latest version, RESOLVED, with no current contract decision. The deal owner: "Every
+    change is answered. Prepare the final contract." — at Client replied with nothing left,
+    or at Ready for the final contract. Each clears when done. A lawyer's "decide" task
+    names the client's changes waiting on them too ("15 points and 133 changes await your
+    decision.").
+r9  ASK CALLS A FINAL CONTRACT WHAT IT IS (A8). The selected document, and a found document,
+    that is a final contract is told to the model as "the final agreed contract (not a
+    draft), to be signed outside LegalMind" — never "draft", never "executed" (F12 stands).
+r10 THE LEGAL QUEUE IS WHAT IS WITH ME NOW. GET /reviews?with_me=true lists only Reviews
+    with the caller (B11), of the latest version of a contract that is not archived; the
+    Legal queue reads it, so its count agrees with To-do.
+r11 NOT AMENDED: zero tolerance; rules 7/13/14/15/18/21; the five state axes; the
+    append-only audit trail; AM-293's gate; AM-317/AM-321's carry; the execution tables and
+    their data. Nothing deployed; production untouched.
+```
+
+## AB-176 — `AM-323` (2026-11-09): corrections to `AM-318` after the independent verification of the combined branch
+
+**Who decided:** the independent verifier of `feat/clm-p1-negotiate` at `58aa527e` (batch B
+with the AM-321 carry fix and batch C reading), via the coordinator's brief of 2026-11-09;
+the choices below are the builder's under the owner's CLM delegation and each fails closed
+(rule 15). `AM-323` and `AB-176` were scanned on `main`, every worktree (code comments
+included) and every remote branch before being taken — `AM-322`/`AB-174` (constitution
+standards) and `AM-330`–`AM-335`/`AB-175` (Ask) are in use elsewhere. Corrects `AM-318`
+r3 and r7, extends `AM-317` r7 as `AM-321` re-checks it, and amends `AM-309`'s first
+version of an amendment; the earlier records are unchanged and read with this one.
+
+`AM-323` — Our reply before the final copy; a final contract has no blank; an amendment is
+its own document
+
+```text
+r1  OUR REPLY GOES FIRST (corrects AM-318 r3). The final copy of the client's version is
+    made only when every answered change accepts their wording — nothing goes back. Any
+    answer that keeps or proposes our wording is our counter-proposal: "Prepare our reply"
+    (tracked changes, AM-251) is the next step, refused as a final copy (409, REPLY_FIRST).
+    When the client accepts our reply as it is, its final copy is the reply with every
+    tracked change accepted, listing that round's answers. The deal's counts carry
+    changes_ours (answered changes our reply carries back); the header, the stage word,
+    the To-do and the Contracts list read it: "Prepare our reply" / "Changes answered,
+    reply next" while it is above zero, "Prepare final contract" / "Ready for the final
+    contract" at zero.
+r2  A CARRIED ACCEPTANCE LETS THE CLIENT'S WORDING STAND (extends AM-317 r7 as AM-321 r1
+    re-checks it). Where Legal accepted a point on an earlier version and the decision is
+    carried to this version on byte-identical text, the holder's acceptance that "accept
+    theirs" requires (AM-281 r3) is that carried decision — only while the Finding still
+    derives RESOLVED by it (an escalation or a later decision on this version breaks it).
+    No Legal Decision is copied.
+r3  A FINAL CONTRACT HAS NO BLANK. "Prepare final contract" — the final copy (AM-318 r3)
+    and the Annexure package (AM-307) alike — is refused while the agreed text holds a
+    blank (three or more underscores not filled in on the line itself; "___Pune___" and
+    "__8___" are filled), with every place listed in plain words (409, BLANKS). Nothing is
+    written into a blank by code; the person fills it (an answer, or the client's next
+    version).
+r4  A TEMPLATE'S BLANK IS ITS OWN SLOT. A template version may turn a blank in its text into
+    the template's own slot — a {variable} the person answers (a required answer when it
+    has no default), or {xref:CLAUSE} for a clause number — with no other wording changed,
+    as a new template version through the publish gate (AM-302/AM-316). Done on scratch
+    data for MSA.LEAPSWITCH.ORIGINAL_2025 v2 (1.4 business-day city, 1.8/1.9 clause
+    numbers, 17 the liability months); nothing published in production.
+r5  AN AMENDMENT IS ITS OWN SHORT DOCUMENT (amends AM-309's first version). The agreed text
+    copied into a new amendment is the baseline the amendment is measured against —
+    reference only, never reviewed as the amendment and never re-raising the parent's
+    points; the screen says so and offers no "Analyse now" on it. The amendment's own
+    document (uploaded, or prepared from an approved AMENDMENT template, AM-310) is what is
+    reviewed.
+r6  COUNTED THE SAME WAY. The Client Profile's "Final" column counts what the Contracts
+    list's Final filter counts; a deal signed before AB-171 is counted apart ("signed
+    earlier").
+r7  SMALLER CORRECTIONS. A recital's joining word on its own line ("AND", "WHEREAS") is never
+    a change row; a new upload says whose paper it is (our draft / the client's paper,
+    declared as role and source); one set of version words everywhere (Our draft · Client's
+    markup · Final; "Signed" only for a deal signed before AB-171); the stage reads "N open
+    points, not sent to Legal" while "Send to Legal" is offered; the Summary heads
+    undecided-free differences "Where it differs from our standard"; the local UI proxy
+    waits as long as production nginx (300 s).
+r8  NOT AMENDED: zero tolerance; rules 7/13/14/15/18/21; the five state axes; the
+    append-only audit trail; AM-293's gate; the execution tables. Nothing deployed;
+    production untouched.
+```
+
+## AB-177 — `AM-324` (2026-11-09): corrections to `AM-323` after its re-verification — a carried acceptance is re-checked when it is used
+
+**Who decided:** the independent re-verifier of `245e7336` (2026-11-09), via the coordinator;
+each correction narrows toward failing closed (rule 15). `AM-324` and `AB-177` were scanned on
+`main`, every worktree and every remote branch before being taken. Corrects `AM-323` r2 and
+r3 and refines its r7; `AM-323`'s text above is unchanged and is read with this one.
+
+`AM-324` — Corrections to AM-323 r2, r3 and r7
+
+```text
+r1  A CARRIED ACCEPTANCE IS RE-CHECKED WHEN IT IS USED (corrects AM-323 r2). The re-verifier
+    reproduced live that a carried acceptance survived the decider losing legal.decision:
+    Sales could then accept a client deviation alone. A carried decision now stands only
+    through ONE check, run both when the carry is made and every time it is used
+    (workflow.decisions.standing_decision, AM-321 r1's chain): every hop RESOLVED and not
+    escalated, the latest effective decision of a carried type, not superseded, its decider
+    holding legal.decision NOW. A decider whose roles are removed, or who is erased
+    (AM-238), a later REJECT or an escalation on the original version, or an escalation on
+    the carried version, and the client's wording no longer stands — accepting it needs a
+    Legal Decision again (403 LEGAL_DECISION_REQUIRED).
+r2  A DEAL'S OWN FIGURE IS ANSWERED ON THE DEAL (refines AM-323 r4). A template variable
+    may say "prefill": false; a returning client's previous contract never fills it. The
+    liability months of MSA.LEAPSWITCH.ORIGINAL_2025's slot is a whole number from 1 to 60
+    (the template's declared range) and is never prefilled (scratch data, template v3).
+r3  EVERY PLACEHOLDER IS A BLANK (extends AM-323 r3). Besides unfilled underscores, "[●]",
+    "[•]", "[ ]", a run of four or more dots and a run of ellipses are blanks; a contents
+    page's dot leader before its page number is not.
+r4  WHOSE PAPER IT IS TRAVELS WITH THE FILE (refines AM-323 r7). The upload takes
+    X-Version-Role — COMPANY_DRAFT or CLIENT_MODIFIED — and stores it with its Step 6 source
+    (ORGANIZATION / COUNTERPARTY) in the same request, after the contract's own checks
+    (404/409 first); an upload that does not say is refused (422). FINAL_SIGNED is never
+    declared by an upload. No version is left without a declared role.
+r5  NOT YET COVERED: client wording that goes into an Annexure A entry is not checked for
+    blanks (noted by the re-verifier; later).
+r6  NOT AMENDED: everything AM-323 r8 names. Nothing deployed; production untouched.
+```
+
+## AB-178 — `AM-325` (2026-11-09): Constitution L1.17 — main's L1.16 (`AM-300`) and this branch's L1.16 (`AM-313`), both kept
+
+**Who decided:** the owner, 2026-11-09 — "ok" on the order the coordinator proposed: main's
+L1.16 (`AM-300`, AB-147) lands first, then this branch's Constitution becomes L1.17 carrying
+both. Two records had each named its own change "L1.16": `AM-300` (the NDA counterparty's name
+redacted in one reference-table row) and `AM-313` (AB-166: Section 9 takes a Party's obligation
+to pay fees and charges due outside the liability cap). Neither change replaces the other.
+`AM-325` and `AB-178` were scanned on `main`, every worktree and every remote branch before
+being taken. Amends `AM-313` as to its version number only; `AM-313`'s text above, `AM-300`'s
+and every earlier record are unchanged.
+
+`AM-325` — Constitution L1.17 = L1.16 (AM-300) + AM-313's Section 9 addition
+
+```text
+r1  THE VERSION. The Constitution AM-313 adopts is L1.17, not L1.16: main's L1.16 (AM-300,
+    the NDA counterparty redaction — "[NDA Counterparty]" in the reference row, three
+    markers in all) with AM-313's Section 9 addition inserted byte for byte after the
+    data-loss validation ("Payment Obligations Outside the Cap": a Party's obligation to
+    pay fees and charges due under the agreement is not limited by the cap; indemnification
+    obligations remain within it). The header and the Document Version row say L1.17,
+    previously L1.16. Nothing else differs from main's L1.16.
+r2  L1.16 STAYS AS HISTORY. LEGAL_CONSTITUTION_L1.16.md is main's AM-300 text with a
+    SUPERSEDED banner only. Ask reads L1.17 (constitution.CURRENT_VERSION); L1.16 joins the
+    superseded chain (effective 2026-11-04); L1.17 takes effect 2026-11-09.
+r3  NOT AMENDED: AM-300's redaction; AM-313's position and its words; every ratified
+    standard (none cites L1.16 §9); zero tolerance; rules 7/21. Nothing deployed.
+```
+
+## AB-179 — `AM-326` (2026-11-09): the last corrections before the owner's test — a fallen carry is Legal's again
+
+**Who decided:** the independent verifier of `4ffc414c` (ready for the owner) and the
+coordinator, 2026-11-09; each correction fails closed (rule 15). `AM-326` and `AB-179` were
+scanned on `main`, every worktree and every remote branch before being taken. Refines
+`AM-324` r1–r3; the earlier records are unchanged and read with this one.
+
+`AM-326` — One source of truth for a carried point; more placeholders; no carried dates
+
+```text
+r1  A CARRIED POINT WHOSE CHAIN FALLS IS LEGAL'S AGAIN (refines AM-324 r1). The Finding's
+    derived status reads the same chain check as a carried acceptance: once the decider
+    loses legal.decision (or is erased), or a later REJECT, clarification or escalation
+    sits on an earlier hop, the carried point derives DECISION_REQUIRED — back in Legal's
+    queue, To-do and counts — and "Decided on version N by <name>" is no longer shown. The
+    stored status is derived again after a role is revoked, after an erasure and whenever
+    a To-do is read; a chain that stands again resolves the point again. No Legal Decision
+    is written or removed.
+r2  MORE PLACEHOLDERS (extends AM-324 r3): "[*]", "[X]", "[insert …]", "[TBD]"/"[TBC]" and
+    "<<…>>" are blanks too; a bracketed number ("[12]") is not.
+r3  THE EFFECTIVE DATE IS THE DEAL'S OWN (extends AM-324 r2): a returning client's previous
+    contract never prefills it.
+r4  LEFT FOR THE OWNER (not amended here): a decision made on the very version still counts
+    after its decider loses the right; only carried decisions are re-checked.
+r5  NOT AMENDED: everything AM-323 r8 names. Nothing deployed; production untouched.
+```
+
+## AB-182 — `AM-340` (2026-11-09, PROPOSED): a reviewed version nobody declared may be declared ours or the client's once
+
+**Status: PROPOSED — awaiting the owner's yes.** Built on branch `feat/clm-p1-negotiate`
+(not pushed, not deployed) under the owner's "product over locks" delegation (2026-11-02) and
+the owner's Batch 0 approval (2026-11-09, "go with your recommendation"). Raised by the
+independent verifier of Batch 0 (Changes P1). `AM-340` and `AB-182` were scanned on `main`,
+every worktree and every remote branch before being taken (range scanned: AM-327–AM-345,
+AB-178–AB-190; AM-330–AM-335 are held on main by AB-175, so this record takes headroom
+past them). Extends locked 33.7 and the owner ruling of 2026-09-06 that AB-13 r7 cites
+("declared metadata is immutable once a Review exists"). Their text above is unchanged and
+read with this one.
+
+**Why.** P1 (Batch 0) made a version with no `version_role` and no `source` no one's paper:
+it is never counted as ours, and comparing, replying or preparing the final contract on it
+stops and asks whose paper it is (rule 15). A version uploaded before `AM-324` r4 that already
+has a Review could not be declared (409 under 33.7 / 2026-09-06), so its deal would stay
+blocked for good.
+
+`AM-340` — First declaration of whose paper a reviewed version is
+
+```text
+r1  WHAT IS ALLOWED. On a version that has a Review and is undeclared (no version_role and
+    no source), PATCH /document-versions/{id} may set version_role from nothing to
+    COMPANY_DRAFT (ours) or CLIENT_MODIFIED (the client's), and nothing else in the same
+    request. It records a fact nobody wrote down; it never changes one.
+r2  WHAT STAYS REFUSED (409, as 33.7 / 2026-09-06). Changing or clearing a role once one is
+    set; FINAL_SIGNED; source, counterparty or effective date; any declaration on a
+    reviewed version that already has a role or a source.
+r3  AUDIT. Its own event, document.role_declared_after_review (actor, role before = none,
+    role after, changed keys), append-only like every audit row. No "client returned"
+    notification: an old version is not a new return.
+r4  WHAT IT DOES NOT TOUCH. The version's file, evidence, Review, Findings, snapshot and
+    Legal Decisions are unchanged; version_role is filing (Client Profiles, 2026-09-10),
+    not an input to the evaluator, so every historical Review stays reproducible (rule 17).
+r5  NOT AMENDED: 33.7 for the document itself; AB-13 r7; AM-324 r4 (every upload declares
+    its role). Nothing deployed; production untouched.
+```
+
+## AB-182 (continued) — `AM-340` r6 and a correction to r1 (2026-11-09, PROPOSED)
+
+**Status: PROPOSED — awaiting the owner's yes**, with `AM-340` above. Raised by the round-2
+re-verification of Batch 0 (P1). Adds r6 and corrects r1's wording. The text above is
+unchanged and read with this one.
+
+```text
+r1' CORRECTION TO r1. "Undeclared" means no version_role and no source LegalMind knows:
+    a source outside {ORGANIZATION, COUNTERPARTY}, or none, counts as undeclared (as the
+    code reads it, negotiation.is_declared). r1 is otherwise unchanged.
+r6  ALREADY USED AS OURS. A reviewed, undeclared version that LegalMind already treated as
+    ours — recorded as sent to the client (sent_at), or the left ("ours") side of any
+    recorded answer (comparison choice) — may be late-declared COMPANY_DRAFT only.
+    CLIENT_MODIFIED is refused (409, "This version was already used as ours (sent to the
+    client, or compared as our side), so it can only be declared ours."): declaring it the
+    client's would recast answers and sends already on record.
+```

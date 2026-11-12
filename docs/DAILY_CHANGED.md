@@ -2381,3 +2381,153 @@ later rounds and `AM-309` amendments after signing, row fields, Templates badge 
 withdrawn pending management, clause 16 = Constitution §10 mutual framework, MSA published in the local e2e DB
 only; since `AM-311` the gate holds INDEMNITY-MSA-001 on 16.3/16.4, left for the lawyer. CI job 17 runs the
 LibreOffice tests; `drafting/reply_pdf.py` deleted. Detail: IMPLEMENTATION_STATUS "CLM 2026-11-05".
+---
+
+## 2026-11-02 — AB-150: the CLM programme's amendments locked (records only)
+
+- **What changed:** owner confirmed §17.1 of `docs/architecture/clm-rnd/00-CLM_RND_REPORT.md`
+  (A-1 … A-30, "yes do", product first). Appended to `all_lock.md` as AB-150, `AM-250` …
+  `AM-279`; registry rows and annotations, CLAUDE.md, IMPLEMENTATION_STATUS and CHANGELOG
+  updated. §17.2's A-31 … A-39: proposed, owner choice pending, default off.
+- **Tested / measured:** nothing to run — no code. `all_lock.md` 27410 → 27856 lines; the
+  `origin/main` prefix verified byte-identical with `cmp`.
+- **Locks amended:** PROD-07/Step 37, AB-3 (clarified), AB-12 r1/r3/r4/r9, `AM-30` t1/t2/t3/t4/t8/t10,
+  `AM-25` r9, `AM-34` t1, `AM-38` r1/r2, `AM-42` r3/r4, `AM-55` r1, `AM-57` r1, `AM-113` t2',
+  `AM-133` r1, `AM-136` r2/r4/r5/r8/r9, `AM-156` r5, `AM-179` r3, `AM-224` r2, 42.3/IMPL-01,
+  Step 39, Step 52.6, 54.6 (clarified), DD-9, the 2026-09-04 no-redline boundary.
+- **Commit:** none — waiting for the owner (branch `records/clm-amendments-20261102`).
+
+---
+
+## 2026-11-03 — AB-152: the CLM plan's lock records (records only)
+
+- **What changed:** the owner approved the CLM plan (2026-11-03); its "Lock records to append
+  first" appended to `all_lock.md` as AB-152, `AM-282` … `AM-293` (ID range scanned on every ref
+  and worktree first — clear). Registry rows and annotations, CONFLICTS (C-19 resolved by
+  `AM-287`), CLAUDE.md, IMPLEMENTATION_STATUS and CHANGELOG updated.
+- **Tested / measured:** nothing to run — no code. `all_lock.md` 27894 → 28152 lines; the
+  pre-append copy `cmp`-identical to the new file's prefix.
+- **Locks amended:** `AM-272`, 54.6/`AM-25` r9 (clarified), AB-150 §16(a)6, `AM-271` r4,
+  `AM-251` r1, `AM-252` r2, `AM-136` r1, `AM-253` r2'/r5', `AM-42` r1, `AM-279` (NOT YET line),
+  C-19, REC-09, AB-12 r4, `AM-259` r2, `AM-170` O2 (reversed), `AM-240` r1 (extended),
+  `AM-184` r1, `AM-56` r3, `AM-258`, `AM-260` r1, `AM-261` r1, `AM-156` r5, `AM-274` e1/e6,
+  `AM-277`.
+- **Commit:** none — waiting for the owner (branch `records/clm-amendments-20261102`).
+
+## 2026-11-04 — AB-158: "For us" on every client change (`AM-299`, `AM-301`)
+
+The manager's request (pasted by the owner): say whether each client change is positive or
+negative for us; accept the positive and neutral ones without Legal; send only the negative.
+Built in `/root/legalmind-worktrees/clm-p1` (uncommitted).
+
+- **What changed.** `analysis/negotiation.py`: `effect_for_us` per change (POSITIVE/NEUTRAL/
+  NEGATIVE), fail closed to NEGATIVE; a MATCH that still measures every standard routes to the
+  deal owner (`STILL_MATCHES_OUR_STANDARD`); a lower mutual cap on LIABILITY-MSA/TOS-001 reads
+  POSITIVE, same basis or affected-services basis (`AM-301`, one direction). New
+  `POST /contracts/{id}/changes/accept` (all or none, audited `negotiation.accepted_by_effect`);
+  a single acceptance records the effect as its reason. Changes page: a "For us" marker (icon
+  shape + words, no hue) on every row and the card, three "For us" filters, "Accept all N" for
+  better / no-change rows; Ask Legal only on a worse one. OpenAPI regenerated.
+- **Tested.** Backend: negotiation, legal regression, golden corpus, corpus coverage, To-do,
+  deal stage, notifications, collaborators, execution, API contract and authorization — 684
+  passed, 0 failed; the new effect tests 34 passed (the manager's example through the real
+  pipeline on both bases; one-party, higher and vendor-paper caps NEGATIVE). ruff + mypy
+  clean. Frontend: tsc clean, vitest 797 passed (68 files).
+- **Locks amended.** The zero-tolerance ruling (NEUTRAL + routing only), `AM-250` r2's routes,
+  `AM-239` r1/r4 (routing only), `AM-224`, and the 2026-08-18/19 FEES_PAID ruling (`AM-301`,
+  for the owner to confirm). Commit: none (owner says when).
+- **Same day, r3 (amends `AM-293` r1).** An acceptance better / no change for us is carried
+  onto our reply's own Finding by row (`carry_acceptances`, after `carry_decisions`): exact
+  text only, recorded as audit `negotiation.acceptance_carried` (who, effect, reason), never
+  a Legal Decision; the Finding reads RESOLVED, so the reply's files and Mark sent open.
+  Tests: carry 9 passed (carried, changed text stays undecided, worse keeps the gate);
+  affected suites incl. legal regression and golden corpus 776 passed; ruff + mypy clean.
+
+
+## 2026-11-09 — AB-169: Templates and New contract — known points, Legal's recommendation, the July 2025 MSA in use (`AM-316`)
+
+- **Built** (branch `feat/clm-p1-negotiate`). The publish gate verifies a template's declared
+  known points by exact equality (NOT_DECLARED / STALE / APPROVAL_REFERENCE) and records them
+  with the publish; templates carry a name and purpose; Legal marks one template per type and
+  company as Recommended (audited); a version can await approval — everyone sees it, reads it
+  and downloads it as a marked draft, nobody creates from it; Legal can withdraw a published
+  version; a template without Annexure A answers by tracked changes (NO_ANNEXURE). Templates
+  page for everyone ("Ready to use", "Awaiting approval", Legal's "Being prepared", "What we
+  can offer"); New contract asks "Which MSA?" only with two usable, `?template=` deep link,
+  step 3 splits "From this template" / "From your details"; the contract says what it was
+  made from. OpenAPI regenerated.
+- **Applied on the local scratch DB `legalmind_clm_tpl_build` only.** The July 2025 MSA
+  imported word for word (no logo, no Annexure A), published with 11 measured points and
+  recommended; 2026 MSA v5 withdrawn, v6 (same text, 1 point) awaiting approval.
+- **Locks.** `AM-283` amended, `AM-303` clarified, `AM-302` r4 amended (draft download for a
+  version awaiting approval). Nothing deployed.
+
+## 2026-11-09 — AB-170: legal-safety corrections from Audit 3, and a decision made once per deal (`AM-317`)
+
+- **Built** (branch `feat/clm-p1-negotiate`). N1: "No change for us" only for the same words
+  (`negotiation.same_words`); a rewritten obligation that still matches goes to Legal; only
+  NEUTRAL rows are accepted together (server and screen). N2: client changes paired by exact
+  text, a definition's term, similarity, then number only when nothing says different
+  subjects — client C's "1.4 Business Day" now pairs with our Business Day (Pune →
+  Bangalore), our "AUP" shows as removed. N8: a numeric point whose confirmed clause states no
+  figure while another clause scores on the Requirement's own configured words fails closed to
+  UNABLE_TO_EVALUATE (client D's "13. Limitation on Damages" → Needs a decision on 13/13.1/13.2).
+  N9: "What we can offer" opens at the standard on paper not ours ("Auto-renewal: We start at
+  30 days"). N6: a finished OCR is analysed server-side for the owner; "Analyse now" for the
+  owner when a version has no analysis. B9: `workflow.decisions.carry_forward` — byte-identical
+  text (spacing only) + same requirement and standard version + same outcome → audit
+  `decision.carried_forward`, Finding RESOLVED, no Legal Decision copied; the point reads
+  "Decided on version N by <name>, same wording".
+- **Tested.** New: N1/N2 routing and pairing, `same_words`, N8 (`test_unread_clause_am317`), N9
+  (`test_playbook`), N6 (`test_deferred_ocr`), B9 (`test_carry_forward_am317`), vitest for the
+  carried words and bulk accept. Backend suite (minus assist) 3091 passed / 134 skipped; vitest
+  867; ruff + mypy clean; OpenAPI regenerated.
+- **Measured** on local copies only: 2025-template deal (11 known points decided on v1): a
+  re-analysis of v5 opens 1 point instead of 11 (10 carried; the 11th, payment period, now
+  reads UNABLE_TO_EVALUATE under r5 where v1 read MISSING, so it is a different outcome and
+  correctly reopens). Synthetic A6 deal: liability decided on v1 stays decided on v2/v3, a
+  one-word change on v4 reopens it.
+- **Locks.** Step 26 r10/r12 amended (r7); `AM-299` r1/r2 and `AM-306` narrowed; `AM-305`'s
+  opening amended. Nothing deployed.
+
+## 2026-11-09 — AB-173: corrections to AB-170 after the independent verification (`AM-321`)
+
+- **Fixed** (branch `fix/clm-carry-safety`, from `02046b1e`). HIGH: a chained carry no longer
+  trusts an intermediate version's carry record — every hop is re-checked (RESOLVED, not
+  escalated, Legal's latest effective decision of a carried type, decider still holding the
+  right); a REJECT or escalation on v2 now leaves v3 open. MEDIUM: `same_words` sets aside only
+  the clause's own recorded number, so a leading figure ("| 99.9 |", "30 days") or a changed
+  separator ("1,000"/"1.000") is a change. LOW: the scan's Review commits with the OCR result
+  and the workspace chain skips a version that already has one.
+- **Tested.** Six new chain tests (escalate, reject, both, decider lost the right, original
+  superseded, a real decision on v2 referenced from v3) — all six fail on `02046b1e`; four new
+  figure cases; the OCR test now checks one Review per version.
+- **Locks.** `AM-317` r1/r6/r7 corrected by an appended record; nothing edited. Nothing deployed.
+
+## 2026-11-09 — AB-171: the deal cycle ends at "Final" (`AM-318`)
+
+- **Built** (branch `feat/clm-p1-negotiate`). `domain.deal_stage` FINAL (before `sent_at`); `GET/POST /contracts/{id}/final-copy` (copy · reply, then `drafting.clean`); "Sign after our changes" refused on a final contract; To-do `contract_decision` / `prepare_final`, N13 counts; `GET /reviews?with_me=true` for the Legal queue; amendments and Terms in force from the final copy, migration `c7e2a9f4d1b6` (upgrade/downgrade/upgrade on the scratch DB); Ask labels a final copy. Screen: Final chip "Final · <date>", the Final card (version, Legal's decision and date, Word/PDF, What was agreed, the next step), one closed panel on Changes and Points, "Start an amendment" and "Terms in force" under ⋯, FINAL_SIGNED not selectable; N5, N15, N16, N17, #9, template nits.
+- **Walked** on `:8389/:3389`, DB `legalmind_clm_batchb`: a 2025-template deal with a client round, a client-paper deal (synthetic specimen — the Drive client files were not on the server), and a client who accepted our draft unchanged — each to Final as Sales and as Legal at 1440 and 390; final DOCX carry no revision or comment; amendment started from a Final deal; Terms in force "From the final copy". Screenshots `/root/legalmind-clm-local/audit/shots-batchB/`.
+- **Locks.** `AM-260` r2/r3, `AM-267` r1/`AM-309`, `AM-292`, `AM-298`, `AM-307` amended by an appended record; nothing edited. Nothing deployed.
+
+## 2026-11-09 — AB-176: corrections after the combined-branch verification (`AM-323`)
+
+- **Fixed** (branch `feat/clm-p1-negotiate`): reply before final copy (REPLY_FIRST, `changes_ours` in counts and every next step); `_carried_acceptance` for "accept theirs" on a carried point; BLANKS gate on the final copy and the package; template 2025 v2 on the scratch DB (blanks → `{business_day_city}`, `{xref:…}`, `{liability_months}`); amendment copy not reviewed; final-copy routes in the permission map; `final_of` moved to `domain.deal_stage` (layer boundary); empty table cells; `experimental.proxyTimeout` 300 s; Client Profile cards at 390 and Final/signed counts; upload asks whose paper; version words; connector lines; stage and Summary wording.
+- **Walked** on `:8389/:3389` (DB `legalmind_clm_batchb`): the verifier's journey 1 (2025 template v2, client C markup → our reply → client accepts → final copy → Sign as is → Final) and client A as client paper (blank in 17.7 blocked the final copy until the client's next version filled it → Final; signature table columns correct); amendment from a Final deal opens no review.
+- **Locks.** `AM-318` r3/r7 corrected, `AM-317` r7 extended, `AM-309` amended by an appended record. Nothing deployed.
+
+## 2026-11-09 — AB-177: corrections after the re-verification (`AM-324`)
+
+- **Fixed** (branch `feat/clm-p1-negotiate`): `standing_decision` shared by the carry and `_carried_acceptance`; `prefill_keys` honours `"prefill": false`; template v3 on the scratch DB (range 1–60); `blank_in` adds bracket/dot placeholders; `X-Version-Role` required on upload (FE, e2e and backend tests send it).
+- **Proved**: six carry probes as tests; live on `:8389` a carried acceptance went 2 → 0 when the lawyer's roles were removed and Sales' accept returned 403, then 2 again when restored; liability months 0/−1/1000 refused, 12 accepted, nothing prefilled.
+- **Not merged**: `origin/main` into this records branch conflicts on `LEGAL_CONSTITUTION_L1.16.md` and the Constitution code/tests — two different L1.16s (AB-147 on main, AB-166 here). Raised, not resolved (rule 5).
+
+## 2026-11-09 — AB-178: Constitution L1.17 carries both L1.16s (`AM-325`)
+
+- **Merged** `origin/main` into `records/clm-amendments-20261102` (owner "ok" on the order). `LEGAL_CONSTITUTION_L1.16.md` = main's (`AM-300`) + a SUPERSEDED banner; `LEGAL_CONSTITUTION_L1.17.md` = main's L1.16 + `AM-313`'s §9 addition (checked byte-identical), three `[NDA Counterparty]` markers, the counterparty's name nowhere. `constitution.py` CURRENT = L1.17, L1.16 superseded (2026-11-04), L1.17 effective 2026-11-09; knowledge tests updated (chain, statuses, breadcrumbs, AM-300 redaction held in L1.17, AM-313 §9 in L1.17). `all_lock.md` main prefix byte-identical.
+- **Re-ingest needed** wherever Ask's knowledge tables are loaded (the source row is L1.17 now): run the Constitution ingest after this lands.
+
+## 2026-11-09 — AB-179: last corrections before the owner's test (`AM-326`)
+
+- **Fixed** (branch `feat/clm-p1-negotiate`): `evaluation.workflow.CARRY_STANDS` hook set by `workflow.decisions` (`_carry_stands` → `_decided` on the origin) so `derive_finding_status` and `_carried_acceptance` share one chain check; `refresh_carried` on role revoke, erasure and To-do reads; `_carried` display hidden once fallen; `_PLACEHOLDER` adds `[*]`/`[X]`/`[insert …]`/`[TBD]`/`<<…>>`; `prefill_keys` excludes the effective date. `origin/main` merged into the branch; L1.16 (superseded) + L1.17 (current) taken from the records branch.
+

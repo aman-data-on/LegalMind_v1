@@ -127,6 +127,38 @@ A PNG/JPEG in an Ask chat is read by the existing OCR (chat only; the Dashboard 
 - Deal stages, "Contracts" + readable paths, To-do, notifications (+ file-sink / relay mail), collaborators (read + negotiate), Ask files a returned copy. Migration `f7c2a9e4b1d6`. Enterprise UI pass (`08-PHASE1-UI-DESIGN-PASS.md`).
 - UI Pass 2 (owner review): reply reviewed automatically; `READY_TO_SEND`; reply notice with downloads; one header and one Ask surface; contract typesetting in the reading view; inline Word-style marks with Show/Hide.
 - Coordination note: `test_rbac_personas.py::test_the_lead_cannot_write_to_a_colleagues_deal` updated to `AM-259` r2 (the Lead may do negotiation writes; rename/archive/delete still refused); `test_import_boundaries.py` gains `drafting`, `notifications`, `outbound`.
+### 2026-11-09 — Batch 0 safety (AB-182: AM-340, PROPOSED) — branch `feat/clm-p1-negotiate`, not deployed
+
+- The point decision form preselects nothing (LA-1); a version nobody declared is never counted as ours — comparing, replying or the final contract stops and asks whose paper it is, and a reviewed legacy version may be declared once (`AM-340`, proposed) (Changes P1); readers see "(our approved wording)" in place of the wording hash, which the record keeps (LA-4).
+
+### 2026-11-09 — Last corrections before the owner's test (AB-179: AM-326) — branch `feat/clm-p1-negotiate`, not deployed
+
+- A carried point whose chain falls is Legal's again (status, queue, To-do); more placeholder shapes; no prefilled effective date. `origin/main` merged into the CLM branch with the records branch's L1.16 (superseded) / L1.17 (current).
+
+### 2026-11-09 — Constitution L1.17 carries both L1.16s (AB-178: AM-325)
+
+- `origin/main` merged into the records branch. Main's L1.16 (`AM-300`, the NDA counterparty redaction) kept as history under a SUPERSEDED banner; `LEGAL_CONSTITUTION_L1.17.md` = that text + `AM-313`'s §9 addition byte for byte (payment obligations outside the cap). Ask reads L1.17. `all_lock.md`: main's 27,710 lines byte-identical, then this branch's records, then AB-178 (29,769 lines).
+
+### 2026-11-09 — Corrections after the re-verification (AB-177: AM-324) — branch `feat/clm-p1-negotiate`, not deployed
+
+- A carried acceptance is re-checked when used (decider lost the right, REJECT or escalation on any hop → not accepted); liability months 1–60 and never prefilled; `[●]`/`[•]`/`[ ]`/dot runs are blanks; the upload requires and stores whose paper it is. `all_lock.md` 29672 → 29709 lines.
+
+### 2026-11-09 — Corrections after the combined-branch verification (AB-176: AM-323) — branch `feat/clm-p1-negotiate`, not deployed
+
+- Our reply goes to the client before a final copy; a carried acceptance lets the client's wording stand; no final contract with a blank (places listed); the 2025 MSA's blanks as its own slots in a v2 (scratch data only); an amendment's copied text is reference only; Client Profile "Final" counted like the Final filter; permission map + layer boundary fixed (CI); empty table cells keep their column; a 300 s UI proxy; small wording fixes. `all_lock.md` 29608 → 29672 lines, prefix byte-identical.
+
+### 2026-11-09 — The deal cycle ends at "Final" (AB-171: AM-318) — branch `feat/clm-p1-negotiate`, not deployed
+
+- Owner ruling 2026-11-06: the deal ends at the final clean copy; signing happens in another tool. New stage FINAL; "Prepare final contract" for every route (Annexure package, or the new final clean copy: client paper, a client who accepted our version, a 2025-template deal, a tracked-changes round); Legal records Sign as is on it; "Download final contract" replaces "Send for signature"; nothing leads to the signing sheet; amendments and Terms in force start from the final copy (migration `c7e2a9f4d1b6` replaces the governed-by trigger); To-do closing tasks; Legal queue = what is with the reader now; Ask calls a final copy the final agreed contract. Also N5, N13, N15, N16, N17, the tabs' hidden panel and five template nits. `all_lock.md` 29517 → 29608 lines, prefix byte-identical.
+
+### 2026-11-03 — CLM plan lock records (AB-152: AM-282 … AM-293) — records only, nothing built
+
+- Owner approved the CLM plan (create contracts, lawyer review & replacement, plain language per person); its twelve lock records appended to `all_lock.md` as **AB-152**, one AM per item: in-app lawyer clause approval as the recorded source, DRAFT text DB-only (`AM-282`); template approve/publish = `legal.approve_customization` (`AM-283`); "Write our wording" decided before render, amending `AM-251` r1 / `AM-252` r2, client notes as Word comments (`AM-284`); `comparison_choices` standard/custom, wording, SHA-256, notes, internal note omitted (`AM-285`); Client Profile legal fields (`AM-286`); **C-19 resolved** — brand per contract, MSA LeapSwitch-only, evaluator brand scoping (`AM-287`); lawyer read/negotiate scope, no global Legal read (`AM-288`); own-contract second approver, reverses `AM-170` O2 (`AM-289`); client-paper-first rows (`AM-290`); two-line vocabulary per person (`AM-291`); stamp/authority before Mark signed (`AM-292`); download/send gate, LibreOffice-only client PDF (`AM-293`). `all_lock.md` 27894 → 28152 lines; prefix byte-identical (`cmp`). Registry rows + amended-row annotations; C-19 annotated resolved in CONFLICTS.md.
+### 2026-11-02 — CLM programme amendments locked (AB-150: AM-250 … AM-279) — records only, nothing built
+
+- Owner confirmed the CLM R&D report's §17.1 (A-1 … A-30, "yes do", product first); appended to `all_lock.md` as **AB-150**, one AM per item in order (A-1 → `AM-250` … A-30 → `AM-279`), each naming the lock it amends with its current text and line. Effective forward, not retroactive. `all_lock.md` 27410 → 27856 lines; `origin/main` prefix byte-identical.
+- `LOCKED_DECISIONS.md`: 30 rows added; amended rows annotated (PROD-07, IMPL-01, ARCH-06, FE-01, TEST-10/54.6, AM-25, AM-30, AM-34, AM-38, AM-39/AB-12, AM-42, AM-49 (referenced, not amended), AM-55, AM-57, AM-133, AM-136, AM-156, AM-179, AM-224).
+- §17.2's A-31 … A-39 recorded as proposed, owner choice pending, default off — nothing amended for them. The issuing-entity column waits on C-19.
 
 ### 2026-11-09 — Agent instruction files restructured to the official Claude Code guidance — branch `docs/agent-instructions-20261109`, NOT committed
 
