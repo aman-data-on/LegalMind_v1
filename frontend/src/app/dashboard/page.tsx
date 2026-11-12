@@ -226,22 +226,26 @@ function DocumentsListView() {
       if (event.key === "Escape") closeMenu(true);
     }
     // The menu stays with its toggle: a scroll (the reader's, or the browser keeping its
-    // place while a late section above loads) moves it along; once the toggle has left
-    // the viewport the menu closes, since it would float over nothing it belongs to.
-    function onScroll(event: Event) {
-      if (event.target instanceof Element && event.target.closest(".ws-menu__list")) return;
+    // place) or a late section above that grows the page without any scroll moves it
+    // along; once the toggle has left the viewport the menu closes, since it would float
+    // over nothing it belongs to.
+    function onScroll(event?: Event) {
+      if (event?.target instanceof Element && event.target.closest(".ws-menu__list")) return;
       const toggle = menuToggleRef.current;
       const rect = toggle?.isConnected ? toggle.getBoundingClientRect() : null;
       if (!toggle || !rect || rect.bottom < 0 || rect.top > window.innerHeight) closeMenu();
       else placeMenu(toggle);
     }
     document.addEventListener("scroll", onScroll, true);
+    const resize = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => onScroll());
+    resize?.observe(document.body);
     const raf = requestAnimationFrame(() => {
       document.addEventListener("mousedown", onPointerDown);
       document.addEventListener("keydown", onKey);
     });
     return () => {
       cancelAnimationFrame(raf);
+      resize?.disconnect();
       document.removeEventListener("mousedown", onPointerDown);
       document.removeEventListener("keydown", onKey);
       document.removeEventListener("scroll", onScroll, true);
