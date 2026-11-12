@@ -58,6 +58,7 @@ import {
   type RequirementFilters,
 } from "@/lib/requirementFilter";
 import { useSession } from "@/lib/session";
+import { requirementFamily, requirementTitle } from "@/components/workspace/findingLanguage";
 import type {
   ConfigurationSnapshot,
   Requirement,
@@ -285,7 +286,8 @@ export default function ConfigurationPage() {
                               }
                             />
                             <label htmlFor={`publish-${requirement.code}`} className="ws-check__label">
-                              {requirement.code}
+                              {stdName(requirement)}{" "}
+                              <span className="ws-pane__note">{requirement.code}</span>
                               {blocked ? (
                                 /* Activating this makes it ACTIVE, and the publish then
                                    fails on "no version" — refusing the WHOLE snapshot,
@@ -309,7 +311,7 @@ export default function ConfigurationPage() {
                 <ul className="ws-checks">
                   {plan.active.map((requirement) => (
                     <li key={requirement.id} className="ws-check">
-                      <span className="ws-check__label">{requirement.code}</span>
+                      <span className="ws-check__label">{stdName(requirement)}</span>
                     </li>
                   ))}
                 </ul>
@@ -324,7 +326,7 @@ export default function ConfigurationPage() {
                   <ul className="ws-checks">
                     {plan.retired.map((requirement) => (
                       <li key={requirement.id} className="ws-check">
-                        <span className="ws-check__label">{requirement.code}</span>
+                        <span className="ws-check__label">{stdName(requirement)}</span>
                       </li>
                     ))}
                   </ul>
@@ -347,8 +349,8 @@ export default function ConfigurationPage() {
             </form>
             {snapshot ? (
               <p className="ws-stated">
-                Version <strong className="ws-stated__value">{snapshot.id}</strong> · {snapshot.requirement_count}{" "}
-                Requirement{snapshot.requirement_count === 1 ? "" : "s"} ·{" "}
+                Version <strong className="ws-stated__value">{snapshot.id}</strong> holds{" "}
+                {snapshot.requirement_count} standard{snapshot.requirement_count === 1 ? "" : "s"} and is{" "}
                 {snapshot.reused_existing
                   ? "identical to an existing version, which was reused"
                   : "newly created"}
@@ -434,29 +436,31 @@ export default function ConfigurationPage() {
                   ? `Showing ${shown.length} of ${requirements.length} standards.`
                   : `${requirements.length} standard${requirements.length === 1 ? "" : "s"}.`}
               </p>
-              <div className="ws-docs__table ws-stdtable">
-                <table>
-                  <thead>
-                    <tr>
-                      <th scope="col">Standard</th>
-                      <th scope="col">Status</th>
-                      <th scope="col">Evaluator</th>
-                      {/* One column, both facts. Two columns reading "1" and the
-                          same date on every row is noise, not information. */}
-                      <th scope="col">Latest version</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {shown.map((requirement) => (
-                      <RequirementRow
-                        key={requirement.id}
-                        requirement={requirement}
-                        onChanged={() => void load()}
-                      />
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              {/* B3 p4: grouped by contract family, each a disclosure — the first open; a
+                  search or filter opens them all */}
+              {groupStandards(shown).map(([family, rows], index) => (
+                <details key={family} className="ws-stdgroup" open={filtering || index === 0}>
+                  <summary>{family} <span className="ws-pane__note">{rows.length}</span></summary>
+                  <div className="ws-docs__table ws-stdtable">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th scope="col">Standard</th>
+                          <th scope="col">Status</th>
+                          <th scope="col">Evaluator</th>
+                          <th scope="col">Latest version</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.map((requirement) => (
+                          <RequirementRow key={requirement.id} requirement={requirement}
+                                          onChanged={() => void load()} />
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </details>
+              ))}
             </>
           )}
         </div>
@@ -464,6 +468,29 @@ export default function ConfigurationPage() {
 
     </div>
   );
+}
+
+/** B3 p4: a standard's plain name — the server's own version name, else words from its code.
+ *  The stored code is untouched; it shows only in the expanded row. */
+function stdName(requirement: Requirement): string {
+  const name = latestVersion(requirement)?.name?.trim();
+  // a name that is itself a code ("ACCEPTANCE-ORDER_FORM-001") is no name to a reader
+  return name && !/^[A-Z0-9_-]+$/.test(name) ? name : requirementTitle({ code: requirement.code });
+}
+
+/** Standards by the contract family their code declares (MSA, NDA…), in the list's order. */
+function groupStandards(rows: Requirement[]): [string, Requirement[]][] {
+  const groups = new Map<string, Requirement[]>();
+  for (const r of rows) {
+    // the declared family (MSA, NDA…), else the contract-type word before the number ("Order form")
+    const parts = r.code.split("-");
+    const raw = requirementFamily({ code: r.code })
+      ?? (parts.length > 2 ? parts[parts.length - 2]! : null);
+    const family = raw && raw.length > 3 ? raw.replace(/_/g, " ").toLowerCase().replace(/^./, (c) => c.toUpperCase()) : raw;
+    const key = family ? `${family} standards` : "Other standards";
+    groups.set(key, [...(groups.get(key) ?? []), r]);
+  }
+  return [...groups.entries()];
 }
 
 function RequirementRow({
@@ -562,7 +589,7 @@ function RequirementRow({
             onClick={() => setExpanded((value) => !value)}
           >
             <ChevronRight size={13} className="ws-std__twist" aria-hidden="true" />
-            {requirement.code}
+            {stdName(requirement)}
           </button>
         </td>
         <td>
@@ -576,7 +603,7 @@ function RequirementRow({
         <td>{evaluatorLabel(newest?.evaluator_type)}</td>
         <td>
           {newest
-            ? `v${newest.version_number} · ${formatDate(newest.created_at)}`
+            ? `v${newest.version_number}, ${formatDate(newest.created_at)}`
             : "No version yet"}
         </td>
       </tr>
@@ -584,6 +611,7 @@ function RequirementRow({
       {!expanded ? null : (
       <tr className="ws-std__detail">
         <td colSpan={4}>
+      <p className="ws-pane__note">Code: {requirement.code}</p>
       {versions.length === 0 ? (
         <p className="ws-pane__note">No versions yet.</p>
       ) : (
@@ -688,34 +716,35 @@ function RequirementRow({
                   Exactly the two locked evaluator types (AM-16). A third option here
                   would be inventing an evaluator.
                 */}
-                <option value="NUMERIC_COMPARISON">NUMERIC_COMPARISON</option>
-                <option value="PRESENCE">PRESENCE</option>
+                <option value="NUMERIC_COMPARISON">{evaluatorLabel("NUMERIC_COMPARISON")}</option>
+                <option value="PRESENCE">{evaluatorLabel("PRESENCE")}</option>
               </select>
             </label>
             <label>
-              Company Standard (JSON)
-              <textarea className="code-input" name="company_standard" rows={4} required defaultValue="{}" />
+              Company standard values (JSON; leave empty for none)
+              <textarea className="code-input" name="company_standard" rows={4} />
             </label>
             <label>
-              Mapping rules (JSON)
-              <textarea className="code-input" name="mapping_rules" rows={4} required defaultValue="{}" />
+              How the clause is found (JSON; leave empty for none)
+              <textarea className="code-input" name="mapping_rules" rows={4} />
             </label>
             <label>
-              Evaluation rules (JSON)
-              <textarea className="code-input" name="evaluation_rules" rows={4} required defaultValue="{}" />
+              How it is compared (JSON; leave empty for none)
+              <textarea className="code-input" name="evaluation_rules" rows={4} />
             </label>
             <label>
               Legal Rule type (optional — not every Requirement has one)
               <select name="legal_rule_type" defaultValue="">
                 <option value="">None</option>
-                <option value="THRESHOLD">THRESHOLD</option>
-                <option value="ALLOWED_VALUES">ALLOWED_VALUES</option>
-                <option value="PRESENCE">PRESENCE</option>
+                {/* plain words; the value sent is the code, unchanged */}
+                <option value="THRESHOLD">Minimum or maximum</option>
+                <option value="ALLOWED_VALUES">One of a fixed list</option>
+                <option value="PRESENCE">Must be present</option>
               </select>
             </label>
             <label>
-              Legal Rule configuration (JSON)
-              <textarea className="code-input" name="legal_rule_configuration" rows={3} defaultValue="{}" />
+              Legal Rule settings (JSON — a fixed list stays a JSON list; empty for none)
+              <textarea className="code-input" name="legal_rule_configuration" rows={3} />
             </label>
             <button type="submit" className="ws-btn ws-btn--primary">
               Save draft version

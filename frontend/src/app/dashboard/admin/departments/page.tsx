@@ -192,7 +192,7 @@ function DepartmentsScreen() {
           ) : null}
 
           {departments !== null && departments.length > 0 ? (
-            <StackTable columns={[{ label: "Department" }, { label: "Code" }, { label: "Lead" }, { label: "Members" }, { label: "Active" }, { label: "Created" }, { label: "Actions", hidden: true, className: "ws-admin__rowact" }]}>
+            <StackTable columns={[{ label: "Department" }, { label: "Lead" }, { label: "Members" }, { label: "Active" }, { label: "Created" }, { label: "Actions", hidden: true, className: "ws-admin__rowact" }]}>
                   {departments.map((department) => (
                     <tr key={department.id} data-department-code={department.code}
                         className={department.id === selectedId ? "ws-tr--selected" : undefined}>
@@ -203,7 +203,6 @@ function DepartmentsScreen() {
                           {department.name}
                         </button>
                       </td>
-                      <td className="ws-mono">{department.code}</td>
                       <td>
                         {department.leads && department.leads.length > 0
                           ? department.leads.map((lead) => lead.name).join(", ")

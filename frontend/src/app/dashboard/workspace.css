@@ -7735,3 +7735,14 @@ a.ws-askglobal[data-away]:not(:focus-visible) {
 @media (max-width: 860px) {
   .ws a.ws-chat__newphone { display: inline-flex; width: 44px; height: 44px; }
 }
+
+/* B3 p4: Standards grouped by contract family, each a disclosure with its count */
+.ws-stdgroup { margin: 0 0 var(--ws-s3); }
+.ws-stdgroup > summary { display: flex; align-items: baseline; gap: var(--ws-s2); min-height: 44px;
+  padding: var(--ws-s2) 0; font-weight: 600; font-size: var(--ws-text-base); color: var(--ws-ink-900);
+  cursor: pointer; }
+.ws-stdgroup > summary::-webkit-details-marker { display: none; }
+.ws-stdgroup > summary::before { content: ""; width: 7px; height: 7px; margin-right: 2px;
+  border-right: 2px solid var(--ws-ink-500); border-bottom: 2px solid var(--ws-ink-500);
+  transform: rotate(-45deg); transition: transform var(--ws-t); align-self: center; }
+.ws-stdgroup[open] > summary::before { transform: rotate(45deg); }

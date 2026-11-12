@@ -145,7 +145,7 @@ function ReviewsQueueView() {
         ) : null}
 
         {reviews !== null && reviews.length > 0 ? (
-          <StackTable columns={[{ label: "Document" }, { label: "Status" }, { label: "Analysed" }, { label: "Report" }]}>
+          <StackTable columns={[{ label: "Document" }, { label: "Status" }, { label: "Analysed" }]}>
                 {reviews.map((review) => {
                   const attention = ATTENTION_STATUSES.has(review.status);
                   return (
@@ -162,9 +162,10 @@ function ReviewsQueueView() {
                             {review.document_name ?? review.contract_id.slice(0, 8)}
                           </Link>
                         ) : (
-                          <span className="ws-docs__name" title="The document itself is not open to your account — the Report is">
+                          // B3: one link per row — the report, when the document is not open to you
+                          <Link href={`/dashboard/reviews?id=${review.id}`} title="Opens the report">
                             {review.document_name ?? review.contract_id.slice(0, 8)}
-                          </span>
+                          </Link>
                         )}
                         {review.document_type ? (
                           <span className="ws-chip ws-chip--type ws-docs__type">{review.document_type}</span>
@@ -177,9 +178,6 @@ function ReviewsQueueView() {
                         </span>
                       </td>
                       <td className="ws-num">{formatDate(review.created_at) || "—"}</td>
-                      <td>
-                        <Link href={`/dashboard/reviews?id=${review.id}`}>Report</Link>
-                      </td>
                     </tr>
                   );
                 })}
