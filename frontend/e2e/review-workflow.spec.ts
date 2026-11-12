@@ -64,8 +64,8 @@ test.describe("the review workflow (AB-103)", () => {
     await reviewer.goto(`/dashboard?id=${contractId}`);
     await expect(await stageLine(reviewer)).toContainText("With Legal");
     await openFindingsTab(reviewer);
-    await expect(reviewer.getByRole("group", { name: "Filter findings" })
-      .getByRole("button", { name: /Open point 1/ })).toBeVisible();
+    await expect(reviewer.getByRole("group", { name: "Show points" })
+      .getByRole("button", { name: "Change needed, 1" })).toBeVisible();
     const card = reviewer.locator("article[data-finding-id]").first();
     await card.locator(".ws-decision__open").click();
     await card.locator(".ws-decision__form select").selectOption("REQUIRE_COMPANY_STANDARD");
@@ -84,7 +84,7 @@ test.describe("the review workflow (AB-103)", () => {
       "Change requested — our wording to send");
     // the document says it too: the decided clause carries the legend's "Decided" mark
     // (cross-page pass: one word set; the legend itself always lists all four)
-    await expect(reviewer.locator(".ws-outline .ws-status--decided").first())
+    await expect(reviewer.locator(".ws-outline .ws-status.lm-mark--decided").first())
       .toHaveAttribute("aria-label", /Decided/);
 
     // ---- the contract decision closes the review --------------------------

@@ -115,6 +115,7 @@ test.describe("the document pane", () => {
     await expect(page.locator('a[href^="/contracts?"], a[href^="/reviews"]')).toHaveCount(0);
 
     await page.setInputFiles('input[type="file"]', f.document.path);
+    await page.getByLabel("What is this version?").selectOption("COMPANY_DRAFT");   // AM-324 r4
     await page.getByRole("button", { name: "Upload" }).click();
     await showDocument(page);
     await expect(page.locator('[data-region="document"] .ws-row').first()).toBeVisible();
@@ -135,12 +136,12 @@ test.describe("the document pane", () => {
     await counsel.close();
 
     await page.goto(`/dashboard?id=${theirs}`);
-    await expect(page.getByRole("heading", { name: "Not found." })).toBeVisible();
-    const stolen = await page.locator(".ws-state").innerText();
+    await expect(page.getByRole("heading", { name: "Not found" })).toBeVisible();
+    const stolen = await page.locator(".lm-state").first().innerText();
 
     await page.goto(`/dashboard?id=00000000-0000-4000-8000-000000000000`);
-    await expect(page.getByRole("heading", { name: "Not found." })).toBeVisible();
-    const ghost = await page.locator(".ws-state").innerText();
+    await expect(page.getByRole("heading", { name: "Not found" })).toBeVisible();
+    const ghost = await page.locator(".lm-state").first().innerText();
     expect(stolen).toBe(ghost);
     expect(stolen.toLowerCase()).not.toContain("access");
   });
@@ -516,13 +517,16 @@ test.describe("the 3-column redesign (2026-08-31)", () => {
     // The fixture analysis yields a DEVIATION, so at least one outline row is
     // marked needs-review. Every marker is one of the three DD-9 buckets and
     // carries an accessible name — never color alone.
-    const review = page.locator(".ws-outline .ws-status--review").first();
+    // UX Batch 2: the outline's mark is the Points pane's icon and word (one vocabulary)
+    // the legend inside the outline prints its words beside decorative icons; a row's mark is an img
+    const review = page.locator(".ws-outline .ws-status[role=img]").first();
     await expect(review).toBeVisible();
-    // the reader's words since CLM Page 2 (M9): the legend's "Open point", never colour alone
-    await expect(review).toHaveAttribute("aria-label", /open point/i);
-    const markers = page.locator(".ws-outline .ws-status");
-    for (const cls of await markers.evaluateAll((els) => els.map((e) => e.className))) {
-      expect(cls).toMatch(/ws-status--(match|decided|review|missing)/);
+    await expect(review).toHaveAttribute("aria-label", /change needed/i);
+    const markers = page.locator(".ws-outline .ws-status[role=img]");
+    for (const [cls, label] of await markers.evaluateAll(
+      (els) => els.map((e) => [e.className, e.getAttribute("aria-label") ?? ""]))) {
+      expect(cls).toMatch(/lm-mark--\w+/);
+      expect(label).toMatch(/^(Matches|In our favour|Change needed|Missing|Needs a decision|Decided)/);
     }
   });
 

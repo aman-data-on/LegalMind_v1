@@ -34,6 +34,8 @@ async function declare(page: Page, versionId: string, body: Record<string, strin
 /** The newest row's action menu — the same gesture `dashboard-list.spec.ts` uses:
  *  the menu renders through a portal, so wait for it rather than for the click. */
 async function openFirstRowMenu(page: Page) {
+  // the sections above the table load late; a scroll they cause closes an open menu
+  await page.waitForLoadState("networkidle");
   const toggle = page.getByRole("button", { name: /More actions for/ }).first();
   await toggle.scrollIntoViewIfNeeded();
   // A click that lands before hydration attaches the handler focuses the button
@@ -45,7 +47,8 @@ async function openFirstRowMenu(page: Page) {
 }
 
 /** Contract + uploaded version, NO Review — so the declaration is still open. */
-async function uploadOnly(page: Page): Promise<{ contractId: string; versionId: string }> {
+async function uploadOnly(page: Page, role: "COMPANY_DRAFT" | "CLIENT_MODIFIED" = "COMPANY_DRAFT",
+): Promise<{ contractId: string; versionId: string }> {
   const f = fixture();
   const contract = await postOk(page, "/contracts", {
     name: `Declared MSA ${Date.now()}`, contract_type: "MSA",
@@ -53,7 +56,7 @@ async function uploadOnly(page: Page): Promise<{ contractId: string; versionId: 
   const upload = await page.request.post(`/api/v1/contracts/${contract.id}/document-versions`, {
     headers: {
       "Content-Type": f.document.mime,
-      "X-Version-Role": "COMPANY_DRAFT", "X-Filename": f.document.filename,
+      "X-Version-Role": role, "X-Filename": f.document.filename,
       "X-CSRF-Token": await csrfToken(page),
     },
     data: readFileSync(f.document.path),
@@ -115,7 +118,8 @@ test("the edit dialog shows the declaration, and disables it once the version is
 });
 
 test("the workspace says whose paper it is, who it is with, and when it took effect", async ({ page }) => {
-  const { contractId, versionId } = await uploadOnly(page);
+  // AM-324 r4: whose paper is said at upload, and the header reads it from the role
+  const { contractId, versionId } = await uploadOnly(page, "CLIENT_MODIFIED");
   expect((await declare(page, versionId, DECLARED)).status()).toBe(200);
 
   // The manager's question — "LeapSwitch ne banaya hai ya counterparty ne
@@ -124,7 +128,7 @@ test("the workspace says whose paper it is, who it is with, and when it took eff
   await page.goto(`/dashboard?id=${contractId}`);
   // S1: the client sits in the header; whose paper and the date sit on its bar
   const meta = page.locator(".ws-record");
-  await expect(meta.getByText("Their document")).toBeVisible();
+  await expect(meta.getByText(/client's markup/i)).toBeVisible();
   await expect(meta.getByText(DECLARED.counterparty)).toBeVisible();
   // plain words since the CLM header (no mono chip): the date as a reader writes it
   await expect(meta.getByText("Effective 28 Jul 2026")).toBeVisible();
@@ -134,5 +138,5 @@ test("the workspace says whose paper it is, who it is with, and when it took eff
   await page.reload();
   await expect(page.locator(".ws-record")).toBeVisible();
   await expect(meta.getByText(DECLARED.counterparty)).toHaveCount(0);
-  await expect(meta.getByText("Their document")).toBeVisible();
+  await expect(meta.getByText(/client's markup/i)).toBeVisible();
 });

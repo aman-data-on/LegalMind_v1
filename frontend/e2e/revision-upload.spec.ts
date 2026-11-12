@@ -38,6 +38,7 @@ test("revised-version upload works after opening and closing Ask", async ({ page
   const file = dialog.locator('input[type="file"]');
   await expect(file).toBeVisible();
   await file.setInputFiles(fixture().document.path);
+  await dialog.getByLabel("What is this version?").selectOption("COMPANY_DRAFT");   // AM-324 r4
   await dialog.getByRole("button", { name: /^Upload version \d+$/ }).click();
 
   // The POST must leave the page promptly — the 2026-09-02 hang was its absence.

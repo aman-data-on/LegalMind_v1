@@ -54,7 +54,10 @@ test.describe("Company Standard editor", () => {
     await page.goto("/dashboard/configuration");
     const code = await ownStandard(page);
     await page.reload();
-    await page.getByRole("button", { name: code, exact: true }).click();
+    // the row names the standard by its name (Batch 3); its code still finds it
+    await page.getByLabel("Search standards").fill(code);
+    await expect(page.locator("table tbody tr")).toHaveCount(1);
+    await page.locator("table tbody tr").first().getByRole("button").first().click();
     await page.getByRole("button", { name: "Show stored values" }).click();
     await page.getByRole("button", { name: "Change these values" }).first().click();
     return page.locator("form.ws-stdform");
@@ -249,12 +252,12 @@ test.describe("the standards list", () => {
 
     // The code.
     await page.getByLabel("Search standards").fill(mine);
-    await expect(page.getByRole("button", { name: mine, exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Findable by this name", exact: true })).toBeVisible();
     await expect(page.getByText(/Showing 1 of \d+ standards/)).toBeVisible();
 
     // The version NAME, which is what a reader actually remembers.
     await page.getByLabel("Search standards").fill("Findable by this name");
-    await expect(page.getByRole("button", { name: mine, exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Findable by this name", exact: true })).toBeVisible();
 
     // A filter that matches nothing says so, and says it is a filter.
     await page.getByLabel("Search standards").fill("no-standard-has-this");
@@ -268,7 +271,7 @@ test.describe("the standards list", () => {
     await expect(page.getByText(/Showing \d+ of \d+ standards/)).toBeVisible();
     await page.getByLabel("Filter standards by status").selectOption("");
     await page.getByLabel("Filter standards by evaluator").selectOption("PRESENCE");
-    await expect(page.getByRole("button", { name: mine, exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Findable by this name", exact: true })).toBeVisible();
   });
 
   test("a row expands in place, and the words match the ones in the filters", async ({ page }) => {

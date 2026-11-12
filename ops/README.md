@@ -75,6 +75,20 @@ pass.
 
 ---
 
+## Before deploying the CLM programme (PR #294) — LibreOffice on the worker
+
+Production has **no LibreOffice** (checked 2026-11-12: no `soffice` on the host, no
+`LEGALMIND_SOFFICE` in `/root/.legalmind.env`). The final-contract, contract and reply PDFs
+need it on the **worker**:
+
+1. Install LibreOffice Writer **≥ 24.2** (CI runs 24.2.7.2) and the house fonts (Liberation, Carlito), as CI job 17 does.
+2. Set `LEGALMIND_SOFFICE=<path to soffice>` in the worker's environment file; restart `legalmind-worker`.
+3. Check: `$LEGALMIND_SOFFICE --version` prints ≥ 24.2; then make one final copy on a scratch deal and confirm
+   its preflight is clean. LibreOffice 24.2 writes `/OpenAction` as a page destination, which the preflight
+   allows; any open action that runs something is refused.
+
+Without it a PDF is refused (`no_soffice`), never made without its checks.
+
 ## Host changes of 2026-10-30 (tester pass QA-031, QA-070, QA-097)
 
 Made outside any deploy; a rebuilt host needs them again. The previous files and

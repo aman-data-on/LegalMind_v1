@@ -105,6 +105,7 @@ frontend 713/713 vitest, tsc clean, lint baseline holds. Independent review: 11 
 (2 HIGH: one-of-two signature acceptance; collaborators could not read). Enterprise UI pass:
 `docs/architecture/clm-rnd/08-PHASE1-UI-DESIGN-PASS.md`. **Not verified:** CI (not pushed); visual
 baselines will change (CI-only, never updated locally); LibreOffice is not on CI or production.
+**Deploy prerequisite (2026-11-12, PR #294):** production has no LibreOffice. The final-contract PDF needs LibreOffice ≥ 24.2 on the worker plus `LEGALMIND_SOFFICE` set — see [ops/README.md](../../ops/README.md) "Before deploying the CLM programme". CI job 17 now runs LibreOffice 24.2.7.2.
 **UI Pass 2 (owner feedback):** reply auto-reviewed (`reviews.open_review` shared with `POST /reviews`;
 `dispatch_analysis(after_commit=…)`), `READY_TO_SEND` stage, reply notice, one header + role-named version
 switcher, one Ask surface, contract typesetting in the reading view (`frontend/src/lib/reading.ts`; text is

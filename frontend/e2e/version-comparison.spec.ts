@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { createAnalysedReview, fixture, storageStatePath, openUploadNewVersion } from "./support";
+import { createAnalysedReview, fixture, storageStatePath, uploadNewVersionFile } from "./support";
 
 test.use({ storageState: storageStatePath("owner") });
 
@@ -28,9 +28,7 @@ test("comparison reports clause-level changes and never a verdict", async ({ pag
   // With one version there is nothing to compare against, so no control.
   await expect(page.getByRole("menuitem", { name: "Compare versions" })).toHaveCount(0);
 
-  await openUploadNewVersion(page);
-  await page.setInputFiles('input[type="file"]', f.document.path);
-  await page.getByRole("button", { name: "Upload", exact: true }).click();
+  await uploadNewVersionFile(page, f.document.path);
   await expect(page.locator("select.ws-version option")).toHaveCount(2, { timeout: 20_000 });
 
   await page.getByRole("button", { name: "More actions" }).click();
@@ -53,7 +51,7 @@ test("comparison reports clause-level changes and never a verdict", async ({ pag
   // An unchanged clause shows its wording ONCE: there is no superseded reading
   // to put beneath it, and printing the same text twice would invent a change.
   await expect(row.locator(".ws-compare__side")).toHaveCount(1);
-  await expect(panel.getByText("matched on the document")).toBeVisible();
+  await expect(panel.getByText(/Clauses are matched by their numbers/)).toBeVisible();
 
   // 33.16 — the comparison is not a legal position.
   await expect(panel).not.toContainText(/acceptable|unacceptable|approved|rejected|risk/i);

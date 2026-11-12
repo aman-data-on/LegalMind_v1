@@ -39,6 +39,8 @@ test("the row action menu escapes the table's clipping ancestor and is fully usa
 }) => {
   await createAnalysedReview(page);
   await page.goto("/dashboard");
+  // the sections above the table load late; a scroll they cause closes an open menu
+  await page.waitForLoadState("networkidle");
 
   const toggle = page.getByRole("button", { name: /More actions for/ }).first();
   await toggle.scrollIntoViewIfNeeded();

@@ -57,8 +57,9 @@ test.describe("The analysis surface", () => {
     // what is undecided — the same server stage and the same count, one place each.
     const card = page.locator('[data-region="findings"] article[data-finding-id]').first();
     await expect(card.locator(".ws-point__who")).toContainText("Not sent to Legal yet");
-    await expect(page.getByRole("group", { name: "Filter findings" })
-      .getByRole("button", { name: /Open point 1/ })).toBeVisible();
+    // UX Batch 2: one filter control, "Show points", counted by status (zero counts hidden)
+    await expect(page.getByRole("group", { name: "Show points" })
+      .getByRole("button", { name: "Change needed, 1" })).toBeVisible();
     // The requirement code moved into "How this was determined" (2026-09-08,
     // third pass): a raw identifier is exactly the "internal ID" the manager's
     // report asked off the default-visible surface. It moved one level further

@@ -226,6 +226,18 @@ export async function openUploadNewVersion(page: Page): Promise<void> {
   await page.getByRole("menuitem", { name: "Upload new version" }).click();
 }
 
+/** Upload `path` as the next version from the workspace's "Upload a new version" dialog:
+ *  it says what the version is (AM-324 r4, nothing preselected) and the button names the
+ *  version it makes ("Upload version 2"). */
+export async function uploadNewVersionFile(page: Page, path: string,
+                                           role: "COMPANY_DRAFT" | "CLIENT_MODIFIED" = "COMPANY_DRAFT"): Promise<void> {
+  await openUploadNewVersion(page);
+  const dialog = page.getByRole("dialog", { name: "Upload a new version" });
+  await dialog.locator('input[type="file"]').setInputFiles(path);
+  await dialog.getByLabel("What is this version?").selectOption(role);
+  await dialog.getByRole("button", { name: /^Upload version \d+$/ }).click();
+}
+
 /**
  * Confirm the Dashboard's Upload dialog once a file is selected — the
  * "Upload & Analyze" click that starts the create → upload → suggest type →
@@ -235,7 +247,10 @@ export async function openUploadNewVersion(page: Page): Promise<void> {
  * on `setInputFiles` alone starting the chain now calls this immediately
  * after.
  */
-export async function confirmUpload(page: Page): Promise<void> {
+export async function confirmUpload(page: Page, paper: "Our draft" | "The client's paper" = "Our draft"): Promise<void> {
+  // AM-324 r4: every upload says whose paper it is — nothing is preselected
+  const whose = page.getByRole("group", { name: "Whose paper is it?" });
+  if (await whose.count()) await whose.getByRole("radio", { name: paper }).check();
   await page.getByRole("button", { name: "Upload & Analyze" }).click();
 }
 

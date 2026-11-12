@@ -9,7 +9,7 @@ import {
   openFindingsTab,
   openUploadPanel,
   showDocument,
-  storageStatePath, openUploadNewVersion,
+  storageStatePath, uploadNewVersionFile,
 } from "./support";
 
 test.use({ storageState: storageStatePath("owner") });
@@ -74,71 +74,37 @@ test("journey: upload → analysis → report → findings → ask, with finding
 
   // The drill (2026-08-31 v2): the summary strip's counts are pressable
   // filters — category → finding → evidence without leaving the pane.
-  /*
-   * The count is a `.ws-filter__n` badge beside the word since the reference-design
-   * restyle (2026-09-09), so a pill reads "Change needed 1" — the count
-   * separated by whitespace, not wrapped in parentheses as it was before.
-   *
-   * The shape is written ONCE here rather than spelled out at each of the four
-   * places below that need it. Three of them were still matching `(n)` after the
-   * restyle: one failed loudly, and `labels[0].match(...)![1]` failed as a
-   * TypeError on a null match, which reads like a broken page rather than a
-   * renamed label.
-   */
-  const PILL = /^(.*?)\s+(\d+)$/;               // [, word, count]
-  const countOf = (label: string) => Number(label.match(PILL)![2]);
-  const wordOf = (label: string) => label.match(PILL)![1]!.trim();   // the mark's icon leaves a space
-
-  const filters = page.locator(".ws-filter");
-  await expect(filters.getByRole("button", { name: /^Open point\s+\d+$/ })).toBeVisible();
-
-  /*
-   * The row is ONE fixed order the reader can learn (owner, 2026-09-09): "All"
-   * first and pressed on arrival, then `AM-56`'s three words in their own fixed
-   * order. It used to open pre-filtered, on a requires_decision filter that
-   * pushed "All" into second place — so the row a reader learned on one
-   * contract was not the row the next contract gave them.
-   *
-   * Asserted in a browser because a click is the one thing the static suite
-   * cannot make: `src/__tests__/findings-filter.test.tsx` pins the order, the
-   * labels, the counts and the default; only here can the subset each filter
-   * actually shows be checked.
-   */
-  const labels = await filters.getByRole("button").allTextContents();
-  expect(wordOf(labels[0]!)).toBe("All");
-  const total = countOf(labels[0]!);
-  const words = labels.slice(1).map(wordOf);
-  // A subsequence of the fixed order — a word with no findings renders no
-  // button, and the words that remain keep their places.
-  // CLM cross-page pass (2026-11-03): the filters are the document legend's four marks, in
-  // its one order (PointStatus) — the same words and icons everywhere; a mark with no point
-  // renders no button
-  expect(words).toEqual(["Matches our standard", "Open point", "Decided", "Missing"]
-    .filter((w) => words.includes(w)));
+  // UX Batch 2: one filter control, "Show points" — "All" first and pressed on arrival,
+  // then the status words (the Points pane's own vocabulary), each "Word, n"; a status
+  // with no point renders no button.
+  const filters = page.getByRole("group", { name: "Show points" });
+  const PILL = /^(.*), (\d+)$/;               // aria-label: [, word, count]
+  const named = async () => (await filters.getByRole("button").evaluateAll(
+    (els) => els.map((e) => e.getAttribute("aria-label") ?? ""))).map((l) => l.match(PILL)!);
+  const all = await named();
+  expect(all[0]![1]).toBe("All");
+  const total = Number(all[0]![2]);
   await expect(filters.getByRole("button").first()).toHaveAttribute("aria-pressed", "true");
   const cards = page.locator("article[data-finding-id]");
   await expect(cards).toHaveCount(total);
 
-  for (const word of words) {
-    const button = filters.getByRole("button", { name: new RegExp(`^${word}\\s+\\d+$`) });
-    const n = countOf((await button.textContent())!);
+  for (const [, word, count] of all.slice(1)) {
+    const button = filters.getByRole("button", { name: `${word}, ${count}`, exact: true });
     await button.click();
     await expect(button).toHaveAttribute("aria-pressed", "true");
-    // Its own count, and nothing but its own findings.
-    await expect(cards).toHaveCount(n);
-    for (let i = 0; i < n; i += 1) {
-      // an open point reads its analysis word (it is not decided yet)
+    // Its own count, and nothing but its own points.
+    await expect(cards).toHaveCount(Number(count));
+    for (let i = 0; i < Number(count); i += 1) {
       if (word === "Decided") continue;
-      await expect(cards.nth(i).locator("[data-status]").first()).toHaveText(
-        word === "Open point" ? /^(Change needed|Missing|Needs a decision)$/ : word);
+      await expect(cards.nth(i)).toContainText(word!);
     }
   }
 
-  // "All" comes back to every finding, which is what makes the filters undoable.
-  await filters.getByRole("button", { name: /^All\s+\d+$/ }).click();
+  // "All" comes back to every point, which is what makes the filters undoable.
+  await filters.getByRole("button", { name: `All, ${total}`, exact: true }).click();
   await expect(cards).toHaveCount(total);
 
-  await filters.getByRole("button", { name: /^Open point/ }).click();
+  await filters.getByRole("button").nth(1).click();
   await expect(finding).toBeVisible();
   // …and the drill ends in verbatim text: the cited excerpt sits one click
   // inside "How this was determined" (seventh pass — the face is the four
@@ -206,10 +172,7 @@ test("journey: a revised version is a real new analysis; v1 stays historically v
   // Upload the revision through the workspace's own control.
   await page.goto(`/dashboard?id=${v1.contractId}`);
   await showDocument(page);
-  await openUploadNewVersion(page);
-  await expect(page.getByText("becomes a new version")).toBeVisible();
-  await page.setInputFiles('input[type="file"]', f.document.path);
-  await page.getByRole("button", { name: "Upload", exact: true }).click();
+  await uploadNewVersionFile(page, f.document.path);
 
   // The workspace lands on v2; the picker knows both versions.
   const picker = page.locator("select.ws-version");
