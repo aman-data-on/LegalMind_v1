@@ -331,7 +331,7 @@ def test_the_real_check_runs_the_engine_in_a_rolled_back_savepoint(db, api, publ
 
 
 SOFFICE = __import__("os").environ.get(
-    "LEGALMIND_SOFFICE", "/root/legalmind-clm-local/lo/root/opt/libreoffice26.2/program/soffice")
+    "LEGALMIND_SOFFICE", "")
 
 
 @pytest.mark.skipif(not __import__("os").path.exists(SOFFICE), reason="no LibreOffice")

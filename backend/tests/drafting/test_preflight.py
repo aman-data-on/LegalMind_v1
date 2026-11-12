@@ -361,7 +361,7 @@ def test_pdf_file_checks_fire():
     data = doc.tobytes()
     codes = {p.code for p in preflight.pdf_file(data)}
     assert codes == {"PDFA", "FONT_NOT_EMBEDDED", "ANNOTATION", "ACROFORM", "JAVASCRIPT",
-                     "EMBEDDED_FILE", "OPTIONAL_CONTENT"}
+                     "EMBEDDED_FILE", "OPTIONAL_CONTENT", "OPEN_ACTION"}
     locked = pymupdf.open()
     locked.new_page()
     sealed = locked.tobytes(encryption=pymupdf.PDF_ENCRYPT_AES_256, owner_pw="o",
@@ -393,6 +393,27 @@ def test_pdf_file_checks_fire():
                       "uri": "https://example.test/JS/JavaScript/EmbeddedFiles"})
     codes = {p.code for p in preflight.pdf_file(linked.tobytes())}
     assert not codes & {"JAVASCRIPT", "EMBEDDED_FILE", "ANNOTATION"}, codes
+
+
+@pytest.mark.parametrize("action, refused", [
+    (None, False),                                         # none
+    ("[0 0 R /XYZ null null 0]", False),                   # LibreOffice 24.2: a destination
+    ("<</S/GoTo/D[0 0 R /Fit]>>", False),                  # a GoTo to a page
+    ("<</S/JavaScript/JS(app.alert(1))>>", True),          # runs a script
+    ("<</S/Launch/F(setup.exe)>>", True),                  # starts a program
+    ("<</S/URI/URI(https://example.test)>>", True),        # opens a website
+])
+def test_an_open_action_may_only_show_a_page(action, refused):
+    """CI's LibreOffice (24.2.7.2) writes /OpenAction as a destination array: it shows a
+    page and is allowed. An open action that runs anything is refused (OPEN_ACTION)."""
+    import pymupdf
+    doc = pymupdf.open()
+    doc.new_page()
+    if action:
+        doc.xref_set_key(doc.pdf_catalog(), "OpenAction",
+                         action.replace("0 0 R", f"{doc[0].xref} 0 R"))
+    codes = {p.code for p in preflight.pdf_file(doc.tobytes())}
+    assert ("OPEN_ACTION" in codes) is refused, codes
 
 
 def test_require_raises_with_every_problem(rendered):

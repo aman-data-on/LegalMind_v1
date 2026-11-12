@@ -16,8 +16,8 @@ from legalmind.analysis.negotiation import _ZERO_WIDTH, _num, _units, clause_lab
 from legalmind.ingestion.parsing import parse
 from legalmind.mapping.engine import Clause
 
-DRIVE = Path(os.environ.get("LEGALMIND_CLM_TEST_FILES",
-                            "/root/legalmind-clm-local/test-files/drive"))
+#: the owner's test papers: only from the environment, never a host path (CI cannot read one)
+DRIVE = Path(os.environ.get("LEGALMIND_TEST_FILES_DIR", "/nonexistent"))
 DOCS = Path(os.environ.get("LEGALMIND_SOURCE_MATERIAL_DIR", "/nonexistent"))
 FILES = [DRIVE / n for n in ("client-A.docx", "client-B.docx", "client-C-markup.docx",
                              "client-D.pdf")] + \
@@ -34,8 +34,8 @@ def _words(text: str) -> list[str]:
 
 @pytest.mark.parametrize("path", FILES, ids=lambda p: p.name)
 def test_a_repeated_number_is_named_by_its_own_words_only(path):
-    if not path.exists():
-        pytest.skip(f"{path.name} is not on this host")
+    if not os.access(path, os.R_OK):                     # absent, or a folder we cannot read
+        pytest.skip(f"{path.name} is not readable on this host")
     read = parse(path.read_bytes(), MIME[path.suffix], defer_ocr=True, ocr=False)
     units = _units([Clause(uuid.uuid4(), s.content, s.section_number, s.section_title,
                            s.page_number, bool(s.metadata.get("heading")))

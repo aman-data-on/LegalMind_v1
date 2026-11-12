@@ -49,8 +49,10 @@ def test_pdfa2b_clean(rendered):
         assert doc.xref_get_key(cat, "OutputIntents")[0] == "array"
         assert doc.xref_get_key(cat, "Lang") == ("string", "en-IN")
         assert doc.xref_get_key(cat, "StructTreeRoot")[0] == "xref"      # tagged
-        for key in ("AcroForm", "Names", "OCProperties", "OpenAction"):
+        for key in ("AcroForm", "Names", "OCProperties"):
             assert doc.xref_get_key(cat, key)[0] == "null", key
+        # LibreOffice 24.2 (CI) writes a destination "[page /XYZ …]": it only shows a page
+        assert doc.xref_get_key(cat, "OpenAction")[0] in ("null", "array")
         assert not doc.metadata.get("encryption") and doc.embfile_count() == 0
         for page in doc:
             assert {t[1] for t in page.annot_xrefs()} <= {pymupdf.mupdf.PDF_ANNOT_LINK}

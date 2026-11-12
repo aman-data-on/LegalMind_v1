@@ -87,6 +87,7 @@ CLIENT_PDF = {"ANNOTATION": "contains comments or other annotations",
               "OPTIONAL_CONTENT": "contains hidden layers",
               "PDF_TOO_LARGE": "is larger than 10 MB",
               "LAUNCH": "contains an action that opens another file or program",
+              "OPEN_ACTION": "does something when it is opened, beyond showing a page",
               "PDF_UNREADABLE": "cannot be opened"}
 #: the check sets the worker records it ran (`pdf.render_version`)
 FILE, TEXT, HOUSE = "pdf_file", "text_equal", "house_layout"
@@ -252,6 +253,25 @@ def pdf_file(pdf: bytes) -> list[Problem]:
         return [*out, Problem("PDF_UNREADABLE", "the file is not a PDF that opens")]
 
 
+#: an open action that only shows a page: a GoTo to a destination array, either order
+_GOTO = re.compile(r"<<\s*/S\s*/GoTo\s*/D\s*\[[^\]]*\]\s*>>"
+                   r"|<<\s*/D\s*\[[^\]]*\]\s*/S\s*/GoTo\s*>>")
+
+
+def _open_action(doc: Any) -> str | None:
+    """The catalog's /OpenAction may only show a page: none, a destination array (as
+    LibreOffice 24.2 writes, "[page /XYZ …]"), or a GoTo action to one. Anything else
+    (URI, Launch, JavaScript, SubmitForm, GoToR …) runs on opening — refused. JavaScript
+    and Launch anywhere are also caught by `_FORBIDDEN`."""
+    kind, value = doc.xref_get_key(doc.pdf_catalog(), "OpenAction")
+    if kind in ("null", "array"):
+        return None
+    source = doc.xref_object(int(value.split()[0])) if kind == "xref" else value
+    if kind in ("xref", "dict") and _GOTO.fullmatch(" ".join(source.split())):
+        return None
+    return "the PDF runs an action when it is opened, beyond showing a page"
+
+
 def _inspect(doc: Any) -> list[Problem]:
     """`pdf_file` on an opened document."""
     import pymupdf
@@ -273,6 +293,8 @@ def _inspect(doc: Any) -> list[Problem]:
              if key.search(source)}
     out += [Problem(code, f"the PDF carries {code.lower().replace('_', ' ')}")
             for code in sorted(found)]
+    if (why := _open_action(doc)) is not None:
+        out.append(Problem("OPEN_ACTION", why))
     loose: set[str] = set()
     for n, page in enumerate(doc.pages(), 1):
         kinds = sorted({t[1] for t in page.annot_xrefs()

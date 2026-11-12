@@ -210,8 +210,7 @@ def test_a_match_beside_the_deviation_needs_no_decision(api, db, owner, tmp_path
 
 
 SOFFICE = os.environ.get(
-    "LEGALMIND_SOFFICE",
-    "/root/legalmind-clm-local/lo/root/opt/libreoffice26.2/program/soffice")
+    "LEGALMIND_SOFFICE", "")
 
 
 @pytest.mark.skipif(not os.path.exists(SOFFICE), reason="LibreOffice not installed here")
