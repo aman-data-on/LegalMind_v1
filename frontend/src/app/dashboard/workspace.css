@@ -7760,3 +7760,12 @@ a.ws-askglobal[data-away]:not(:focus-visible) {
 .lm-ph__acts .ws-btn { min-height: 40px; }
 /* client profile: the row's ⋯ is the same height as the row's Open (36) */
 .ws-cl .ws-btn--sm.ws-menu__toggle, .ws-cl__main .ws-btn--sm.ws-menu__toggle { min-height: 36px; }
+
+/* B3 p6 — Compare setup slots are neutral: the red/green rules belong to the diff itself */
+.ws-dt__slot.is-ours, .ws-dt__slot.is-client { box-shadow: var(--ws-card-shadow); }
+/* New contract: every step on the same page width and inset as step 1 (lm-page) */
+.nc:not(.nc--one) { width: 100%; max-width: min(var(--lm-page-w), 100%); margin-inline: auto;
+  padding-inline: clamp(var(--ws-s4), 2.5vw, var(--ws-s6)); }
+/* two page blocks in a row (Templates + What we can offer): one section gap, not 96 + 24 */
+.ws .lm-page:has(+ .lm-page), .ws:has(.ws-askglobal) .lm-page:has(+ .lm-page) { padding-bottom: var(--ws-s6); }
+.lm-page + .lm-page { padding-top: 0; }

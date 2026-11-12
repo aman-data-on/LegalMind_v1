@@ -40,7 +40,7 @@ function NewClient({ onAdded, onCancel }: { onAdded: (c: Counterparty) => void; 
     return (
       <div key={f.key} className="nc-q" data-wide={f.wide || undefined}>
         <label className="nc-q__label" htmlFor={id}>
-          {f.label}<span className="nc-q__req">{f.key === "name" ? "Required" : "Optional"}</span>
+          {f.label}{f.key === "name" ? null : <span className="nc-q__req">Optional</span>}
         </label>
         {f.help ? <p id={`${id}-help`} className="nc-q__help">{f.help}</p> : null}
         {f.area ? <textarea rows={2} {...props} /> : <input type={f.key === "notice_email" ? "email" : "text"} {...props} />}

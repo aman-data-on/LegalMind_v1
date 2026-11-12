@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * One question of the template (S5). The label above the field, Required or Optional in
+ * One question of the template (S5). The label above the field, Optional marked in
  * words, help under the label, the field, then what is wrong with it (inline, as the
  * person types) — the IBM Carbon / Atlassian form order. A question with approved options
  * is a set of choices, never free text; a number says its range; a date is typed day,
@@ -29,7 +29,7 @@ function Label({ q, htmlFor }: { q: Question; htmlFor?: string }) {
   return (
     <Tag className="nc-q__label" {...(htmlFor ? { htmlFor } : {})}>
       {q.label}
-      <span className="nc-q__req">{required(q) ? "Required" : "Optional"}</span>
+      {required(q) ? null : <span className="nc-q__req">Optional</span>}
     </Tag>
   );
 }
@@ -87,7 +87,7 @@ export function QuestionField({ q, value, problem, profile, onChange }: {
       <fieldset className="nc-q" id={id} tabIndex={-1} aria-describedby={describedBy}
                 {...(message ? { "aria-invalid": true } : {})}>
         <legend className="nc-q__label">
-          {q.label}<span className="nc-q__req">{required(q) ? "Required" : "Optional"}</span>
+          {q.label}{required(q) ? null : <span className="nc-q__req">Optional</span>}
         </legend>
         {helpLine}
         <div className="nc-q__choices">

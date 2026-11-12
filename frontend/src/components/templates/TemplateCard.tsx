@@ -47,8 +47,8 @@ export function TemplateCard({ t, radio, actions }: {
       ) : null}
       <span className="tc__head">
         <span id={`${id}-n`} className="tc__name">{cardName(t)}</span>
-        {t.recommended ? <span id={`${id}-r`} className="lm-lozenge">Recommended</span> : null}
-        {t.awaiting_approval ? <span className="lm-lozenge">Awaiting approval</span> : null}
+        {t.recommended ? <span id={`${id}-r`} className="ws-chip">Legal recommends this one</span> : null}
+        {t.awaiting_approval ? <span className="ws-chip">Awaiting approval</span> : null}
       </span>
       {t.purpose ? <span id={`${id}-p`} className="tc__purpose">{t.purpose}</span> : null}
       {line ? <span id={`${id}-l`} className="tc__legal" data-points={points?.length || undefined}>{line}</span> : null}

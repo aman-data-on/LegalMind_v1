@@ -47,7 +47,7 @@ describe("the template's own words", () => {
     expect(html).toMatch(/aria-describedby="[^"]+-p [^"]+-l [^"]+-r"/);
     expect(html).toContain("2 points go to Legal on every deal");
     expect(html).toContain("See the 2 points");
-    expect(html).toContain("Recommended");
+    expect(html).toContain("Legal recommends this one");
     expect(html).not.toMatch(/-MSA-0|\.docx|MSA\.ORIGINAL/);
   });
 });

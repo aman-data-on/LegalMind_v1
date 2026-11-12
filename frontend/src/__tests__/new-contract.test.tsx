@@ -102,7 +102,9 @@ describe("approved options", () => {
     expect(html).not.toContain('type="text"');
     expect(html).toContain("Pune");
     expect(html).toContain("Mumbai");
-    expect(html).toContain("Required");
+    // B3 p6: only optional questions are marked; a required one carries no word
+    expect(html).not.toContain("Required");
+    expect(html).not.toContain("Optional");
   });
 
   it("a fixed value is text, never an input; a number says its range", () => {
