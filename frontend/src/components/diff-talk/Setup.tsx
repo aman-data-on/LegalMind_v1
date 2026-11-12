@@ -66,7 +66,7 @@ export function Setup({ left, right, website, documents, listError, onChange, on
       {listError ? <p className="ws-dt__msg is-error" role="alert">{listError}</p> : null}
       <div className="ws-dt__slots">
         <Slot step={1} label="Our document" source="ORGANIZATION" side="ours" value={left}
-              hint="A website document is always today's version — no upload needed."
+              hint="A website document is always today's version. No upload needed."
               placeholder="Choose our document…"
               groups={[
                 { label: "Website documents",
@@ -76,7 +76,7 @@ export function Setup({ left, right, website, documents, listError, onChange, on
               onChange={(ref) => onChange(ref, right)}
               onUploaded={(ref) => onUploaded("left", ref)} />
         <Slot step={2} label="Client contract" source="COUNTERPARTY" side="client" value={right}
-              hint="The client's paper — any type, any numbering."
+              hint="The client's paper, of any type and numbering."
               placeholder="Choose the client contract…"
               groups={[
                 { label: "Client documents", options: client.map(option) },
