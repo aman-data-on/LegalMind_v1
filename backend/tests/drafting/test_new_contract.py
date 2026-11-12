@@ -506,3 +506,13 @@ def test_a_withdrawn_template_offers_nothing_and_awaiting_one_is_seen_not_used(
     copy = api.get(f"{V1}/templates/{nxt.id}/review-copy")
     assert copy.status_code == 200, copy.text
     assert _start(api, nxt).status_code == 404
+
+
+def test_the_generated_name_reads_in_title_case_and_a_typed_name_is_kept():
+    """Integration 2026-11-12: only the name we make is cased; the UI shows the stored
+    name as is, so "INTEG-1112 MSA" typed by a person stays "INTEG-1112 MSA"."""
+    from legalmind.api.routers.drafts import readable_title
+    assert readable_title("MASTER SERVICES AGREEMENT") == "Master Services Agreement"
+    assert readable_title("TERMS OF SERVICE") == "Terms of Service"
+    assert readable_title("NDA") == "NDA"
+    assert readable_title("LeapSwitch MSA — Original") == "LeapSwitch MSA — Original"

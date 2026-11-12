@@ -776,7 +776,8 @@ export function AnswerCard({ change, list, contractId, onAnswered, onReload, inP
       {asking ? (
         <section className="cx-section cx-asklegal" aria-label="Ask Legal">
           {/* the one place this pane says it (PLAIN-LANGUAGE §2.4) */}
-          <p className="cx-asklegal__line"><strong>Legal decides this one.</strong></p>
+          <p className="cx-asklegal__line"><strong>{actions.includes("keep_ours")
+            ? "Legal decides if you accept it; you can keep our wording." : "Legal decides this one."}</strong></p>
           {details === null && change.review.after.length ? <p role="status" className="ws-pane__note">Loading the points…</p> : null}
           {details?.length ? details.map(({ finding }) => {
             const read = change.review.after.find((f) => f.finding_id === finding.id);

@@ -22,7 +22,6 @@ import { useEffect, useMemo, useState } from "react";
 
 import { PageHeader } from "@/components/page/PageHeader";
 import { api, ApiError, describeError } from "@/lib/api";
-import { contractDisplayName } from "@/lib/labels";
 import type { Contract, EffectiveClause, EffectiveText } from "@/lib/types";
 import { contractHref, shortDate } from "./model";
 import { readingLayout, readingPieces } from "./reading";
@@ -114,7 +113,7 @@ export function TermsInForce({ contractId }: { contractId: string }) {
     return () => { cancelled = true; };
   }, [contractId]);
 
-  const name = state.kind === "ready" && state.contract ? contractDisplayName(state.contract.name) : "The contract";
+  const name = state.kind === "ready" && state.contract ? state.contract.name : "The contract";
   if (state.kind === "ready") return <TermsView contractId={contractId} contract={state.contract} text={state.text} />;
   return (
     <div className="ws-recordpage lm-terms-page">
@@ -135,7 +134,7 @@ export function TermsView({ contractId, contract, text }: {
   const lines = useMemo(() => current ? readingLayout(current.clauses.map((c) => ({
     content: c.text, section_number: c.number, is_heading: !!c.heading && c.heading === c.text }))) : [],
   [current]);
-  const name = contract ? contractDisplayName(contract.name) : "The contract";
+  const name = contract ? contract.name : "The contract";
   const back = { href: contractHref(contractId), label: name };
   const changed = current ? current.clauses.filter((c) => "original" in c).length : 0;
   const removed = current?.removed ?? [];
@@ -182,7 +181,7 @@ export function TermsView({ contractId, contract, text }: {
               <ol className="lm-terms__amends">
                 {text.amendments.map((a) => (
                   <li key={a.contract_id}>
-                    <Link href={contractHref(a.contract_id)}>{contractDisplayName(a.name)}</Link>
+                    <Link href={contractHref(a.contract_id)}>{a.name}</Link>
                     <span>agreed {shortDate(a.signed_at)}</span>
                   </li>
                 ))}

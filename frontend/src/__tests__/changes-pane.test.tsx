@@ -285,7 +285,9 @@ describe("Write our wording (AM-284) and the notes (AM-285)", () => {
     expect(html).toMatch(/class="cx-line1"><span class="lm-chip lm-chip--change" data-status="CHANGE_NEEDED"[^>]*>.*?<\/svg>Change needed<\/span>/);
     // B3 p1: where the reader asks Legal, "With Legal" folds into the one Legal line
     expect(html).not.toContain('class="cx-line2"');
-    expect(html.match(/Legal decides this one\./g)).toHaveLength(1);
+    // Sales may keep ours (AM-250 r2 gates only accepting theirs): the one Legal line says so
+    expect(html.match(/Legal decides if you accept it; you can keep our wording\./g)).toHaveLength(1);
+    expect(html).not.toContain("Legal decides this one.");
     expect(whoLine(change(), list(LAWYER))).toBe("Yours to answer");
   });
 });

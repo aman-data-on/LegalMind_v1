@@ -33,7 +33,7 @@ import { createPortal } from "react-dom";
 
 import { api, describeError } from "@/lib/api";
 import { chainAnalysis } from "@/lib/analysisChain";
-import { CONTRACT_STATUSES, contractDisplayName } from "@/lib/labels";
+import { CONTRACT_STATUSES } from "@/lib/labels";
 import {
   VERSION_ROLES,
   documentTypeChip,
@@ -517,7 +517,7 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
               replacement for the visible text (rule 18: presentation only). */}
           <Link className="ws-cl__docname" href={`/dashboard?id=${contract.id}`}
                 title={contract.name}>
-            {contractDisplayName(contract.name)}
+            {contract.name}
           </Link>
           {contract.archived_at ? (
             <span className="ws-chip">Archived</span>

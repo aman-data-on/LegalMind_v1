@@ -76,6 +76,7 @@ def test_the_client_accepted_our_draft_unchanged(api, db, owner, tmp_path):
     """B4: nothing to answer — the final copy is our version, clean."""
     c = _contract(db, owner)
     ours = _ingest(db, tmp_path, c, _docx(*OURS), "ours.docx")
+    _review(db, ours, [])                          # analysed, nothing undecided
     dry = api.get(FINAL.format(c.id)).json()["data"]
     assert (dry["available"], dry["mode"], dry["agreed"]) == (True, "copy", [])
     r = api.post(FINAL.format(c.id))
@@ -87,6 +88,39 @@ def test_the_client_accepted_our_draft_unchanged(api, db, owner, tmp_path):
     again = api.post(FINAL.format(c.id))
     assert again.status_code == 409
     assert again.json()["error"]["code"] == "FINAL_COPY_NOT_READY"
+
+
+def test_an_undecided_legal_point_blocks_the_final_copy(api, db, owner, tmp_path):
+    """Fail closed (integration 2026-11-12): the dry run lists the undecided point and
+    the POST refuses — never a final contract made while Legal still has to decide."""
+    c = _contract(db, owner)
+    ours = _ingest(db, tmp_path, c, _docx(*OURS), "ours.docx")
+    _review(db, ours, [(0, E.FindingClassification.DEVIATION, E.RuleOutcome.UNACCEPTABLE)])
+    dry = api.get(FINAL.format(c.id)).json()["data"]
+    assert dry["available"] is False
+    assert [b["code"] for b in dry["blockers"]] == ["UNDECIDED_POINTS"]
+    assert dry["blockers"][0]["message"] == "1 point still needs Legal's decision."
+    r = api.post(FINAL.format(c.id))
+    assert r.status_code == 409 and r.json()["error"]["code"] == "FINAL_COPY_NOT_READY"
+    assert db.scalar(select(M.DocumentVersion.id).where(
+        M.DocumentVersion.contract_id == c.id, M.DocumentVersion.version_number == 2)) is None
+
+
+def test_an_unfinished_review_blocks_the_final_copy(api, db, owner, tmp_path):
+    c = _contract(db, owner)
+    _ingest(db, tmp_path, c, _docx(*OURS), "ours.docx")         # no Review yet
+    dry = api.get(FINAL.format(c.id)).json()["data"]
+    assert [b["code"] for b in dry["blockers"]] == ["ANALYSIS_NOT_FINISHED"]
+
+
+def test_the_final_contract_gate_names_the_final_contract():
+    from legalmind.api.errors import ReplyUndecided
+    gate = {"reason": "UNDECIDED_POINTS", "open_points": [{}, {}], "final": True}
+    e = ReplyUndecided(gate)
+    assert str(e) == ("The final contract cannot leave LegalMind yet: 2 points in its "
+                      "review still need a decision.")
+    assert "final" not in e.extra
+    assert str(ReplyUndecided({**gate, "final": False})).startswith("This reply")
 
 
 @pytest.mark.skipif(not __import__("os").environ.get("LEGALMIND_SOFFICE"),
@@ -146,6 +180,7 @@ def test_a_client_pdf_with_hidden_content_blocks_the_final_copy(api, db, owner, 
                             ).document_version
         v.doc_metadata = {**(v.doc_metadata or {}), "version_role": "COMPANY_DRAFT"}
         db.flush()
+        _review(db, v, [])
         return api.get(FINAL.format(c.id)).json()["data"], api.post(FINAL.format(c.id))
     dry, made = plan(pdf(dirty=True))
     assert not dry["available"] and [b["message"] for b in dry["blockers"]] == [
@@ -241,7 +276,7 @@ def test_a_client_pdf_with_answers_to_write_is_refused(api, db, owner):
 def test_a_final_copy_is_never_signed_after_our_changes(api, db, owner, tmp_path):
     """A2: on a final copy only Sign as is / Do not sign / On hold."""
     c = _contract(db, owner)
-    _ingest(db, tmp_path, c, _docx(*OURS), "ours.docx")
+    _review(db, _ingest(db, tmp_path, c, _docx(*OURS), "ours.docx"), [])
     r = api.post(FINAL.format(c.id))
     v = db.get(M.DocumentVersion, uuid.UUID(r.json()["data"]["document_version"]["id"]))
     review = db.execute(select(M.Review).where(

@@ -1109,6 +1109,15 @@ def reply_open_points(db: DBSession, version: M.DocumentVersion) -> dict | None:
     ours = meta.get("version_role") == "COMPANY_DRAFT"
     if not (answers(meta) or final_of(meta)) or not ours:
         return None
+    gate = review_open_points(db, version)
+    return {**gate, "final": bool(final_of(meta))} if gate else None
+
+
+def review_open_points(db: DBSession, version: M.DocumentVersion) -> dict | None:
+    """``version``'s latest Review unfinished (ANALYSIS_NOT_FINISHED, fail closed) or
+    holding an undecided point (UNDECIDED_POINTS with the points), else None — whatever
+    the version is. The reply gate above and the final-copy dry run (`AM-318`)
+    share it."""
     review = _latest_review(db, version)
     if review is None or review.status not in _ANALYSED:
         return {"reason": "ANALYSIS_NOT_FINISHED", "open_points": []}

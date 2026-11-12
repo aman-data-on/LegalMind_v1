@@ -30308,3 +30308,34 @@ r6  ALREADY USED AS OURS. A reviewed, undeclared version that LegalMind already 
     client, or compared as our side), so it can only be declared ours."): declaring it the
     client's would recast answers and sends already on record.
 ```
+
+## AMENDMENT BATCH AB-183 — `AM-341` (2026-11-12): C-19 resolved — one MSA for every brand; the brand split is the website policies only
+
+**Owner, 2026-11-11 (ruling), confirmed 2026-11-12 ("yes") for recording:** there is one MSA, issued by
+LeapSwitch Networks Pvt Ltd, covering LeapSwitch, CloudPe, CloudJiffy and any future brand. Only the
+services the client takes vary (MSA cl. 5). The brand split applies only to the website policies
+(TOS, Privacy, SLA, AUP, one set per brand).
+
+IDs: collision scan 2026-11-12 over origin/main, every worktree, `/root/legalmind-clm-local` and every
+branch for AM-341…AM-343 and AB-183…AB-185 — all free (AM-345 is taken on the records branch); this
+takes AB-183 / AM-341.
+
+`AM-341` — One MSA across brands; resolves C-19 (amends `AM-287` r-terms on the MSA; read with `AM-129`/`AM-145`)
+
+```text
+r1  ONE MSA. The MSA is one agreement of LeapSwitch Networks Pvt Ltd whatever brand the client buys
+    under (LeapSwitch, CloudPe, CloudJiffy, a future brand). "MSA LeapSwitch-only; no CloudPe MSA"
+    in AM-287 is superseded by this term: a CloudPe (or other brand) deal uses the same MSA.
+r2  WHAT VARIES. Only the services the client takes (MSA cl. 5, in the order form). The MSA's body
+    is not edited per brand.
+r3  WHERE THE BRAND SPLIT LIVES. Per-brand documents are the website policies only — TOS, Privacy,
+    SLA, AUP (AM-129, AM-145: a policy is read for the document's own brand). Standards measuring
+    an MSA are entity-wide; no brand-scoped MSA standard is created.
+r4  C-19. Resolved by r1–r3: the Constitution's Entity → Brand → Product/Service chain is met by
+    one entity-wide MSA plus brand-scoped website policies. The AM-322 annotation's open question
+    (schema for brand-specific sections) is answered: the brand-specific text is the policies.
+r5  NOT CHANGED. AM-287's per-contract issuing_entity/brand fields and NDA per brand stay as they
+    are. No legal text is written here (rules 7/21); a precedence sentence between the MSA, its
+    order form and agreed amendments is still owed by Legal. Code that offers no MSA for CloudPe
+    (the New contract screen) follows this record in a later change; nothing is built here.
+```

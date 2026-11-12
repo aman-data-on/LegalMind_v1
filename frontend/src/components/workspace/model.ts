@@ -644,7 +644,9 @@ export function navItemsFor(can: (permission: string) => boolean): NavItem[] {
    * and reached from the To-do tabs, which light this item.
    */
   if (can(P.CONTRACT_VIEW) || can(P.REVIEW_VIEW)) {
-    items.push({ href: "/todo", label: "To-do", also: ["/dashboard/reviews", "/dashboard/legal"] });
+    // the Legal queue lights To-do only for whoever may open it; anyone else is on a no-access page
+    items.push({ href: "/todo", label: "To-do",
+                 also: ["/dashboard/reviews", ...(can(P.LEGAL_REVIEW) ? ["/dashboard/legal"] : [])] });
   }
   /*
    * Reviews is a QUEUE, and a queue is only a destination for someone who works

@@ -1709,6 +1709,13 @@ def _final_plan(guard: Guard, contract: M.Contract, storage: StorageBackend) -> 
         return out
 
     def ready(source: M.DocumentVersion) -> dict:
+        # fail closed: nothing final while a Legal point on the agreed text is undecided
+        if (gate := negotiation.review_open_points(db, source)) is not None:
+            n = len(gate["open_points"])
+            return stop(gate["reason"], "Its review has not finished yet."
+                        if gate["reason"] == "ANALYSIS_NOT_FINISHED" else
+                        f"{n} point{'s still need' if n != 1 else ' still needs'} "
+                        "Legal's decision.")
         if (draft := _generated(db, source)) is not None:
             try:
                 gap = _unsigned(_basis(db, draft)["base"])

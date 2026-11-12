@@ -10,6 +10,14 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-11-12 — C-19 resolved: one MSA for every brand (AB-183: AM-341)
+
+Owner ruling (2026-11-11, recorded on the owner's "yes" 2026-11-12): one MSA of LeapSwitch Networks Pvt Ltd covers every brand; only the services in MSA cl. 5 vary; the brand split is the website policies only. Supersedes `AM-287`'s "MSA LeapSwitch-only". Records only — the New contract screen still offers no CloudPe MSA and follows in a later change.
+
+### 2026-11-12 — Integration fixes (integration/clm-ux-20261112)
+
+The final contract is never prepared while its review is unfinished or a point awaits Legal (dry run lists them; 409 names "the final contract"). A contract's stored name is shown as typed; only the generated name is title-cased, once, at creation. The Legal queue's no-access page keeps its header, and To-do no longer lights for it. Sales' "Keep our wording" line now says Legal decides only if they accept the client's wording.
+
 ### 2026-11-09 — Fourteen Constitution positions become standards: §12, §15, §31.14 (AB-174: AM-322) — branch `feat/constitution-standards-20261109`, NOT committed
 
 - New ratified standards (78 → 92 active, 99 files): data residency (MSA, Vendor), breach-notification timeline (MSA, TOS), sub-processors (MSA, TOS), trade-secret survival on an MSA, assignment per family (MSA, Vendor, Partner, Distribution), the Partner change-of-control termination right, and 30-day change-of-control notice for Vendor and Distribution. Twelve generated from L1.15 by `tools/generate_section31_standards.py` (new `POSITIONS`); the two numeric ones hand-written. Catalogue: `CLAUSE_CATALOGUE.md` § "§12, §15 and §31.14 positions".

@@ -9,7 +9,6 @@ import { describe, expect, it } from "vitest";
 import { ReplyNotice, rowLabel } from "@/components/workspace/ChangesPane";
 import { versionRoleLabel } from "@/components/workspace/model";
 import { readingLayout, readingPieces } from "@/components/workspace/reading";
-import { contractDisplayName } from "@/lib/labels";
 import type { ClientChange } from "@/lib/changes";
 import type { DocumentVersion } from "@/lib/types";
 
@@ -164,14 +163,5 @@ describe("a generated contract (house styles)", () => {
     const { pieces } = readingPieces(content, { lead: 0, marks: false, emphasis: [[0, 5, "u"]] });
     expect(pieces.map((p) => p.text).join("")).toBe(content);
     expect(pieces[0]).toMatchObject({ text: "Term:", underline: true });
-  });
-});
-
-describe("contractDisplayName", () => {
-  it("title-cases an all-capitals part and leaves the rest as written", () => {
-    expect(contractDisplayName("MASTER SERVICES AGREEMENT — Demo Client Private Limited"))
-      .toBe("Master Services Agreement — Demo Client Private Limited");
-    expect(contractDisplayName("NDA — ACME")).toBe("NDA — ACME");
-    expect(contractDisplayName("TERMS OF SERVICE")).toBe("Terms of Service");
   });
 });

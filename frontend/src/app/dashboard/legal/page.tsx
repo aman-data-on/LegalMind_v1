@@ -144,7 +144,13 @@ export default function LegalQueuePage() {
   }, [load]);
 
   if (!can(P.LEGAL_REVIEW)) {
-    return <AccessRestricted what="the Legal queue" />;
+    return (
+      // one restricted state everywhere (GP-23): the page keeps its h1
+      <div className="lm-page">
+        <PageHeader title="Legal" />
+        <AccessRestricted what="the Legal queue" />
+      </div>
+    );
   }
 
   const rows = state.kind === "ready" ? state.rows : [];

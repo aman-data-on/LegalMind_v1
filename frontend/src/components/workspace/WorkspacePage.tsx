@@ -32,7 +32,7 @@ import { ApiError, api, describeError } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { Contract, Counterparty, DocumentVersion, ReviewAssignments } from "@/lib/types";
-import { ACTION, READER_OUTDATED, contractDisplayName, contractStatusLabel, type StageViewer } from "@/lib/labels";
+import { ACTION, READER_OUTDATED, contractStatusLabel, type StageViewer } from "@/lib/labels";
 import { canSendToLegalFor, nextStep, runStep, useStep, type StepKind } from "@/lib/nextStep";
 import { PageHeader } from "@/components/page/PageHeader";
 import { documentSourceChip, isOurs } from "@/lib/documentTypes";
@@ -741,7 +741,7 @@ function RecordHeader({
     );
   }
   return (
-    <PageHeader wide title={contractDisplayName(contract.name)} back={{ href: "/contracts", label: "Contracts" }}
+    <PageHeader wide title={contract.name} back={{ href: "/contracts", label: "Contracts" }}
       meta={<>
         {contract.negotiation_stage ? (
           <StageBadge stage={contract.negotiation_stage} counts={contract.counts} viewer={viewer} final={finalLatest}
@@ -900,7 +900,7 @@ function CompanyDocuments({
           <ul className="ws-companydocs">
             {contracts.map((c) => (
               <li key={c.id}>
-                <Link href={`/dashboard?id=${c.id}`} onClick={onClose}>{contractDisplayName(c.name)}</Link>
+                <Link href={`/dashboard?id=${c.id}`} onClick={onClose}>{c.name}</Link>
                 {c.contract_type ? (
                   <span className="ws-chip ws-chip--type">{c.contract_type}</span>
                 ) : null}

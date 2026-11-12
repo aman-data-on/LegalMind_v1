@@ -110,7 +110,8 @@ describe("navigation by absence AND by existence (52.3 + the 2026-08-30 cleanup)
     const items = navItemsFor((p) => user.has(p));
     expect(items).toEqual([
       { href: "/contracts", label: "Contracts" },
-      { href: "/todo", label: "To-do", also: ["/dashboard/reviews", "/dashboard/legal"] },
+      // no Legal queue for this user: To-do stays dark on /dashboard/legal
+      { href: "/todo", label: "To-do", also: ["/dashboard/reviews"] },
       { href: "/dashboard/clients", label: "Clients" },
       { href: "/dashboard/ask", label: "Ask" },
     ]);

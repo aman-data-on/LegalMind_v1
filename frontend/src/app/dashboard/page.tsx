@@ -16,7 +16,7 @@ import { createPortal } from "react-dom";
 
 import { api, describeError, type ContractScope } from "@/lib/api";
 import { DOCUMENT_SOURCES, DOCUMENT_TYPES } from "@/lib/documentTypes";
-import { ACTION, CONTRACT_STATUSES, contractDisplayName } from "@/lib/labels";
+import { ACTION, CONTRACT_STATUSES } from "@/lib/labels";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type {
@@ -415,7 +415,7 @@ function DocumentsListView() {
                   <tr key={contract.id} className={turn ? "ws-hometable__turn" : undefined}>
                     <td>
                       <Link href={contractHref(contract.id)} className="ws-hometable__name" title={contract.name}>
-                        {contractDisplayName(contract.name)}
+                        {contract.name}
                       </Link>
                       <span className="ws-hometable__facts">
                         {[...facts,

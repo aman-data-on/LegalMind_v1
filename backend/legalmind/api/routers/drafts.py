@@ -19,6 +19,7 @@ typed, and the engine's Finding routes that point to Legal (rule 18; zero tolera
 from __future__ import annotations
 
 import os
+import re
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
@@ -68,6 +69,21 @@ CLIENT_FIELDS = {"counterparty_name": ("legal_name", "name"),
 #: the form's groups by role, so every template asks the client first, ours last
 _ROLE_GROUPS = (("counterparty_", "Client"), ("our_", "Our company"))
 _QUESTION_KEYS = ("type", "class", "allowed", "range", "when", "locked_value")
+
+
+_SMALL_WORDS = frozenset({"a", "an", "and", "as", "at", "by", "for", "in", "of", "on",
+                          "or", "the", "to", "with"})
+
+
+def readable_title(title: str) -> str:
+    """A template's ALL-CAPITALS title ("MASTER SERVICES AGREEMENT") in title case for the
+    contract's generated name; a single word ("NDA") or mixed case stays as written. Only
+    the name we make — a name a person typed is stored and shown as typed."""
+    if len(title.split()) < 2 or title != title.upper() or not re.search("[A-Z]", title):
+        return title
+    return re.sub("[a-z][\\w\u2019']*",
+                  lambda m: m[0] if m.start() and m[0] in _SMALL_WORDS
+                  else m[0][0].upper() + m[0][1:], title.lower())
 
 
 class TemplateNotPublished(Conflict):
@@ -364,7 +380,7 @@ def create_from_draft(draft_id: UUID, body: DraftCreateContract,
     layout = tv.layout or {}
     title = layout.get("title") or tv.template_key
     # AM-316: two MSAs for one client are told apart by the template's name
-    named = (tv.source or {}).get("catalogue", {}).get("name") or title
+    named = readable_title((tv.source or {}).get("catalogue", {}).get("name") or title)
     counterparty = (guard.db.get(M.Counterparty, row.counterparty_id)
                     if row.counterparty_id else None)
     made = create_contract(ContractCreate(

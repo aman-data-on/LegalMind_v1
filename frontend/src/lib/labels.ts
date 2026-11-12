@@ -415,22 +415,6 @@ export function stageLine(code: string, c: DealCounts | undefined, viewer: Stage
   return stageWords(code, viewer);
 }
 
-const SMALL_WORDS = new Set(["a", "an", "and", "as", "at", "by", "for", "in", "of", "on",
-  "or", "the", "to", "with"]);
-
-/** A contract's name as a person reads it: a part typed ALL IN CAPITALS ("MASTER
- *  SERVICES AGREEMENT — Demo Client Private Limited", a generated contract's title) in
- *  title case. Display only — the stored name is never changed; a single capitalised
- *  word ("NDA", "SLA") and mixed-case parts stay as written. */
-export function contractDisplayName(name: string): string {
-  return name.split(/(\s+[—–-]\s+)/).map((part) => {
-    const words = part.trim().split(/\s+/);
-    if (words.length < 2 || part !== part.toUpperCase() || !/[A-Z]/.test(part)) return part;
-    return part.toLowerCase().replace(/[a-z][\w’']*/g, (w, at: number) =>
-      at > 0 && SMALL_WORDS.has(w) ? w : w[0]!.toUpperCase() + w.slice(1));
-  }).join("");
-}
-
 /** The shared states and components' own words (UX Batch 2; PLAIN-LANGUAGE.md §2.6, §5):
  *  an error says what failed and the fix, never an apology; a button is a verb. */
 export const FEEDBACK_COPY = {

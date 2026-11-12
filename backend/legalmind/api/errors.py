@@ -80,12 +80,13 @@ class ReplyUndecided(Conflict):
 
     def __init__(self, gate: dict[str, Any]) -> None:
         n = len(gate["open_points"])
+        what = "The final contract" if gate.get("final") else "This reply"
         super().__init__(
-            "This reply cannot leave LegalMind yet: its review has not finished."
+            f"{what} cannot leave LegalMind yet: its review has not finished."
             if gate["reason"] == "ANALYSIS_NOT_FINISHED" else
-            f"This reply cannot leave LegalMind yet: {n} point{'s' if n != 1 else ''} "
+            f"{what} cannot leave LegalMind yet: {n} point{'s' if n != 1 else ''} "
             "in its review still need a decision.")
-        self.extra = gate
+        self.extra = {k: v for k, v in gate.items() if k != "final"}
 
 
 def _json(status: int, body: dict[str, Any], request_id: str) -> JSONResponse:

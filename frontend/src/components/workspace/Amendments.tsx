@@ -18,7 +18,6 @@ import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 
 import { api, ApiError, describeError } from "@/lib/api";
-import { contractDisplayName } from "@/lib/labels";
 import { useStep } from "@/lib/nextStep";
 import type { Contract } from "@/lib/types";
 
@@ -27,7 +26,7 @@ export function GovernedByLink({ contract }: { contract: Pick<Contract, "governe
   if (!g) return null;
   return (
     <span>
-      Amends <Link href={`/contracts/${g.id}`}>{contractDisplayName(g.name)}</Link>
+      Amends <Link href={`/contracts/${g.id}`}>{g.name}</Link>
       {" "}(<Link href={`/contracts/${g.id}/terms`}>read its terms in force</Link>)
     </span>
   );
@@ -84,7 +83,7 @@ export function AmendmentsPanel({ contract, canStart }: {
           <ul className="lm-amend__list">
             {list.map((a) => (
               <li key={a.id}>
-                <Link href={`/contracts/${a.id}`}>{contractDisplayName(a.name)}</Link>
+                <Link href={`/contracts/${a.id}`}>{a.name}</Link>
                 <span>{a.signed ? "Final" : a.archived ? "Archived" : "Being prepared"}</span>
               </li>
             ))}
