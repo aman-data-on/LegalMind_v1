@@ -6898,7 +6898,8 @@ button.ws-open__go:hover { background: var(--ws-paper); }
   .ws-record .ws-record__head { padding: var(--ws-s2) var(--ws-s3); }
   .ws-record .ws-context__acts { flex: 1 0 100%; justify-content: flex-end; flex-wrap: nowrap; }
   /* icon-only on a phone; the words stay the accessible name */
-  .ws-record .ws-collab__toggle, .ws-record .ws-context__acts > .ws-btn:not(.ws-btn--primary) {
+  /* B3 p7: "Add colleague" keeps its word */
+  .ws-record .ws-context__acts > .ws-btn:not(.ws-btn--primary):not(.ws-collab__toggle) {
     font-size: 0; gap: 0; padding: 8px 12px;
   }
   .ws-record__bar { padding: 0 var(--ws-s3); }
@@ -6941,7 +6942,8 @@ button.ws-open__go:hover { background: var(--ws-paper); }
    and centred without a rule, "AND" and "WHEREAS" bold at their own indents, the
    clause headings bold, every other numbered level in the text weight; the words'
    own bold and underline come from the file (`emphasis`). Client paper is untouched. */
-.ws-row[data-house] .ws-row__text { text-align: justify; hyphens: auto; -webkit-hyphens: auto; }
+/* B3 p7: screen reading is ragged-right, no auto-hyphens (the DOCX/PDF keep their own setting) */
+.ws-row[data-house] .ws-row__text { text-align: start; hyphens: manual; -webkit-hyphens: manual; }
 /* a narrow column cannot justify without rivers of space: ragged-right there */
 @container (max-width: 620px) { .ws-row[data-house] .ws-row__text { text-align: start; } }
 .ws-row[data-house][data-kind="title"] .ws-row__text {

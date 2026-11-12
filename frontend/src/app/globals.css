@@ -612,7 +612,8 @@ textarea:focus-visible,
 .login__tri--b {
   bottom: -100px; right: -60px;
   border-left: 200px solid transparent; border-right: 200px solid transparent;
-  border-bottom: 240px solid oklch(0.32 0.09 60 / 0.55);
+  /* B3 p7: the navy family of the other shapes, not the Change-needed hue */
+  border-bottom: 240px solid oklch(0.30 0.06 258 / 0.55);
   animation: login-float-b 14s ease-in-out infinite;
 }
 .login__tri--c {
@@ -669,7 +670,7 @@ textarea:focus-visible,
   font-family: var(--font-display); font-weight: 600; color: var(--c-on-action);
   /* Sized so the one-line tagline spans the same width as the inputs below. */
   font-size: var(--t-page); margin: 0 0 48px; text-align: center;
-  white-space: nowrap;
+  white-space: nowrap; text-wrap: balance;
 }
 
 /* — form, dark-scoped — */

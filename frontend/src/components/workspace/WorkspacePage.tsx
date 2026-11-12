@@ -336,19 +336,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
                           onClick={() => setCompareOpen((open) => !open)}>
       {compareOpen ? "Hide version comparison" : "Compare versions"}</button>);
   }
-  if (phone && version && versions.length > 1) {
-    // the phone's version choice: one group in ⋯ instead of a select row above the document
-    overflow.unshift(<div key="vers" role="group" aria-label="Version" className="ws-menu__group">
-      {versions.map((v) => (
-        <button key={v.id} type="button" role="menuitemradio" aria-checked={v.id === version.id}
-                className="ws-menu__item" onClick={() => openVersion(v.id)}>
-          {versionOption(v.version_number,
-                         roleOf(v),
-                         v.id === latest?.id)}
-        </button>
-      ))}
-    </div>);
-  }
+  // B3 p7: the phone chooses a version in the header select, not in ⋯
   // N5: our own version downloads from ⋯ at any stage — said to be a draft while a point
   // is open; the server still gates a reply or final contract with an open point (AM-293)
   if (version && can(P.DOCUMENT_DOWNLOAD) && !version.reply && !version.package && !version.final_copy) {
@@ -420,7 +408,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
       <div className="ws-record">
       <RecordHeader contract={contract} latest={latest} version={version} view={view}
                     viewer={viewer} canAnswer={canAnswer} company={company} packageReady={!!pkg.plan?.available}
-                    versionMeta={version && !phone ? (versions.length > 1 ? (
+                    versionMeta={version && (!phone || versions.length > 1) ? (versions.length > 1 ? (
                       <select className="ws-version" aria-label="Version" value={version.id}
                               onChange={(event) => openVersion(event.target.value)}>
                         {versions.map((v) => (
