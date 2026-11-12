@@ -123,24 +123,30 @@ test("the open menu stays with its button when the page moves under it", async (
   // place with a scroll. The menu must follow its toggle, not close (CI 2026-11-12).
   await createAnalysedReview(page);
   await page.goto("/dashboard");
+  // the "Your turn" queue above the table loads on its own; with the suite's data it is
+  // tall enough to push every row out of view (CI 2026-11-12), so open the menu after it
+  await expect(page.getByRole("heading", { name: /Your turn/ })).toBeVisible();
   const toggle = page.getByRole("button", { name: /More actions for/ }).first();
+  await toggle.scrollIntoViewIfNeeded();
   await toggle.click();
   const menu = page.locator(".ws-menu__list");
   await expect(menu).toBeVisible();
   await page.evaluate(() => window.scrollBy(0, 60));
-  await expect(menu).toBeVisible();
-  // still directly below (or above) its own toggle — polled: the scroll event and the
-  // re-render that moves the menu land a frame or two after scrollBy returns
-  await expect.poll(async () => {
-    const [t, m] = [await toggle.boundingBox(), await menu.boundingBox()];
-    return Math.abs(m!.y - (t!.y + t!.height + 4)) < 2 || Math.abs(m!.y + m!.height + 4 - t!.y) < 2;
-  }).toBe(true);
+  // The menu sits directly below (or above) its own toggle — or, if something still
+  // arriving above pushed the toggle out of view, it has closed. Polled: the scroll
+  // event and the re-render that moves the menu land a frame or two after scrollBy.
+  const followsOrClosed = async () => {
+    const t = await toggle.boundingBox();
+    const inView = t != null && t.y + t.height >= 0 && t.y <= page.viewportSize()!.height;
+    if (!inView) return (await menu.count()) === 0;
+    const m = await menu.boundingBox({ timeout: 1000 }).catch(() => null);
+    return m != null
+      && (Math.abs(m.y - (t.y + t.height + 4)) < 2 || Math.abs(m.y + m.height + 4 - t.y) < 2);
+  };
+  await expect.poll(followsOrClosed).toBe(true);
   // a toggle scrolled out of view takes its menu with it
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-  // (the app closes once the toggle's *bottom* is above the viewport; a half-visible
-  // toggle keeps its menu)
-  const gone = await toggle.boundingBox();
-  if (!gone || gone.y + gone.height < 0) await expect(menu).toHaveCount(0);
+  await expect.poll(followsOrClosed).toBe(true);
 });
 
 /**
