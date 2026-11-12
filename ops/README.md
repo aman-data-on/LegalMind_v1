@@ -77,7 +77,7 @@ pass.
 
 ## Before deploying the CLM programme (PR #294) — LibreOffice on the worker
 
-Production has **no LibreOffice** (checked 2026-11-12: no `soffice` on the host, no
+**Done 2026-11-12:** LibreOffice 24.2.7.2 + Liberation/Carlito installed on the host, `LEGALMIND_SOFFICE=/usr/bin/soffice` in `/root/.legalmind.env` (backup `.bak-20261112`). Before that, production had **no LibreOffice** (checked 2026-11-12: no `soffice` on the host, no
 `LEGALMIND_SOFFICE` in `/root/.legalmind.env`). The final-contract, contract and reply PDFs
 need it on the **worker**:
 
