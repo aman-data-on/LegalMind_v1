@@ -7726,3 +7726,12 @@ a.ws-askglobal[data-away]:not(:focus-visible) {
 /* the audit row's Details toggle: a real target (WCAG 2.5.8), 44px on touch */
 .ws-auditshow { min-height: 24px; min-width: 44px; padding: 2px 0; text-align: left; }
 @media (pointer: coarse) { .ws-auditshow { min-height: 44px; } }
+
+/* B3 p3 — Ask: the rail's top row holds only its own control (no second header band); the
+   app-bar Ask icon is not drawn on Ask itself; the phone's "New chat" in an open chat's row. */
+.ws-chat__brand { border-bottom: 0; margin-bottom: 0; padding-bottom: 0; justify-content: flex-end; }
+.ws:has(.ws-chat) .ws-shell__ask { display: none; }
+.ws-chat__newphone { display: none; }
+@media (max-width: 860px) {
+  .ws a.ws-chat__newphone { display: inline-flex; width: 44px; height: 44px; }
+}

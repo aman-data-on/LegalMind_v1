@@ -838,7 +838,7 @@ export function AskWorkspace() {
               <IconPanel size={16} />
             </button>
           </div>
-          <Link className="ws-chat__new" href="/dashboard/ask" onClick={resetChat}>
+          <Link className="ws-chat__new" href="/dashboard/ask" onClick={resetChat} aria-label="New chat">
             <IconPlus size={15} /> New chat
           </Link>
           {/* Filters what is ALREADY loaded. `GET /conversations` allow-lists only
@@ -986,6 +986,11 @@ export function AskWorkspace() {
           if (canUpload && !busy) chooseFiles([...event.dataTransfer.files]);
         }}
       >
+        {/* B3 p3: one header — on an empty chat the app header and the welcome say where you
+            are, so this row is not drawn; with a chat open it names the chat and holds its menu */}
+        {!(activeChat || turns.length || scope.contractId || railHidden) ? (
+          <h1 className="ws-visually-hidden">Ask</h1>
+        ) : (
         <header className="ws-chat__head">
           {railHidden ? (
             <button type="button" className="ws-chat__iconbtn ws-chat__collapse"
@@ -1009,12 +1014,19 @@ export function AskWorkspace() {
             </p>
           ) : null}
           <span className="ws-chat__headspacer" />
+          {/* a phone: start over without opening the drawer */}
+          <Link className="ws-chat__iconbtn ws-chat__newphone" href="/dashboard/ask" onClick={resetChat}
+                aria-label="New chat" title="New chat">
+            <IconPlus size={16} />
+          </Link>
           {activeChat ? chatMenu(activeChat, "head") : null}
         </header>
+        )}
 
         <Thread
           empty={!loadingChat && !notFound && turns.length === 0 && shownPending === null}
-          welcome={{ title: "How can I help you today?" }}
+          welcome={{ title: scope.contractId ? "Ask about this contract"
+            : "Ask about a contract, a clause or our standards" }}
           suggestions={[...OPENERS, scope.contractId ? DOCUMENT_OPENER : KNOWLEDGE_OPENER]}
           onSuggestion={(opener) => {
             runtime.thread.composer.setText(opener);
@@ -1123,7 +1135,7 @@ export function AskWorkspace() {
             ...(canUpload ? { onPaste: pasteAsFile } : {}),
             placeholder: ready.length
               ? `Ask about ${ready.length === 1 ? "this file" : "these files"}, or press Send to summarise ${ready.length === 1 ? "it" : "them"}`
-              : "Ask about a contract, a clause or our positions",
+              : "Type your question",
             above: <ChatMaterial conversationId={activeId ?? savedTo} refresh={materialTick}
                                  onCount={setSavedCount} />,
             // Cards are fixed while they are sent: a file removed mid-send would still be saved.
