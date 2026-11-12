@@ -19,7 +19,7 @@ Template (the shape `tools/import_template.py` loads and `template_versions` sto
                 "recitals": [text],
                 "connector"?, "parties_close"?, "recitals_label"?, "operative"?,
                 "execution": {"rows": [{party, signatory, designation, authority?, email?,
-                                 date?}], "seal", "witness", "lead"?}},
+                                 date?}], "seal", "witness", "lead"?, "last"?}},
 
 The ``?`` front-matter texts are optional and enter the model only when the template has
 them (so a template without them keeps its model hash): ``connector`` between the
@@ -27,7 +27,8 @@ parties ("AND"), ``parties_close`` after them, ``recitals_label`` over the recit
 ("WHEREAS"), ``operative`` after them ("NOW THEREFORE, …"), a party's ``incorporation``
 after its bold name in the same paragraph (it states the party's role itself, so the
 ``(“Role”)`` is not added), execution ``lead`` above the signature table ("IN WITNESS
-WHEREOF …").
+WHEREOF …"), execution ``last`` (S2): the signature page after every schedule and
+annexure, on a page of its own — the file's last page.
      "variables": [{key, type, group, class: M|O|C|AO, when, allowed, range,
                     locked_value, help}],
      "clauses": [{clause_key, version, when?}],
@@ -56,7 +57,9 @@ MAX_LEVEL = 5
 #: the optional front-matter texts (see the layout above)
 FRONT = ("connector", "parties_close", "recitals_label", "operative")
 CLASSES = {"M", "O", "C", "AO"}
-TYPES = {"text", "date", "int", "bool", "choice"}
+TYPES = {"text", "date", "int", "bool", "choice", "email"}
+#: an email address as a signing tool needs one (S2): local part, @, a dotted domain
+EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 #: ``{name}`` · ``{xref:CLAUSE.KEY}`` · ``{term:Defined Term}``
 SLOT = re.compile(r"\{(?:(xref|term):)?([A-Za-z_][\w .\-]*)\}")
 _TEXT_MAX = 500
@@ -121,6 +124,9 @@ ROLE_TEXT: dict[str, tuple[str, str | None]] = {
     "our_signatory_name": ("Who signs for us", "The person authorised to sign for us."),
     "our_signatory_designation": ("Their designation", "For example, Director."),
     "our_authority": ("Their authority to sign", None),
+    "our_signatory_email": ("Their email", "Where the signing tool sends the contract."),
+    "counterparty_signatory_email": ("Their email",
+                                     "Where the signing tool sends the contract."),
 }
 
 
@@ -187,6 +193,8 @@ def _coerce(var: Mapping[str, Any], raw: Any) -> Any:
         raise ValueError(f"is longer than {_TEXT_MAX} characters")
     if "{" in text or "}" in text:
         raise ValueError("may not contain { or }")
+    if kind == "email" and not EMAIL.fullmatch(text):
+        raise ValueError("must be an email address, for example name@company.com")
     return text
 
 
@@ -353,6 +361,8 @@ PLACEHOLDER_TEXT = {
     "our_signatory_name": "Our signatory's name",
     "our_signatory_designation": "Our signatory's designation",
     "our_authority": "Our signatory's authority to sign",
+    "our_signatory_email": "Our signatory's email",
+    "counterparty_signatory_email": "Client signatory's email",
 }
 
 
@@ -506,7 +516,8 @@ def resolve(template: Mapping[str, Any],
         "execution": {"rows": rows, "seal": bool(execution.get("seal")),
                       "witness": bool(execution.get("witness")),
                       **({"lead": r.runs(execution["lead"], "execution")}
-                         if execution.get("lead") else {})},
+                         if execution.get("lead") else {}),
+                      **({"last": True} if execution.get("last") else {})},
         "logo": ({"sha256": logo["sha256"], "alt": logo.get("alt", "")}
                  if logo else None),
         "images": {n: assets[n]["sha256"] for n in images},

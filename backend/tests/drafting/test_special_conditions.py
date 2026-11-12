@@ -938,3 +938,32 @@ def test_a_template_without_annexure_a_offers_only_the_tracked_changes_reply(
     rows = api.get(f"{V1}/contracts/{contract.id}/changes").json()["data"]["changes"]
     assert rows and not any("in_package" in c for c in rows)    # no "final contract" line
     api.app.dependency_overrides.pop(get_storage, None)
+
+
+@pytest.fixture
+def without_email(placeholder):
+    """The placeholder as every template before S2: no signatory email field. Listed
+    before ``negotiated`` so the template is published without it."""
+    template = placeholder[0]
+    for row in template["layout"]["execution"]["rows"]:
+        row.pop("email")
+    template["variables"] = [v for v in template["variables"]
+                             if not v["key"].endswith("_email")]
+    for key in ("party_one_email", "party_two_email"):
+        template["layout"]["check_values"].pop(key)
+    return placeholder
+
+
+def test_the_package_needs_a_signatory_email_field(db, api, without_email, negotiated):
+    """S2 (`FINAL-PACKAGE-SPEC` c2), the Annexure route: a contract from a template with
+    no signatory email field is blocked in the dry run and on Prepare (409), and the
+    message says who must act — starting again cannot add a field (verifier, S2)."""
+    contract = negotiated[0]
+    dry = api.get(f"{V1}/contracts/{contract.id}/package").json()["data"]
+    assert not dry["available"]
+    assert {"code": "SIGNATORY_EMAIL", "message": "This template has no signatory email "
+            "field yet; Legal/ops must publish a version with one before Final."} in \
+        dry["blockers"]
+    made = api.post(f"{V1}/contracts/{contract.id}/package",
+                    json={"expected_entries_sha256": dry.get("entries_sha256") or "0" * 64})
+    assert made.status_code == 409

@@ -53,7 +53,8 @@ def test_sections_content_controls_and_furniture(rendered):
     model, digest, data = rendered
     d = docx.Document(io.BytesIO(data))
     assert len(d.sections) == 3                                   # main + two schedules
-    assert all(s._sectPr.find(f"{W}pgNumType") is not None for s in d.sections[1:])
+    # page numbers never restart: one "Page X of Y" run (`FINAL-PACKAGE-SPEC` S1)
+    assert all(s._sectPr.find(f"{W}pgNumType") is None for s in d.sections)
     tags = [t.get(f"{W}val") for t in d.element.body.iter(f"{W}tag")]
     assert "lm:CLAUSE_A@1" in tags and "lm:execution" in tags and "lm:parties" in tags
     ids = [i.get(f"{W}val") for i in d.element.body.iter(f"{W}id")]
@@ -62,8 +63,33 @@ def test_sections_content_controls_and_furniture(rendered):
     assert d.element.body.find(f".//{W}sdtPr/{W}lock").get(f"{W}val") == "sdtContentLocked"
     footer = d.sections[1].footer._element.xml
     assert f"LM-TEST-v1-{digest[:8]}" in footer and 'w:instr=" PAGE "' in footer
+    assert 'w:instr=" NUMPAGES "' in footer and ">Page <" in footer and "> of <" in footer
+    assert '<w:lang w:val="en-IN"' in _part(data, "word/styles.xml")
     core = _part(data, "docProps/core.xml")
     assert "LegalMind" in core and "2001-01-01" in core
+
+
+def test_the_signature_page_comes_last_on_a_page_of_its_own(placeholder, answers):
+    """S2 (`FINAL-PACKAGE-SPEC` a): with the template's ``execution.last`` the signature
+    table follows every schedule, alone in a last section (a new page, page numbers
+    running on); without it the model has no such key and the order is as before."""
+    template, clauses = placeholder
+    assert "last" not in build(template, clauses, answers)[0]["execution"]
+    template["layout"]["execution"]["last"] = True
+    model, _, data = build(template, clauses, answers)
+    assert model["execution"]["last"] is True
+    d = docx.Document(io.BytesIO(data))
+    assert len(d.sections) == 2 + len(model["schedules"])     # body, schedules, signatures
+    assert all(s._sectPr.find(f"{W}pgNumType") is None for s in d.sections)
+    top = list(d.element.body)
+    breaks = [i for i, el in enumerate(top) if el.find(f"{W}pPr/{W}sectPr") is not None]
+    signing = [i for i, el in enumerate(top) if el.tag == f"{W}sdt"
+               and el.find(f"{W}sdtPr/{W}tag").get(f"{W}val") == "lm:execution"]
+    assert signing == [len(top) - 2] and signing[0] > breaks[-1]   # then the body sectPr
+    texts = ["".join(t.text or "" for t in p.iter(f"{W}t"))
+             for p in d.element.body.iter(f"{W}p")]
+    titles = [texts.index(s["title"]) for s in model["schedules"]]
+    assert titles == sorted(titles) and max(titles) < texts.index("Execution")
 
 
 def test_logo_table_and_image_are_embedded_with_alt_text(rendered):

@@ -128,7 +128,7 @@ export function QuestionField({ q, value, problem, profile, onChange }: {
   } else if (/office|address/.test(q.role ?? q.key)) {
     input = <textarea {...common} rows={2} value={String(value ?? "")} onChange={(e) => onChange(q.key, e.target.value)} />;
   } else {
-    input = <input {...common} type={/email/.test(q.role ?? "") ? "email" : "text"} value={String(value ?? "")}
+    input = <input {...common} type={q.type === "email" || /email/.test(q.role ?? "") ? "email" : "text"} value={String(value ?? "")}
                    onChange={(e) => onChange(q.key, e.target.value)} />;
   }
   const range = q.type === "int" ? rangeWords(q) : null;

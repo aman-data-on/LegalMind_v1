@@ -9,10 +9,12 @@ Word-native, so the file behaves in Word as the lawyer expects (ECMA-376 / MS-OI
 * **Cross-references** — the target paragraph is bookmarked and the reference is a
   ``REF _LM_<key> \\w \\h`` field whose cached result is the number we computed, so the
   file reads right before Word ever updates a field. No ``w:updateFields`` is set.
-* **Sections** — each schedule is its own ``w:sectPr``: a new page, page numbers
-  restarting at 1, its own header and footer. Footers read the document ID, small at
-  the left (a signed copy traces back to its record), and the page number at the right,
-  as the approved format sets it.
+* **Sections** — each schedule is its own ``w:sectPr``: a new page, its own header and
+  footer, page numbers running on (one "Page X of Y" run for the whole file). Footers
+  read the document ID, small at the left (a signed copy traces back to its record), and
+  ``Page {PAGE} of {NUMPAGES}`` at the right (``house.json`` ``footer.page_format``).
+  With the template's ``execution.last`` (S2) the signature page is a section of its
+  own after every schedule and annexure: the file's last page.
 * **Content controls** — each clause sits in a ``w:sdt`` (unique ``w:id``, ``w:tag``
   ``lm:<key>@<version>``, ``w:lock sdtContentLocked``). The lock is ADVISORY: Word
   honours it, any editor can remove it. The real protection is server-side — a contract
@@ -49,9 +51,9 @@ from docx.oxml.ns import nsdecls, qn
 from docx.shared import Cm, Mm, Pt, RGBColor, Twips
 
 from legalmind.api.export_render import _field
-from legalmind.drafting.model import text_of
+from legalmind.drafting.model import EMAIL, text_of
 
-RENDERER_VERSION = "lm-render-contract-2"
+RENDERER_VERSION = "lm-render-contract-3"
 HOUSE_PATH = (Path(__file__).resolve().parents[2] / "config" / "templates" / "house"
               / "house.json")
 #: numbering ids: the clause list, the recitals, and the first restart instance
@@ -252,6 +254,8 @@ def house_shell() -> Any:
         _spacing(fmt, [0, 0])
     footer = doc.styles["Footer"].font
     footer.name, footer.size = h["footer"]["font"], Pt(h["footer"]["size_pt"])
+    for lang in doc.styles.element.iterfind(f"{qn('w:docDefaults')}//{qn('w:lang')}"):
+        lang.set(qn("w:val"), h["language"])         # the PDF's /Lang
     settings = doc.settings.element
     for el in [*settings.findall(qn("w:updateFields")),
                *settings.findall(qn("w:trackRevisions"))]:
@@ -473,7 +477,11 @@ class _Builder:
             foot = footer.paragraphs[0]
             foot.add_run(doc_identifier).font.size = Pt(h["footer"]["id_size_pt"])
             foot.add_run("\t\t")
-            _field(foot, " PAGE ")
+            for part in re.split(r"(\{\w+\})", h["footer"]["page_format"]):
+                if part.startswith("{"):
+                    _field(foot, f" {part[1:-1]} ")
+                elif part:
+                    foot.add_run(part)
         if logo:
             first = section.first_page_header
             mark = first.paragraphs[0]
@@ -482,9 +490,6 @@ class _Builder:
             mark.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.RIGHT
             self.picture(mark, f"logo:{self.model['brand']}", h["logo_width_cm"],
                          logo["alt"])
-
-    def new_section(self) -> Any:
-        return restart_pages(self.doc.add_section(WD_SECTION.NEW_PAGE))
 
 
 def render(model: Mapping[str, Any], assets: Mapping[str, Any], *, contract_ref: str,
@@ -551,22 +556,71 @@ def render(model: Mapping[str, Any], assets: Mapping[str, Any], *, contract_ref:
     b.anchors = {n: k for k, n in (special or {}).get("anchors", {}).items()}
     clauses(model["body"], 1, main=True)
     b.anchors = {}
-    if special and special["position"] == "before_execution":
-        _special_conditions(b, special, model, identifier)
-    _execution(b, model["execution"])
-    if special and special["position"] != "before_execution":
-        _special_conditions(b, special, model, identifier)
-    for schedule in model["schedules"]:
-        section = b.new_section()
-        b.furniture(section, f"{model['short_title']} — {schedule['title']}", identifier)
-        b.para("LM Schedule Title", [{"t": schedule["title"]}])
-        if schedule.get("note"):
-            b.para("LM Body 1", [{"t": schedule["note"], "ph": True}])
-        clauses(schedule["clauses"], b.restart(_CLAUSES))
+
+    def schedules() -> None:
+        for schedule in model["schedules"]:
+            section = b.doc.add_section(WD_SECTION.NEW_PAGE)    # page numbers run on
+            b.furniture(section, f"{model['short_title']} — {schedule['title']}",
+                        identifier)
+            b.para("LM Schedule Title", [{"t": schedule["title"]}])
+            if schedule.get("note"):
+                b.para("LM Body 1", [{"t": schedule["note"], "ph": True}])
+            clauses(schedule["clauses"], b.restart(_CLAUSES))
+    if model["execution"].get("last"):     # S2: MSA → schedules → annexure → signatures
+        schedules()
+        if special:
+            _special_conditions(b, special, model, identifier)
+        if model["execution"]["rows"]:     # never an empty last page
+            b.furniture(b.doc.add_section(WD_SECTION.NEW_PAGE), model["short_title"],
+                        identifier)
+            _execution(b, model["execution"])
+    else:
+        if special and special["position"] == "before_execution":
+            _special_conditions(b, special, model, identifier)
+        _execution(b, model["execution"])
+        if special and special["position"] != "before_execution":
+            _special_conditions(b, special, model, identifier)
+        schedules()
     _unique_drawing_ids(b.doc)
     _replace_numbering(b.doc, _numbering_xml(b.restarts))
     _neutral_core(b.doc, model["title"])
     return deterministic_zip(_save(b.doc))
+
+
+#: the signature table's row label → the execution row's field that fills it
+SIGNATURE_VALUE = {"By": "party", "Name": "signatory", "Designation": "designation",
+                   "Authority": "authority", "Signatory Email": "email",
+                   "Date of sign": "date"}
+#: the cells left empty on purpose (`FINAL-PACKAGE-SPEC` b, c2): the signer or the
+#: signing tool fills Sign and Date of sign, a hand the seal and the witness; Authority
+#: is "if any"
+SIGNED_LATER = {"Sign", "Date of sign", "Common seal", "Witness", "Authority"}
+
+
+def _signature_rows(execution: Mapping[str, Any]) -> list[tuple[str, int]]:
+    """The house's signature rows this table shows, with their heights."""
+    shows = {"Authority": any(r.get("authority") for r in execution["rows"]),
+             "Common seal": execution["seal"], "Witness": execution["witness"]}
+    return [(label, height) for label, height in house()["table"]["signature_rows"]
+            if shows.get(label, True)]
+
+
+#: a signature-table cell's value must read as this, or it is not filled ("TBD")
+SIGNATURE_FORMAT = {"Signatory Email": EMAIL}
+
+
+def unfilled(execution: Mapping[str, Any]) -> list[tuple[str, str]]:
+    """``(row label, party)`` for each signature-table cell left empty — or not in its
+    format (`SIGNATURE_FORMAT`) — that is not `SIGNED_LATER`: in practice the
+    signatory's email, which a signing tool routes by (`FINAL-PACKAGE-SPEC` c2:
+    required before Final)."""
+    def filled(label: str, value: str) -> bool:
+        form = SIGNATURE_FORMAT.get(label)
+        return bool(value) and (form is None or bool(form.fullmatch(value)))
+    return [(label, text_of(r.get("party")) or "a party")
+            for label, _ in _signature_rows(execution) if label not in SIGNED_LATER
+            for r in execution["rows"]
+            if not filled(label, text_of(r.get(SIGNATURE_VALUE.get(label, ""))).strip())]
 
 
 def _execution(b: _Builder, execution: Mapping[str, Any]) -> None:
@@ -582,17 +636,13 @@ def _execution(b: _Builder, execution: Mapping[str, Any]) -> None:
         p.paragraph_format.space_before = Pt(house()["front_gap_pt"])
     else:
         b.para("LM Plain Heading", [{"t": "Execution"}], keep_next=True)
-    shows = {"Authority": any(r.get("authority") for r in parties),
-             "Common seal": execution["seal"], "Witness": execution["witness"]}
-    value = {"By": "party", "Name": "signatory", "Designation": "designation",
-             "Authority": "authority", "Signatory Email": "email", "Date of sign": "date"}
-    lines = [(label, height) for label, height in t["signature_rows"]
-             if shows.get(label, True)]
+    lines = _signature_rows(execution)
     rows = [[[{"t": "Signatory Details"}], *[[] for _ in range(2 * len(parties) - 1)]]]
     for label, _ in lines:
         rows.append([cell for r in parties for cell in (
             [{"t": label}],
-            [{**x, "b": label == "By"} for x in r.get(value.get(label, "")) or []])])
+            [{**x, "b": label == "By"} for x in r.get(SIGNATURE_VALUE.get(label, ""))
+             or []])])
     pair = text_width_twips() // len(parties)
     widths = ([w for p in t["pair_twips"] for w in p] if len(parties) == 2 else
               [t["label_twips"], pair - t["label_twips"]] * len(parties))
@@ -654,20 +704,6 @@ def _signature_lines(b: _Builder, parties: list[dict]) -> None:
     table = b.table(rows, widths, keep_together=True, header=False)
     for tr, (_, height) in zip(table.rows, t["annexure_signature_rows"], strict=True):
         tr.height = Twips(height)
-
-
-def restart_pages(section: Any) -> Any:
-    """Page numbers restart at 1 in this section (``w:pgNumType`` in schema order,
-    before ``w:cols``)."""
-    sect = section._sectPr
-    if sect.find(qn("w:pgNumType")) is None:
-        el = OxmlElement("w:pgNumType", {qn("w:start"): "1"})
-        cols = sect.find(qn("w:cols"))
-        if cols is not None:
-            cols.addprevious(el)
-        else:
-            sect.append(el)
-    return section
 
 
 def _unique_drawing_ids(doc: Any) -> None:
@@ -745,7 +781,7 @@ def append_annexure(main: bytes, annexure: bytes, title: str) -> bytes:
     if refused:
         raise RenderError("annexure needs docxcompose to be appended: it carries "
                           + "; ".join(refused))
-    section = restart_pages(doc.add_section(WD_SECTION.NEW_PAGE))
+    section = doc.add_section(WD_SECTION.NEW_PAGE)        # page numbers run on
     section.header.is_linked_to_previous = False
     section.header.paragraphs[0].text = title
     doc.add_paragraph(title, style="LM Schedule Title")

@@ -1293,6 +1293,8 @@ def _package_plan(guard: Guard, contract: M.Contract, form: str = CHANGES_ONLY) 
         return stop("ROUND_CLOSED", "Our answer to this version is already prepared.")
     if (gap := blanks(db, before)) is not None:
         stop("BLANKS", gap)              # verifier item 4: never a final with a blank
+    if (gap := _unsigned(base)) is not None:
+        stop("SIGNATORY_EMAIL", gap)
     listed, _, _ = _changes(guard, contract, before.version_number, after.version_number)
     if listed.get("special_conditions_not_applied"):
         return stop("SPECIAL_CONDITIONS_NOT_APPLIED", "The Special Conditions of one "
@@ -1667,18 +1669,63 @@ def blanks(db, version: M.DocumentVersion) -> str | None:
             + ". Fill them in the contract first.")
 
 
-def _final_plan(guard: Guard, contract: M.Contract) -> dict:
+def _unsigned(base: dict) -> str | None:
+    """What the signature page of a contract WE generated still lacks — a signatory's
+    email, present and in an email's form (`FINAL-PACKAGE-SPEC` c2: signing tools route
+    by email; Sign and Date of sign stay empty on purpose, `render_contract.SIGNED_LATER`)
+    — in plain words, or None. A template with no email field cannot be answered by
+    starting again, so it says who must act."""
+    if any("email" not in r for r in base["execution"]["rows"]):
+        return ("This template has no signatory email field yet; Legal/ops must publish "
+                "a version with one before Final.")
+    missing = render_contract.unfilled(base["execution"])
+    if not missing:
+        return None
+    said = "; ".join(f"no {label.lower()} for {party}" for label, party in missing)
+    return (f"The signature page has {said}. Signing tools send the contract by email — "
+            "start the contract again with the signatory's email.")
+
+
+#: why a version that could not be read cannot be the final contract (QA-037's reasons)
+_UNREADABLE = {"PASSWORD_PROTECTED": "Version {n} is a password-protected PDF, so it "
+               "cannot be the final contract. Ask the client for a copy without a "
+               "password, or upload the Word file."}
+
+
+def _final_plan(guard: Guard, contract: M.Contract, storage: StorageBackend) -> dict:
     """The dry run of the final copy (`AM-318`, owner 2026-11-06: the deal cycle ends at
     the final clean copy). Its source is the agreed text: our latest version as the
     client accepted it, or the client's latest version when every change is accepted —
     any other answer goes back to the client as our reply first (REPLY_FIRST). Then every
-    tracked change accepted and every comment removed (`drafting.clean`). Nothing
+    tracked change accepted and every comment removed (`drafting.clean`). A client's
+    own PDF is the final copy as it came, so it must carry nothing a signing tool
+    refuses or a signer cannot see (`preflight.CLIENT_PDF`, S1 M2). Nothing
     written."""
     db = guard.db
     out: dict = {"available": False, "blockers": [], "mode": None, "agreed": []}
 
     def stop(code: str, message: str) -> dict:
         out["blockers"].append({"code": code, "message": message})
+        return out
+
+    def ready(source: M.DocumentVersion) -> dict:
+        if (draft := _generated(db, source)) is not None:
+            try:
+                gap = _unsigned(_basis(db, draft)["base"])
+            except model_.ModelError:
+                gap = ("The signature page could not be rebuilt from the template; a "
+                       "person must look at it.")
+            if gap is not None:
+                return stop("SIGNATORY_EMAIL", gap)
+        if source.mime_type == PDF_MIME:
+            found = {p.code for p in preflight.pdf_file(storage.get(source.storage_key))}
+            for code in sorted(found & preflight.CLIENT_PDF.keys()):
+                stop("CLIENT_PDF", f"The client's PDF {preflight.CLIENT_PDF[code]}; ask "
+                     "for a clean PDF or upload the Word file.")
+            if out["blockers"]:
+                return out
+        out.update(mode="copy", available=True)
+        out["_source"] = source
         return out
 
     versions = list(db.execute(
@@ -1690,6 +1737,11 @@ def _final_plan(guard: Guard, contract: M.Contract) -> dict:
     n = latest.version_number
     if negotiation.final_of(latest.doc_metadata):
         return stop("ALREADY_FINAL", f"Version {n} is already the final contract.")
+    if latest.processing_status is ProcessingStatus.FAILED:     # never "still being read"
+        why = (latest.doc_metadata or {}).get("unreadable", "")
+        return stop("UNREADABLE", _UNREADABLE.get(
+            why, "Version {n} could not be read, so it cannot be the final contract. "
+            "Upload a readable copy or the Word file.").format(n=n))
     if latest.processing_status is not ProcessingStatus.COMPLETED:
         return stop("NOT_READ", f"Version {n} is still being read.")
     out["of_version"] = n
@@ -1716,9 +1768,7 @@ def _final_plan(guard: Guard, contract: M.Contract) -> dict:
                                  for c in round_["changes"] if c.get("answer")]
             except (BusinessRuleRejected, negotiation.VersionRoleUndeclared):
                 pass                       # the list is a courtesy; the copy stands
-        out.update(mode="copy", available=True)
-        out["_source"] = latest
-        return out
+        return ready(latest)
     package = _package_plan(guard, contract)
     if not {b["code"] for b in package["blockers"]} & _FINAL_COPY_ROUTES:
         return stop("USE_PACKAGE", "This contract's final copy is made with Annexure A — "
@@ -1742,18 +1792,17 @@ def _final_plan(guard: Guard, contract: M.Contract) -> dict:
         return stop("BLANKS", gap)
     out["agreed"] = [{"where": _where(c), "answer": c["answer"]["answer"]}
                      for c in changes]
-    out.update(mode="copy", available=True)
-    out["_source"] = latest
-    return out
+    return ready(latest)
 
 
 @router.get("/contracts/{contract_id}/final-copy")
-def final_copy_preview(contract_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
+def final_copy_preview(contract_id: UUID, guard: Guard = Depends(get_guard),
+                       storage: StorageBackend = Depends(get_storage)) -> dict:
     """The dry run of "Prepare final contract" where no Annexure package applies
     (`AM-318`): ``available``, ``blockers[{code, message}]``, ``mode`` (copy),
     ``of_version`` and what was ``agreed`` (each change's place and answer)."""
     contract = guard.contract_readable(contract_id, P.DOCUMENT_VIEW)
-    return data(_public_plan(_final_plan(guard, contract)))
+    return data(_public_plan(_final_plan(guard, contract, storage)))
 
 
 @router.post("/contracts/{contract_id}/final-copy", status_code=201)
@@ -1766,7 +1815,7 @@ def prepare_final_copy(contract_id: UUID, guard: Guard = Depends(get_guard),
     it; Sign as is makes the deal Final. 409 FINAL_COPY_NOT_READY with ``blockers``."""
     contract = guard.contract_negotiable(contract_id, P.CONTRACT_UPDATE)
     _lock(guard, contract)
-    plan = _final_plan(guard, contract)
+    plan = _final_plan(guard, contract, storage)
     if plan["blockers"]:
         raise FinalCopyNotReady("The final contract cannot be prepared yet.",
                                 plan["blockers"])

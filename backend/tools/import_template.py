@@ -437,19 +437,23 @@ def _variables(parties: list[dict[str, Any]]) -> list[dict[str, Any]]:
             var("our_cin", "Our company", "O", locked=ours.get("cin")),
             var("our_signatory_name", "Our company"),
             var("our_signatory_designation", "Our company"),
+            var("our_signatory_email", "Our company", kind="email"),
             var("counterparty_name", "Client"),
             var("counterparty_registered_office", "Client"),
             var("counterparty_cin", "Client", "O"),
             var("counterparty_signatory_name", "Client"),
-            var("counterparty_signatory_designation", "Client")]
+            var("counterparty_signatory_designation", "Client"),
+            var("counterparty_signatory_email", "Client", kind="email")]
 
 
 CHECK_VALUES = {"effective_date": "2026-01-01", "our_signatory_name": "Check Signatory One",
                 "our_signatory_designation": "Director",
+                "our_signatory_email": "check.signatory.one@example.test",
                 "counterparty_name": "Check Client Private Limited",
                 "counterparty_registered_office": "Check Address, Pune 411001",
                 "counterparty_signatory_name": "Check Signatory Two",
-                "counterparty_signatory_designation": "Director"}
+                "counterparty_signatory_designation": "Director",
+                "counterparty_signatory_email": "check.signatory.two@example.test"}
 
 
 def _scrubber(parties: list[dict[str, Any]], signers: list[str]
@@ -611,7 +615,8 @@ def from_segments(segments: list[Any], *, source: dict[str, Any], template_key: 
                      "cin": f"{{{s}_cin}}"} for s in sides],
         "execution": {"rows": [{"party": f"{{{s}_name}}", "signatory":
                                 f"{{{s}_signatory_name}}", "designation":
-                                f"{{{s}_signatory_designation}}"} for s in sides],
+                                f"{{{s}_signatory_designation}}", "email":
+                                f"{{{s}_signatory_email}}"} for s in sides],
                       "seal": False, "witness": False},
         "check_values": dict(CHECK_VALUES)})
     ours = next((p for p in parties if p["ours"]), None)

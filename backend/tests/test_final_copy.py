@@ -89,6 +89,106 @@ def test_the_client_accepted_our_draft_unchanged(api, db, owner, tmp_path):
     assert again.json()["error"]["code"] == "FINAL_COPY_NOT_READY"
 
 
+@pytest.mark.skipif(not __import__("os").environ.get("LEGALMIND_SOFFICE"),
+                    reason="LEGALMIND_SOFFICE is not set: no LibreOffice here")
+def test_a_final_copy_pdf_is_checked_before_it_is_stored(api, db, owner, tmp_path,
+                                                         monkeypatch):
+    """`FINAL-PACKAGE-SPEC` (e), S1: a final copy's PDF passes the PDF checks a created
+    contract's does (PDF/A-2b, fonts, nothing but links …) and records its export
+    options; a refused check stores nothing and says why. Paper we did not generate
+    (no ContractDraft: provenance) is checked as a file and for its text — our margin and
+    page footer are not its layout — and the record says so."""
+    from legalmind.drafting import pdf, preflight
+
+    def final() -> dict:
+        c = _contract(db, owner)
+        _ingest(db, tmp_path, c, _docx(*OURS), "ours.docx")
+        r = api.post(FINAL.format(c.id))
+        assert r.status_code == 201, r.text
+        return db.get(M.DocumentVersion, uuid.UUID(
+            r.json()["data"]["document_version"]["id"])).doc_metadata["pdf"]
+    rec = final()
+    assert (rec["status"], rec["kind"], rec["pdf_export"]) == ("READY", "final",
+                                                             pdf.EXPORT)
+    assert rec["checks"] == ["pdf_file", "text_equal"]
+    monkeypatch.setattr(preflight, "pdf_file",
+                        lambda data: [preflight.Problem("PDFA", "not PDF/A-2b")])
+    rec = final()                  # the same file, the check refusing
+    assert rec["status"] == "FAILED" and "not PDF/A-2b" in rec["error"]
+    assert "storage_key" not in rec
+
+
+def test_a_client_pdf_with_hidden_content_blocks_the_final_copy(api, db, owner, tmp_path):
+    """S1 M2: a final copy of a PDF is that PDF as it came — so a comment, a form, a
+    script, an attachment or a password in it blocks the final, in plain words, in the
+    dry run and on Prepare. Not being PDF/A does not: we cannot convert their PDF."""
+    import pymupdf
+
+    from legalmind.ingestion.service import ingest_document
+    from legalmind.ingestion.storage import LocalFilesystemStorage
+
+    def pdf(dirty: bool) -> bytes:
+        doc = pymupdf.open()
+        page = doc.new_page()
+        for i, line in enumerate(OURS):
+            page.insert_text((72, 100 + 20 * i), line, fontsize=10)
+        if dirty:
+            page.add_text_annot((72, 300), "a note")
+            doc.xref_set_key(doc.pdf_catalog(), "OpenAction",
+                             "<</S/JavaScript/JS(app.alert(1))>>")
+        return doc.tobytes()
+
+    def plan(data: bytes) -> tuple:
+        c = _contract(db, owner)
+        v = ingest_document(db, LocalFilesystemStorage(tmp_path / "objects"),
+                            contract_id=c.id, uploaded_by=owner.id, data=data,
+                            filename="ours.pdf", declared_mime="application/pdf"
+                            ).document_version
+        v.doc_metadata = {**(v.doc_metadata or {}), "version_role": "COMPANY_DRAFT"}
+        db.flush()
+        return api.get(FINAL.format(c.id)).json()["data"], api.post(FINAL.format(c.id))
+    dry, made = plan(pdf(dirty=True))
+    assert not dry["available"] and [b["message"] for b in dry["blockers"]] == [
+        "The client's PDF contains comments or other annotations; ask for a clean PDF "
+        "or upload the Word file.",
+        "The client's PDF contains JavaScript; ask for a clean PDF or upload the Word "
+        "file."]
+    assert made.status_code == 409
+    assert made.json()["error"]["code"] == "FINAL_COPY_NOT_READY"
+    dry, made = plan(pdf(dirty=False))
+    assert dry["available"] and made.status_code == 201, made.text
+
+
+def test_an_unreadable_version_is_never_said_to_be_still_reading(api, db, owner, tmp_path):
+    """S1 verifier: a version that could not be read (here a PDF behind a password)
+    blocks the final copy in plain words — what is wrong and what to do — and is never
+    "still being read"."""
+    import pymupdf
+
+    from legalmind.ingestion.service import ingest_document
+    from legalmind.ingestion.storage import LocalFilesystemStorage
+
+    doc = pymupdf.open()
+    doc.new_page().insert_text((72, 100), OURS[0], fontsize=10)
+    locked = doc.tobytes(encryption=pymupdf.PDF_ENCRYPT_AES_256, owner_pw="o", user_pw="u")
+    c = _contract(db, owner)
+    v = ingest_document(db, LocalFilesystemStorage(tmp_path / "objects"), contract_id=c.id,
+                        uploaded_by=owner.id, data=locked, filename="theirs.pdf",
+                        declared_mime="application/pdf").document_version
+    assert v.processing_status is E.ProcessingStatus.FAILED
+    dry = api.get(FINAL.format(c.id)).json()["data"]
+    assert dry["blockers"] == [{"code": "UNREADABLE", "message": "Version 1 is a "
+                                "password-protected PDF, so it cannot be the final "
+                                "contract. Ask the client for a copy without a password, "
+                                "or upload the Word file."}]
+    v.doc_metadata = {**(v.doc_metadata or {}), "unreadable": "CORRUPT"}
+    db.flush()
+    assert api.get(FINAL.format(c.id)).json()["data"]["blockers"][0]["message"] == (
+        "Version 1 could not be read, so it cannot be the final contract. Upload a "
+        "readable copy or the Word file.")
+    assert api.post(FINAL.format(c.id)).status_code == 409
+
+
 def test_a_counter_proposal_goes_to_the_client_before_the_final_copy(
         api, db, owner, tmp_path, monkeypatch):
     """Verifier item 1: answers that keep or propose our wording go back as our reply

@@ -13,7 +13,7 @@ import pytest
 
 from legalmind.api.storage import get_storage
 from legalmind.db import models as M
-from legalmind.drafting import pdf
+from legalmind.drafting import pdf, preflight
 from legalmind.worker import dispatch as D
 from tests.test_negotiation import _changes, owner  # noqa: F401 — fixture
 from tests.test_negotiation_reply import (  # noqa: F401 — `published` is autouse
@@ -112,6 +112,7 @@ def test_a_render_finished_meanwhile_is_kept_and_a_rolled_back_one_leaves_no_fil
     pdf.mark(version, "reply", pdf.RENDERING)
     db.flush()
     made = pdf.PdfResult(b"%PDF-1.7 synthetic", "LibreOffice test")
+    monkeypatch.setattr(preflight, "pdf_file", lambda data: [])    # a stand-in file
 
     def finished_elsewhere(_docx):
         pdf.mark(version, "reply", pdf.READY, storage_key="theirs")
@@ -125,6 +126,7 @@ def test_a_render_finished_meanwhile_is_kept_and_a_rolled_back_one_leaves_no_fil
 
     monkeypatch.undo()
     monkeypatch.setattr(pdf, "convert", lambda _docx: made)
+    monkeypatch.setattr(preflight, "pdf_file", lambda data: [])
     pdf.mark(version, "reply", pdf.RENDERING)
     db.flush()
     with pytest.raises(ValueError), db.begin_nested():
