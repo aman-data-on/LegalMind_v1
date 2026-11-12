@@ -189,7 +189,7 @@ export default function AuditPage() {
                     <td>
                       {event.entity_label
                         ? <span>{event.entity_label}</span>
-                        : <span className="ws-pane__note">{(event.entity_type ?? "").replace(/_/g, " ") || "—"}</span>}
+                        : <span className="ws-pane__note">{(event.entity_type ?? "").replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()) || "—"}</span>}
                     </td>
                     <td>
                       {/* B3 p2: codes and ids only here, on request */}
