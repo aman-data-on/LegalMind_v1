@@ -17,7 +17,7 @@ const round = { changes_total: 82, changes_left: 81, changes_left_for_me: 19, po
 describe("the two nouns", () => {
   it("says changes as yours of the total, and who has the rest", () => {
     expect(changesWords(round)).toBe("19 of 82 changes yours");
-    expect(changesWords({ ...round, changes_left_for_me: 0 })).toBe("81 of 82 changes with Legal");
+    expect(changesWords({ ...round, changes_left_for_me: 0 })).toBe("81 of 82 changes need Legal");
     expect(changesWords({ ...round, changes_left_for_me: 0 }, "legal")).toBe("81 of 82 changes with the deal owner");
     expect(changesWords({ ...round, changes_left: 0, changes_left_for_me: 0 })).toBe("All 82 changes answered");
     expect(changesWords({ points_open: 3 })).toBeNull();           // no round: absent, not 0
@@ -35,7 +35,9 @@ describe("the stage line agrees with the counts", () => {
   it("names the real next step once every change is answered", () => {
     expect(stageLine("INTERNAL_REVIEW", answered, "owner")).toBe("With Legal, 17 points");
     expect(stageLine("INTERNAL_REVIEW", answered, "legal")).toBe("Legal deciding 17 points");
-    expect(stageLine("CLIENT_RETURNED", answered)).toBe("Ready for the final contract");   // N16
+    // Batch 1 (c): open points keep the final contract waiting
+    expect(stageLine("CLIENT_RETURNED", answered)).toBe("Client replied");
+    expect(stageLine("CLIENT_RETURNED", { ...answered, points_open: 0, points_waiting: 0 })).toBe("Ready for the final contract"); // N16
     expect(stageLine("CLIENT_RETURNED", { ...answered, changes_ours: 5 })).toBe("Changes answered, reply next");
     expect(stageLine("CLIENT_RETURNED", round)).toBe("Client replied");
     expect(stageLine("INTERNAL_REVIEW", { points_open: 0 }, "legal")).toBe("Your review");
@@ -56,7 +58,8 @@ describe("one primary step per person per stage", () => {
     expect(nextStep({ ...owner, stage: "CLIENT_RETURNED",
       counts: { ...round, changes_left: 0, changes_left_for_me: 0, changes_ours: 3 } })?.label).toBe("Prepare our reply");
     expect(nextStep({ ...owner, stage: "CLIENT_RETURNED",
-      counts: { ...round, changes_left: 0, changes_left_for_me: 0, changes_ours: 0 } })?.label).toBe("Prepare final contract");
+      counts: { ...round, changes_left: 0, changes_left_for_me: 0, changes_ours: 0, points_open: 0, points_waiting: 0 } })?.label)
+      .toBe("Prepare final contract");
     expect(nextStep({ ...owner, stage: "CLIENT_RETURNED",
       counts: { ...round, changes_left_for_me: 0 } })).toBeNull();     // what is left is Legal's
     expect(nextStep({ ...owner, stage: "READY_TO_SEND", replyReady: true })?.label).toBe("Send our reply");
@@ -81,18 +84,19 @@ describe("one primary step per person per stage", () => {
     // verifier item 1: our answers go back as the reply; all accepted — the final copy
     expect(taskAction({ kind: "client_returned", counts: { changes_total: 4, changes_left: 0, changes_ours: 2 } }))
       .toBe(ACTION.prepareReply);
-    expect(taskAction({ kind: "client_returned", counts: { changes_total: 4, changes_left: 0, changes_ours: 0 } }))
-      .toBe(ACTION.prepareFinal);
+    expect(taskAction({ kind: "client_returned",
+      counts: { changes_total: 4, changes_left: 0, changes_ours: 0, points_open: 0, points_waiting: 0 } })).toBe(ACTION.prepareFinal);
   });
 });
 
 describe("one status set", () => {
-  it("lists the four marks in one order, each with its own icon", () => {
+  it("lists the five marks in one order, each with its own icon", () => {
     const html = renderToStaticMarkup(<PointStatusLegend />);
     const words = Object.values(POINT_STATUS);
-    expect(words).toEqual(["Matches our standard", "Open point", "Decided", "Missing"]);
+    // Batch 1 (d): "In our favour" is its own mark
+    expect(words).toEqual(["Matches our standard", "In our favour", "Open point", "Decided", "Missing"]);
     for (const w of words) expect(html).toContain(w);
-    expect(new Set(html.match(/lucide-[a-z-]+/g)).size).toBeGreaterThanOrEqual(4);
+    expect(new Set(html.match(/lucide-[a-z-]+/g)).size).toBeGreaterThanOrEqual(5);
   });
 });
 

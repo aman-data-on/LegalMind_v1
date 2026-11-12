@@ -33,7 +33,7 @@ import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { Contract, Counterparty, DocumentVersion, ReviewAssignments } from "@/lib/types";
 import { ACTION, contractDisplayName, contractStatusLabel, type StageViewer } from "@/lib/labels";
-import { nextStep, runStep, useStep, type StepKind } from "@/lib/nextStep";
+import { canSendToLegalFor, nextStep, runStep, useStep, type StepKind } from "@/lib/nextStep";
 import { PageHeader } from "@/components/page/PageHeader";
 import { documentSourceChip, isOurs } from "@/lib/documentTypes";
 
@@ -698,16 +698,28 @@ function RecordHeader({
   // AM-318: the final contract waits on Legal's decision on the contract
   const finalLatest = !!latest && !!(latest.package || latest.final_copy);
   // only with something for Legal to decide, and never while the paper is with the client
-  const canSendToLegal = !signedAt && stageNow !== "WITH_CLIENT" && stageNow !== "FINAL"
-    && ((contract.counts?.points_open ?? 0) > 0 || (finalLatest && stageNow === "INTERNAL_REVIEW"))
-    && !!assign?.can_send && !holder && assign.eligible.length > 0;
+  // D1: "already with Legal" holds at every stage, from the server's one fact
+  const canSendToLegal = canSendToLegalFor({ stage: stageNow, counts: contract.counts, finalLatest, assign });
   const ours = isOurs(latest);
+  const owned = contract.owner_id === identity?.user_id;
+  const changesForMe = contract.counts?.changes_left_for_me ?? 0;
+  // LA-18: "Answer changes" leads only for whoever the To-do gives the changes to — the
+  // owner or a collaborator (`AM-259`); asked only when it can matter
+  const [collaborator, setCollaborator] = useState(false);
+  useEffect(() => {
+    if (owned || !changesForMe || !identity) return;
+    let cancelled = false;
+    api.collaborators(contract.id)
+      .then((got) => { if (!cancelled) setCollaborator(got.collaborators.some((p) => p.id === identity.user_id)); })
+      .catch(() => { /* not one: the step stays secondary */ });
+    return () => { cancelled = true; };
+  }, [owned, changesForMe, identity, contract.id]);
   const step = findings?.reference ? null : nextStep({
     stage: contract.negotiation_stage?.stage, counts: contract.counts, viewer, canAnswer, canSendToLegal,
     replyReady: !!latest?.reply && !latest.sent_at,
     draftUnsent: ours && !latest?.reply && !latest?.package && !latest?.sent_at,
     packageReady, packageUnsent: !!latest?.package && !latest.sent_at, amendment: contract.contract_type === "AMENDMENT",
-    finalLatest,
+    finalLatest, answersChanges: owned || collaborator,
   });
   /** Where the act lives: switch to its tab first, then ask its pane. */
   const go = (kind: StepKind, tab: "document" | "changes") => {
@@ -728,13 +740,12 @@ function RecordHeader({
       </button>
     );
   }
-  const owned = contract.owner_id === identity?.user_id;
   return (
     <PageHeader wide title={contractDisplayName(contract.name)} back={{ href: "/contracts", label: "Contracts" }}
       meta={<>
         {contract.negotiation_stage ? (
           <StageBadge stage={contract.negotiation_stage} counts={contract.counts} viewer={viewer} final={finalLatest}
-                      unsent={canSendToLegal} />
+                      unsent={canSendToLegal} ourTurn={!!step} />
         ) : null}
         {/* P-1: the contract's own declared state (Draft / Active / Superseded), read back in
             words beside the deal stage (restored 2026-11-05). Once signed, the stage says it
@@ -784,6 +795,12 @@ function RecordHeader({
         <CollaboratorsControl contractId={contract.id} />
         {signedAt ? <RecordSigning contractId={contract.id} label="Signing record" onSigned={onReload}
                                    versions={contract.document_versions} /> : null}
+        {/* Batch 1 (e): the changes Legal holds, beside "Decide N points" (the To-do says both) */}
+        {viewer === "legal" && changesForMe > 0 && step?.kind !== "answerChanges" ? (
+          <button type="button" className="ws-btn ws-btn--sm" onClick={() => go("answerChanges", "changes")}>
+            Answer {changesForMe === 1 ? "1 change" : `${changesForMe} changes`}
+          </button>
+        ) : null}
         {canSendToLegal && reviewId && assign && step?.kind !== "sendToLegal" ? (
           <SendToLegal reviewId={reviewId} data={assign} onChange={assigned} label={ACTION.sendToLegal} />
         ) : null}

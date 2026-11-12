@@ -10,8 +10,8 @@
 
 import { useEffect } from "react";
 
-import { ACTION, type StageViewer } from "./labels";
-import type { DealCounts, NegotiationStageCode, TodoItem } from "./types";
+import { ACTION, finalReady, type StageViewer } from "./labels";
+import type { DealCounts, NegotiationStageCode, ReviewAssignments, TodoItem } from "./types";
 
 export type StepKind =
   | "decide" | "answerChanges" | "prepareReply" | "sendReply" | "sendToLegal" | "sendToClient"
@@ -40,6 +40,9 @@ export interface StepFacts {
   amendment?: boolean;
   /** `AM-318`: the latest version is the final contract (a package or a final copy) */
   finalLatest?: boolean;
+  /** LA-18: this reader answers the client's changes (owner or collaborator — whoever the
+   *  To-do gives them to); someone who only MAY answer gets no "Answer changes" primary */
+  answersChanges?: boolean;
 }
 
 export function nextStep(f: StepFacts): Step | null {
@@ -57,8 +60,10 @@ export function nextStep(f: StepFacts): Step | null {
       // our reply, or our own draft once Legal decided every point of it
       return f.replyReady ? step("sendReply") : f.draftUnsent ? step("sendToClient") : null;
     case "CLIENT_RETURNED":
-      if (c.changes_left_for_me) return step("answerChanges");
+      if (c.changes_left_for_me && f.answersChanges !== false) return step("answerChanges");
       if (c.changes_total === undefined || c.changes_left) return null;
+      // Batch 1 (c): open points go to Legal before the final contract
+      if (!c.changes_ours && !finalReady(c)) return f.canSendToLegal ? step("sendToLegal") : null;
       if (f.packageReady) return step("preparePackage", f.amendment ? ACTION.prepareAmendment : undefined);
       // our answers go back to the client as our reply first; nothing to send back
       // (every change accepted) — the client's version is agreed: its final copy
@@ -75,6 +80,20 @@ export function nextStep(f: StepFacts): Step | null {
   }
 }
 
+/** Whether the contract header offers "Send to Legal": there is something for Legal to
+ *  decide, the paper is not with the client or done, this reader may send, and the review
+ *  is NOT already with Legal — at any stage (the server's `sent_to_legal`, or a reviewer
+ *  just picked here). Presentation only; the send checks again. */
+export function canSendToLegalFor({ stage, counts, finalLatest, assign }: {
+  stage?: NegotiationStageCode | undefined; counts?: DealCounts | undefined;
+  finalLatest: boolean; assign: ReviewAssignments | null;
+}): boolean {
+  return stage !== "SIGNED" && stage !== "WITH_CLIENT" && stage !== "FINAL"
+    && ((counts?.points_open ?? 0) > 0 || (finalLatest && stage === "INTERNAL_REVIEW"))
+    && !counts?.sent_to_legal && !!assign?.can_send && !assign.assigned.length
+    && assign.eligible.length > 0;
+}
+
 /** A To-do item's action, in the same words as the header's step. */
 export function taskAction(item: Pick<TodoItem, "kind" | "count" | "counts">): string {
   switch (item.kind) {
@@ -86,7 +105,9 @@ export function taskAction(item: Pick<TodoItem, "kind" | "count" | "counts">): s
     case "prepare_final": return ACTION.prepareFinal;
     case "client_returned":
       return item.counts?.changes_total !== undefined && !item.counts.changes_left
-        ? (item.counts.changes_ours ? ACTION.prepareReply : ACTION.prepareFinal) : ACTION.answerChanges;
+        ? (item.counts.changes_ours ? ACTION.prepareReply
+          : finalReady(item.counts) ? ACTION.prepareFinal : ACTION.sendToLegal)
+        : ACTION.answerChanges;
     default: return ACTION.answerChanges;
   }
 }

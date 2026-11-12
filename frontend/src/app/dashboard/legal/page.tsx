@@ -28,11 +28,11 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import {
-  requirementTitle, USER_STATUS_LABELS, userStatus,
+  readerWord, requirementTitle, userStatus,
 } from "@/components/workspace/findingLanguage";
 
 import { api, describeError } from "@/lib/api";
-import { classificationLabel, contractOutcomeLabel, reviewStatusLabel } from "@/lib/labels";
+import { classificationLabel, contractOutcomeLabel, pointCount, reviewStatusLabel } from "@/lib/labels";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import { TodoViews } from "@/components/workspace/TodoViews";
@@ -44,6 +44,12 @@ import type { Finding, Review } from "@/lib/types";
 const ACTIVE_STATUSES = ["LEGAL_REVIEW", "ANALYSIS_COMPLETE"] as const;
 const REVIEW_WINDOW = 25;
 
+/** What waits on THIS reader, from the To-do's "decide" items — the same count, so the
+ *  queue and the To-do never disagree (`AM-318` r10). */
+interface Mine { points: number; changes: number }
+
+const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
+
 interface QueueRow {
   finding: Finding;
   review: Review;
@@ -51,19 +57,28 @@ interface QueueRow {
 
 type Load =
   | { kind: "loading" }
-  | { kind: "ready"; rows: QueueRow[]; truncated: boolean; failed: number }
+  | { kind: "ready"; rows: QueueRow[]; truncated: boolean; failed: number; mine: Mine | null }
   | { kind: "error"; error: unknown };
 
 export default function LegalQueuePage() {
   const { can } = useSession();
   const [state, setState] = useState<Load>({ kind: "loading" });
+  /** Batch 1 (e): the reader's own reviews, or the whole team view (`with_me`, unchanged) */
+  const [pick, setPick] = useState<"yours" | "all" | null>(null);
 
   const load = useCallback(async () => {
     setState({ kind: "loading" });
     try {
-      const pages = await Promise.all(
-        ACTIVE_STATUSES.map((status) => api.reviews({ page: 1, page_size: REVIEW_WINDOW, status, with_me: "true" })),
-      );
+      const [pages, todo] = await Promise.all([
+        Promise.all(ACTIVE_STATUSES.map((status) =>
+          api.reviews({ page: 1, page_size: REVIEW_WINDOW, status, with_me: "true" }))),
+        api.todo().catch(() => null),
+      ]);
+      const decide = todo?.items.filter((item) => item.kind === "decide") ?? [];
+      const mine = todo ? {
+        points: decide.reduce((n, item) => n + (item.count ?? 0), 0),
+        changes: decide.reduce((n, item) => n + (item.changes ?? 0), 0),
+      } : null;
       const reviews = pages.flatMap((page) => page.items);
       const truncated = pages.some((page) => page.pagination.total > page.pagination.page_size);
 
@@ -87,7 +102,7 @@ export default function LegalQueuePage() {
                           - Number(Boolean(a.review.sent_to_you)));
       // QA-023: a review whose points could not be read is said, never silently left out
       const failed = perReview.filter((outcome) => outcome.status === "rejected").length;
-      setState({ kind: "ready", rows, truncated, failed });
+      setState({ kind: "ready", rows, truncated, failed, mine });
     } catch (error) {
       setState({ kind: "error", error });
     }
@@ -106,18 +121,36 @@ export default function LegalQueuePage() {
     );
   }
 
+  const rows = state.kind === "ready" ? state.rows : [];
+  const yours = rows.filter((row) => row.review.yours);
+  const view = pick ?? (yours.length ? "yours" : "all");
+  const shown = view === "yours" ? yours : rows;
+  const mine = state.kind === "ready" ? state.mine : null;
+
   return (
     <>
       <div className="ws-context">
         <h1>Legal</h1>
         {state.kind === "ready" ? (
           <span className="ws-context__meta ws-mono">
-            {state.rows.length} awaiting a decision
+            {!mine ? `${plural(pointCount(rows), "point")} awaiting a decision`
+              : !mine.points && !mine.changes ? "Nothing awaits your decision"
+              : `${plural(mine.points, "point")}${mine.changes ? ` and ${plural(mine.changes, "change")}` : ""} await your decision`}
           </span>
         ) : null}
       </div>
       <div className="ws-docs">
         <TodoViews />
+        {state.kind === "ready" && rows.length > 0 ? (
+          <div className="ws-filter" role="group" aria-label="Whose reviews">
+            <button type="button" aria-pressed={view === "yours"} onClick={() => setPick("yours")}>
+              Yours <span className="ws-filter__n">{pointCount(yours)}</span>
+            </button>
+            <button type="button" aria-pressed={view === "all"} onClick={() => setPick("all")}>
+              All with Legal <span className="ws-filter__n">{pointCount(rows)}</span>
+            </button>
+          </div>
+        ) : null}
         <p className="ws-pane__note">
           Findings waiting for a Legal Decision. Each row opens the document, where you decide.
         </p>
@@ -156,16 +189,18 @@ export default function LegalQueuePage() {
           </div>
         ) : null}
 
-        {state.kind === "ready" && state.rows.length === 0 ? (
+        {state.kind === "ready" && shown.length === 0 ? (
           <div className="ws-state">
-            <h2>Nothing awaits a Legal Decision.</h2>
+            <h2>{view === "yours" && rows.length ? "Nothing awaits your decision." : "Nothing awaits a Legal Decision."}</h2>
             <p>
-              Any deviation from our standards appears here.
+              {view === "yours" && rows.length
+                ? "Points with your colleagues are under All with Legal."
+                : "Any deviation from our standards appears here."}
             </p>
           </div>
         ) : null}
 
-        {state.kind === "ready" && state.rows.length > 0 ? (
+        {state.kind === "ready" && shown.length > 0 ? (
           <div className="ws-docs__table">
             <table>
               <thead>
@@ -177,7 +212,7 @@ export default function LegalQueuePage() {
                 </tr>
               </thead>
               <tbody>
-                {state.rows.map(({ finding, review }) => (
+                {shown.map(({ finding, review }) => (
                   <tr key={finding.id} data-finding-id={finding.id}>
                     {/* The finding opens in the document's workspace, beside its
                         evidence — but ONLY when this caller can open that
@@ -205,7 +240,7 @@ export default function LegalQueuePage() {
                           2026-10-21) — the engine's own word stays in the tooltip */}
                       <span className={`ws-chip ws-chip--fill ws-chip--status-${userStatus(finding).toLowerCase()}`}
                             title={classificationLabel(finding.classification)}>
-                        {USER_STATUS_LABELS[userStatus(finding)]}
+                        {readerWord(finding)}
                       </span>
                     </td>
                     <td>

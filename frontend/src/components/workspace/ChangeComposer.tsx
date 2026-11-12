@@ -21,10 +21,12 @@ import { useSeesLegalPosition } from "@/lib/session";
 import type { Evaluation, Finding } from "@/lib/types";
 
 import { DecisionControl } from "./DecisionControl";
-import { USER_STATUS_LABELS, requirementTitle } from "./findingLanguage";
+import { readerWord, requirementTitle } from "./findingLanguage";
 import { IconArrowLeft, IconLock } from "./icons";
 
 export const NO_STANDARD = "No standard clause is published for this point yet.";
+/** A THEIRS point not confirmed in exactly one clause: the reply cannot place wording. */
+export const BY_HAND = "The reply cannot place this wording in one clause of theirs. You will add it by hand in Word after downloading.";
 
 /** A refused answer, in words. 409 CONFLICT is a colleague's newer answer — never retried. */
 export function composerError(cause: unknown): { conflict: boolean; message: string } {
@@ -184,7 +186,7 @@ export function AnswerComposer({ change, list, actions, contractId, details, onA
               {/* named only when there are several — one point is the card's line 1 */}
               {several ? (
                 <p className="cx-decide__name">
-                  <strong>{USER_STATUS_LABELS[read.user_status]}</strong> · {requirementTitle({ code: read.requirement_code })}
+                  <strong>{readerWord(read)}</strong> · {requirementTitle({ code: read.requirement_code })}
                 </p>
               ) : null}
               {evaluations.map((evaluation) => (
@@ -286,6 +288,11 @@ export function AnswerComposer({ change, list, actions, contractId, details, onA
       </div>
       {change.kind === "THEIRS" && !change.anchor?.clause_version_id ? (
         <p className="ws-pane__note">{NO_STANDARD}</p>
+      ) : null}
+      {/* the reply writes into ONE clause of theirs: none known, or several — by hand */}
+      {change.kind === "THEIRS" && (choice === "write_wording" || choice === "use_standard")
+        && (!change.after || (change.clauses?.length ?? 0) > 1) ? (
+        <p className="ws-pane__note">{BY_HAND}</p>
       ) : null}
 
       {choice === "write_wording" ? (

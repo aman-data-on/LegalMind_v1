@@ -65,7 +65,7 @@ from legalmind.api.errors import (
 )
 from legalmind.api.routers.decisions import _advance_if_resolved
 from legalmind.api.routers.documents import CHANGED_BY_A_COLLEAGUE, download_name
-from legalmind.api.routers.reviews import open_review, with_legal
+from legalmind.api.routers.reviews import held_by, open_review, sent_to_legal
 from legalmind.api.schemas import (
     AcceptByEffect,
     FormattingKeepOurs,
@@ -356,14 +356,15 @@ def _reader(guard: Guard, contract: M.Contract,
     return replied_in, writer
 
 
-def _mine(change: dict, *, can_decide: bool, can_answer: bool) -> bool:
+def _mine(change: dict, *, can_decide: bool, holds: bool, can_answer: bool) -> bool:
     """A change left for THIS reader — the Changes tab's "Yours to answer": Legal's are
-    the holder's rows; anyone else's, the deal owner's routes and a holder change Legal
-    has accepted. Counted by who answers, never by who may."""
+    the holder's rows, and only for the lawyer who HOLDS the review (`held_by`); anyone
+    else's, the deal owner's routes and a holder change Legal has accepted. Counted by
+    who answers, never by who may."""
     if change.get("answer") is not None:
         return False
     if can_decide:
-        return change["route"] == negotiation.HOLDER
+        return holds and change["route"] == negotiation.HOLDER
     return can_answer and (change["route"] != negotiation.HOLDER
                            or bool(change.get("holder_accepted")))
 
@@ -392,18 +393,26 @@ def deal_counts(guard: Guard, contracts: list[M.Contract]) -> dict[UUID, dict]:
     db, out = guard.db, {}
     can_decide = P.LEGAL_DECISION in guard.permissions
     for contract in contracts:
-        counts: dict[str, int] = {}
+        counts: dict[str, int | bool] = {}
+        holds = False           # Batch 1 (e): yours = held by me, never "may decide"
         versions = list(db.execute(select(M.DocumentVersion).where(
             M.DocumentVersion.contract_id == contract.id)).scalars())
         latest = max(versions, key=lambda v: v.version_number, default=None)
         if latest is not None and P.REVIEW_VIEW in guard.permissions:
             review = negotiation._latest_review(db, latest)
             if review is not None and review.status in negotiation._ANALYSED:
-                n = review_progress(db, review,
-                                    legal_position=guard.sees_legal_position)["to_decide"]
-                mine = can_decide and db.execute(select(M.Review.id).where(
-                    M.Review.id == review.id, with_legal(guard.user_id))).first()
-                counts.update(points_open=n, points_for_me=n if mine else 0)   # B11
+                progress = review_progress(db, review,
+                                           legal_position=guard.sees_legal_position)
+                n = progress["to_decide"]
+                holds = can_decide and db.execute(select(M.Review.id).where(
+                    M.Review.id == review.id, held_by(guard.user_id))).first() is not None
+                sent = db.execute(select(M.Review.id).where(
+                    M.Review.id == review.id, sent_to_legal())).first() is not None
+                # B11; Batch 1: the points waiting on the client, and whether the review
+                # is with Legal now (any stage) — one fact for the header and the To-do
+                counts.update(points_open=n, points_for_me=n if holds else 0,
+                              points_waiting=progress["clarification"],
+                              sent_to_legal=sent)
         theirs = (client_version(versions)
                   if P.DOCUMENT_VIEW in guard.permissions else None)
         if theirs is not None:
@@ -423,7 +432,7 @@ def deal_counts(guard: Guard, contracts: list[M.Contract]) -> dict[UUID, dict]:
                     changes_ours=sum(bool(c.get("answer")) and c["answer"]["answer"]
                                      != "accept_theirs" for c in rows),
                     changes_left_for_me=sum(_mine(
-                        c, can_decide=can_decide,
+                        c, can_decide=can_decide, holds=holds,
                         can_answer=writer and replied_in is None) for c in rows))
         out[contract.id] = counts
     return out
@@ -1315,7 +1324,7 @@ def _package_plan(guard: Guard, contract: M.Contract, form: str = CHANGES_ONLY) 
         stop("NO_ENTRIES", "Every change keeps our wording — send our version as it "
              "is, or prepare our reply.")
     out["entries"] = [{k: e[k] for k in ("n", "op", "target", "text", "row_key",
-                                         "answer", "effect") if k in e}
+                                         "answer", "effect", "measured") if k in e}
                       | ({"new_number": e["new_number"]} if "new_number" in e else {})
                       | ({"carried": True} if "trace" in e else {})
                       for e in shown]
@@ -1414,7 +1423,9 @@ def _trace(guard: Guard, plan: dict) -> list[dict]:
                     "choice_id": str(choice.id) if choice else None,
                     "choice_version": choice.version_number if choice else None,
                     "text_sha256": special_conditions.text_sha256(e["text"] or ""),
-                    "effect": e.get("effect"), "decision_ids": decisions,
+                    "effect": e.get("effect"),
+                    **({"measured": e["measured"]} if e.get("measured") else {}),
+                    "decision_ids": decisions,
                     **({"holder_answer_audit_id": str(holder)} if holder else {})})
     return out
 

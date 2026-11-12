@@ -276,6 +276,10 @@ export interface DealCounts {
   changes_ours?: number;
   points_open?: number;
   points_for_me?: number;
+  /** points waiting on the client's clarification (sent with `points_open`) */
+  points_waiting?: number;
+  /** the latest version's review is with Legal now — assigned or escalated, at any stage */
+  sent_to_legal?: boolean;
 }
 
 /** `AM-264` — one thing waiting on the caller: a fixed sentence and a link. */
@@ -427,6 +431,9 @@ export interface Review {
   document_accessible: boolean;
   /** AB-100 — the owner sent this Review to the caller (their queue first). */
   sent_to_you?: boolean;
+  /** Batch 1 (e) — this caller HOLDS the Review (assigned to them, or with Legal and
+   *  assigned to nobody): its points are theirs to decide. */
+  yours?: boolean;
   /** AM-174 — the current decision on the whole contract, if one was recorded */
   contract_outcome?: ContractOutcome | null;
 }
@@ -465,6 +472,9 @@ export interface Evidence {
   section_title: string | null;
   content: string;
   source_type: string;
+  /** a clause number the paper uses twice: this clause's own words (slice A's `name`);
+   *  omitted when the number is unique */
+  name?: string;
 }
 
 export interface Decision {
@@ -586,6 +596,9 @@ export interface Finding {
   escalated: boolean;
   /** The worst of its evaluations' `user_status`, server-derived. */
   user_status?: UserStatusWord;
+  /** Batch 1 (d): a deviation the evaluator's recorded rule outcome accepted in our
+   *  favour (AM-239, AM-303) — the server's word, never derived here */
+  in_our_favour?: boolean;
   evaluations: Evaluation[];
   evidence: Evidence[];
   /** `AM-317` r7: an earlier version's Legal Decision stands for this point (same
@@ -908,6 +921,8 @@ interface AssistPositionFinding {
   finding_id: string;
   classification: string;
   user_status: "ACCEPTABLE" | "REQUIRES_MODIFICATION" | "MISSING" | "NEEDS_DECISION";
+  /** Batch 1 (d): the server's flag, the same as on the Points card */
+  in_our_favour?: boolean;
 }
 
 /** The evaluator handoff on a comparison question (`AM-25` r4): the latest Review
@@ -1232,7 +1247,7 @@ export interface ClauseChange {
   section_title: string | null;
   before: ClauseSide | null;
   after: ClauseSide | null;
-  findings: { finding_id: string; classification: string; user_status?: UserStatusWord; requirement_code: string | null }[];
+  findings: { finding_id: string; classification: string; user_status?: UserStatusWord; in_our_favour?: boolean; requirement_code: string | null }[];
 }
 
 export interface VersionComparison {
@@ -1370,7 +1385,9 @@ interface RelatedClause {
  *  the gap in one line, the impact the figures support, the related clauses, and the
  *  RECOMMENDED action — a recommendation, never a decision, and never "Reject". */
 export interface FindingCase {
-  contract: { quote: string; clause: string | null; page: number | null } | null;
+  contract: { quote: string; clause: string | null; page: number | null;
+              /** a number the paper uses twice: the clause's own words (slice A) */
+              name?: string } | null;
   standard: {
     section: string | null;
     topic: string | null;

@@ -25,6 +25,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Response
 
+from legalmind.analysis.negotiation import review_unit_names
 from legalmind.api import ratelimit
 from legalmind.api.angles import review_angles
 from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
@@ -101,6 +102,7 @@ def document_blocks(guard: Guard, review: M.Review) -> list[Block]:
 
     exported_at = datetime.now(UTC).isoformat()
     groups = group_ids(guard.db, [review.id], legal_position=guard.sees_legal_position)
+    names = review_unit_names(guard.db, review.id)
     blocks = build_export_model(
         contract={**serialize_contract(contract),
                   # who the cover names: the client and the person who owns the deal
@@ -114,7 +116,8 @@ def document_blocks(guard: Guard, review: M.Review) -> list[Block]:
         report=report_payload(guard.db, review,
                               legal_position=guard.sees_legal_position),
         findings=[
-            {**serialize_finding(guard.db, f, legal_position=guard.sees_legal_position),
+            {**serialize_finding(guard.db, f, legal_position=guard.sees_legal_position,
+                                 names=names),
              "group_id": groups.get(f.id, str(f.id))}
             for f in review_findings(guard.db, review.id)
         ],

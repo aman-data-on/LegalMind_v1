@@ -76,6 +76,10 @@ export function StandardForm({
   const stored = version.company_standard ?? {};
   const evaluator: EvaluatorKind =
     version.evaluator_type === "PRESENCE" ? "PRESENCE" : "NUMERIC_COMPARISON";
+  // GP-1: the fields model PRESENCE and NUMERIC_COMPARISON only. Any other kind (a
+  // CATEGORICAL list of allowed values) opens as its JSON, never as a misdescribed form.
+  const modelled = version.evaluator_type === "PRESENCE"
+    || version.evaluator_type === "NUMERIC_COMPARISON";
 
   const [draft, setDraft] = useState<StandardDraft>(() => draftFromStandard(stored));
   const [reason, setReason] = useState("");
@@ -86,7 +90,7 @@ export function StandardForm({
   // The escape hatch. While it is on, the JSON is authoritative and every field
   // above is disabled — two editable sources of truth for one object is how a
   // change gets silently discarded.
-  const [rawMode, setRawMode] = useState(false);
+  const [rawMode, setRawMode] = useState(!modelled);
   const [rawText, setRawText] = useState(() => JSON.stringify(stored, null, 2));
   const [rawError, setRawError] = useState<string | null>(null);
 
@@ -155,6 +159,22 @@ export function StandardForm({
 
   const disabled = busy || rawMode;
   const errorKeys = Object.keys(errors);
+  const jsonBox = (
+    <>
+      <textarea
+        id={fieldId("raw")}
+        className="ws-codearea"
+        rows={12}
+        value={rawText}
+        disabled={!rawMode || busy}
+        aria-describedby={rawError ? `${uid}-raw-error` : `${uid}-raw-hint`}
+        onChange={(event) => setRawText(event.target.value)}
+      />
+      {rawError ? (
+        <p className="ws-field__error" id={`${uid}-raw-error`} role="alert">{rawError}</p>
+      ) : null}
+    </>
+  );
 
   return (
     <form className="ws-stdform" onSubmit={submit}>
@@ -187,6 +207,8 @@ export function StandardForm({
         </div>
       ) : null}
 
+      {modelled ? (
+        <>
       {/* ── What this standard applies to ─────────────────────────────── */}
       <section className="ws-formsec">
         <h5>What this standard applies to</h5>
@@ -538,20 +560,21 @@ export function StandardForm({
             />
             <span className="ws-check__label">Use the JSON below instead of the fields above</span>
           </label>
-          <textarea
-            id={fieldId("raw")}
-            className="ws-codearea"
-            rows={12}
-            value={rawText}
-            disabled={!rawMode || busy}
-            aria-describedby={rawError ? `${uid}-raw-error` : `${uid}-raw-hint`}
-            onChange={(event) => setRawText(event.target.value)}
-          />
-          {rawError ? (
-            <p className="ws-field__error" id={`${uid}-raw-error`} role="alert">{rawError}</p>
-          ) : null}
+          {jsonBox}
         </div>
       </details>
+        </>
+      ) : (
+        <section className="ws-formsec">
+          <div className="ws-field">
+            <label className="ws-field__label" htmlFor={fieldId("raw")}>The stored standard</label>
+            <p className="ws-field__help" id={`${uid}-raw-hint`}>
+              This kind of standard is edited as JSON for now.
+            </p>
+            {jsonBox}
+          </div>
+        </section>
+      )}
 
       {/* ── Why ───────────────────────────────────────────────────────── */}
       <section className="ws-formsec">

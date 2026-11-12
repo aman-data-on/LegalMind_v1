@@ -41,13 +41,22 @@ class CategoricalMisconfigured(Exception):
     """The Standard declares no allowed values, or names one it cannot recognise."""
 
 
+def _terms(words: object) -> bool:
+    """A recognised value's words: a non-empty list of non-empty strings — never a bare
+    string, whose characters would each read as a term ("a" in "a court in New Delhi")."""
+    return isinstance(words, list) and bool(words) and all(
+        isinstance(w, str) and w.strip() for w in words)
+
+
 def configured(standard: dict) -> tuple[list[str], dict[str, list[str]]]:
     allowed = standard.get(ALLOWED_KEY) or []
     recognised = standard.get(RECOGNISED_KEY) or {}
-    if not allowed or any(v not in recognised for v in allowed):
+    if not isinstance(allowed, list) or not allowed or not isinstance(recognised, dict) \
+            or any(not isinstance(v, str) or v not in recognised for v in allowed) \
+            or not all(_terms(words) for words in recognised.values()):
         raise CategoricalMisconfigured(
             f"Company Standard must declare {ALLOWED_KEY!r}, each one a key of "
-            f"{RECOGNISED_KEY!r}")
+            f"{RECOGNISED_KEY!r}, whose words are a non-empty list of non-empty strings")
     return allowed, recognised
 
 

@@ -78,7 +78,7 @@ import type {
 import { useAskIntent } from "./askIntent";
 import { AnswerAngles, AnswerLead } from "./Angles";
 import { ComparisonTable } from "./ComparisonTable";
-import { USER_STATUS_LABELS } from "./findingLanguage";
+import { readerWord } from "./findingLanguage";
 import { AnswerMeta, AnswerProse, citesPositions, type ShowInDocument, sourceKind } from "./AnswerProse";
 import { useHighlight } from "./highlight";
 import { IconPlus, IconSparkle, IconX } from "./icons";
@@ -887,7 +887,7 @@ export function PositionsSection({
                   className={`ws-chip ws-chip--fill ws-chip--status-${position.finding.user_status.toLowerCase()}`}
                   data-status={position.finding.user_status}
                 >
-                  {USER_STATUS_LABELS[position.finding.user_status]}
+                  {readerWord(position.finding)}
                 </span>
                 {contractId ? (
                   <Link

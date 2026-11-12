@@ -78,7 +78,7 @@ describe("words", () => {
 });
 
 describe("the step (nextStep)", () => {
-  const counts = { changes_total: 3, changes_left: 0, changes_left_for_me: 0 };
+  const counts = { changes_total: 3, changes_left: 0, changes_left_for_me: 0, points_open: 0, points_waiting: 0 };
   const base = { viewer: "owner" as const, canAnswer: true, counts };
   it("prepares the final contract: the Annexure package when its dry run is clear, else the final copy", () => {
     expect(nextStep({ ...base, stage: "CLIENT_RETURNED", packageReady: true })?.kind).toBe("preparePackage");

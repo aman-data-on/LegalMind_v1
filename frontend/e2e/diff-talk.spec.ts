@@ -105,19 +105,19 @@ test("review: differences first, counts agree, wording only — never a verdict"
 test("choices: a click folds and moves on, a key stays, they persist, and Copy for Legal lists them", async ({ page, browser }) => {
   await openPair(page);
   const progress = page.locator(".ws-dt__progress span");
-  await expect(progress).toHaveText("0 of 3 decided");
+  await expect(progress).toHaveText("0 of 3 chosen");
   await page.locator(".ws-dt__card").nth(0).locator(".ws-dt__opt").nth(0).click();
-  await expect(progress).toHaveText("1 of 3 decided");
+  await expect(progress).toHaveText("1 of 3 chosen");
   await expect(page.locator(".ws-dt__card").nth(0)).toHaveClass(/is-folded/);
   await expect(page.locator(".ws-dt__card.is-current .ws-dt__num")).toHaveText("2");
   const second = page.locator(".ws-dt__card").nth(1);
   await second.locator("input").first().focus();
   await page.keyboard.press("ArrowRight");
-  await expect(progress).toHaveText("2 of 3 decided");
+  await expect(progress).toHaveText("2 of 3 chosen");
   await expect(second.locator("input:checked")).toBeFocused();
   await expect(second).not.toHaveClass(/is-folded/);
   await page.reload();
-  await expect(progress).toHaveText("2 of 3 decided", { timeout: 20_000 });
+  await expect(progress).toHaveText("2 of 3 chosen", { timeout: 20_000 });
   await expect(page.locator(".ws-dt__card.is-folded")).toHaveCount(2);
   // Change reopens a decided difference with its choice in focus.
   await page.locator(".ws-dt__card.is-folded").first().getByRole("button", { name: /Change the choice/ }).click();
@@ -126,12 +126,12 @@ test("choices: a click folds and moves on, a key stays, they persist, and Copy f
   const elsewhere = await browser.newContext({ storageState: storageStatePath("owner") });
   const other = await elsewhere.newPage();
   await other.goto(page.url());
-  await expect(other.locator(".ws-dt__progress span")).toHaveText("2 of 3 decided", { timeout: 20_000 });
+  await expect(other.locator(".ws-dt__progress span")).toHaveText("2 of 3 chosen", { timeout: 20_000 });
   await elsewhere.close();
   await page.getByRole("button", { name: "Copy for Legal" }).click();
   const copied = await page.evaluate(() => navigator.clipboard.readText());
   expect(copied).toContain("(ours) vs");
-  expect(copied.match(/not decided yet/g)).toHaveLength(1);
+  expect(copied.match(/not chosen yet/g)).toHaveLength(1);
 });
 
 test("navigation: J/K stay inside a filter, 1/2 choose; Change, Back and Forward", async ({ page }) => {

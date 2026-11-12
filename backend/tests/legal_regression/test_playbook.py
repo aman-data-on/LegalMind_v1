@@ -93,9 +93,9 @@ def test_the_playbook_lines_are_the_managers(build, db):
     _ours(build, db, contract)
     points = {p["requirement_code"]: p for p in read.for_contract(db, contract)}
     assert points[CAP]["line"] == (
-        "We start at 6 months of fees for the affected services. You can agree up to "
+        "Our paper says 6 months of fees for the affected services. You can agree up to "
         "12 months of total fees, the same for both sides. Anything more goes to Legal.")
-    assert points[PAY]["line"] == ("We start at 7 days. You can agree up to 21 days. "
+    assert points[PAY]["line"] == ("Our paper says 7 days. You can agree up to 21 days. "
                                    "Anything more goes to Legal.")
     assert points[CAP]["kind"] == points[PAY]["kind"] == playbook.RANGE
 
@@ -124,7 +124,7 @@ def test_a_standard_with_no_direction_offers_only_its_own_value():
                        {"value": 15, "unit": "DAYS", "basis": "BREACH_CURE_PERIOD",
                         "party": None}, provider=True)
     assert e["kind"] == playbook.EXACT
-    assert e["line"] == ("We start at 15 days. You can agree to 30 days. "
+    assert e["line"] == ("Our paper says 15 days. You can agree to 30 days. "
                          "Anything else goes to Legal.")
     side = {"cap_unit": "DAYS", "cap_basis": "BREACH_CURE_PERIOD"}
     assert playbook.within(e, {**side, "cap_value": 30})
@@ -175,7 +175,7 @@ def test_room_is_only_where_something_lies_between_our_opening_and_our_limit():
     rule = {"favourable_outcome": "ACCEPTABLE"}
     at = {"value": 30, "unit": "DAYS", "basis": "B", "party": None}
     e = playbook.entry("X", std, rule, at, provider=True)
-    assert (e["room"], e["line"]) == (False, "We start at 30 days, which is also our limit. "
+    assert (e["room"], e["line"]) == (False, "Our paper says 30 days, which is also our limit. "
                                              "Anything more goes to Legal.")
     assert playbook.entry("X", std, rule, {**at, "value": 7}, provider=True)["room"]
     assert not playbook.entry("Y", {}, None, None, provider=True)["room"]
@@ -213,6 +213,6 @@ def test_paper_not_declared_ours_opens_at_our_standard_never_its_own_figure(buil
     contract = _contract(build, db)
     _version(build, db, contract, AFFECTED, PAID.format("seven (7)"))
     points = {p["requirement_code"]: p for p in read.for_contract(db, contract)}
-    assert points[PAY]["line"].startswith("We start at 21 days")
+    assert points[PAY]["line"].startswith("Our standard says 21 days")
     assert "7 days" not in points[PAY]["line"]
-    assert points[CAP]["line"].startswith("We start at 12 months of total fees")
+    assert points[CAP]["line"].startswith("Our standard says 12 months of total fees")

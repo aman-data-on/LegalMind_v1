@@ -211,6 +211,8 @@ def _review(db, version, findings):
         db.flush()
         finding = make_finding(db, review, rv, classification=cls)
         ev = make_evaluation(db, finding, classification=cls, rule_outcome=outcome)
+        # as the evaluator stamps every Evaluation (D-2): the mapping was CONFIRMED
+        ev.result = {**ev.result, "evaluated_facts": {"mapping_state": "CONFIRMED"}}
         db.add(M.EvaluationEvidence(evaluation_id=ev.id, evidence_id=evidence[index],
                                     relationship_type=E.EvidenceRelationshipType.PRIMARY))
     db.flush()

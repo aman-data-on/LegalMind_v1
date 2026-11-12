@@ -32,6 +32,7 @@ from legalmind import config
 from legalmind.domain.enums import EvidenceSourceType, ExtractionStatus
 from legalmind.ingestion.validation import (
     DOCX_MIME,
+    MARKDOWN_MIME,
     PDF_MIME,
     TEXT_MIME_TYPES,
 )
@@ -3669,7 +3670,21 @@ _MARKDOWN_HEADING = re.compile(r"^[ \t]{0,3}#{1,6}[ \t]+", re.MULTILINE)
 _MARKDOWN_RULE = re.compile(r"^[ \t]{0,3}(?:[-*_][ \t]*){3,}$", re.MULTILINE)
 
 
-def parse_text(data: bytes) -> ParseResult:
+#: `legalmind-ingest-v11` (Batch 1): a Word->Markdown export's marks, Markdown only — a
+#: heading mark after the clause number ("12. ## **TITLE**"), emphasis ``**`` and the
+#: CommonMark backslash escapes ("\-", "\["). Never ``~~`` / ``[..]{.insertion}`` change
+#: marks (AM-157) nor an underscore run (a blank, AM-324 r3).
+_MARKDOWN_NUMBERED_HEADING = re.compile(r"^([ \t]*\d+(?:\.\d+)*\.?)[ \t]+#{1,6}[ \t]+",
+                                        re.MULTILINE)
+_MARKDOWN_ESCAPE = re.compile(r"\\([!-/:-@\[-`{-~])")
+
+
+def _markdown_plain(text: str) -> str:
+    text = _MARKDOWN_NUMBERED_HEADING.sub(r"\1 ", text).replace("**", "")
+    return _MARKDOWN_ESCAPE.sub(r"\1", text)
+
+
+def parse_text(data: bytes, markdown: bool = False) -> ParseResult:
     """Plain text and Markdown, through the same segmenter as everything else.
 
     `segment_paragraphs` was already source-agnostic — it takes text, a page and a
@@ -3682,12 +3697,17 @@ def parse_text(data: bytes) -> ParseResult:
     and left in place `## 5. Liability` is not a clause number to `detect_clause_number`
     — the numbering the document itself states is what locked 34.12 preserves, and a
     `#` is not part of it. Nothing else about the text is altered: no list
-    renumbering, no emphasis stripping, no link rewriting.
+    renumbering, no link rewriting. ``markdown`` (a .md upload, never .txt): also a
+    heading mark after the number, ``**`` emphasis and backslash escapes
+    (`_markdown_plain`, ingest-v11) — offsets then refer to that text, as for the
+    heading strip.
     """
     try:
         text = data.decode("utf-8")
     except UnicodeDecodeError as exc:
         raise ParseError("text could not be decoded as UTF-8") from exc
+    if markdown:
+        text = _markdown_plain(text)
     text = _MARKDOWN_RULE.sub("", _MARKDOWN_HEADING.sub("", text))
     segments = segment_paragraphs(text, page_number=None,
                                   source_type=EvidenceSourceType.NATIVE_TEXT,
@@ -3709,7 +3729,8 @@ def parse(data: bytes, mime_type: str, *, defer_ocr: bool = False,
             # a DOCX is text-native; OCR never applies
             return parse_docx(data, render_pages=render_pages)
         if mime_type in TEXT_MIME_TYPES:
-            return parse_text(data)  # no pages, no OCR, no embedded objects
+            # no pages, no OCR, no embedded objects
+            return parse_text(data, markdown=mime_type == MARKDOWN_MIME)
     except ParseError:
         raise
     except Exception as exc:

@@ -14,7 +14,7 @@ export interface PlaybookPoint {
   kind: OfferKind;
   /** our paper's own figure, as the engine read it; null when it read none */
   opening: { value: number; unit: string; basis: string | null } | null;
-  /** the line in plain words, e.g. "We start at 7 days. You can agree up to 21 days. …" */
+  /** the line in plain words, e.g. "Our paper says 7 days. You can agree up to 21 days. …" */
   line: string;
   /** something lies between our opening and our limit — the deal owner's to agree */
   room: boolean;
@@ -36,7 +36,8 @@ export function grouped(points: PlaybookPoint[]) {
  *  as within (Better or No change for us). Null: no line with a figure covers it. */
 export function offerFor(change: ClientChange, points: PlaybookPoint[] | null):
     { point: PlaybookPoint; within: boolean; fallback: boolean } | null {
-  if (!points) return null;
+  // a NEGATIVE row not measured worse (unmeasured, absent) is never "beyond" our offer
+  if (!points || (change.effect_for_us === "NEGATIVE" && change.measured !== "WORSE")) return null;
   const codes = new Set([...change.review.after, ...(change.after ? [] : change.review.before)]
     .map((f) => f.requirement_code));
   const point = points.find((p) => p.kind !== "LEGAL_ONLY" && codes.has(p.requirement_code));

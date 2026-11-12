@@ -136,7 +136,7 @@ export function Review({ left, right, onChange }: {
       return out;
     });
     const done = decidable.filter((i) => rows[i] && next[rowKey(rows[i])]).length;
-    nav.setAnnouncement(`${CHOICE_WORDS[row.status][choice]}. ${done} of ${decidable.length} decided.`);
+    nav.setAnnouncement(`${CHOICE_WORDS[row.status][choice]}. ${done} of ${decidable.length} chosen.`);
     if (how === "stay") return;
     const after = [...decidable.filter((i) => i > index), ...decidable.filter((i) => i < index)]
       .find((i) => rows[i] && !next[rowKey(rows[i])]);
@@ -193,8 +193,8 @@ export function Review({ left, right, onChange }: {
   const at = shown.indexOf(nav.current);
   const position = at === -1 ? `${shown.length} difference${shown.length === 1 ? "" : "s"}`
     : `${at + 1} of ${shown.length}`;
-  const progress = allDone ? `All ${decidable.length} decided`
-    : `${decided.length} of ${decidable.length} decided`;
+  const progress = allDone ? `All ${decidable.length} chosen`
+    : `${decided.length} of ${decidable.length} chosen`;
   const pick = (i: number) => {
     sheetRef.current?.close();
     nav.show(i);
@@ -246,7 +246,7 @@ export function Review({ left, right, onChange }: {
             )}
             {decidable.length ? (
               <div className="ws-dt__progress">
-                <progress max={decidable.length} value={decided.length} aria-label="Differences decided" />
+                <progress max={decidable.length} value={decided.length} aria-label="Differences with a choice" />
                 <span>{progress}</span>
               </div>
             ) : null}
@@ -489,7 +489,7 @@ function ChangesList({ rows, diffs, shown, same, current, filter, onFilter, full
                 {isDecidable(row) ? (
                   <span className="ws-dt__state">
                     {pick ? <IconCheck size={14} /> : <i className="ws-dt__dot" />}
-                    <span className="ws-visually-hidden">{pick ? ", decided" : ", not decided"}</span>
+                    <span className="ws-visually-hidden">{pick ? ", chosen" : ", no choice yet"}</span>
                   </span>
                 ) : null}
               </button>

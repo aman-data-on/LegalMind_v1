@@ -21,6 +21,7 @@ from fastapi import APIRouter, Depends, Header, Query, Response
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import aliased
 
+from legalmind.analysis.negotiation import review_unit_names
 from legalmind.analysis.service import (
     AnalysisNotPermitted,
     NotAContract,
@@ -136,11 +137,44 @@ def with_legal(user_id: UUID):
     return or_(
         M.Review.contract_id.in_(
             select(M.Contract.id).where(M.Contract.owner_id == user_id)),
-        M.Review.id.in_(select(M.ReviewAssignment.review_id).where(
-            M.ReviewAssignment.revoked_at.is_(None))),
-        M.Review.id.in_(select(M.Finding.review_id)
-                        .join(M.Escalation, M.Escalation.finding_id == M.Finding.id)
-                        .where(M.Escalation.withdrawn_at.is_(None))))
+        sent_to_legal())
+
+
+def _assigned():
+    RA = M.ReviewAssignment
+    return select(RA.review_id).where(RA.revoked_at.is_(None))
+
+
+def sent_to_legal():
+    """B11's "sent": an active assignment (to anyone) or an open escalation."""
+    escalated = (select(M.Finding.review_id)
+                 .join(M.Escalation, M.Escalation.finding_id == M.Finding.id)
+                 .where(M.Escalation.withdrawn_at.is_(None)))
+    return or_(M.Review.id.in_(_assigned()), M.Review.id.in_(escalated))
+
+
+def _live_assigned():
+    """Active assignments whose assignee can still decide: ACTIVE, and still granted
+    `legal.decision` (the tables `effective_permissions` reads)."""
+    deciders = (select(M.UserRole.user_id)
+                .join(M.RolePermission, M.RolePermission.role_id == M.UserRole.role_id)
+                .join(M.Permission, M.Permission.id == M.RolePermission.permission_id)
+                .join(M.User, M.User.id == M.UserRole.user_id)
+                .where(M.Permission.name == P.LEGAL_DECISION,
+                       M.User.status == E.UserStatus.ACTIVE))
+    return _assigned().where(M.ReviewAssignment.user_id.in_(deciders))
+
+
+def held_by(user_id: UUID):
+    """A Review this person HOLDS — whose points are theirs to decide (`AM-291`: counted
+    by who answers, never by who may; AM-170: one designated reviewer): assigned to them,
+    or with Legal (`with_legal`) and assigned to nobody who can still decide — a
+    suspended assignee, or one who lost `legal.decision`, leaves it with every lawyer,
+    never orphaned. A colleague's assignment is the team's to see (`with_legal`), never
+    "yours". Scope is unchanged: this only narrows."""
+    return or_(
+        M.Review.id.in_(_live_assigned().where(M.ReviewAssignment.user_id == user_id)),
+        with_legal(user_id) & M.Review.id.not_in(_live_assigned()))
 
 
 def _with_document(guard: Guard, reviews: list[M.Review]) -> list[dict]:
@@ -179,6 +213,10 @@ def _with_document(guard: Guard, reviews: list[M.Review]) -> list[dict]:
             M.ReviewAssignment.user_id == guard.user_id,
             M.ReviewAssignment.revoked_at.is_(None),
             M.ReviewAssignment.review_id.in_([r.id for r in reviews]))).scalars())
+    # Batch 1 (e): which of these this caller HOLDS — the Legal queue's "Yours"
+    held = set() if not reviews or P.LEGAL_DECISION not in guard.permissions else set(
+        guard.db.execute(select(M.Review.id).where(
+            M.Review.id.in_([r.id for r in reviews]), held_by(guard.user_id))).scalars())
     # AM-174: each Review's current decision on the contract, one query
     outcomes = {} if not reviews else {
         rid: o.value for rid, o, _ in guard.db.execute(
@@ -202,6 +240,7 @@ def _with_document(guard: Guard, reviews: list[M.Review]) -> list[dict]:
             and can_read_contract(guard.db, guard.user_id, contract)
         )
         item["sent_to_you"] = review.id in sent
+        item["yours"] = review.id in held
         item["contract_outcome"] = outcomes.get(review.id)
         payload.append(item)
     return payload
@@ -468,8 +507,10 @@ def list_findings(
                       M.Finding.created_at, M.Finding.id)
     # AM-179: the point each finding belongs to — the one fold every screen uses
     groups = group_ids(guard.db, [review_id], legal_position=guard.sees_legal_position)
+    names = review_unit_names(guard.db, review_id)
     return paginated(
-        [{**serialize_finding(guard.db, f, legal_position=guard.sees_legal_position),
+        [{**serialize_finding(guard.db, f, legal_position=guard.sees_legal_position,
+                              names=names),
           "group_id": groups.get(f.id, str(f.id))}
          for f in rows],
         page=page.page, page_size=page.page_size, total=total)

@@ -322,7 +322,7 @@ describe("what each change does for us (AM-299)", () => {
   const same = change({ row_key: "s", route: "owner", route_reason: "STILL_MATCHES_OUR_STANDARD", effect_for_us: "NEUTRAL",
     review: { before: [], after: [{ finding_id: "f3", requirement_code: "LIAB-1", classification: "MATCH",
       user_status: "ACCEPTABLE", evaluation_ids: ["e3"] }] } });
-  const worse = change({ row_key: "w" });
+  const worse = change({ row_key: "w", measured: "WORSE" });
 
   it("says it in words and a distinct shape for each — never colour alone", () => {
     const marks = (["POSITIVE", "NEUTRAL", "NEGATIVE"] as const).map((e) => renderToStaticMarkup(<ForUs effect={e} />));

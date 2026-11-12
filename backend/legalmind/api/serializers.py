@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session as DBSession
 
 from legalmind.db import models as M
 from legalmind.domain.enums import ConfigStatus, FindingStatus, ProcessingStatus
+from legalmind.domain.user_status import in_our_favour
 from legalmind.evaluation.constitution_boundaries import constitution_prohibition_for
 from legalmind.evaluation.user_status import user_status, worst
 from legalmind.evaluation.workflow import (
@@ -138,11 +139,14 @@ def _constitution_for(db: DBSession, finding: M.Finding) -> dict[str, Any] | Non
 
 
 def serialize_finding(db: DBSession, finding: M.Finding, *,
-                      legal_position: bool) -> dict[str, Any]:
+                      legal_position: bool,
+                      names: dict[str, str] | None = None) -> dict[str, Any]:
     """49.7 r1 — ``classification`` and ``evaluations`` travel together, always.
 
     There is deliberately no Finding-level ``rule_outcome``: none is persisted
     (J-2), and ``requires_decision`` is derived rather than stored (49.7 r2).
+    ``names``: `negotiation.review_unit_names` for the Finding's Review — a list
+    caller reads it once; None reads it here.
     """
     escalated = is_escalated(db, finding.id)
     evaluations = db.execute(
@@ -164,6 +168,11 @@ def serialize_finding(db: DBSession, finding: M.Finding, *,
                              requirement_code=req.code if req else None)
         for ev in evaluations
     ]
+    status = worst([e["user_status"] for e in serialized],
+                   user_status(finding.classification))
+    if names is None:
+        from legalmind.analysis.negotiation import review_unit_names
+        names = review_unit_names(db, finding.review_id)
 
     return {
         "id": str(finding.id),
@@ -196,10 +205,12 @@ def serialize_finding(db: DBSession, finding: M.Finding, *,
             FindingStatus.AWAITING_CLARIFICATION,
         },
         "escalated": escalated,
-        "user_status": worst([e["user_status"] for e in serialized],
-                             user_status(finding.classification)),
+        "user_status": status,
+        # Batch 1 (d): the evaluator's recorded rule outcome accepted this deviation
+        # (AM-239 r1, AM-303) — the folded word above, never AM-301 dominance
+        "in_our_favour": in_our_favour(finding.classification, status),
         "evaluations": serialized,
-        "evidence": finding_evidence(db, finding.id),
+        "evidence": finding_evidence(db, finding.id, names),
         # AM-317 r7: an earlier version's Legal Decision stands for this point —
         # who, on which version; null when it was decided (or is open) here
         "carried_decision": _carried(db, finding.id),
@@ -224,7 +235,8 @@ def _carried(db: DBSession, finding_id: UUID) -> dict[str, Any] | None:
             "decided_at": record.get("decided_at")}
 
 
-def finding_evidence(db: DBSession, finding_id: UUID) -> list[dict[str, Any]]:
+def finding_evidence(db: DBSession, finding_id: UUID,
+                     names: dict[str, str] | None = None) -> list[dict[str, Any]]:
     """Evidence must survive the evaluator (rule 11): every Finding carries the
     source locations its Evaluations were built from (42.16, 34.13)."""
     rows = db.execute(
@@ -243,6 +255,8 @@ def finding_evidence(db: DBSession, finding_id: UUID) -> list[dict[str, Any]]:
             "section_title": e.section_title,
             "content": e.content,
             "source_type": e.source_type.value,
+            # a clause number the paper uses twice, by the clause's own words (slice A)
+            **({"name": names[str(e.id)]} if names and str(e.id) in names else {}),
         }
         for e, rel in rows
     ]

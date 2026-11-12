@@ -4,7 +4,9 @@ What is waiting on THE CALLER, resolved server-side (rule 18) from the same scop
 other list uses — nothing here widens what a caller can read:
 
 ```text
-decide             points I can decide       `legal.decision`, Reviews in my scope
+decide             points I hold             `legal.decision`, Reviews I hold (`held_by`:
+                                             assigned to me, or with Legal and assigned
+                                             to nobody — Batch 1 (e))
 second_approval    a colleague's decision    `legal.decision`; the standard needs a
                    awaiting my co-signature  second person (Step 31 r15); not mine
 client_returned    the client returned a     my deals (owner or `AM-259` collaborator)
@@ -14,11 +16,11 @@ changes_to_answer  changes left to me        the same deal, in its place (`AM-29
 reply_ready        our reply is ready to     the same deals at READY_TO_SEND (`AM-293`:
                    send                      nothing undecided in it)
 contract_decision  every point is decided —  `legal.decision`; the latest version's
-                   record the decision on    Review is with me, RESOLVED, and holds no
+                   record the decision on    Review I hold, RESOLVED, and holding no
                    the contract              current contract decision (`AM-318`)
 prepare_final      every change is answered  my deals at CLIENT_RETURNED with nothing
-                   — prepare the final       left, or Ready for the final contract
-                   contract                  (`AM-318`)
+                   — prepare the final       left and no open point (Batch 1 (c)), or
+                   contract                  Ready for the final contract (`AM-318`)
 answered           Legal answered me         my escalations / reviews I sent, 14 days
 ```
 
@@ -40,7 +42,7 @@ from legalmind.api.envelope import data
 from legalmind.api.routers.amendments import final_copy
 from legalmind.api.routers.contracts import negotiation_stages
 from legalmind.api.routers.negotiation import deal_counts
-from legalmind.api.routers.reviews import _visible_reviews, with_legal
+from legalmind.api.routers.reviews import _visible_reviews, held_by, with_legal
 from legalmind.db import models as M
 from legalmind.db.lookup import contract_signed
 from legalmind.domain import enums as E
@@ -91,6 +93,10 @@ def _decisions(guard: Guard) -> list[dict]:
                M.Review.id.in_(select(M.Finding.review_id).where(
                    M.Finding.status == E.FindingStatus.DECISION_REQUIRED)))
     ).scalars().all()
+    # Batch 1 (e): "decide" is for the lawyer who HOLDS the review; a co-signature is
+    # owed by any other holder of `legal.decision` on what is with Legal (unchanged)
+    held = set() if not reviews else set(db.execute(select(M.Review.id).where(
+        M.Review.id.in_([r.id for r in reviews]), held_by(me))).scalars())
     out: list[dict] = []
     for review in reviews:
         if is_superseded(db, review):
@@ -128,7 +134,7 @@ def _decisions(guard: Guard) -> list[dict]:
                 len(cosign), "decision awaits your second approval.",
                 "decisions await your second approval."), link, min(cosign),
                 review_id=str(review.id), count=len(cosign)))
-        if progress["to_decide"]:
+        if progress["to_decide"] and review.id in held:
             # N13: the client's changes waiting on the same person, in the same line
             changes = deal_counts(guard, [contract])[contract.id].get(
                 "changes_left_for_me", 0)
@@ -144,8 +150,8 @@ def _decisions(guard: Guard) -> list[dict]:
 
 
 def _contract_decisions(guard: Guard) -> list[dict]:
-    """`AM-318` A3: a Review with me whose points are all decided and whose contract
-    decision is due — on the latest version of a deal that is not Final or signed."""
+    """`AM-318` A3: a Review I hold (`held_by`) whose points are all decided and whose
+    contract decision is due — on the latest version of a deal not Final or signed."""
     db, me = guard.db, guard.user_id
     Rec = M.ContractOutcomeRecord
     out: list[dict] = []
@@ -153,7 +159,7 @@ def _contract_decisions(guard: Guard) -> list[dict]:
             _visible_reviews(guard)
             .join(M.Contract, M.Contract.id == M.Review.contract_id)
             .where(M.Review.status == E.ReviewStatus.RESOLVED,
-                   M.Contract.archived_at.is_(None), with_legal(me))).scalars():
+                   M.Contract.archived_at.is_(None), held_by(me))).scalars():
         if is_superseded(db, review) or contract_signed(db, review.contract_id):
             continue
         latest = db.execute(select(Rec).where(Rec.review_id == review.id)
@@ -207,7 +213,10 @@ def _my_deals(guard: Guard) -> list[dict]:
                           "The client returned a new version — it is our turn.")
         if "changes_total" in n and not n.get("changes_left") \
                 and not n.get("changes_ours"):
-            kind, sentence = "prepare_final", PREPARE_FINAL       # AM-318 A3
+            if n.get("points_open") == 0 and n.get("points_waiting") == 0:
+                kind, sentence = "prepare_final", PREPARE_FINAL   # AM-318 A3; Batch 1 (c)
+            elif n.get("sent_to_legal"):
+                continue                      # Legal has the points: their "decide"
         if left:
             verb = "is" if left == 1 else "are"
             kind = "changes_to_answer"

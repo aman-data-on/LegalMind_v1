@@ -314,7 +314,9 @@ def derive(changes: list[dict], old: list[dict], new: list[dict],
         entry: dict[str, Any] = {
             "row_key": change["row_key"], "answer": answer,
             "effect": change.get("effect_for_us"), "text": text,
-            "target": _public(target)}
+            "target": _public(target),
+            # why a NEGATIVE row goes to Legal (slice A), words only — never hashed
+            **({"measured": change["measured"]} if change.get("measured") else {})}
         if inserting:
             if not (text or "").strip():
                 continue                   # an inserted clause taken out again: none

@@ -24,7 +24,7 @@
  * a decision.
  */
 
-import { DOCUMENT_TYPES } from "@/lib/documentTypes";
+import { DOCUMENT_TYPES, clauseName } from "@/lib/documentTypes";
 import { POINT_WHO, answeredWords, classificationLabel } from "@/lib/labels";
 import type { Evaluation, Evidence, Finding } from "@/lib/types";
 
@@ -213,7 +213,8 @@ function readerIdentity(finding: Finding): string | null {
 /** Where one POINT stands (AM-179) — the same rule the server's `review_progress` uses:
  *  any member awaiting clarification, else any to decide, else any decided, else what
  *  the analysis says. A point decided as one keeps its members' states together. */
-export type PointState = "to_decide" | "clarification" | "decided" | "matches" | "no_action";
+export type PointState = "to_decide" | "clarification" | "decided" | "favour" | "matches"
+  | "no_action";
 
 export function pointState(finding: PresentedFinding): PointState {
   const members = [finding, ...(finding.alsoMeasuredAgainst ?? [])];
@@ -221,7 +222,15 @@ export function pointState(finding: PresentedFinding): PointState {
   if (statuses.has("AWAITING_CLARIFICATION")) return "clarification";
   if (statuses.has("DECISION_REQUIRED")) return "to_decide";
   if (statuses.has("RESOLVED")) return "decided";
+  // Batch 1 (d): the server's flag (the recorded rule outcome), never derived here
+  if (finding.in_our_favour) return "favour";
   return userStatus(finding) === "ACCEPTABLE" ? "matches" : "no_action";
+}
+
+/** Line 1 of a point: "In our favour" where the server says so, else the reader word. */
+export const IN_OUR_FAVOUR = "In our favour";
+export function readerWord(finding: Pick<Finding, "user_status" | "in_our_favour">): string {
+  return finding.in_our_favour ? IN_OUR_FAVOUR : USER_STATUS_LABELS[userStatus(finding)];
 }
 
 /** The decision a decided point carries — its members share it when decided as one. */
@@ -1017,10 +1026,12 @@ export function evidenceLocation(row: Evidence, index: number): string {
 }
 
 /** The contract page's form of the same place (page 2): "Clause 5.3, page 5". */
-export function clauseAndPage(row: Pick<Evidence, "section_number" | "page_number">,
+export function clauseAndPage(row: Pick<Evidence, "section_number" | "page_number" | "name">,
                               index: number): string {
+  const number = row.section_number?.replace(/\.$/, "") ?? null;
   const said = [
-    row.section_number ? `Clause ${row.section_number.replace(/\.$/, "")}` : null,
+    // a number the paper uses twice says its own words: "Clause 2 — Invoicing"
+    number ? `Clause ${clauseName({ number, heading: null, name: row.name })}` : null,
     row.page_number != null ? `page ${row.page_number}` : null,
   ].filter(Boolean).join(", ");
   return said ? said.charAt(0).toUpperCase() + said.slice(1) : `Passage ${index + 1}`;
@@ -1029,14 +1040,44 @@ export function clauseAndPage(row: Pick<Evidence, "section_number" | "page_numbe
 /** A long excerpt, cut at a sentence or word boundary rather than mid-word.
  *  Returns the whole string when it is already short enough, so a caller can
  *  compare the two to decide whether a "show all" control is needed. */
-export function excerpt(content: string, limit = 320): string {
+export function excerpt(content: string, limit = 320, focus?: string | null): string {
   const text = content.trim();
+  if (text.length <= limit) return text;
+  const head = cut(text, limit);
+  const at = focus ? findFocus(text, focus) : -1;
+  if (at < 0 || at + focus!.length <= head.length - 1) return head;
+  // the card's figure lies past the cut: start at the sentence that holds it
+  const before = text.slice(0, at);
+  const start = Math.max(before.lastIndexOf(". "), before.lastIndexOf("; "),
+                         before.lastIndexOf("\n")) + 1;
+  const from = at - start > limit * 0.6 ? before.lastIndexOf(" ", at - 40) + 1 : start;
+  return `…${cut(text.slice(from).trimStart(), limit)}`;
+}
+
+function cut(text: string, limit: number): string {
   if (text.length <= limit) return text;
   const window = text.slice(0, limit);
   const stop = Math.max(window.lastIndexOf(". "), window.lastIndexOf("; "));
   if (stop > limit * 0.5) return `${window.slice(0, stop + 1)}…`;
   const space = window.lastIndexOf(" ");
   return `${(space > 0 ? window.slice(0, space) : window).trimEnd()}…`;
+}
+
+/** Where a figure sits: a number never inside a longer one ("45" is not "145"). */
+function findFocus(text: string, focus: string): number {
+  const escaped = focus.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = /^\d/.test(focus) ? `(?<![\\d.])${escaped}(?![\\d])` : escaped;
+  return text.search(new RegExp(pattern, "i"));
+}
+
+/** The figure a card is about, as the clause states it — the first stated value, else
+ *  the first number the engine read; null when it read none. Presentation only. */
+export function figureOf(value: unknown): string | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  if (Array.isArray(record.values) && record.values.length > 0) return String(record.values[0]);
+  const number = firstOf(record, NUMBER_KEYS);
+  return typeof number === "number" ? String(number) : null;
 }
 
 /**
