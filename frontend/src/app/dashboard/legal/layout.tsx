@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Legal",
-  description: "Findings that need a legal decision.",
+  description: "Points that need a Legal decision.",
 };
 
 export default function Layout({ children }: { children: React.ReactNode }) {

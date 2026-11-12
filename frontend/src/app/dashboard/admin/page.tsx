@@ -45,6 +45,7 @@ import { toastFailure } from "@/components/Toast";
 import { ErrorState } from "@/components/Feedback";
 import { AccessRestricted } from "@/components/AccessRestricted";
 import { PageHeader } from "@/components/page/PageHeader";
+import { StackTable } from "@/components/StackTable";
 
 const PAGE_SIZE = 25;
 
@@ -297,26 +298,7 @@ function UsersScreen() {
           ) : null}
 
           {users !== null && users.length > 0 ? (
-            <div className="ws-docs__table">
-              <table>
-                <thead>
-                  <tr>
-                    <th scope="col">Name</th>
-                    <th scope="col">Email</th>
-                    <th scope="col">Role</th>
-                    <th scope="col">Department</th>
-                    <th scope="col">Status</th>
-                    <th scope="col">Last sign-in</th>
-                    <th scope="col">Created</th>
-                    {/* The roster showed a name, an email and role chips and NOTHING
-                        that said any of it could be changed. The only way into the
-                        panel that grants and revokes roles was clicking a name
-                        rendered in ink-900 with no underline — indistinguishable
-                        from the email beside it. A complete feature with no door. */}
-                    <th scope="col" className="ws-admin__rowact"><span className="ws-visually-hidden">Actions</span></th>
-                  </tr>
-                </thead>
-                <tbody>
+            <StackTable columns={[{ label: "Name" }, { label: "Email" }, { label: "Role" }, { label: "Department" }, { label: "Status" }, { label: "Last sign-in" }, { label: "Created" }, { label: "Actions", hidden: true, className: "ws-admin__rowact" }]}>
                   {users.map((user) => (
                     <tr
                       key={user.id}
@@ -367,9 +349,7 @@ function UsersScreen() {
                       </td>
                     </tr>
                   ))}
-                </tbody>
-              </table>
-            </div>
+            </StackTable>
           ) : null}
 
           {pagination && pagination.total > pagination.page_size ? (

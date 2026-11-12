@@ -9,8 +9,8 @@
  *
  * Why it exists. The live audit found raw SCREAMING_SNAKE enums rendered straight to
  * legal professionals across the Reviews queue, the report, the Legal queue and the
- * findings pane. `LEGAL_REVIEW` is not a status a lawyer recognises; "Awaiting legal
- * decision" is the same fact in their language. Locked Step 30 keeps its state names;
+ * findings pane. `LEGAL_REVIEW` is not a status a lawyer recognises; "With Legal"
+ * is the same fact in their language. Locked Step 30 keeps its state names;
  * only the label changes.
  *
  * TWO DELIBERATE EXCEPTIONS, and they are the product's own vocabulary rather than
@@ -30,7 +30,7 @@ const REVIEW_STATUS_LABELS: Record<string, string> = {
   UPLOADED: "Uploaded",
   PROCESSING: "Analysing",
   ANALYSIS_COMPLETE: "Analysis complete",
-  LEGAL_REVIEW: "Awaiting legal decision",
+  LEGAL_REVIEW: "With Legal",   // PLAIN-LANGUAGE §2.2: one word for one fact
   RESOLVED: "Decided",
   CLOSED: "Closed",
   ANALYSIS_FAILED: "Analysis failed",

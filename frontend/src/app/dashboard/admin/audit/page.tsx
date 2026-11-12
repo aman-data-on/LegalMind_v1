@@ -32,6 +32,7 @@ import { AdminNav, dateTime } from "@/components/admin/AdminShell";
 import { ErrorState } from "@/components/Feedback";
 import { AccessRestricted } from "@/components/AccessRestricted";
 import { PageHeader } from "@/components/page/PageHeader";
+import { StackTable } from "@/components/StackTable";
 
 const PAGE_SIZE = 50;
 
@@ -185,18 +186,7 @@ export default function AuditPage() {
       ) : null}
 
       {events !== null && events.length > 0 ? (
-        <div className="ws-docs__table">
-          <table>
-            <thead>
-              <tr>
-                <th scope="col">When</th>
-                <th scope="col">Who</th>
-                <th scope="col">Did what</th>
-                <th scope="col">To what</th>
-                <th scope="col">Detail</th>
-              </tr>
-            </thead>
-            <tbody>
+        <StackTable columns={[{ label: "When" }, { label: "Who" }, { label: "Did what" }, { label: "To what" }, { label: "Detail" }]}>
               {events.map((event) => {
                 // Presence-tested, never null-tested: the field is omitted when
                 // the caller may not read it (49.7 r4 / Step 52.4).
@@ -241,9 +231,7 @@ export default function AuditPage() {
                   </tr>
                 );
               })}
-            </tbody>
-          </table>
-        </div>
+        </StackTable>
       ) : null}
 
       {pagination && pagination.total > pagination.page_size ? (

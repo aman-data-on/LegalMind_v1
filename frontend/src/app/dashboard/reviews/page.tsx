@@ -35,6 +35,8 @@ import { ReviewReportPage } from "@/components/workspace/ReviewReportPage";
 import { formatDate } from "@/lib/dates";
 import { ErrorState } from "@/components/Feedback";
 import { LegalOnly } from "@/components/RetiredFor";
+import { PageHeader } from "@/components/page/PageHeader";
+import { StackTable } from "@/components/StackTable";
 
 const PAGE_SIZE = 25;
 
@@ -86,20 +88,15 @@ function ReviewsQueueView() {
   }
 
   return (
-    <>
-      <div className="ws-context">
-        <h1>Reviews</h1>
-        {pagination ? (
-          <span className="ws-context__meta">{pagination.total} total</span>
-        ) : null}
-      </div>
+    <div className="lm-page ws-docs--queue">
+      {/* the same header and edge as the To-do and Legal tabs beside it (B3 page 2) */}
+      <PageHeader title="Reviews" meta={pagination?.total ? <span>{pagination.total} total</span> : null} />
       {/* `--queue` scopes the fixed column widths in workspace.css to this
           four-column table. Without them the columns size to content, and the
           two the visual baseline masks (Document, Created) still drive that
           sizing — so a longer document name in one run moved every column and
           failed job 15 on 7% of pixels with no visible change. */}
-      <div className="ws-docs ws-docs--queue">
-        <TodoViews />
+      <TodoViews />
         <div className="ws-filter" role="group" aria-label="Filter by status">
           {STATUS_FILTERS.map((filter) => (
             <button
@@ -148,17 +145,7 @@ function ReviewsQueueView() {
         ) : null}
 
         {reviews !== null && reviews.length > 0 ? (
-          <div className="ws-docs__table">
-            <table>
-              <thead>
-                <tr>
-                  <th scope="col">Document</th>
-                  <th scope="col">Status</th>
-                  <th scope="col">Analysed</th>
-                  <th scope="col">Report</th>
-                </tr>
-              </thead>
-              <tbody>
+          <StackTable columns={[{ label: "Document" }, { label: "Status" }, { label: "Analysed" }, { label: "Report" }]}>
                 {reviews.map((review) => {
                   const attention = ATTENTION_STATUSES.has(review.status);
                   return (
@@ -196,9 +183,7 @@ function ReviewsQueueView() {
                     </tr>
                   );
                 })}
-              </tbody>
-            </table>
-          </div>
+          </StackTable>
         ) : null}
 
         {pagination && pagination.total > pagination.page_size ? (
@@ -219,8 +204,7 @@ function ReviewsQueueView() {
             </button>
           </nav>
         ) : null}
-      </div>
-    </>
+    </div>
   );
 }
 

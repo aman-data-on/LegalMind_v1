@@ -16,7 +16,7 @@ export default function TodoPage() {
   return (
     <div className="lm-page ws-home">
       <PageHeader title="To-do"
-                  meta={tasks ? <span>{tasks.length === 1 ? "1 task waiting on you" : `${tasks.length} tasks waiting on you`}</span> : null} />
+                  meta={tasks?.length ? <span>{tasks.length === 1 ? "1 task waiting on you" : `${tasks.length} tasks waiting on you`}</span> : null} />
       <TodoViews />
       {error ? <ErrorState title="Your to-do could not be loaded" error={error} onRetry={reload} /> : null}
       {tasks === null && !error ? <LoadingState label="Loading your to-do…" rows={4} /> : null}

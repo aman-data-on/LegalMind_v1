@@ -32,6 +32,7 @@ import { AccountStatus, AdminNav, dateOnly } from "@/components/admin/AdminShell
 import { ErrorState } from "@/components/Feedback";
 import { AccessRestricted } from "@/components/AccessRestricted";
 import { PageHeader } from "@/components/page/PageHeader";
+import { StackTable } from "@/components/StackTable";
 
 function DepartmentsScreen() {
   const { can } = useSession();
@@ -191,23 +192,7 @@ function DepartmentsScreen() {
           ) : null}
 
           {departments !== null && departments.length > 0 ? (
-            <div className="ws-docs__table">
-              <table>
-                <thead>
-                  <tr>
-                    <th scope="col">Department</th>
-                    <th scope="col">Code</th>
-                    <th scope="col">Lead</th>
-                    <th scope="col">Members</th>
-                    <th scope="col">Active</th>
-                    <th scope="col">Created</th>
-                    {/* Same missing door as the account roster: the only way into
-                        the panel that renames a department and appoints its lead
-                        was clicking a name that does not look clickable. */}
-                    <th scope="col" className="ws-admin__rowact"><span className="ws-visually-hidden">Actions</span></th>
-                  </tr>
-                </thead>
-                <tbody>
+            <StackTable columns={[{ label: "Department" }, { label: "Code" }, { label: "Lead" }, { label: "Members" }, { label: "Active" }, { label: "Created" }, { label: "Actions", hidden: true, className: "ws-admin__rowact" }]}>
                   {departments.map((department) => (
                     <tr key={department.id} data-department-code={department.code}
                         className={department.id === selectedId ? "ws-tr--selected" : undefined}>
@@ -245,9 +230,7 @@ function DepartmentsScreen() {
                       </td>
                     </tr>
                   ))}
-                </tbody>
-              </table>
-            </div>
+            </StackTable>
           ) : null}
         </div>
 

@@ -27,7 +27,7 @@ export function TodoViews() {
   const views = todoViews(can);
   if (views.length < 2) return null;
   return (
-    <nav className="ws-filter" aria-label="To-do views">
+    <nav className="lm-tabs" aria-label="To-do views">
       {views.map((view) => (
         <Link key={view.href} href={view.href}
               aria-current={pathname === view.href ? "page" : undefined}>

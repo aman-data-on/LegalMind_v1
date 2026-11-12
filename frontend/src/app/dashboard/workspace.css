@@ -3481,23 +3481,6 @@
   gap: var(--ws-s4); flex-wrap: wrap;
 }
 .ws-admin__head h1 { margin: 0 0 2px; font-size: var(--ws-text-xl); font-weight: 600; }
-.ws-adminnav { margin: 0 calc(-1 * var(--ws-s4)); }
-/* These are `<Link>`s carrying `.ws-tab` + `aria-current`, so the `.ws-tabs`
-   child rules — which select `[role="tab"]` and `[aria-pressed]` — never
-   matched them. They inherited the 4px flex gap and nothing else, which is why
-   "Users Departments Roles & permissions Audit log" read as one sentence. */
-.ws-adminnav .ws-tab {
-  text-decoration: none;
-  font-size: var(--ws-text-sm); padding: 8px 12px; min-height: 36px;
-  display: inline-flex; align-items: center;
-  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius);
-  background: var(--ws-surface); color: var(--ws-ink-700);
-  transition: background-color var(--ws-t), border-color var(--ws-t), color var(--ws-t);
-}
-.ws-adminnav .ws-tab:hover { background: var(--ws-paper); border-color: var(--ws-ink-300); }
-.ws-adminnav .ws-tab[aria-current="page"] {
-  background: var(--ws-ink-900); border-color: var(--ws-ink-900); color: var(--c-on-action);
-}
 
 /* `.ws-filter-bar` was in the markup with no rule anywhere, so five `.ws-field`
    columns stacked at full width and the roster began below the fold. A filter
@@ -6681,15 +6664,6 @@ button.ws-open__go:hover { background: var(--ws-paper); }
   .ws-todo__what { grid-column: 1 / -1; }
   .ws-todo__since { justify-self: start; }
 }
-/* The To-do's views are links, in the same pill idiom as `.ws-filter button`. */
-.ws-filter a {
-  font-size: var(--t-label); padding: 4px 12px; min-height: 30px; display: inline-flex; align-items: center;
-  border-radius: 999px; border: 1px solid var(--ws-ink-100); background: var(--ws-surface);
-  color: var(--ws-ink-500); text-decoration: none;
-  transition: background-color var(--ws-t), border-color var(--ws-t), color var(--ws-t);
-}
-.ws-filter a:hover:not([aria-current="page"]) { border-color: var(--ws-ink-300); color: var(--ws-ink-700); }
-.ws-filter a[aria-current="page"] { background: var(--ws-ink-900); color: var(--c-on-action); border-color: var(--ws-ink-900); }
 /* CLM R7: the Contracts table gains a Stage column (3rd), so the fixed widths above are
    re-dealt for eight columns; Document gives up the slack, Action keeps its 14%. */
 @media (min-width: 1200px) {
@@ -7648,3 +7622,46 @@ a.ws-askglobal[data-away]:not(:focus-visible) {
 .lm-legendbox > summary { cursor: pointer; font-size: var(--t-caption); color: var(--ws-ink-700); padding: var(--ws-s1) 0; }
 .lm-legendbox > summary:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
 .lm-legendbox[open] > summary { margin-bottom: var(--ws-s1); }
+
+/* ============================================================ UX Batch 3 page 2
+ * `.lm-tabs` — the ONE tab bar for sibling pages (To-do views, Administration): links with
+ * `aria-current="page"`, an underline under the current one (Primer UnderlineNav). Navigation,
+ * so it never looks like a filter. Labels never wrap; if they cannot fit, the bar alone scrolls. */
+.lm-tabs { display: flex; gap: var(--ws-s1); border-bottom: 1px solid var(--ws-ink-100);
+  overflow-x: auto; scrollbar-width: thin; }
+.lm-tabs a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 var(--ws-s3);
+  margin-bottom: -1px; border-bottom: 2px solid transparent; white-space: nowrap; flex: none;
+  font-size: var(--ws-text-sm); font-weight: 500; color: var(--ws-ink-700); text-decoration: none;
+  transition: color var(--ws-t), border-color var(--ws-t); }
+.lm-tabs a:hover { color: var(--ws-ink-900); border-bottom-color: var(--ws-ink-300); }
+.lm-tabs a[aria-current="page"] { color: var(--ws-ink-900); font-weight: 600; border-bottom-color: var(--ws-ink-900); }
+.lm-tabs a:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: -2px; }
+/* four Admin sections fit 358px at 13px with 6px sides; the bar only scrolls if a label grows */
+@media (max-width: 640px) { .lm-tabs { gap: 0; } .lm-tabs a { padding: 0 6px; font-size: var(--t-caption); } }
+
+/* `.lm-stack` — `StackTable` on a phone: each row a card, the first cell its title, then
+ * "Label  value" lines, an unlabelled (actions) cell at the foot. Nothing scrolls sideways. */
+@media (max-width: 640px) {
+  .lm-stack { overflow-x: visible; }
+  .lm-stack table, .lm-stack tbody, .lm-stack tr, .lm-stack td { display: block; width: auto; }
+  .lm-stack thead { position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+  .lm-stack tr { padding: var(--ws-s3) var(--ws-s4); border-bottom: 1px solid var(--ws-ink-100); }
+  .lm-stack tr:last-child { border-bottom: 0; }
+  .lm-stack td, .lm-stack tr:last-child td { padding: 2px 0; border: 0; white-space: normal;
+    overflow-wrap: anywhere; min-width: 0; }
+  /* the label sits in a 7rem gutter; the value stays inline, so chips keep their own width
+     and several chips wrap under the value, never under the label */
+  .lm-stack td[data-label] { position: relative; padding-left: calc(7rem + var(--ws-s2)); }
+  .lm-stack td[data-label]::before { content: attr(data-label); position: absolute; left: 0;
+    top: 4px; width: 7rem; font-size: var(--t-label); line-height: var(--t-label-lh);
+    color: var(--ws-ink-500); }
+  .lm-stack td:first-child { padding-left: 0; padding-bottom: var(--ws-s1); font-weight: 600; }
+  .lm-stack td.ws-admin__rowact { position: static; width: auto; text-align: left;
+    box-shadow: none; background: transparent; }
+  .lm-stack td:first-child::before { content: none; }
+  .lm-stack td:not([data-label]) { padding-top: var(--ws-s2); }
+  .lm-stack td:empty { display: none; }
+}
+/* a page's one-line note belongs to the list under it, not a section of its own */
+.lm-page > .ws-pane__note { margin: 0 0 calc(-1 * var(--ws-s3)); }

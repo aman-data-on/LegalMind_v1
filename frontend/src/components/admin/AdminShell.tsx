@@ -77,12 +77,11 @@ export function AdminNav() {
     .sort((a, b) => b.href.length - a.href.length)[0]?.href;
 
   return (
-    <nav className="ws-tabs ws-adminnav" aria-label="Administration sections">
+    <nav className="lm-tabs" aria-label="Administration sections">
       {ADMIN_SECTIONS.map((section) => (
         <Link
           key={section.href}
           href={section.href}
-          className={`ws-tab ${active === section.href ? "ws-tab--active" : ""}`}
           aria-current={active === section.href ? "page" : undefined}
         >
           {section.label}
