@@ -13,7 +13,8 @@ observations (`analysis.consistency`) are empty · it parses (`parse_docx`).
 With the PDF too (`pdf_file`, any file the worker makes): PDF/A-2b identified, with an
 OutputIntent · every font embedded · no annotation but a link · no form, JavaScript,
 embedded file, encryption or optional content · at most `MAX_PDF_BYTES`. And
-against the DOCX (`_pdf`): the execution block sits on one page · each paragraph holding a
+against the DOCX (`_pdf`): the execution block sits on one page — and, where the
+template puts it last, opens the last page (`SIGNATURE_PAGE`) · each paragraph holding a
 cross-reference reads in the PDF exactly as its cached DOCX text · the whole body reads as
 the DOCX does (`TEXT_EQUAL`) · and on OUR layout only: no glyph runs past the right margin
 · the footers read "Page 1 of N" … "Page N of N" once each (a pre-S1 file: 1, 2 … per
@@ -55,6 +56,8 @@ _TIGHT = re.compile(r"\s+(?=[,.;:)])")          # a space before punctuation
 #: where a line may break with no space in the text: after a hyphen, dash or slash and
 #: before an em dash ("quasi-" | "governmental" reads "quasi- governmental" in a PDF)
 _BREAK = re.compile(r"(?<=[-\u2010\u2013\u2014/])\s+|\s+(?=\u2014)")
+#: an email address — a narrow signature-table cell breaks one mid-word, with no hyphen
+_EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 _QUOTED = re.compile(r"[“\"]([A-Z][\w &/-]{1,60}?)[”\"]")
 #: how far a glyph may sit past the right margin (PDF points) before the page fails
 MARGIN_TOLERANCE_PT = 0.5
@@ -74,7 +77,8 @@ _OLD_PAGE = re.compile(_DOC_ID + r"\s+(\d+)\b")
 _FORBIDDEN = {"ACROFORM": re.compile(r"/AcroForm\b"),
               "JAVASCRIPT": re.compile(r"/(?:JavaScript|JS)\b"),
               "EMBEDDED_FILE": re.compile(r"/(?:EmbeddedFiles?|EF)\b"),
-              "OPTIONAL_CONTENT": re.compile(r"/OCProperties\b|/Type\s*/OCG\b")}
+              "OPTIONAL_CONTENT": re.compile(r"/OCProperties\b|/Type\s*/OCG\b"),
+              "LAUNCH": re.compile(r"/Launch\b")}
 #: what of `pdf_file` a client's own PDF may not carry into a final copy (`M2`): what
 #: a signing tool refuses or a signer cannot see. Not PDF/A or fonts: we do not convert
 #: the client's PDF, and nearly none is PDF/A.
@@ -83,7 +87,9 @@ CLIENT_PDF = {"ANNOTATION": "contains comments or other annotations",
               "EMBEDDED_FILE": "contains attached files",
               "ENCRYPTED": "is password-protected or restricted",
               "OPTIONAL_CONTENT": "contains hidden layers",
-              "PDF_TOO_LARGE": "is larger than 10 MB"}
+              "PDF_TOO_LARGE": "is larger than 10 MB",
+              "LAUNCH": "contains an action that opens another file or program",
+              "PDF_UNREADABLE": "cannot be opened"}
 #: the check sets the worker records it ran (`pdf.render_version`)
 FILE, TEXT, HOUSE = "pdf_file", "text_equal", "house_layout"
 SPECIAL = "lm:special-conditions"
@@ -241,36 +247,46 @@ def pdf_file(pdf: bytes) -> list[Problem]:
         doc = pymupdf.open(stream=pdf, filetype="pdf")
     except (pymupdf.FileDataError, RuntimeError):
         return [*out, Problem("PDF_UNREADABLE", "the file is not a PDF that opens")]
-    with doc:
-        if doc.needs_pass:                       # nothing else can be read
-            return [*out, Problem("ENCRYPTED", "the PDF needs a password to open")]
-        if doc.metadata.get("encryption"):
-            out.append(Problem("ENCRYPTED", "the PDF is encrypted or restricted"))
-        xmp = doc.get_xml_metadata()
-        part = re.search(r"pdfaid:part(?:>|=\")\s*(\d)", xmp)
-        conformance = re.search(r"pdfaid:conformance(?:>|=\")\s*(\w)", xmp)
-        intents = doc.xref_get_key(doc.pdf_catalog(), "OutputIntents")
-        if (part and part[1], conformance and conformance[1].upper()) != ("2", "B"):
-            out.append(Problem("PDFA", "the PDF does not identify itself as PDF/A-2b"))
-        if intents[0] != "array" or not intents[1].strip("[] "):
-            out.append(Problem("PDFA", "the PDF has no output intent (PDF/A colour)"))
-        names = [_names(doc.xref_object(x)) for x in range(1, doc.xref_length())]
-        found = {code for source in names for code, key in _FORBIDDEN.items()
-                 if key.search(source)}
-        out += [Problem(code, f"the PDF carries {code.lower().replace('_', ' ')}")
-                for code in sorted(found)]
-        loose: set[str] = set()
-        for n, page in enumerate(doc.pages(), 1):
-            kinds = sorted({t[1] for t in page.annot_xrefs()
-                            if t[1] != pymupdf.mupdf.PDF_ANNOT_LINK})
-            if kinds:
-                out.append(Problem("ANNOTATION", f"page {n} has an annotation that is "
-                                   f"not a link ({', '.join(map(str, kinds))})"))
-            loose |= {f[3] for f in page.get_fonts(full=True)
-                      if f[1] == "n/a" and f[2] != "Type3"}
-        if loose:
-            out.append(Problem("FONT_NOT_EMBEDDED", "fonts not embedded: "
-                               + ", ".join(sorted(loose))))
+    try:
+        with doc:
+            return out + _inspect(doc)
+    except (ValueError, RuntimeError):           # a damaged xref, an object that breaks
+        return [*out, Problem("PDF_UNREADABLE", "the file is not a PDF that opens")]
+
+
+def _inspect(doc: Any) -> list[Problem]:
+    """`pdf_file` on an opened document."""
+    import pymupdf
+    out = []
+    if doc.needs_pass:                       # nothing else can be read
+        return [Problem("ENCRYPTED", "the PDF needs a password to open")]
+    if doc.metadata.get("encryption"):
+        out.append(Problem("ENCRYPTED", "the PDF is encrypted or restricted"))
+    xmp = doc.get_xml_metadata()
+    part = re.search(r"pdfaid:part(?:>|=\")\s*(\d)", xmp)
+    conformance = re.search(r"pdfaid:conformance(?:>|=\")\s*(\w)", xmp)
+    intents = doc.xref_get_key(doc.pdf_catalog(), "OutputIntents")
+    if (part and part[1], conformance and conformance[1].upper()) != ("2", "B"):
+        out.append(Problem("PDFA", "the PDF does not identify itself as PDF/A-2b"))
+    if intents[0] != "array" or not intents[1].strip("[] "):
+        out.append(Problem("PDFA", "the PDF has no output intent (PDF/A colour)"))
+    names = [_names(doc.xref_object(x)) for x in range(1, doc.xref_length())]
+    found = {code for source in names for code, key in _FORBIDDEN.items()
+             if key.search(source)}
+    out += [Problem(code, f"the PDF carries {code.lower().replace('_', ' ')}")
+            for code in sorted(found)]
+    loose: set[str] = set()
+    for n, page in enumerate(doc.pages(), 1):
+        kinds = sorted({t[1] for t in page.annot_xrefs()
+                        if t[1] != pymupdf.mupdf.PDF_ANNOT_LINK})
+        if kinds:
+            out.append(Problem("ANNOTATION", f"page {n} has an annotation that is "
+                               f"not a link ({', '.join(map(str, kinds))})"))
+        loose |= {f[3] for f in page.get_fonts(full=True)
+                  if f[1] == "n/a" and f[2] != "Type3"}
+    if loose:
+        out.append(Problem("FONT_NOT_EMBEDDED", "fonts not embedded: "
+                           + ", ".join(sorted(loose))))
     return out
 
 
@@ -377,10 +393,13 @@ def _page_numbers(docx_bytes: bytes, pages: list[str]) -> list[Problem]:
             for run in runs if run != list(range(1, len(run) + 1))]
 
 
-def _pdf(docx_bytes: bytes, pdf: bytes, *, ours: bool) -> list[Problem]:
+def _pdf(docx_bytes: bytes, pdf: bytes, *, ours: bool,
+         signature_last: bool = False) -> list[Problem]:
     """The checks of the PDF against its DOCX: its text (`TEXT_EQUAL`, the body between
     the DOCX's own top and bottom margins), its execution block, its cross-references;
-    and, on OUR layout only (``ours``), the house right margin and our page footers."""
+    and, on OUR layout only (``ours``), the house right margin and our page footers;
+    where the template puts the signatures last (``signature_last``), the execution
+    block opens the last page (`SIGNATURE_PAGE`)."""
     import docx
     import pymupdf
     document = docx.Document(io.BytesIO(docx_bytes))
@@ -392,13 +411,23 @@ def _pdf(docx_bytes: bytes, pdf: bytes, *, ours: bool) -> list[Problem]:
                    for m in (section.top_margin, section.bottom_margin))
     margin = render_contract.house()["page"]["margin_mm"]["right"] * 72 / 25.4
     out = []
+    # S2: the Word file's email addresses, each read whole where the PDF broke it over
+    # two lines (a narrow cell, no space to break at) — only these exact strings
+    emails = sorted({e for p in docx_body.iter(_W + "p")
+                     for e in _EMAIL.findall(_docx_text(p))}, key=len, reverse=True)
+    heals = [(re.compile(r"\s*".join(map(re.escape, e))), e) for e in emails]
+
+    def heal(text: str) -> str:
+        for pattern, email in heals:
+            text = pattern.sub(email, text)
+        return _norm(text)
     with pymupdf.open(stream=pdf, filetype="pdf") as doc:
-        pages = [_norm(page.get_text()) for page in doc]
+        pages = [heal(page.get_text()) for page in doc]
         # the body between the top and bottom margins (header and footer sit outside,
         # with a line's allowance), read as one text: a paragraph may cross a page
-        body = _norm(" ".join(page.get_text(clip=pymupdf.Rect(
-            0, top - 6, page.rect.width, page.rect.height - bottom + 6))
-            for page in doc))
+        bodies = [heal(page.get_text(clip=pymupdf.Rect(
+            0, top - 6, page.rect.width, page.rect.height - bottom + 6))) for page in doc]
+        body = _norm(" ".join(bodies))
         for n, page in enumerate(doc if ours else [], 1):   # no glyph past our margin
             edge = page.rect.width - margin + MARGIN_TOLERANCE_PT
             over = [line for block in page.get_text("rawdict")["blocks"]
@@ -415,6 +444,10 @@ def _pdf(docx_bytes: bytes, pdf: bytes, *, ours: bool) -> list[Problem]:
             if not any(block in page for page in pages):
                 out.append(Problem("EXECUTION_SPLIT", "the execution block does not sit "
                                    "on one page"))
+            if signature_last and not (bodies and _words(bodies[-1]).startswith(
+                    _words(block))):
+                out.append(Problem("SIGNATURE_PAGE", "the signature page is not the "
+                                   "last page, or does not start at the top of it"))
         if tag is not None and tag.get(_W + "val") == SPECIAL:
             out += _new_page(sdt, pages)
     out += _text_equal(document, body)
@@ -485,7 +518,8 @@ def check(docx_bytes: bytes, *, model: Mapping[str, Any] | None = None,
     if model is not None:
         out += _numbering(docx_bytes, model)
     if pdf is not None:
-        out += pdf_problems(docx_bytes, pdf, ours=True)
+        out += pdf_problems(docx_bytes, pdf, ours=True, signature_last=bool(
+            (model or {}).get("execution", {}).get("last")))
     return out
 
 
@@ -494,16 +528,19 @@ def pdf_checks(ours: bool) -> list[str]:
     return [FILE, TEXT, HOUSE] if ours else [FILE, TEXT]
 
 
-def pdf_problems(docx_bytes: bytes, pdf: bytes, *, ours: bool) -> list[Problem]:
+def pdf_problems(docx_bytes: bytes, pdf: bytes, *, ours: bool,
+                 signature_last: bool = False) -> list[Problem]:
     """Only the PDF checks of `check` — for the worker's client PDF (`AM-293` r2), whose
     DOCX already passed every other check when it was created. ``ours`` is PROVENANCE,
     never read from the file: we generated it (a ``ContractDraft`` row), so it is on the
     house layout and our footers are checked; else it is paper (the client's, or ours as
-    the client returned it), checked as a file and for its text (`pdf_checks`)."""
+    the client returned it), checked as a file and for its text (`pdf_checks`).
+    ``signature_last``: the template puts the signature page last (S2), read by the
+    caller from the template — `SIGNATURE_PAGE` runs on our layout only."""
     file = pdf_file(pdf)
-    if any(p.code == "ENCRYPTED" for p in file):     # refused; its text is not ours
+    if any(p.code in ("ENCRYPTED", "PDF_UNREADABLE") for p in file):  # nothing to read
         return file
-    return file + _pdf(docx_bytes, pdf, ours=ours)
+    return file + _pdf(docx_bytes, pdf, ours=ours, signature_last=ours and signature_last)
 
 
 def require(docx_bytes: bytes, **kwargs: Any) -> None:

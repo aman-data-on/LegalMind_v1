@@ -1284,6 +1284,8 @@ def _package_plan(guard: Guard, contract: M.Contract, form: str = CHANGES_ONLY) 
         return stop("ROUND_CLOSED", "Our answer to this version is already prepared.")
     if (gap := blanks(db, before)) is not None:
         stop("BLANKS", gap)              # verifier item 4: never a final with a blank
+    if (gap := _unsigned(base)) is not None:
+        stop("SIGNATORY_EMAIL", gap)
     listed, _, _ = _changes(guard, contract, before.version_number, after.version_number)
     if listed.get("special_conditions_not_applied"):
         return stop("SPECIAL_CONDITIONS_NOT_APPLIED", "The Special Conditions of one "
@@ -1656,6 +1658,24 @@ def blanks(db, version: M.DocumentVersion) -> str | None:
             + ". Fill them in the contract first.")
 
 
+def _unsigned(base: dict) -> str | None:
+    """What the signature page of a contract WE generated still lacks — a signatory's
+    email (`FINAL-PACKAGE-SPEC` c2: signing tools route by email; Sign and Date of sign
+    stay empty on purpose, `render_contract.SIGNED_LATER`) — in plain words, or None."""
+    missing = render_contract.unfilled(base["execution"])
+    if not missing:
+        return None
+    said = "; ".join(f"no {label.lower()} for {party}" for label, party in missing)
+    return (f"The signature page has {said}. Signing tools send the contract by email — "
+            "start the contract again with the signatory's email.")
+
+
+#: why a version that could not be read cannot be the final contract (QA-037's reasons)
+_UNREADABLE = {"PASSWORD_PROTECTED": "Version {n} is a password-protected PDF, so it "
+               "cannot be the final contract. Ask the client for a copy without a "
+               "password, or upload the Word file."}
+
+
 def _final_plan(guard: Guard, contract: M.Contract, storage: StorageBackend) -> dict:
     """The dry run of the final copy (`AM-318`, owner 2026-11-06: the deal cycle ends at
     the final clean copy). Its source is the agreed text: our latest version as the
@@ -1673,6 +1693,14 @@ def _final_plan(guard: Guard, contract: M.Contract, storage: StorageBackend) -> 
         return out
 
     def ready(source: M.DocumentVersion) -> dict:
+        if (draft := _generated(db, source)) is not None:
+            try:
+                gap = _unsigned(_basis(db, draft)["base"])
+            except model_.ModelError:
+                gap = ("The signature page could not be rebuilt from the template; a "
+                       "person must look at it.")
+            if gap is not None:
+                return stop("SIGNATORY_EMAIL", gap)
         if source.mime_type == PDF_MIME:
             found = {p.code for p in preflight.pdf_file(storage.get(source.storage_key))}
             for code in sorted(found & preflight.CLIENT_PDF.keys()):
@@ -1693,6 +1721,11 @@ def _final_plan(guard: Guard, contract: M.Contract, storage: StorageBackend) -> 
     n = latest.version_number
     if negotiation.final_of(latest.doc_metadata):
         return stop("ALREADY_FINAL", f"Version {n} is already the final contract.")
+    if latest.processing_status is ProcessingStatus.FAILED:     # never "still being read"
+        why = (latest.doc_metadata or {}).get("unreadable", "")
+        return stop("UNREADABLE", _UNREADABLE.get(
+            why, "Version {n} could not be read, so it cannot be the final contract. "
+            "Upload a readable copy or the Word file.").format(n=n))
     if latest.processing_status is not ProcessingStatus.COMPLETED:
         return stop("NOT_READ", f"Version {n} is still being read.")
     out["of_version"] = n

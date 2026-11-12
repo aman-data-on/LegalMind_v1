@@ -37,13 +37,15 @@
           "party": "{party_one_name}",
           "signatory": "{party_one_signatory}",
           "designation": "{party_one_designation}",
-          "authority": "{party_one_authority}"
+          "authority": "{party_one_authority}",
+          "email": "{party_one_email}"
         },
         {
           "party": "{party_two_name}",
           "signatory": "{party_two_signatory}",
           "designation": "{party_two_designation}",
-          "authority": "{party_two_authority}"
+          "authority": "{party_two_authority}",
+          "email": "{party_two_email}"
         }
       ],
       "seal": false,
@@ -104,6 +106,13 @@
       "role": "our_authority"
     },
     {
+      "key": "party_one_email",
+      "type": "text",
+      "group": "Our company",
+      "class": "M",
+      "role": "our_signatory_email"
+    },
+    {
       "key": "party_two_name",
       "type": "text",
       "group": "Client",
@@ -144,6 +153,13 @@
       "group": "Client",
       "class": "O",
       "role": "counterparty_authority"
+    },
+    {
+      "key": "party_two_email",
+      "type": "text",
+      "group": "Client",
+      "class": "M",
+      "role": "counterparty_signatory_email"
     },
     {
       "key": "count_value",
@@ -203,11 +219,13 @@
     "party_one_signatory": "Signatory One",
     "party_one_designation": "Designation One",
     "party_one_authority": "Authority Reference One",
+    "party_one_email": "signatory.one@example.test",
     "party_two_name": "Party Two Placeholder Private Limited",
     "party_two_office": "Placeholder Address Two",
     "party_two_cin": "CIN-PLACEHOLDER-2",
     "party_two_signatory": "Signatory Two",
     "party_two_designation": "Designation Two",
+    "party_two_email": "signatory.two@example.test",
     "count_value": 3,
     "option_value": "Option 1",
     "include_clause_d": true,

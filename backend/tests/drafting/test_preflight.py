@@ -162,9 +162,16 @@ def renderer2(data: bytes) -> bytes:
 
 
 def test_renderer2_is_the_old_renderers_bytes(placeholder, answers):
-    """The pre-S1 contract the tests below use is byte for byte the old renderer's."""
+    """The pre-S1 contract the tests below use is byte for byte the old renderer's —
+    of the placeholder as it was then, before S2 gave its signers an email field."""
     import hashlib
-    plain = model_.resolve(*placeholder, answers)
+    template = copy.deepcopy(placeholder[0])
+    for row in template["layout"]["execution"]["rows"]:
+        row.pop("email")
+    template["variables"] = [v for v in template["variables"]
+                             if not v["key"].endswith("_email")]
+    plain = model_.resolve(template, placeholder[1],
+                           {k: v for k, v in answers.items() if not k.endswith("_email")})
     data = render_contract.render(plain, placeholder[0]["assets"], contract_ref="T",
                                   version_number=1, model_hash="0" * 64)
     assert hashlib.sha256(renderer2(data)).hexdigest() == RENDERER2_SHA256
@@ -291,21 +298,50 @@ def test_list_labels_print_as_word_prints_them():
     assert label(3, "none") == "" and label(30, "lowerRoman") == "30"
 
 
-def test_signature_split_refused(rendered):
-    """The execution table across a page break is refused; on one page it passes."""
-    model, _, data = rendered
+def _execution_words(data: bytes) -> list[str]:
     body = zipfile.ZipFile(io.BytesIO(data)).read("word/document.xml")
     sdt = next(s for s in preflight.parse_xml(body).iter(preflight._W + "sdt")
                if s.find(f"{preflight._W}sdtPr/{preflight._W}tag").get(
                    preflight._W + "val") == "lm:execution")
-    words = preflight._norm(" ".join(preflight._docx_text(p)
-                                     for p in sdt.iter(preflight._W + "p"))).split()
+    return preflight._norm(" ".join(preflight._docx_text(p)
+                                    for p in sdt.iter(preflight._W + "p"))).split()
+
+
+def test_signature_split_refused(rendered):
+    """The execution table across a page break is refused; on one page it passes."""
+    model, _, data = rendered
+    words = _execution_words(data)
     half = len(words) // 2
 
     def split(*pages: str) -> bool:
         return "EXECUTION_SPLIT" in _codes(data, model=model, pdf=_pdf(*pages))
     assert split(" ".join(words[:half]), " ".join(words[half:]))
     assert not split("Clause text.", " ".join(words))
+
+
+def test_signature_page_is_the_last_page_from_its_top(rendered):
+    """S2 `SIGNATURE_PAGE`: where the template puts the signatures last, the execution
+    block opens the last page — text above it on that page, or a page after it, is
+    refused. A template without the flag is never asked."""
+    model, _, data = rendered
+    block = " ".join(_execution_words(data))
+    last = copy.deepcopy(model)
+    last["execution"]["last"] = True
+
+    def refused(*pages: str, m: dict = last) -> bool:
+        return "SIGNATURE_PAGE" in _codes(data, model=m, pdf=_pdf(*pages))
+    assert not refused("Clause text.", block)
+    assert refused("Clause text.", "The schedule's last line. " + block)
+    assert refused(block, "Schedule text.")
+    assert not refused(block, "Schedule text.", m=model)
+    # a narrow cell breaks a long email with no hyphen ("…@exampl" | "e.test"): the Word
+    # file's own addresses are read whole, nothing else is
+    wrapped = block.replace("@example.test", "@exampl e.test")
+    assert wrapped != block and not _codes(data, model=last, pdf=_pdf(
+        "Clause text.", wrapped)) & {"SIGNATURE_PAGE", "EXECUTION_SPLIT"}
+    split = _pdf("Clause text.", block.replace("Signatory Details", "Signa tory Details"))
+    assert {"SIGNATURE_PAGE", "EXECUTION_SPLIT"} <= {
+        p.code for p in preflight._pdf(data, split, ours=False, signature_last=True)}
 
 
 def test_pdf_file_checks_fire():
@@ -334,6 +370,18 @@ def test_pdf_file_checks_fire():
     big = {p.code for p in preflight.pdf_file(sealed + b"%" * preflight.MAX_PDF_BYTES)}
     assert "PDF_TOO_LARGE" in big
     assert [p.code for p in preflight.pdf_file(b"%PDF-1.7 x")] == ["PDF_UNREADABLE"]
+    # S1 verifier: a broken cross-reference table is a refusal, never an exception —
+    # and the checks against the DOCX do not open it again
+    broken = b"%PDF-1.7\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF"
+    assert [p.code for p in preflight.pdf_file(broken)] == ["PDF_UNREADABLE"]
+    assert [p.code for p in preflight.pdf_problems(b"", broken, ours=True)] == [
+        "PDF_UNREADABLE"]
+    # … and an action that starts another program
+    launch = pymupdf.open()
+    launch.new_page()
+    launch.xref_set_key(launch.pdf_catalog(), "OpenAction",
+                        "<</S/Launch/F(setup.exe)>>")
+    assert "LAUNCH" in {p.code for p in preflight.pdf_file(launch.tobytes())}
     # L1: a password to open it is a refusal, never an error
     opened = locked.tobytes(encryption=pymupdf.PDF_ENCRYPT_AES_256, owner_pw="o",
                             user_pw="u")

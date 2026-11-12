@@ -380,6 +380,44 @@ def test_a_final_copy_of_our_contract_gets_the_house_checks(db, api, published, 
     assert rec["checks"] == ["pdf_file", "text_equal", "house_layout"]
 
 
+@pytest.fixture
+def no_email(placeholder):
+    """The placeholder as every template before S2: no signatory email field. Listed
+    before ``published`` so the template is published without it."""
+    template = placeholder[0]
+    for row in template["layout"]["execution"]["rows"]:
+        row.pop("email")
+    template["variables"] = [v for v in template["variables"]
+                             if not v["key"].endswith("_email")]
+    for key in ("party_one_email", "party_two_email"):
+        template["layout"]["check_values"].pop(key)
+    return placeholder
+
+
+def test_a_final_contract_needs_each_signatorys_email(db, api, no_email, published,
+                                                      staff, answers):
+    """S2 (`FINAL-PACKAGE-SPEC` c2): signing tools route by email, so a contract we made
+    whose signature page has no signatory email is blocked at Final, in plain words;
+    Sign and Date of sign stay empty on purpose and block nothing."""
+    from legalmind.drafting import render_contract
+    assert {"Sign", "Date of sign"} <= render_contract.SIGNED_LATER
+    sign_in(api, db, staff)
+    draft = _start(api, published, answers={k: v for k, v in answers.items()
+                                            if not k.endswith("_email")}).json()["data"]
+    made = api.post(f"{V1}/drafts/{draft['id']}/create", json={"expected_version": 0})
+    assert made.status_code == 201, made.text
+    contract_id = db.get(M.DocumentVersion, uuid.UUID(
+        made.json()["data"]["document_version_id"])).contract_id
+    url = f"{V1}/contracts/{contract_id}/final-copy"
+    assert api.get(url).json()["data"]["blockers"] == [{
+        "code": "SIGNATORY_EMAIL",
+        "message": "The signature page has no signatory email for Party One Placeholder "
+                   "Limited; no signatory email for Party Two Placeholder Private "
+                   "Limited. Signing tools send the contract by email — start the "
+                   "contract again with the signatory's email."}]
+    assert api.post(url).status_code == 409
+
+
 # ---------------------------------------------------------------- AM-316
 @pytest.fixture
 def named(db, api, user, seeded, placeholder, monkeypatch):

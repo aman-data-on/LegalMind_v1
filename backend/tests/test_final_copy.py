@@ -159,6 +159,36 @@ def test_a_client_pdf_with_hidden_content_blocks_the_final_copy(api, db, owner, 
     assert dry["available"] and made.status_code == 201, made.text
 
 
+def test_an_unreadable_version_is_never_said_to_be_still_reading(api, db, owner, tmp_path):
+    """S1 verifier: a version that could not be read (here a PDF behind a password)
+    blocks the final copy in plain words — what is wrong and what to do — and is never
+    "still being read"."""
+    import pymupdf
+
+    from legalmind.ingestion.service import ingest_document
+    from legalmind.ingestion.storage import LocalFilesystemStorage
+
+    doc = pymupdf.open()
+    doc.new_page().insert_text((72, 100), OURS[0], fontsize=10)
+    locked = doc.tobytes(encryption=pymupdf.PDF_ENCRYPT_AES_256, owner_pw="o", user_pw="u")
+    c = _contract(db, owner)
+    v = ingest_document(db, LocalFilesystemStorage(tmp_path / "objects"), contract_id=c.id,
+                        uploaded_by=owner.id, data=locked, filename="theirs.pdf",
+                        declared_mime="application/pdf").document_version
+    assert v.processing_status is E.ProcessingStatus.FAILED
+    dry = api.get(FINAL.format(c.id)).json()["data"]
+    assert dry["blockers"] == [{"code": "UNREADABLE", "message": "Version 1 is a "
+                                "password-protected PDF, so it cannot be the final "
+                                "contract. Ask the client for a copy without a password, "
+                                "or upload the Word file."}]
+    v.doc_metadata = {**(v.doc_metadata or {}), "unreadable": "CORRUPT"}
+    db.flush()
+    assert api.get(FINAL.format(c.id)).json()["data"]["blockers"][0]["message"] == (
+        "Version 1 could not be read, so it cannot be the final contract. Upload a "
+        "readable copy or the Word file.")
+    assert api.post(FINAL.format(c.id)).status_code == 409
+
+
 def test_a_counter_proposal_goes_to_the_client_before_the_final_copy(
         api, db, owner, tmp_path, monkeypatch):
     """Verifier item 1: answers that keep or propose our wording go back as our reply

@@ -166,15 +166,20 @@ def render_version(db: Any, storage: Any, document_version_id: UUID,
     if (record(version) or {}).get("status") == READY:
         return record(version)
     failed = None
-    ours = db.execute(select(M.ContractDraft.id).where(
-        M.ContractDraft.document_version_id == version.id)).first() is not None
+    draft = db.execute(select(M.ContractDraft).where(
+        M.ContractDraft.document_version_id == version.id)).scalar_one_or_none()
+    ours = draft is not None
+    # S2: the template we generated it from puts the signature page last (provenance)
+    tv = db.get(M.TemplateVersion, draft.template_version_id) if draft else None
+    last = bool(((tv.layout if tv else {}).get("execution") or {}).get("last"))
     contract = kind in ("contract", "final")
     checks = preflight.pdf_checks(ours) if contract else [preflight.FILE]
     try:
         source = storage.get(version.storage_key)
         if contract:
             fixed, result = convert_contract(source)
-            refuse(preflight.pdf_problems(fixed, result.pdf, ours=ours))
+            refuse(preflight.pdf_problems(fixed, result.pdf, ours=ours,
+                                          signature_last=last))
         else:
             result = convert(source)
             refuse(preflight.pdf_file(result.pdf))

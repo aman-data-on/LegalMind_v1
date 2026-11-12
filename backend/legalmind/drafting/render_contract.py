@@ -13,6 +13,8 @@ Word-native, so the file behaves in Word as the lawyer expects (ECMA-376 / MS-OI
   footer, page numbers running on (one "Page X of Y" run for the whole file). Footers
   read the document ID, small at the left (a signed copy traces back to its record), and
   ``Page {PAGE} of {NUMPAGES}`` at the right (``house.json`` ``footer.page_format``).
+  With the template's ``execution.last`` (S2) the signature page is a section of its
+  own after every schedule and annexure: the file's last page.
 * **Content controls** — each clause sits in a ``w:sdt`` (unique ``w:id``, ``w:tag``
   ``lm:<key>@<version>``, ``w:lock sdtContentLocked``). The lock is ADVISORY: Word
   honours it, any editor can remove it. The real protection is server-side — a contract
@@ -554,22 +556,63 @@ def render(model: Mapping[str, Any], assets: Mapping[str, Any], *, contract_ref:
     b.anchors = {n: k for k, n in (special or {}).get("anchors", {}).items()}
     clauses(model["body"], 1, main=True)
     b.anchors = {}
-    if special and special["position"] == "before_execution":
-        _special_conditions(b, special, model, identifier)
-    _execution(b, model["execution"])
-    if special and special["position"] != "before_execution":
-        _special_conditions(b, special, model, identifier)
-    for schedule in model["schedules"]:
-        section = b.doc.add_section(WD_SECTION.NEW_PAGE)    # page numbers run on
-        b.furniture(section, f"{model['short_title']} — {schedule['title']}", identifier)
-        b.para("LM Schedule Title", [{"t": schedule["title"]}])
-        if schedule.get("note"):
-            b.para("LM Body 1", [{"t": schedule["note"], "ph": True}])
-        clauses(schedule["clauses"], b.restart(_CLAUSES))
+
+    def schedules() -> None:
+        for schedule in model["schedules"]:
+            section = b.doc.add_section(WD_SECTION.NEW_PAGE)    # page numbers run on
+            b.furniture(section, f"{model['short_title']} — {schedule['title']}",
+                        identifier)
+            b.para("LM Schedule Title", [{"t": schedule["title"]}])
+            if schedule.get("note"):
+                b.para("LM Body 1", [{"t": schedule["note"], "ph": True}])
+            clauses(schedule["clauses"], b.restart(_CLAUSES))
+    if model["execution"].get("last"):     # S2: MSA → schedules → annexure → signatures
+        schedules()
+        if special:
+            _special_conditions(b, special, model, identifier)
+        if model["execution"]["rows"]:     # never an empty last page
+            b.furniture(b.doc.add_section(WD_SECTION.NEW_PAGE), model["short_title"],
+                        identifier)
+            _execution(b, model["execution"])
+    else:
+        if special and special["position"] == "before_execution":
+            _special_conditions(b, special, model, identifier)
+        _execution(b, model["execution"])
+        if special and special["position"] != "before_execution":
+            _special_conditions(b, special, model, identifier)
+        schedules()
     _unique_drawing_ids(b.doc)
     _replace_numbering(b.doc, _numbering_xml(b.restarts))
     _neutral_core(b.doc, model["title"])
     return deterministic_zip(_save(b.doc))
+
+
+#: the signature table's row label → the execution row's field that fills it
+SIGNATURE_VALUE = {"By": "party", "Name": "signatory", "Designation": "designation",
+                   "Authority": "authority", "Signatory Email": "email",
+                   "Date of sign": "date"}
+#: the cells left empty on purpose (`FINAL-PACKAGE-SPEC` b, c2): the signer or the
+#: signing tool fills Sign and Date of sign, a hand the seal and the witness; Authority
+#: is "if any"
+SIGNED_LATER = {"Sign", "Date of sign", "Common seal", "Witness", "Authority"}
+
+
+def _signature_rows(execution: Mapping[str, Any]) -> list[tuple[str, int]]:
+    """The house's signature rows this table shows, with their heights."""
+    shows = {"Authority": any(r.get("authority") for r in execution["rows"]),
+             "Common seal": execution["seal"], "Witness": execution["witness"]}
+    return [(label, height) for label, height in house()["table"]["signature_rows"]
+            if shows.get(label, True)]
+
+
+def unfilled(execution: Mapping[str, Any]) -> list[tuple[str, str]]:
+    """``(row label, party)`` for each signature-table cell left empty that is not
+    `SIGNED_LATER` — in practice the signatory's email, which a signing tool routes by
+    (`FINAL-PACKAGE-SPEC` c2: required before Final)."""
+    return [(label, text_of(r.get("party")) or "a party")
+            for label, _ in _signature_rows(execution) if label not in SIGNED_LATER
+            for r in execution["rows"]
+            if not text_of(r.get(SIGNATURE_VALUE.get(label, ""))).strip()]
 
 
 def _execution(b: _Builder, execution: Mapping[str, Any]) -> None:
@@ -585,17 +628,13 @@ def _execution(b: _Builder, execution: Mapping[str, Any]) -> None:
         p.paragraph_format.space_before = Pt(house()["front_gap_pt"])
     else:
         b.para("LM Plain Heading", [{"t": "Execution"}], keep_next=True)
-    shows = {"Authority": any(r.get("authority") for r in parties),
-             "Common seal": execution["seal"], "Witness": execution["witness"]}
-    value = {"By": "party", "Name": "signatory", "Designation": "designation",
-             "Authority": "authority", "Signatory Email": "email", "Date of sign": "date"}
-    lines = [(label, height) for label, height in t["signature_rows"]
-             if shows.get(label, True)]
+    lines = _signature_rows(execution)
     rows = [[[{"t": "Signatory Details"}], *[[] for _ in range(2 * len(parties) - 1)]]]
     for label, _ in lines:
         rows.append([cell for r in parties for cell in (
             [{"t": label}],
-            [{**x, "b": label == "By"} for x in r.get(value.get(label, "")) or []])])
+            [{**x, "b": label == "By"} for x in r.get(SIGNATURE_VALUE.get(label, ""))
+             or []])])
     pair = text_width_twips() // len(parties)
     widths = ([w for p in t["pair_twips"] for w in p] if len(parties) == 2 else
               [t["label_twips"], pair - t["label_twips"]] * len(parties))

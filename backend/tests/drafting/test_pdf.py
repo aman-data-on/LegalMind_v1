@@ -69,6 +69,23 @@ def test_a_contract_made_before_s1_still_passes(rendered):
     assert [p.split(ident)[1].split()[0] for p in _text(result.pdf)] == ["1", "2", "1", "1"]
 
 
+def test_the_signature_page_is_the_last_page(placeholder, answers):
+    """S2: with ``execution.last`` LibreOffice puts the whole signature table at the top
+    of the file's last page, after both schedules; preflight passes, ``SIGNATURE_PAGE``
+    included — and no e-sign tag text is in the file (c3: none by default)."""
+    from tests.drafting.conftest import build
+    template, clauses = placeholder
+    template["layout"]["execution"]["last"] = True
+    model, _, data = build(template, clauses, answers)
+    fixed, result = pdf.convert_contract(data)
+    assert preflight.check(fixed, model=model, pdf=result.pdf) == []
+    pages = _text(result.pdf)
+    assert [n for n, p in enumerate(pages) if "Signatory Details" in p] == [len(pages) - 1]
+    assert "signatory.two@example.test" in pages[-1]
+    assert pages[-2].count("Schedule B") >= 1
+    assert not any("{{" in p or "\\s1\\" in p for p in pages)
+
+
 def test_the_pdf_never_prints_tracked_changes():
     pages = " ".join(_text(pdf.convert(_tracked_docx()).pdf))
     assert "run inserted" in pages and "run deleted" not in pages
