@@ -68,18 +68,21 @@
     "scope_key": "GENERAL",
     "extraction": {
       "cap_phrases": [
-        "purge all customer data"
+        "purge all customer data",
+        "day window to retrieve or export its data"
       ],
       "unlimited_phrases": [],
       "units": {
         "DAYS": [
           "days",
-          "calendar days"
+          "calendar days",
+          "-day"
         ]
       },
       "bases": {
         "POST_TERMINATION_DATA_PURGE": [
-          "purge"
+          "purge",
+          "before deletion"
         ]
       },
       "exceptions": []
@@ -97,7 +100,8 @@
   "source_file": "MSA.pdf",
   "mapping_rules": {
     "exact_phrases": [
-      "purge all customer data"
+      "purge all customer data",
+      "retrieve or export its data before deletion"
     ],
     "aliases": [],
     "keyword_groups": [
@@ -122,7 +126,8 @@
     "35.9 fixes no threshold and 35.10 requires calibration against a",
     "representative contract set before the value is trusted; recalibration is a",
     "new mapping rule version (data), never a code change.",
-    "not applicable to a partner agreement (§31.8 governs it); bare alias removed - 2026-10-16 (AM-153, Drive stress test): generic contract wording a real counterparty paper used and the reader missed or misread; terms and scoping only, never a position."
+    "not applicable to a partner agreement (§31.8 governs it); bare alias removed - 2026-10-16 (AM-153, Drive stress test): generic contract wording a real counterparty paper used and the reader missed or misread; terms and scoping only, never a position.",
+    "2026-11-04 (owner decision: the MSA template states this standard's own §13 sentence): the position sentence itself was not read — its words 'retrieve or export its data before deletion' (mapping), 'day window to retrieve or export its data' (cap phrase, so the figure read is the one the window states) and 'before deletion' (basis) are added from source_quote, and '-day' reads the period it states as '30-day'. Terms only, never a position; a blank or bracketed figure stays a placeholder."
   ],
   "legal_rule": {
     "rule_type": "THRESHOLD",

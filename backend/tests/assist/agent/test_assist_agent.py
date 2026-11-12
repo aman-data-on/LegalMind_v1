@@ -493,6 +493,22 @@ def test_f12_an_unsigned_selected_document_is_never_labelled_executed(
         assert "signed by both parties" not in t.text()
 
 
+def test_am318_a_final_copy_is_told_as_the_final_agreed_contract(db, user, indexed_contract):
+    """`AM-318` B7: a final copy (or an Annexure package) is told to the model as the
+    final agreed contract, never as a draft — and still never as executed (F12 holds)."""
+    contract, version = indexed_contract
+    version.doc_metadata = {"version_role": "COMPANY_DRAFT",
+                            "final_copy_of": str(version.id)}
+    db.flush()
+    final = json.dumps({"blocks": [{"kind": "next_step", "text": "Check the notice "
+                                    "clause."}], "assessment": "n/a"})
+    p = Scripted(final=final)
+    agent.run_turn(p, _ctx(db, user, contract), "Is this the final version?")
+    context = p.seen[0]["contents"][0]["parts"][0]["text"]
+    assert "the final agreed contract (not a draft)" in context
+    assert "draft or unsigned" not in context and "executed." not in context
+
+
 def test_g5_the_reader_is_told_their_material_carries_an_instruction(db, user):
     """Architecture §8 G5: an instruction inside a pasted email is not followed AND the
     reply says the email contains it — in code, whatever the model writes."""

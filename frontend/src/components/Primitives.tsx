@@ -12,6 +12,8 @@
  * pages previously wrote by hand, so test selectors are unaffected.
  */
 
+import { formatDate as dateWords } from "@/lib/dates";
+
 /** CSS namespace per state axis. Adding an axis here requires a DESIGN_SYSTEM.md entry.
  * ⚠ `status` is one namespace shared by four value families (Finding status,
  * Review lifecycle, Contract status, User status); see the tint warning at the
@@ -81,5 +83,5 @@ export function TableCard({ children }: { children: React.ReactNode }) {
 
 /** Date-only display for list cells (audit deliberately keeps full timestamps). */
 export function formatDate(iso: string | null | undefined): string {
-  return iso ? iso.slice(0, 10) : "\u2014";
+  return dateWords(iso) || "\u2014";
 }

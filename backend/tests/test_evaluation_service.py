@@ -355,10 +355,14 @@ def test_finding_blocked_until_the_unacceptable_scope_is_decided(db, scenario):
 
     unacceptable = next(e for e in p.evaluations
                         if e.rule_outcome is O.UNACCEPTABLE)
+    # Decided by someone other than the contract's owner: since `AM-289` (AB-152) a
+    # decision by the owner on their own contract needs a second person, which is
+    # pinned in test_negotiation_wording; this test is about the unacceptable scope.
+    decider = make_user(db)
     db.add(M.LegalDecision(
         finding_id=p.finding.id, evaluation_id=unacceptable.id,
         decision_type=DecisionType.ACCEPT_DEVIATION,
-        justification="structural test decision", decided_by=user.id,
+        justification="structural test decision", decided_by=decider.id,
         version_number=1))
     db.flush()
 

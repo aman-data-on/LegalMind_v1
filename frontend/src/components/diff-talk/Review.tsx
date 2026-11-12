@@ -136,7 +136,7 @@ export function Review({ left, right, onChange }: {
       return out;
     });
     const done = decidable.filter((i) => rows[i] && next[rowKey(rows[i])]).length;
-    nav.setAnnouncement(`${CHOICE_WORDS[row.status][choice]}. ${done} of ${decidable.length} decided.`);
+    nav.setAnnouncement(`${CHOICE_WORDS[row.status][choice]}. ${done} of ${decidable.length} chosen.`);
     if (how === "stay") return;
     const after = [...decidable.filter((i) => i > index), ...decidable.filter((i) => i < index)]
       .find((i) => rows[i] && !next[rowKey(rows[i])]);
@@ -167,9 +167,9 @@ export function Review({ left, right, onChange }: {
     // No clipboard API at all (a plain-http address) throws before any promise —
     // so it runs inside one, and every failure shows the list to copy by hand.
     Promise.resolve().then(() => navigator.clipboard.writeText(list))
-      .then(() => setCopied({ ok: true, text: "Copied — paste it into an email or chat to Legal." }))
+      .then(() => setCopied({ ok: true, text: "Copied. Paste it into an email or chat to Legal." }))
       .catch(() => setCopied({ ok: false, list,
-        text: "This browser blocked copying. The list is selected below — press Ctrl+C (⌘C on a Mac)." }));
+        text: "This browser blocked copying. The list is selected below. Press Ctrl+C (⌘C on a Mac)." }));
   }
 
   if (state.kind === "loading" || !choicesLoaded) return <Skeleton split={split} />;
@@ -193,8 +193,8 @@ export function Review({ left, right, onChange }: {
   const at = shown.indexOf(nav.current);
   const position = at === -1 ? `${shown.length} difference${shown.length === 1 ? "" : "s"}`
     : `${at + 1} of ${shown.length}`;
-  const progress = allDone ? `All ${decidable.length} decided`
-    : `${decided.length} of ${decidable.length} decided`;
+  const progress = allDone ? `All ${decidable.length} chosen`
+    : `${decided.length} of ${decidable.length} chosen`;
   const pick = (i: number) => {
     sheetRef.current?.close();
     nav.show(i);
@@ -246,7 +246,7 @@ export function Review({ left, right, onChange }: {
             )}
             {decidable.length ? (
               <div className="ws-dt__progress">
-                <progress max={decidable.length} value={decided.length} aria-label="Differences decided" />
+                <progress max={decidable.length} value={decided.length} aria-label="Differences with a choice" />
                 <span>{progress}</span>
               </div>
             ) : null}
@@ -489,7 +489,7 @@ function ChangesList({ rows, diffs, shown, same, current, filter, onFilter, full
                 {isDecidable(row) ? (
                   <span className="ws-dt__state">
                     {pick ? <IconCheck size={14} /> : <i className="ws-dt__dot" />}
-                    <span className="ws-visually-hidden">{pick ? ", decided" : ", not decided"}</span>
+                    <span className="ws-visually-hidden">{pick ? ", chosen" : ", no choice yet"}</span>
                   </span>
                 ) : null}
               </button>
@@ -571,7 +571,7 @@ function DiffBlock({ row, index, number, split, full, current, pick, folded, foc
           </h2>
           <p className="ws-dt__cardmeta">
             <span className="ws-dt__kind">
-              <kind.Icon size={13} /> {rewritten ? "Rewritten — read both" : kind.label}
+              <kind.Icon size={13} /> {rewritten ? "Rewritten: read both" : kind.label}
             </span>
             {row.status === "CHANGED" && row.left && row.right && !rewritten
               ? <span>{changedSentences(row.left, row.right)} differ</span> : null}

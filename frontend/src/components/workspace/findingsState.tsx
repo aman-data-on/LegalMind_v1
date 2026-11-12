@@ -63,11 +63,36 @@ export function pollBudget(kind: FindingsLoad["kind"]): number {
   return kind === "in-flight" ? POLL_LIMIT : kind === "not-started" ? NOT_STARTED_POLL_LIMIT : 0;
 }
 
+/** The contract's Reviews, asked for by the page alongside the contract itself rather
+ *  than after the version has loaded — one request saved from the start-up chain. Taken
+ *  only by a provider's FIRST load and only while fresh: every later load (a reload, a
+ *  poll, a decision) reads afresh. */
+const primed = new Map<string, { at: number; asked: ReturnType<typeof api.reviews> }>();
+const PRIMED_FRESH_MS = 10_000;
+export function primeReviews(contractId: string): void {
+  const asked = api.reviews({ contract_id: contractId, page_size: 100 });
+  asked.catch(() => undefined);       // a failure is read, and reported, by the load
+  primed.set(contractId, { at: Date.now(), asked });
+}
+function takePrimed(contractId: string) {
+  const got = primed.get(contractId);
+  primed.delete(contractId);
+  return got && Date.now() - got.at < PRIMED_FRESH_MS ? got.asked : null;
+}
+
 interface FindingsState {
   state: FindingsLoad;
   reload: () => void;
+  /** B6: read the review again quietly after a write elsewhere on the page (Send to
+   *  Legal, Withdraw) — no loading flash, the server's state when it arrives */
+  refresh: () => void;
   /** QA-024: the reader owns this contract, so its owner-only writes are theirs to make */
   isOwner: boolean;
+  /** Owner item (b), 2026-11-05: once the contract is signed its review — closed, or
+   *  left open by a contract filed as signed outside LegalMind (`AM-298`) — is shown for
+   *  reference only: no open-point counter, no decide or escalate control. Presentation
+   *  only; the review's own lifecycle state is not restated. */
+  reference: boolean;
 }
 
 const Ctx = createContext<FindingsState | null>(null);
@@ -76,20 +101,28 @@ export function FindingsProvider({
   contractId,
   ownerId,
   version,
+  signed = false,
+  onChanged,
   children,
 }: {
   contractId: string;
   ownerId: string;
   version: DocumentVersion;
+  signed?: boolean;
+  /** called after a write here (a decision, an escalation): the page re-reads its counts */
+  onChanged?: (() => void) | undefined;
   children: React.ReactNode;
 }) {
   const [state, setState] = useState<FindingsLoad>({ kind: "loading" });
   const polls = useRef(0);
+  const firstLoad = useRef(true);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setState({ kind: "loading" });
     try {
-      const { items: reviews } = await api.reviews({ contract_id: contractId, page_size: 100 });
+      const early = firstLoad.current ? takePrimed(contractId) : null;
+      firstLoad.current = false;
+      const { items: reviews } = await (early ?? api.reviews({ contract_id: contractId, page_size: 100 }));
       const review = reviews.find((r) => r.document_version_id === version.id);
       if (!review) {
         setState({ kind: "no-review" });
@@ -154,11 +187,18 @@ export function FindingsProvider({
     // a decision changes the open points and the recommendation: read them again (R3)
     if (reviewId.current) forgetAngles(reviewId.current);
     void load();
-  }, [load]);
+    onChanged?.();
+  }, [load, onChanged]);
 
   const { identity } = useSession();
   const isOwner = identity?.user_id === ownerId;
-  const value = useMemo(() => ({ state, reload, isOwner }), [state, reload, isOwner]);
+  const refresh = useCallback(() => {
+    void load(true);
+    onChanged?.();
+  }, [load, onChanged]);
+  const reference = signed && state.kind === "ready";
+  const value = useMemo(() => ({ state, reload, refresh, isOwner, reference }),
+                        [state, reload, refresh, isOwner, reference]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

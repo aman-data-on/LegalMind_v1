@@ -1,0 +1,45 @@
+/* A template card (`AM-316`) — New contract's choice and the Templates page. The
+   workspace's tokens only. What a card claims is said in words: "Recommended" and
+   "Awaiting approval" are badges of text, the Legal line is text in the attention ink. */
+
+.tc { display: grid; gap: var(--ws-s2); padding: var(--ws-s4); background: var(--ws-surface);
+  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius); min-width: 0; }
+.tc[data-selected] { border: 2px solid var(--ws-accent); padding: calc(var(--ws-s4) - 1px); }
+.tc__main { display: grid; grid-template-columns: minmax(0, 1fr); row-gap: 2px; margin: 0; min-width: 0; }
+.tc[data-choice] .tc__main { grid-template-columns: 18px minmax(0, 1fr); column-gap: var(--ws-s3); cursor: pointer; }
+.tc[data-choice] .tc__main > span { grid-column: 2; }
+.tc__main input { grid-row: 1 / span 4; align-self: start; margin: 4px 0 0; width: 16px; height: 16px;
+  accent-color: var(--ws-accent); }
+.tc:has(input:focus-visible) { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+.tc__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px var(--ws-s2); }
+.tc__name { font-size: var(--ws-text-md); font-weight: 600; color: var(--ws-ink-900); line-height: 1.4; }
+.tc__purpose { font-size: var(--ws-text-sm); color: var(--ws-ink-700); line-height: 1.45; }
+.tc__legal { font-size: var(--ws-text-sm); color: var(--ws-ink-700); line-height: 1.45; }
+/* a fact about the template, not a warning: ink, not amber (round 2) */
+.tc__legal[data-points] { color: var(--c-text-2); font-weight: 500; }
+.tc__date { font-size: var(--t-caption); color: var(--ws-ink-500); line-height: 1.45; }
+
+.tc__points { font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+.tc__points summary { cursor: pointer; color: var(--ws-accent); min-height: 32px; display: list-item; padding: 4px 0;
+  width: max-content; max-width: 100%; }
+.tc__points summary:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+.tc__points ul { list-style: none; margin: var(--ws-s1) 0 var(--ws-s2); padding: 0; display: grid; gap: var(--ws-s1); }
+.tc__points li { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--ws-s3);
+  padding: 4px 0; border-top: 1px solid var(--ws-ink-100); }
+.tc__pname { color: var(--ws-ink-900); overflow-wrap: anywhere; }
+.tc__pwhy { color: var(--ws-ink-500); overflow-wrap: anywhere; }
+.tc__points p { margin: 0; color: var(--ws-ink-500); line-height: 1.45; }
+
+.tc__acts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-s2) var(--ws-s4); }
+.tc__acts .ws-btn { min-height: 36px; display: inline-flex; align-items: center; }
+
+@media (max-width: 760px) {
+  .tc__points li { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .tc__acts { flex-direction: column; align-items: stretch; }
+  .tc__acts > * { width: 100%; }
+  .tc__acts .ws-btn, .tc__acts button { min-height: 44px; justify-content: center; }
+  .tc__points summary { min-height: 44px; padding: 12px 0; }
+}
+/* a link styled as the primary button keeps its white words over `.ws a` */
+.ws .tc__acts a.ws-btn { text-decoration: none; }
+.ws .tc__acts a.ws-btn--primary, .ws .tc__acts a.ws-btn--primary:hover { color: var(--c-on-action); }

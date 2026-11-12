@@ -1,283 +1,54 @@
 "use client";
 
 /**
- * Dashboard — the working inventory and the front door — and one contract's
- * workspace (2026-09-01 professional-polish redesign, owner-directed;
- * supersedes the 2026-08-31 UX correction's visual shape while keeping every
- * one of its rules: upload-first intake, human-declared type, permission-
- * layered `latest_analysis`, byte-identical scope).
+ * Contracts home — the person's home and the list of their contracts.
  *
- * Both views live at the fixed pathname `/dashboard`; which one renders is
- * decided by the `?id=` query parameter rather than a path segment, so no
- * record id ever appears in the URL path itself. Every other query param a
- * link into the workspace carries (`classification`, `evidence`, `finding`,
- * `version`) is unaffected — `WorkspacePage` still reads those itself. This
- * redesign touches ONLY the list view below; the workspace import and its
- * behaviour are untouched.
- *
- * The status vocabulary on this page is FOUR DERIVED BUCKETS
- * (`documentStatusBucket`) — draft / analyzing / needs_attention / analyzed —
- * never a new lifecycle enum and never a Finding Classification (REC-02's
- * boundary). The server computes the identical bucket for `?status=` and for
- * the stat-tile summary (`_status_bucket`), so a tile, a filter and a row can
- * never disagree with each other.
- *
- * Each row's Findings column shows the real Step-19 classifications the
- * workspace already uses (DD-9's match/review/missing coloring) — never an
- * invented status; a contract with no analysis yet shows an honest dash, not
- * a zero implying something was checked.
+ * Critic round (2026-11-03): whose contracts (H1) and the one primary action; then what is
+ * THIS person's turn (`HomeQueue`, from the server's To-do and stage); then the list. The
+ * list's only status vocabulary is the deal stage (`AM-260`); each row shows one count in
+ * words — points that differ from our standard — never four unlabelled numbers. For the
+ * lawyer the queue is the page and the list sits behind "All contracts".
  */
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { api, describeError, type ContractScope } from "@/lib/api";
-import {
-  DOCUMENT_SOURCES,
-  DOCUMENT_TYPES,
-  documentTypeChip,
-  documentTypeLabel,
-} from "@/lib/documentTypes";
-import { CONTRACT_STATUSES, reviewStatusLabel } from "@/lib/labels";
+import { DOCUMENT_SOURCES, DOCUMENT_TYPES } from "@/lib/documentTypes";
+import { ACTION, CONTRACT_STATUSES } from "@/lib/labels";
 import * as P from "@/lib/permissions";
-import {
-  USER_STATUS_LABELS,
-  USER_STATUS_ORDER,
-  USER_STATUS_TONE,
-} from "@/components/workspace/findingLanguage";
 import { useSession } from "@/lib/session";
-import type { Contract, ContractsSummary, Counterparty, DepartmentMembers, Pagination } from "@/lib/types";
+import type {
+  Contract, ContractsSummary, Counterparty, DepartmentMembers, NegotiationStageCode, Pagination,
+} from "@/lib/types";
 
+import { CountsCell, STAGE_LABEL, STAGE_ORDER, StageBadge } from "@/components/workspace/StageBadge";
 import {
-  documentStatusBucket,
+  contractFacts,
+  contractHref,
+  homeTitle,
   knownCounterparties,
-  relativeTime,
-  STATUS_BUCKET_LABEL,
-  type DocumentStatusBucket,
-  UNFINISHED_REVIEW_STATUSES,
+  personaFor,
+  shortDate,
+  stageViewer,
 } from "@/components/workspace/model";
 import { Dialog } from "@/components/Dialog";
-import { Pipeline } from "@/components/workspace/Pipeline";
 import { UploadContractDialog } from "@/components/workspace/UploadContractDialog";
-import { WorkspacePage } from "@/components/workspace/WorkspacePage";
-import {
-  IconAlertCircle,
-  IconCheckCircle,
-  IconChevronRight,
-  IconClock,
-  IconFile,
-  IconSearch,
-  IconXCircle,
-} from "@/components/workspace/icons";
+import { NewContractChooser } from "@/components/newcontract/NewContractChooser";
+import { HomeQueue, useTasks } from "@/components/workspace/TodoViews";
+import { PageHeader } from "@/components/page/PageHeader";
+import { IconPlus, IconSearch } from "@/components/workspace/icons";
+import { ErrorState } from "@/components/Feedback";
+import { SegmentedFilter } from "@/components/SegmentedFilter";
 
 const PAGE_SIZE = 25;
 
-/**
- * "Draft / In Progress" fix (bug report, 2026-09-29): the card's count was
- * `summary.draft + summary.analyzing`, but clicking it filtered to
- * `status=draft` alone — a contract mid-analysis was counted on the card and
- * then absent from the filtered table. `contracts.py` `list_contracts`
- * recognises exactly four `STATUS_BUCKETS` (`draft`, `analyzing`,
- * `needs_attention`, `analyzed`) and 400s on anything else, so there is no
- * fifth "in_progress" bucket to ask the server for, and none is added here —
- * `DocumentStatusBucket` and `STATUS_BUCKETS` are unchanged.
- *
- * Instead, `load()` below fetches the two REAL buckets that make up the
- * card's own count and merges them client-side, mirroring the exact
- * filter-then-paginate shape `list_contracts` already uses for a single
- * bucket (its own comment: "the bucket depends on analysis data no
- * contracts-table WHERE can reach... filter-then-paginate rather than
- * paginate-then-filter") — this is that same shape applied across two
- * buckets instead of one, entirely in the client, with zero backend change.
- *
- * `IN_PROGRESS_FETCH_CAP` is the server's own pagination ceiling
- * (`MAX_PAGE_SIZE`, `envelope.py`) — the most either bucket's fetch can ever
- * return in one request. An account with over 100 draft OR over 100
- * analyzing contracts at once would see this card's list under-merge beyond
- * that many; `summary.draft`/`summary.analyzing` (the real server tallies)
- * make that case visible rather than silent, and it is far outside this
- * product's real usage today (the corpus this dashboard is built against
- * tops out at a handful of contracts).
- */
-const IN_PROGRESS_FETCH_CAP = 100;
-
-/** The same ordering `list_contracts`' `order` tuples apply server-side
- *  (`created_desc`/`created_asc`/`name_asc`/`name_desc`), so merging two
- *  already-correctly-ordered server responses with this comparator yields
- *  the same overall order a single `status=in_progress` bucket would if one
- *  existed — each sub-list is already sorted this way, so the merge is a
- *  re-sort of the concatenation, not a fresh sort decision. */
-function compareContracts(a: Contract, b: Contract, sort: string): number {
-  switch (sort) {
-    case "created_asc":
-      return (a.created_at ?? "").localeCompare(b.created_at ?? "") || a.id.localeCompare(b.id);
-    case "name_asc":
-      return a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
-    case "name_desc":
-      return b.name.localeCompare(a.name) || b.id.localeCompare(a.id);
-    case "created_desc":
-    default:
-      return (b.created_at ?? "").localeCompare(a.created_at ?? "") || b.id.localeCompare(a.id);
-  }
-}
-
-/** The seven columns, in one place — the table renders them and so does the
- *  loading skeleton, which must reserve the header's height or the whole body
- *  jumps down the instant data lands. */
-const COLUMNS = [
-  "Document", "Type", "Status", "Findings", "Last Analyzed", "Added", "Action",
-] as const;
-
-function TableHead() {
-  return (
-    <tr>
-      {COLUMNS.map((column) => <th key={column} scope="col">{column}</th>)}
-    </tr>
-  );
-}
-
-const STATUS_ICON: Record<DocumentStatusBucket, React.ReactNode> = {
-  draft: <IconClock size={13} />,
-  analyzing: <span className="ws-spin" aria-hidden="true" />,
-  needs_attention: <IconAlertCircle size={13} />,
-  analyzed: <IconCheckCircle size={13} />,
-};
-
-function StatusPill({ contract }: { contract: Contract }) {
-  const bucket = documentStatusBucket(contract);
-  return (
-    <span className={`ws-status-pill ws-status-pill--${bucket}`}>
-      {STATUS_ICON[bucket]} {STATUS_BUCKET_LABEL[bucket]}
-    </span>
-  );
-}
-
-/** The reader's three status counts, always in the same order and wearing the
- *  same three tones as the workspace (`findingLanguage`), dashes when nothing
- *  has been analyzed yet — never a zero standing in for "not checked". */
-function FindingsCell({ contract }: { contract: Contract }) {
-  const analyzed = documentStatusBucket(contract) !== "draft"
-    && documentStatusBucket(contract) !== "analyzing";
-  const counts = contract.latest_analysis?.user_status_counts;
-  const review = contract.latest_analysis?.review_status;
-  if (review && UNFINISHED_REVIEW_STATUSES.has(review)) {
-    return <span className="ws-findings-cell ws-pane__note">{reviewStatusLabel(review)}</span>;
-  }
-  if (!analyzed || !counts) {
-    return <span className="ws-findings-cell ws-pane__note">—</span>;
-  }
-  // Matches · Change needed · Missing · Needs a decision (AB-104) — the one order and
-  // the one set of tones every other surface uses (`findingLanguage`); each badge
-  // speaks its word, since two share amber.
-  return (
-    <span className="ws-findings-cell">
-      {USER_STATUS_ORDER.map((status) => {
-        const n = counts[status] ?? 0;
-        return (
-          <span
-            key={status}
-            className={`ws-findings-badge ws-findings-badge--${USER_STATUS_TONE[status]}${n === 0 ? " ws-findings-badge--zero" : ""}`}
-            title={`${n} ${USER_STATUS_LABELS[status]}`}
-            aria-label={`${n} ${USER_STATUS_LABELS[status]}`}
-          >
-            {n}
-          </span>
-        );
-      })}
-    </span>
-  );
-}
-
-/** Purely a greeting, computed from the visitor's own clock — no server call,
- *  no stored preference. Owner reference (2026-09-24) asked for "Good
- *  afternoon"-style copy on the hero; this is the honest way to produce it. */
-function timeOfDayGreeting(): string {
-  const hour = new Date().getHours();
-  if (hour < 12) return "Good morning";
-  if (hour < 18) return "Good afternoon";
-  return "Good evening";
-}
-
-/**
- * The Recent Activity panel's entries — derived entirely from the same
- * `contracts` page the table already has, never a new endpoint or invented
- * data (owner reference, 2026-09-24: "Do not create fake activity data").
- * Two real, timestamped facts exist per contract: it was added
- * (`created_at`), and — once analysed — its analysis completed
- * (`latest_analysis.completed_at`). There is no "you viewed this" event
- * anywhere in the data model, so that entry type from the reference image is
- * intentionally not reproduced here; inventing one would be exactly the
- * fabricated activity the task explicitly rules out.
- */
-interface ActivityEntry {
-  id: string;
-  kind: "uploaded" | "analyzed";
-  contractName: string;
-  contractId: string;
-  at: string;
-}
-
-function recentActivity(contracts: Contract[]): ActivityEntry[] {
-  const entries: ActivityEntry[] = [];
-  for (const c of contracts) {
-    if (c.created_at) {
-      entries.push({ id: `${c.id}-up`, kind: "uploaded", contractName: c.name, contractId: c.id, at: c.created_at });
-    }
-    const completed = c.latest_analysis?.completed_at;
-    if (completed) {
-      entries.push({ id: `${c.id}-an`, kind: "analyzed", contractName: c.name, contractId: c.id, at: completed });
-    }
-  }
-  entries.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
-  return entries.slice(0, 6);
-}
-
-/** A count, and — clicking it — the Recent Contracts table filtered to the
- *  matching category (item 3, "Clickable Summary Cards"). `active` marks the
- *  card whose filter is currently applied; `selectLabel` is the accessible
- *  name for what the click actually does, since "Show these contracts" reads
- *  oddly on the tile that clears the filter rather than narrowing it. */
-function StatTile({
-  icon, n, label, bucket, onSelect, hint, active, selectLabel,
-}: {
-  icon: React.ReactNode; n: number; label: string;
-  bucket?: DocumentStatusBucket; onSelect?: () => void;
-  /** Static, descriptive caption — never a derived number the summary
-   *  endpoint does not actually send (owner reference asked for supporting
-   *  text "where already available"; a trend like "+2 this month" has no
-   *  backing data, so it is not reproduced). */
-  hint?: string;
-  active?: boolean;
-  selectLabel?: string;
-}) {
-  /* `--act` is what carries the hover lift and the pointer; `--active` marks
-     the currently-applied card filter (2026-09-29). */
-  const className = `ws-doctile${bucket ? ` ws-doctile--${bucket}` : ""}`
-    + (onSelect ? " ws-doctile--act" : "")
-    + (active ? " ws-doctile--active" : "");
-  const body = (
-    <>
-      <div className="ws-doctile__head">
-        <span className="ws-doctile__icon" aria-hidden="true">{icon}</span>
-        <span className="ws-doctile__label">{label}</span>
-      </div>
-      <span className="ws-doctile__n ws-mono">{n}</span>
-      {hint ? <span className="ws-doctile__hint">{hint}</span> : null}
-    </>
-  );
-  if (!onSelect) return <div className={className}>{body}</div>;
-  return (
-    <button type="button" className={className} onClick={onSelect} aria-pressed={active}>
-      {body}
-      <span className="ws-visually-hidden">{selectLabel ?? "Show these contracts"}</span>
-    </button>
-  );
-}
-
 function DocumentsListView() {
   const { can, identity } = useSession();
+  // the person's To-do, loaded once: "Your turn" and the list's turn marker read the same set
+  const todo = useTasks();
+  const turnIds = new Set((todo.tasks ?? []).map((task) => task.contract_id));
   const [contracts, setContracts] = useState<Contract[] | null>(null);
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const [summary, setSummary] = useState<ContractsSummary | null>(null);
@@ -285,31 +56,24 @@ function DocumentsListView() {
   const [q, setQ] = useState("");
   const [qInput, setQInput] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
-  /** "in_progress" is a CLIENT-ONLY sentinel for the "Draft / In Progress"
-   *  card — never sent to the server as `?status=`, which recognises only
-   *  `STATUS_BUCKETS` (`draft`, `analyzing`, `needs_attention`, `analyzed`;
-   *  `contracts.py` `list_contracts` 400s on anything else). See `load()`. */
-  const [statusFilter, setStatusFilter] = useState<DocumentStatusBucket | "in_progress" | "">("");
+  /** Types seen on this person's contracts — the type filter offers only these.
+   *  ponytail: grows as pages load; a server facet if a type on an unseen page matters. */
+  const [seenTypes, setSeenTypes] = useState<Set<string>>(new Set());
   const [sort, setSort] = useState("created_desc");
-  /** AB-12 r3 — "My deals" is every account's default; "Department deals" exists
-   *  only for a holder of `department.view`, and the server scopes the query on
-   *  its own either way. */
-  const [scope, setScope] = useState<ContractScope>("own");
+  /** `AM-260` — one negotiation stage, filtered server-side (`?stage=`). The stage is the
+   *  list's only status vocabulary. */
+  const [stageFilter, setStageFilter] = useState<NegotiationStageCode | "">("");
+  const persona = personaFor(can);
+  // S1: a Lead's home is the team's contracts; "My deals" stays one press away (AB-12 r3)
+  const [scope, setScope] = useState<ContractScope>(
+    persona === "lead" ? "department" : persona === "legal" ? "legal" : "own");
   /** AB-12 r6 — the shelf, kept apart from the working list. */
   const [showArchived, setShowArchived] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
-  /** The row whose action menu is open, and the row being edited or deleted.
-   *
-   *  The menu itself renders through a portal (see `.ws-menu__list` below and
-   *  `menuPortalTarget` further down): `menuPos` is the fixed-viewport
-   *  coordinate it renders at, captured from the toggle button's own position
-   *  at open time. Without the portal, the menu's nearest positioned ancestor
-   *  is inside `.ws-docs__table`, which clips overflow for its own reasons
-   *  (the horizontal scroller, the rounded card on the index view) — so a
-   *  menu opened on any row got silently cut off at the table's edge instead
-   *  of floating above the page. Positioning by viewport coordinates escapes
-   *  every such ancestor, not just this one. */
+  const [chooseOpen, setChooseOpen] = useState(false);
+  /** The row whose ⋯ menu is open. It renders through a portal into `.ws` (every token is
+   *  scoped there) at fixed viewport coordinates, so no clipping ancestor cuts it off. */
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [menuPos, setMenuPos] = useState<{
     top?: number; bottom?: number; right: number; minWidth: number;
@@ -320,15 +84,13 @@ function DocumentsListView() {
   const [archiving, setArchiving] = useState<Contract | null>(null);
   const [deleting, setDeleting] = useState<Contract | null>(null);
   const [transferring, setTransferring] = useState<Contract | null>(null);
-  /** The open menu's own node, and the toggle that opened it — a menu is not
-   *  part of the page's tab ring, so it has to move focus in itself and hand
-   *  focus back when it closes. Before this, opening the menu with the keyboard
-   *  left focus on the toggle and the next Tab went to the FOLLOWING ROW's
-   *  document link (measured 2026-09-08): every item in it was unreachable
-   *  without a pointer. */
+  /** The open menu's node and its toggle — the menu moves focus in itself and hands it
+   *  back on close (WAI-ARIA menu button). */
   const menuRef = useRef<HTMLDivElement | null>(null);
+  /** The Filter disclosure — closed by a press outside it or Escape, like any popover. */
+  const filterRef = useRef<HTMLDetailsElement | null>(null);
   const menuToggleRef = useRef<HTMLElement | null>(null);
-  /** Which list request is the current one — see `load` below. */
+  /** Which list request is the current one: only the newest may write the table. */
   const loadSeq = useRef(0);
 
   function closeMenu(restoreFocus = false) {
@@ -337,10 +99,6 @@ function DocumentsListView() {
     if (restoreFocus) menuToggleRef.current?.focus();
   }
 
-  /** Arrows move within the menu and wrap; Tab and Escape close it and return
-   *  focus to the toggle, which is the WAI-ARIA menu-button behaviour. (No
-   *  Home/End: the menu holds three items at most, where both keys are one
-   *  arrow press.) */
   function onMenuKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
     const items = Array.from(
       menuRef.current?.querySelectorAll<HTMLElement>("[role='menuitem']") ?? [],
@@ -359,44 +117,24 @@ function DocumentsListView() {
     items[to]?.focus();
   }
 
-  /** Where the portal renders (2026-09-03 fix, owner-reported against the
-   *  live site). EVERY design token this app has — `--ws-surface`,
-   *  `--ws-z-dialog`, `--ws-radius`, all of it — is scoped to the `.ws`
-   *  wrapper class (`WorkspaceShell.tsx`), not `:root` (deliberately, so this
-   *  stylesheet and the legacy one never fight over a global scope). A first
-   *  version of this fix portaled straight into `document.body`, which sits
-   *  OUTSIDE `.ws` — so the menu lost every one of those tokens. `z-index:
-   *  var(--ws-z-dialog)` fell back to `auto` and `background:
-   *  var(--ws-surface)` fell back to transparent. It still correctly
-   *  occluded clicks (confirmed by hit-testing: DOM order alone put it on
-   *  top), but with no opaque background to back that up, the row underneath
-   *  visually painted straight through it — exactly the "still overlapping"
-   *  screenshot this fix answers. Portaling into `.ws` itself instead keeps
-   *  every token, and `.ws` sets no `transform`/`filter`/`contain` of its
-   *  own, so `position: fixed` still resolves against the viewport exactly
-   *  as the positioning math in `openMenu` assumes. */
   function menuPortalTarget(): Element {
     return document.querySelector(".ws") ?? document.body;
   }
 
-  /** Opens toward the row's start edge, flipping to open ABOVE the toggle when
-   *  the row is near the bottom of the viewport — otherwise a menu on the last
-   *  visible row would render below the fold instead of just below the
-   *  table's clipping edge.
-   *
-   *  Width is the wider of 168px and the row's own Action `<td>` (2026-09-03
-   *  fix, owner-reported against the live site): a menu narrower than the
-   *  cell it floats over covers only PART of the row below — that row's own
-   *  "Review"/"Analyze" link and toggle peek out from under one edge instead
-   *  of being cleanly hidden, which reads as a rendering glitch rather than an
-   *  intentional overlay. Every row shares one table column, so anchoring to
-   *  THIS row's cell width and right edge guarantees full coverage of
-   *  whichever row's Action cell the menu ends up floating over. */
+  /** Opens below the toggle, or above it near the viewport's bottom; never narrower than
+   *  the row's own action cell, so the row below never peeks out from under it. */
   function openMenu(id: string, toggle: HTMLElement) {
     menuToggleRef.current = toggle;
+    placeMenu(toggle);
+    setMenuFor(id);
+  }
+
+  /** Where the menu sits for `toggle` now — at open, and again whenever the page moves
+   *  under it (a section above the table that loads late shifts the rows). */
+  function placeMenu(toggle: HTMLElement) {
     const rect = toggle.getBoundingClientRect();
     const cellRect = toggle.closest("td")?.getBoundingClientRect() ?? rect;
-    const estimatedHeight = 176; // up to four items (Edit, Transfer, Archive, Delete) plus padding
+    const estimatedHeight = 176; // up to four items plus padding
     const opensAbove = window.innerHeight - rect.bottom < estimatedHeight + 8;
     setMenuPos({
       right: window.innerWidth - rect.right,
@@ -405,59 +143,31 @@ function DocumentsListView() {
         ? { bottom: window.innerHeight - rect.top + 4 }
         : { top: rect.bottom + 4 }),
     });
-    setMenuFor(id);
   }
 
   const load = useCallback(async () => {
-    // Only the NEWEST request may write to the table (2026-09-08). Every filter,
-    // sort, page and scope change fires a request and none of them cancels the
-    // last, so two were routinely in flight while someone worked the toolbar —
-    // and nothing said they had to come back in order. A slower earlier response
-    // landing second repainted the table with the PREVIOUS filter's rows while
-    // every control still read the new one: a table that quietly disagrees with
-    // the toolbar above it, which on this page means disagreeing about which
-    // contracts need attention.
     const seq = loadSeq.current + 1;
     loadSeq.current = seq;
     const current = () => seq === loadSeq.current;
     setError(null);
     try {
-      const commonFilters = {
+      const result = await api.contracts(page, PAGE_SIZE, {
         q: q || undefined,
         contract_type: typeFilter || undefined,
         sort,
         scope,
         archived: showArchived || undefined,
-      };
-      let items: Contract[];
-      let total: number;
-      if (statusFilter === "in_progress") {
-        // Two real buckets, merged client-side — see `IN_PROGRESS_FETCH_CAP`
-        // above for why this card cannot just send one `?status=`.
-        const [draftResult, analyzingResult] = await Promise.all([
-          api.contracts(1, IN_PROGRESS_FETCH_CAP, { ...commonFilters, status: "draft" }),
-          api.contracts(1, IN_PROGRESS_FETCH_CAP, { ...commonFilters, status: "analyzing" }),
-        ]);
-        if (!current()) return;
-        const merged = [...draftResult.items, ...analyzingResult.items]
-          .sort((a, b) => compareContracts(a, b, sort));
-        total = draftResult.pagination.total + analyzingResult.pagination.total;
-        const start = (page - 1) * PAGE_SIZE;
-        items = merged.slice(start, start + PAGE_SIZE);
-      } else {
-        const result = await api.contracts(page, PAGE_SIZE, {
-          ...commonFilters,
-          status: statusFilter || undefined,
-        });
-        if (!current()) return;
-        items = result.items;
-        total = result.pagination.total;
-      }
-      setContracts(items);
-      setPagination({ page, page_size: PAGE_SIZE, total });
-      // The companies this caller deals with, for the edit dialog's picker.
-      // Best-effort: the list is a convenience, and failing to load it must not
-      // take the whole Dashboard down.
+        stage: stageFilter || undefined,
+      });
+      if (!current()) return;
+      setContracts(result.items);
+      setPagination({ page, page_size: PAGE_SIZE, total: result.pagination.total });
+      setSeenTypes((seen) => {
+        const fresh = result.items.map((c) => c.contract_type).filter((t): t is string => !!t && !seen.has(t));
+        return fresh.length ? new Set([...seen, ...fresh]) : seen;
+      });
+      // The companies this caller deals with — names the client on each row and feeds the
+      // edit dialog's picker. Best-effort: the list works without it.
       try {
         const companyList = await api.counterparties();
         if (current()) setCompanies(companyList);
@@ -465,25 +175,22 @@ function DocumentsListView() {
         if (current()) setCompanies([]);
       }
     } catch (cause) {
-      // A superseded request's failure is not this view's failure either: it
-      // would otherwise raise a banner over rows that loaded perfectly well.
+      // A superseded request's failure is not this view's failure.
       if (current()) setError(cause);
     }
-  }, [page, q, typeFilter, statusFilter, sort, scope, showArchived]);
+  }, [page, q, typeFilter, stageFilter, sort, scope, showArchived]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  // The stat tiles are independent of the current page/filter — real counts
-  // across every contract the caller owns, loaded once and refreshed whenever
-  // the list itself reloads (e.g. right after an upload lands).
+  // The stage counts are scope-wide, not page-wide; refreshed whenever the list reloads.
   useEffect(() => {
     let cancelled = false;
     api.contractsSummary(scope).then((s) => {
       if (!cancelled) setSummary(s);
     }).catch(() => {
-      // The stat row is a convenience; the table still works without it.
+      // The chips are a convenience; the table still works without them.
     });
     return () => {
       cancelled = true;
@@ -499,30 +206,12 @@ function DocumentsListView() {
     return () => window.clearTimeout(timer);
   }, [qInput]);
 
-  // The row action menu (⋯) is a click-outside/Escape dismissible popover like
-  // every other disclosure in this app (AskDock's Escape handling, the modals
-  // below) — without this it stayed open until another toggle was clicked.
-  //
-  // The menu list itself renders through a portal (see `menuPortalTarget`
-  // above), so it is no longer a DOM descendant of `.ws-menu` — the
-  // outside-click check has to recognise `.ws-menu__list` explicitly rather
-  // than relying on ancestry. And because its position is captured once, in
-  // viewport coordinates, at open time, any scroll (the page, or the table's
-  // own horizontal scroller) would leave it floating over the wrong row —
-  // so a scroll closes it instead of rendering it stale.
+  // The ⋯ menu closes on an outside press, Escape, or once its toggle scrolls out of view
+  // (a scroll moves it with the toggle). Focus lands on its first item with `preventScroll` — a plain focus()
+  // scrolls, and that scroll would close the menu the instant it opened; the listeners
+  // attach a frame late for the same reason.
   useEffect(() => {
     if (!menuFor) return;
-    // Focus lands on the first item, so the menu is operable by the keyboard
-    // that opened it. Pointer users never notice: the ring is `:focus-visible`.
-    //
-    // `preventScroll` is load-bearing, not tidiness. A plain `focus()` asks the
-    // browser to bring the element into view, and the scroll EVENT that request
-    // produces is dispatched a frame later — by which time the `scroll` listener
-    // below is attached, so the menu closed itself the instant it opened
-    // (caught by `dashboard-list.spec.ts`, whose second case does not
-    // pre-scroll the row). `openMenu` has already placed the menu inside the
-    // viewport, flipping it above the toggle when it would not fit, so there is
-    // nothing to scroll to in the first place.
     menuRef.current
       ?.querySelector<HTMLElement>("[role='menuitem']")
       ?.focus({ preventScroll: true });
@@ -535,20 +224,16 @@ function DocumentsListView() {
     function onKey(event: KeyboardEvent) {
       if (event.key === "Escape") closeMenu(true);
     }
+    // The menu stays with its toggle: a scroll (the reader's, or the browser keeping its
+    // place while a late section above loads) moves it along; once the toggle has left
+    // the viewport the menu closes, since it would float over nothing it belongs to.
     function onScroll(event: Event) {
       if (event.target instanceof Element && event.target.closest(".ws-menu__list")) return;
-      closeMenu();
+      const toggle = menuToggleRef.current;
+      const rect = toggle?.isConnected ? toggle.getBoundingClientRect() : null;
+      if (!toggle || !rect || rect.bottom < 0 || rect.top > window.innerHeight) closeMenu();
+      else placeMenu(toggle);
     }
-    // The scroll listener is attached a frame late, on purpose (owner
-    // reference redesign, 2026-09-24): the taller page this redesign
-    // introduced (hero, toolbar, stat cards, Recent Activity) means the
-    // toggle a caller just clicked is no longer guaranteed to already be
-    // fully in view the way it was on the old, shorter page — so the click
-    // itself can now trigger the browser's own scroll-into-view, whose
-    // trailing scroll event was landing right as this effect's listener
-    // attached and closing the menu the instant it opened. Same failure
-    // shape `preventScroll` above already documents for `focus()`, one frame
-    // later than a synchronous listener catches it.
     const raf = requestAnimationFrame(() => {
       document.addEventListener("mousedown", onPointerDown);
       document.addEventListener("keydown", onKey);
@@ -561,6 +246,22 @@ function DocumentsListView() {
       document.removeEventListener("scroll", onScroll, true);
     };
   }, [menuFor]);
+
+  useEffect(() => {
+    function close(event: Event) {
+      const box = filterRef.current;
+      if (!box?.open) return;
+      if (event instanceof KeyboardEvent ? event.key === "Escape" : !box.contains(event.target as Node)) {
+        box.open = false;
+      }
+    }
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", close);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", close);
+    };
+  }, []);
 
   if (!can(P.CONTRACT_VIEW)) {
     return (
@@ -576,757 +277,353 @@ function DocumentsListView() {
   const canArchive = can(P.CONTRACT_ARCHIVE);
   const canTransfer = can(P.CONTRACT_TRANSFER);
   const canSeeDepartment = can(P.DEPARTMENT_VIEW);
-  /** Writes are owner-only server-side (AB-12): a Lead reading a colleague's
-   *  deal is not offered Edit/Archive on it — Transfer is how they take it on. */
+  /** Writes are owner-only server-side (AB-12): a Lead reading a colleague's deal is not
+   *  offered Edit/Archive on it — Transfer is how they take it on. */
   const isMine = (contract: Contract) => contract.owner_id === identity?.user_id;
-  /** A genuinely empty ACCOUNT — the only state that may invite a first upload.
-   *
-   *  `showArchived` and `scope` belong in this test and were missing until the
-   *  2026-09-08 audit measured the consequence: switching "Show:" to Archived
-   *  with nothing archived rendered "No contracts yet · Upload your first
-   *  contract" plus the whole five-step explainer to an account holding forty
-   *  contracts. An empty shelf is not an empty account, and neither is a
-   *  department view for someone with no department. */
-  const noFilters = !q && !typeFilter && !statusFilter;
+  const clientOf = (contract: Contract) =>
+    companies.find((co) => co.id === contract.counterparty_id)?.name;
+  /** A genuinely empty ACCOUNT — the only state that may invite a first upload. An empty
+   *  shelf, a filter or a department view is not an empty account (2026-09-08). */
+  const noFilters = !q && !typeFilter && !stageFilter;
   /** Rows are already on screen, so whatever just failed was a REFRESH. */
   const stale = !!contracts && contracts.length > 0;
   const firstRun = contracts !== null && contracts.length === 0 && page === 1
-    && noFilters && !showArchived && scope === "own";
+    && noFilters && !showArchived && (scope !== "department" || persona === "lead");
   const pageCount = pagination ? Math.max(1, Math.ceil(pagination.total / pagination.page_size)) : 1;
+  /** Stages that hold a deal this reader can see — an all-zero row of chips said nothing. */
+  const stagesHeld = STAGE_ORDER.filter((code) => (summary?.stages?.[code] ?? 0) > 0 || code === stageFilter);
+  const activeFilters = (typeFilter ? 1 : 0) + (showArchived ? 1 : 0) + (sort !== "created_desc" ? 1 : 0);
 
-  /** Send the table to one bucket — or, for the Draft / In Progress card, the
-   *  `"in_progress"` client-side merge of the two real buckets it counts (see
-   *  `IN_PROGRESS_FETCH_CAP`). Every entry point resets the page — landing on
-   *  page 3 of a filter you just applied shows an empty table. */
-  function filterTo(bucket: DocumentStatusBucket | "in_progress") {
-    setStatusFilter(bucket);
-    setPage(1);
+  function clearFilters() {
+    setQInput(""); setQ(""); setTypeFilter(""); setStageFilter(""); setPage(1);
   }
 
-  /** The Total Contracts card's own click target — clears whichever
-   *  summary-card filter is active and returns to the full list. Shares the
-   *  Status <select>'s own state, so the two controls can never disagree
-   *  about what is currently filtered. */
-  function clearCardFilter() {
-    setStatusFilter("");
-    setPage(1);
-  }
-
-  /** Every mutation refetches rather than editing local state: the server owns
-   *  the row, and an archive or a transfer in particular changes what the
-   *  summary counts say. A spliced array would drift from both. */
+  /** Every mutation refetches: the server owns the row. */
   async function refresh() {
     closeMenu();
     await load();
   }
 
-  return (
+  const list = (
     <>
-      <h1 className="ws-visually-hidden">Dashboard</h1>
-      <div className="ws-docs ws-docs--index">
-      {/*
-        Moved INSIDE `.ws-docs` (item 4, spacing reference, 2026-09-29): the
-        hero used to sit BEFORE this container, flush against the viewport
-        edge with no horizontal inset of its own (`.ws-main` carries none) and
-        spaced from the toolbar by a bespoke `margin-bottom` a third the size
-        of the gap every other section uses. As a flex child here it shares
-        `.ws-docs`'s max-width, centering and side padding — so its rounded,
-        bordered edges line up with the toolbar/table below instead of
-        touching the browser edge — and the SAME `gap` spaces it from what
-        follows, closing exactly the inconsistency the spacing reference
-        calls out.
+      {/* nothing to search or filter on an empty account */}
+      {firstRun ? null : <div className="ws-home__tools">
+        <label className="ws-home__search">
+          <IconSearch size={14} />
+          <span className="ws-visually-hidden">Search contracts</span>
+          <input type="search" value={qInput} onChange={(event) => setQInput(event.target.value)}
+                 placeholder="Search by contract name" />
+        </label>
+        {/* One Filter button: type, the archive shelf and the order, folded away inline
+            (not floating — nothing to position, nothing to clip on a phone). */}
+        <details className="ws-home__filter" ref={filterRef}>
+          <summary className="ws-btn">Filter{activeFilters ? ` · ${activeFilters}` : ""}</summary>
+          <div className="ws-home__filterpanel">
+            {stagesHeld.length ? (
+              <label className="ws-field ws-home__stagefield">
+                <span className="ws-field__label">Stage</span>
+                <select value={stageFilter} onChange={(event) => { setStageFilter(event.target.value as typeof stageFilter); setPage(1); }}>
+                  <option value="">All stages</option>
+                  {stagesHeld.map((code) => (
+                    <option key={code} value={code}>{`${STAGE_LABEL[code] ?? code} (${summary?.stages?.[code] ?? 0})`}</option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            <label className="ws-field">
+              <span className="ws-field__label">Type</span>
+              <select value={typeFilter} onChange={(event) => { setTypeFilter(event.target.value); setPage(1); }}>
+                <option value="">All types</option>
+                {DOCUMENT_TYPES.filter((t) => seenTypes.has(t.code) || t.code === typeFilter).map((t) => (
+                  <option key={t.code} value={t.code}>{t.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="ws-field">
+              <span className="ws-field__label">Show</span>
+              <select value={showArchived ? "archived" : "active"}
+                      onChange={(event) => { setShowArchived(event.target.value === "archived"); setPage(1); }}>
+                <option value="active">Active contracts</option>
+                <option value="archived">Archived contracts</option>
+              </select>
+            </label>
+            <label className="ws-field">
+              <span className="ws-field__label">Order</span>
+              <select value={sort} onChange={(event) => { setSort(event.target.value); setPage(1); }}>
+                <option value="created_desc">Newest first</option>
+                <option value="created_asc">Oldest first</option>
+                <option value="name_asc">Name A–Z</option>
+                <option value="name_desc">Name Z–A</option>
+              </select>
+            </label>
+          </div>
+        </details>
+      </div>}
 
-        The hero banner (owner reference, 2026-09-24; restyled bubble-shape
-        2026-09-29 per the supplied hero reference — a subtle border and soft
-        shadow added, corners rounded further; every value inside is unchanged
-        page state). "+ Upload Contract" now opens the compact Upload dialog
-        (item 2) rather than an inline disclosure, and `pagination.total`
-        still comes from the same request. The three "Analyze / Find Risks /
-        Get Insights" chips on the right are presentational labels matching
-        the approved reference — they are not controls and carry no
-        functionality of their own, per the brief.
-      */}
-      <section className="ws-dashhero" aria-label="Welcome">
-        <div className="ws-dashhero__text">
-          <h2 className="ws-dashhero__greeting">
-            {timeOfDayGreeting()}
-            {identity?.name ? (
-              // A non-breaking space glues the name to the wave (owner
-              // review, 2026-09-24 responsive pass) — at narrow widths the
-              // line was wrapping between them, leaving 👋 stranded alone on
-              // its own line. The greeting can still wrap earlier than this;
-              // it just never splits a name from the wave right after it.
-              <>, {identity.name.split(" ")[0]}{" "}<span aria-hidden="true">👋</span></>
-            ) : (
-              <> <span aria-hidden="true">👋</span></>
-            )}
-          </h2>
-          <p className="ws-dashhero__sub">
-            Analyze contracts, identify risks, and get clear, actionable insights.
-          </p>
-          {canUpload ? (
-            <button
-              type="button"
-              className="ws-btn ws-btn--primary ws-btn--lg"
-              onClick={() => setUploadOpen(true)}
-            >
-              + Upload Contract
+      {/* A scope FILTER, not a tablist: two pressed-state buttons re-query one region. */}
+      {canSeeDepartment ? (
+        <SegmentedFilter label="Which deals" value={scope}
+                         onChange={(next) => { setScope(next); setPage(1); }}
+                         segments={[{ id: "own", label: "My deals", text: "My deals", always: true },
+                           { id: "department", always: true,
+                             label: identity?.department ? `${identity.department.name} deals` : "Department deals",
+                             text: identity?.department ? `${identity.department.name} deals` : "Department deals" }]} />
+      ) : null}
+      {canSeeDepartment && scope === "department" && !identity?.department ? (
+        <p className="ws-pane__note" role="note">
+          You are not in a department yet. An administrator can add you to one.
+        </p>
+      ) : null}
+
+      {/* Where every deal stands (`AM-260`): only the stages holding a deal, in the deal's
+          own order, one line that scrolls sideways on a phone. */}
+      {/* round 3: on a wide screen the stages are one visible control; at 640px and below
+          they live in the Filter panel (one filter control on a phone, never two) */}
+      {stagesHeld.length ? (
+        <div className="ws-home__stages">
+          <SegmentedFilter label="Stage" value={stageFilter}
+                           onChange={(code) => { setStageFilter(code); setPage(1); }}
+                           segments={[{ id: "", label: "All stages", text: "All stages", always: true },
+                             ...stagesHeld.map((code) => ({ id: code, label: STAGE_LABEL[code], text: STAGE_LABEL[code] ?? code,
+                               count: summary?.stages?.[code] ?? 0 }))]} />
+        </div>
+      ) : null}
+
+      {error ? (
+        <ErrorState title={stale ? "These results could not be refreshed" : "Contracts could not be loaded"}
+                    error={error} onRetry={() => void load()}
+                    {...(stale ? { fix: "The rows below are the last ones that loaded. Try again in a moment." } : {})} />
+      ) : null}
+
+      {contracts === null && !error ? (
+        <div className="ws-hometable" aria-busy="true">
+          <p className="ws-visually-hidden" role="status" aria-live="polite">Loading contracts…</p>
+          {[0, 1, 2, 3].map((row) => (
+            <div key={row} className="ws-docs__skel" aria-hidden="true">
+              <span className="ws-skel ws-skel--line" style={{ width: "40%" }} />
+              <span className="ws-skel ws-skel--line" style={{ width: "14%" }} />
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {contracts && contracts.length > 0 ? (
+        <div className="ws-hometable">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Contract</th>
+                <th scope="col">Stage</th>
+                <th scope="col">Changes and points</th>
+                <th scope="col"><span className="ws-visually-hidden">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {contracts.map((contract) => {
+                // Batch 1 (c): the tint and ", our turn" mark exactly the rows in "Your turn"
+                const turn = turnIds.has(contract.id);
+                const facts = contractFacts(contract, clientOf(contract));
+                return (
+                  <tr key={contract.id} className={turn ? "ws-hometable__turn" : undefined}>
+                    <td>
+                      <Link href={contractHref(contract.id)} className="ws-hometable__name" title={contract.name}>
+                        {contract.name}
+                      </Link>
+                      <span className="ws-hometable__facts">
+                        {[...facts,
+                          scope !== "own" ? contract.owner_name : null,
+                          contract.archived_at ? `Archived ${shortDate(contract.archived_at)}` : null,
+                        ].filter(Boolean).map((part) => <span key={part}>{part}</span>)}
+                      </span>
+                    </td>
+                    <td data-label="Stage">
+                      <StageBadge stage={contract.negotiation_stage} counts={contract.counts}
+                                  viewer={stageViewer(can, isMine(contract))} ourTurn={turn} />
+                    </td>
+                    <td data-label="Changes and points">
+                      <CountsCell contract={contract} viewer={stageViewer(can, isMine(contract))} />
+                    </td>
+                    <td>
+                      <div className="ws-rowact">
+                        {/* the visible word stays short; the accessible name carries the contract */}
+                        <Link href={contractHref(contract.id)} className="ws-btn ws-btn--sm"
+                              aria-label={`${ACTION.open} ${contract.name}`}>
+                          {ACTION.open}
+                        </Link>
+                        {/* Only the operations this caller has — absent, never disabled (47.6). */}
+                        {(canEdit && isMine(contract)) || (canArchive && isMine(contract)) || canTransfer ? (
+                          <div className="ws-menu">
+                            <button
+                              type="button"
+                              className="ws-btn ws-btn--sm ws-menu__toggle"
+                              aria-haspopup="menu"
+                              aria-expanded={menuFor === contract.id}
+                              aria-label={`More actions for ${contract.name}`}
+                              onClick={(event) => menuFor === contract.id
+                                ? closeMenu()
+                                : openMenu(contract.id, event.currentTarget)}
+                            >
+                              ⋯
+                            </button>
+                            {menuFor === contract.id && menuPos
+                              ? createPortal(
+                                <div
+                                  ref={menuRef}
+                                  className="ws-menu__list"
+                                  role="menu"
+                                  aria-orientation="vertical"
+                                  onKeyDown={onMenuKeyDown}
+                                  style={{
+                                    position: "fixed",
+                                    right: menuPos.right,
+                                    top: menuPos.top,
+                                    bottom: menuPos.bottom,
+                                    minWidth: menuPos.minWidth,
+                                  }}
+                                >
+                                  {canEdit && isMine(contract) && !contract.archived_at ? (
+                                    <button type="button" role="menuitem" className="ws-menu__item"
+                                            onClick={() => { closeMenu(); setEditing(contract); }}>
+                                      Edit details
+                                    </button>
+                                  ) : null}
+                                  {canTransfer && !contract.archived_at ? (
+                                    <button type="button" role="menuitem" className="ws-menu__item"
+                                            onClick={() => { closeMenu(); setTransferring(contract); }}>
+                                      Transfer ownership
+                                    </button>
+                                  ) : null}
+                                  {canArchive && isMine(contract) && !contract.archived_at ? (
+                                    <button type="button" role="menuitem" className="ws-menu__item ws-menu__item--bad"
+                                            onClick={() => { closeMenu(); setArchiving(contract); }}>
+                                      Archive
+                                    </button>
+                                  ) : null}
+                                  {canArchive && isMine(contract) && contract.archived_at ? (
+                                    <button type="button" role="menuitem" className="ws-menu__item"
+                                            onClick={() => {
+                                              closeMenu();
+                                              void api.restoreContract(contract.id).then(refresh).catch(setError);
+                                            }}>
+                                      Restore
+                                    </button>
+                                  ) : null}
+                                  {/* canArchive also gates Delete (AM-55) */}
+                                  {canArchive && isMine(contract) ? (
+                                    <button type="button" role="menuitem" className="ws-menu__item ws-menu__item--bad"
+                                            onClick={() => { closeMenu(); setDeleting(contract); }}>
+                                      Delete permanently
+                                    </button>
+                                  ) : null}
+                                </div>,
+                                menuPortalTarget(),
+                              )
+                              : null}
+                          </div>
+                        ) : null}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+
+      {/* Two emptinesses, two answers: nothing yet is an invitation; nothing matching is a
+          dead end to back out of. One line each — no header, no icon. */}
+      {contracts && contracts.length === 0 ? (
+        <p className="ws-home__empty">
+          {firstRun ? (persona === "legal" ? "Nothing has been sent to Legal yet." : "No contracts yet.")
+            : !noFilters ? "No contracts match."
+            : showArchived ? "Nothing archived. An archived contract is kept here, read-only, and can be restored."
+            : "No deals in this view yet."}
+          {firstRun && canUpload && persona !== "legal" ? (
+            <button type="button" className="ws-btn ws-btn--sm" onClick={() => setUploadOpen(true)}>
+              Upload your first contract
+            </button>
+          ) : !firstRun && !noFilters ? (
+            <button type="button" className="ws-btn ws-btn--sm" onClick={clearFilters}>Clear search and filters</button>
+          ) : showArchived && noFilters ? (
+            <button type="button" className="ws-btn ws-btn--sm"
+                    onClick={() => { setShowArchived(false); setPage(1); }}>
+              Back to active contracts
             </button>
           ) : null}
-        </div>
-        <div className="ws-dashhero__art" aria-hidden="true">
-          <span className="ws-dashhero__doc ws-dashhero__doc--1" />
-          <span className="ws-dashhero__doc ws-dashhero__doc--2" />
-          <span className="ws-dashhero__doc ws-dashhero__doc--3" />
-          <span className="ws-dashhero__glass"><IconSearch size={30} /></span>
-        </div>
-        <ul className="ws-dashhero__chips" aria-hidden="true">
-          <li className="ws-dashhero__chip ws-dashhero__chip--analyze">
-            <IconFile size={15} /> Analyze
-          </li>
-          <li className="ws-dashhero__chip ws-dashhero__chip--risk">
-            <IconAlertCircle size={15} /> Find Risks
-          </li>
-          <li className="ws-dashhero__chip ws-dashhero__chip--insight">
-            <IconCheckCircle size={15} /> Get Insights
-          </li>
-        </ul>
-      </section>
-        {/*
-          No lede. It read "Upload a contract, confirm its type, and every clause
-          is measured against the standard your organization has approved for that
-          type…" — which is exactly what the five-step strip below says, in the
-          same order and more legibly. Two statements of one fact is one statement
-          plus one piece of filler (owner, 2026-09-01).
+        </p>
+      ) : null}
 
-          The earlier wording also had to be rewritten for `AI-01` and owner Q9
-          before it could ship at all; the strip now carries that correctness, and
-          `documents-pipeline.test.tsx` guards it there.
-        */}
+      {pagination && pagination.total > pagination.page_size ? (
+        <nav className="ws-pager" aria-label="Pagination">
+          <span className="ws-pane__note" role="status" aria-live="polite">
+            {(pagination.page - 1) * pagination.page_size + 1}–{Math.min(pagination.page * pagination.page_size, pagination.total)} of {pagination.total}
+          </span>
+          <span className="ws-pager__spacer" />
+          <button type="button" className="ws-btn ws-btn--sm" disabled={pagination.page <= 1} onClick={() => setPage((p) => p - 1)}>
+            Previous
+          </button>
+          {Array.from({ length: pageCount }, (_, i) => i + 1)
+            .filter((n) => n === 1 || n === pageCount || Math.abs(n - pagination.page) <= 1)
+            .reduce<number[]>((acc, n) => {
+              if (acc.length > 0 && n - acc[acc.length - 1]! > 1) acc.push(-1);
+              acc.push(n);
+              return acc;
+            }, [])
+            .map((n, i) => (n === -1 ? (
+              <span key={`gap-${i}`} className="ws-pane__note">…</span>
+            ) : (
+              <button key={n} type="button" className="ws-btn ws-btn--sm"
+                      aria-current={n === pagination.page ? "page" : undefined} onClick={() => setPage(n)}>
+                {n}
+              </button>
+            )))}
+          <button type="button" className="ws-btn ws-btn--sm"
+                  disabled={pagination.page * pagination.page_size >= pagination.total}
+                  onClick={() => setPage((p) => p + 1)}>
+            Next
+          </button>
+        </nav>
+      ) : null}
+    </>
+  );
 
-        {/*
-          Upload is the page's primary action, so it reads as one — a button
-          that opens a compact modal (item 2, "Compact Upload Experience",
-          2026-09-29 — supersedes the earlier inline disclosure, which pushed
-          the whole page down). `UploadContract` itself keeps the same state
-          machine and calls; only where it lives, and when its network calls
-          start, changed (rendered with the other dialogs, below).
-        */}
-
-        {/* A scope FILTER, not a tablist (2026-09-08). `role="tablist"` promises
-            a `tabpanel` for each tab and arrow-key traversal between them — the
-            workspace's real tabs (Document/Summary/Findings) provide both, and
-            these two never did: they re-query the server and re-render the same
-            one region. Two pressed-state buttons in a labelled group say what
-            this actually is, and stop assistive technology announcing a tab
-            whose panel does not exist. */}
-        {canSeeDepartment ? (
-          <div className="ws-tabs" role="group" aria-label="Which deals">
-            <button type="button" aria-pressed={scope === "own"}
-                    className={`ws-tab ${scope === "own" ? "ws-tab--active" : ""}`}
-                    onClick={() => { setScope("own"); setPage(1); }}>
-              My deals
-            </button>
-            <button type="button" aria-pressed={scope === "department"}
-                    className={`ws-tab ${scope === "department" ? "ws-tab--active" : ""}`}
-                    onClick={() => { setScope("department"); setPage(1); }}>
-              Department deals{identity?.department ? ` · ${identity.department.name}` : ""}
-            </button>
-          </div>
-        ) : null}
-        {canSeeDepartment && scope === "department" && !identity?.department ? (
-          <p className="ws-pane__note" role="note">
-            Your account is not in a department yet, so this view is empty until an administrator places you in one.
-          </p>
-        ) : null}
-
-      {/* The main/side column split starts here now (owner reference,
-          2026-09-24 desktop refinement): the toolbar, the four stat cards
-          and Recent Contracts all share the MAIN column's width — none of
-          them extend under where Recent Activity sits, matching the
-          reference's layout exactly. Nothing inside changed except which
-          wrapper it sits in. */}
-      <div className="ws-dashsplit">
-        <div className="ws-dashmain">
-        {/* Cards before the toolbar (item 4, "Spacing and Responsive
-            Behavior", 2026-09-29 — matches the supplied spacing reference),
-            all four now real filters (item 3, "Clickable Summary Cards").
-            `statusFilter` is the SAME state the Status <select> below reads,
-            so a card click and the dropdown can never disagree about what is
-            applied — clicking a card updates the dropdown's own value too. */}
-        {summary ? (
-          <section className="ws-doctiles" aria-label="Contract totals">
-            <StatTile
-              icon={<IconFile size={16} />}
-              n={summary.total}
-              label="Total Contracts"
-              hint="Across your account"
-              active={statusFilter === ""}
-              onSelect={clearCardFilter}
-              selectLabel="Show all contracts"
-            />
-            <StatTile
-              icon={<IconAlertCircle size={16} />}
-              n={summary.needs_attention}
-              label="Needs Attention"
-              bucket="needs_attention"
-              hint="Require your review"
-              active={statusFilter === "needs_attention"}
-              onSelect={() => filterTo("needs_attention")}
-              selectLabel="Show contracts needing attention"
-            />
-            <StatTile
-              icon={<IconCheckCircle size={16} />}
-              n={summary.analyzed}
-              label="No Issues"
-              bucket="analyzed"
-              hint="Meet company standards"
-              active={statusFilter === "analyzed"}
-              onSelect={() => filterTo("analyzed")}
-              selectLabel="Show contracts with no issues"
-            />
-            <StatTile
-              icon={<IconClock size={16} />}
-              n={summary.draft + summary.analyzing}
-              label="Draft / In Progress"
-              bucket="draft"
-              hint="Still being analyzed"
-              active={statusFilter === "in_progress"}
-              onSelect={() => filterTo("in_progress")}
-              selectLabel="Show draft and in-progress contracts"
-            />
-          </section>
-        ) : null}
-
-        <div className="ws-doctoolbar">
-          <label className="ws-doctoolbar__search">
-            <IconSearch size={14} />
-            <span className="ws-visually-hidden">Search contracts</span>
-            <input
-              value={qInput}
-              onChange={(event) => setQInput(event.target.value)}
-              placeholder="Search contracts, clients, or ask anything…"
-            />
-          </label>
-          <label className="ws-doctoolbar__select">
-            <span className="ws-visually-hidden">Filter by type</span>
-            <select value={typeFilter} onChange={(event) => { setTypeFilter(event.target.value); setPage(1); }}>
-              <option value="">Type: All</option>
-              {DOCUMENT_TYPES.map((t) => (
-                <option key={t.code} value={t.code}>{t.label}</option>
-              ))}
-            </select>
-          </label>
-          <label className="ws-doctoolbar__select">
-            <span className="ws-visually-hidden">Filter by status</span>
-            <select
-              value={statusFilter}
-              onChange={(event) => { setStatusFilter(event.target.value as DocumentStatusBucket | ""); setPage(1); }}
-            >
-              <option value="">Status: All</option>
-              {(["needs_attention", "analyzed", "analyzing", "draft"] as const).map((b) => (
-                <option key={b} value={b}>{STATUS_BUCKET_LABEL[b]}</option>
-              ))}
-            </select>
-          </label>
-          <label className="ws-doctoolbar__select">
-            <span className="ws-visually-hidden">Active or archived</span>
-            <select value={showArchived ? "archived" : "active"}
-                    onChange={(event) => { setShowArchived(event.target.value === "archived"); setPage(1); }}>
-              <option value="active">Show: Active</option>
-              <option value="archived">Show: Archived</option>
-            </select>
-          </label>
-          <label className="ws-doctoolbar__select">
-            <span className="ws-visually-hidden">Sort</span>
-            <select value={sort} onChange={(event) => { setSort(event.target.value); setPage(1); }}>
-              <option value="created_desc">Sort: Recently Added</option>
-              <option value="created_asc">Sort: Oldest First</option>
-              <option value="name_asc">Sort: Name A–Z</option>
-              <option value="name_desc">Sort: Name Z–A</option>
-            </select>
-          </label>
-        </div>
-
-        {/* The active summary-card filter, named in plain words — item 3
-            requires this to be unambiguous, beyond the Status <select>'s own
-            value. Absent when no card filter is applied (the "all" state the
-            Total Contracts card itself represents). */}
-        {statusFilter ? (
-          <p className="ws-cardfilter" role="status">
-            Filtered by: {statusFilter === "in_progress" ? "Draft / In Progress" : STATUS_BUCKET_LABEL[statusFilter]}
-            <button type="button" className="ws-cardfilter__clear" onClick={clearCardFilter}>
-              Clear filter
-            </button>
-          </p>
-        ) : null}
-
-        {/*
-          No separate "Needs Attention" list here any more (2026-09-02
-          redesign — previously `.ws-doctend`/`.ws-queue`, a whole card of its
-          own above the table). The row that needs attention is now flagged
-          IN the table itself (a soft amber row, see `ws-tr--attention`
-          below), which is where the owner asked for the cue to live instead.
-
-          That still leaves the cross-page/cross-filter question the old
-          section existed to answer: a contract needing attention that is not
-          on the page or filter you're currently looking at. Two things below
-          still cover it without a dedicated section: the "Needs Attention"
-          stat tile is a real link into `status=needs_attention` account-wide
-          (see `filterTo`), and the same value is one option in the Status
-          filter. Nothing that was reachable before is unreachable now.
-        */}
-
-        {/* Two different failures, and they were telling the same story
-            (2026-09-08 audit measured "Documents could not be loaded" sitting
-            above twenty-five perfectly good rows). If rows are already on
-            screen, the request that failed was a REFRESH: the table is real,
-            just not current, and saying otherwise teaches the reader to
-            distrust a correct table. With no rows to show, the original
-            message is the right one. */}
-        {error ? (
-          <div className={`ws-state ws-state--${stale ? "warn" : "error"}`} role="alert">
-            <h2>
-              {stale ? "These results could not be refreshed."
-                : "Documents could not be loaded."}
+  return (
+    <>
+      <div className="lm-page ws-home">
+        {/* The person's home (S1, critic round 2026-11-03): whose contracts, the one primary
+            action, what is this person's turn, then the list. For the lawyer the queue IS
+            the page and the repository sits behind "All contracts". */}
+        <PageHeader title={homeTitle(persona, scope)}
+                    primary={canUpload ? (
+                      <button type="button" className="ws-btn ws-btn--primary" onClick={() => setChooseOpen(true)}>
+                        <IconPlus size={15} /> New contract
+                      </button>
+                    ) : null} />
+        <HomeQueue companies={companies} todo={todo} />
+        {persona === "legal" ? (
+          <details className="ws-home__all">
+            <summary className="ws-home__qtitle">
+              All contracts
+              {pagination ? <span className="ws-home__qn">{pagination.total}</span> : null}
+            </summary>
+            <div className="ws-home__list">{list}</div>
+          </details>
+        ) : (
+          <section className="ws-home__list" aria-labelledby="ws-home-all">
+            <h2 id="ws-home-all" className="ws-home__qtitle">
+              All contracts
+              {pagination ? <span className="ws-home__qn">{pagination.total}</span> : null}
             </h2>
-            <p>
-              {describeError(error)}
-              {stale ? " The rows below are the last ones loaded successfully." : ""}
-            </p>
-            <button type="button" className="ws-btn ws-btn--sm" onClick={() => void load()}>
-              Try again
-            </button>
-          </div>
-        ) : null}
-
-        {/*
-          One card holds the toolbar, the table and the footer — the reference's
-          shape, and the right one: the column header stays visible when there
-          are no rows, so an empty table still says what it will hold instead of
-          collapsing into an unrelated-looking panel.
-        */}
-        <div className="ws-doctable">
-          <header className="ws-doctable__head">
-            <div>
-              <h2 className="ws-doctable__title"><IconFile size={17} /> Recent Contracts</h2>
-              <p className="ws-doctable__sub">Your recently added and analyzed contracts.</p>
-            </div>
-            {/* Always shown, matching the reference (2026-09-24 refinement) —
-                reuses the existing filter state rather than linking to a
-                separate "all contracts" page, which does not exist: this IS
-                the full, paginated list. With no filter active it is a
-                harmless reset to the same default view already showing;
-                with one active it clears it, exactly like "Clear search and
-                filters" elsewhere on this page already does. No new route,
-                no new functionality. */}
-            <button type="button" className="ws-btn--link ws-doctable__viewall"
-                    onClick={() => {
-                      setQInput(""); setTypeFilter(""); setStatusFilter("");
-                      setShowArchived(false); setPage(1);
-                    }}>
-              View all <IconChevronRight size={13} />
-            </button>
-          </header>
-
-        {contracts === null && !error ? (
-          <div className="ws-docs__table" aria-busy="true">
-            <p className="ws-visually-hidden" role="status" aria-live="polite">
-              Loading documents…
-            </p>
-            {/* The column header is part of the loading state, not something
-                that appears afterwards (2026-09-08): rendering the skeleton
-                without it moved every row down by the header's height the
-                instant data landed — a layout shift on the page's first paint,
-                every visit. Six skeleton rows also hold roughly the height a
-                full page of results occupies, so the card does not jump size. */}
-            <table aria-hidden="true"><thead><TableHead /></thead></table>
-            {[0, 1, 2, 3, 4, 5].map((row) => (
-              <div key={row} className="ws-docs__skel" aria-hidden="true">
-                <span className="ws-skel ws-skel--line" style={{ width: "40%" }} />
-                <span className="ws-skel ws-skel--line" style={{ width: "12%" }} />
-                <span className="ws-skel ws-skel--line" style={{ width: "10%" }} />
-              </div>
-            ))}
-          </div>
-        ) : null}
-
-        {contracts ? (
-          <div className="ws-docs__table">
-            <table>
-              <thead><TableHead /></thead>
-              <tbody>
-                {contracts.map((contract) => {
-                  const bucket = documentStatusBucket(contract);
-                  // One word, used as both the visible label and the head of the
-                  // accessible name — written twice, they drifted immediately.
-                  const verb = contract.archived_at ? "View"
-                    : bucket === "draft" ? "Analyze"
-                    : bucket === "analyzing" ? "View Progress" : "Review";
-                  return (
-                    <tr key={contract.id} className={bucket === "needs_attention" ? "ws-tr--attention" : undefined}>
-                      <td>
-                        {/* `title` carries the untruncated name: the cell clips
-                            to one line so rows stay a uniform height, and the
-                            full value must still be reachable by pointer and by
-                            keyboard focus. */}
-                        <Link
-                          href={`/dashboard?id=${contract.id}`}
-                          className="ws-doc-name"
-                          title={contract.name}
-                        >
-                          <IconFile size={15} />
-                          <span className="ws-doc-name__text">{contract.name}</span>
-                        </Link>
-                        {scope === "department" && contract.owner_name ? (
-                          <div className="ws-pane__note">{contract.owner_name}</div>
-                        ) : null}
-                        {contract.archived_at ? (
-                          <div className="ws-pane__note">Archived {contract.archived_at.slice(0, 10)}</div>
-                        ) : null}
-                      </td>
-                      {/* `data-label` is what the narrow-viewport card layout
-                          renders as each value's own label (see `ws-docs--index`
-                          under 900px in workspace.css). Below that width the
-                          seven-column row cannot hold its columns — measured
-                          777px of table inside a 320px viewport, which put the
-                          row's own "Review" link and ⋯ menu at x=657–778, off
-                          screen behind a nested scroller nobody discovers. The
-                          same cells, labelled, stack into a card instead: every
-                          value still present, every control reachable. */}
-                      <td data-label="Type">
-                        {contract.contract_type ? (
-                          /* The short form, not the raw code (2026-09-10):
-                             `ORDER_FORM` and `PRIVACY_POLICY` put an underscore
-                             in front of a reader, which is a leaked wire value
-                             rather than a label. Changed here as well as on the
-                             Client Profiles list so the two screens render the
-                             same field the same way — the alternative was
-                             introducing that inconsistency, not avoiding it.
-                             Presentation only: the CODE is still what is sent,
-                             stored and validated, and the full label is still
-                             the chip's title. */
-                          <span className="ws-chip ws-chip--type" title={documentTypeLabel(contract.contract_type)}>
-                            {documentTypeChip(contract.contract_type)}
-                          </span>
-                        ) : (
-                          <span className="ws-chip">not declared</span>
-                        )}
-                      </td>
-                      <td data-label="Status"><StatusPill contract={contract} /></td>
-                      <td data-label="Findings"><FindingsCell contract={contract} /></td>
-                      <td className="ws-mono" data-label="Last analyzed">
-                        {bucket === "analyzing" ? "In progress"
-                          : relativeTime(contract.latest_analysis?.completed_at ?? null)}
-                      </td>
-                      <td className="ws-mono" data-label="Added">{contract.created_at ? contract.created_at.slice(0, 10) : "—"}</td>
-                      <td>
-                        <div className="ws-rowact">
-                          {/* A per-row action reads better as a link than a
-                              repeated solid button (2026-09-02) — the page's
-                              one true `.btn--primary` stays "+ Upload
-                              Contract" in the header above. */}
-                          {/* The visible word stays short; the ACCESSIBLE name
-                              carries the contract (2026-09-08). Twenty-five
-                              links all announcing "Review, link" gave a screen
-                              reader no way to tell one row's action from
-                              another's — the same reason the ⋯ toggle already
-                              names its contract.
-
-                              An archived contract reads "View": it is
-                              read-only server-side (AB-12 r6), so offering
-                              "Analyze" on it advertised an operation the
-                              server refuses. */}
-                          <Link
-                            href={`/dashboard?id=${contract.id}`}
-                            className="ws-btn ws-btn--sm ws-btn--link"
-                            aria-label={`${verb} ${contract.name}`}
-                          >
-                            {verb}
-                            <IconChevronRight size={13} aria-hidden="true" />
-                          </Link>
-                          {/* Only the operations this caller actually has. An
-                              action shown-but-disabled advertises a capability
-                              the account does not carry; hiding it says the
-                              truth. The server re-checks regardless — this
-                              gating is presentation only (47.6). */}
-                          {(canEdit && isMine(contract)) || (canArchive && isMine(contract)) || canTransfer ? (
-                            // canArchive also gates Delete below (AM-55): the
-                            // same owner-scoped write capability covers both.
-                            <div className="ws-menu">
-                              <button
-                                type="button"
-                                className="ws-btn ws-btn--sm ws-menu__toggle"
-                                aria-haspopup="menu"
-                                aria-expanded={menuFor === contract.id}
-                                aria-label={`More actions for ${contract.name}`}
-                                onClick={(event) => menuFor === contract.id
-                                  ? closeMenu()
-                                  : openMenu(contract.id, event.currentTarget)}
-                              >
-                                ⋯
-                              </button>
-                              {menuFor === contract.id && menuPos
-                                ? createPortal(
-                                  <div
-                                    ref={menuRef}
-                                    className="ws-menu__list"
-                                    role="menu"
-                                    aria-orientation="vertical"
-                                    onKeyDown={onMenuKeyDown}
-                                    style={{
-                                      position: "fixed",
-                                      right: menuPos.right,
-                                      top: menuPos.top,
-                                      bottom: menuPos.bottom,
-                                      minWidth: menuPos.minWidth,
-                                    }}
-                                  >
-                                    {canEdit && isMine(contract) && !contract.archived_at ? (
-                                      <button type="button" role="menuitem"
-                                              className="ws-menu__item"
-                                              onClick={() => {
-                                                closeMenu();
-                                                setEditing(contract);
-                                              }}>
-                                        Edit details
-                                      </button>
-                                    ) : null}
-                                    {canTransfer && !contract.archived_at ? (
-                                      <button type="button" role="menuitem"
-                                              className="ws-menu__item"
-                                              onClick={() => {
-                                                closeMenu();
-                                                setTransferring(contract);
-                                              }}>
-                                        Transfer ownership
-                                      </button>
-                                    ) : null}
-                                    {canArchive && isMine(contract) && !contract.archived_at ? (
-                                      <button type="button" role="menuitem"
-                                              className="ws-menu__item ws-menu__item--bad"
-                                              onClick={() => {
-                                                closeMenu();
-                                                setArchiving(contract);
-                                              }}>
-                                        Archive
-                                      </button>
-                                    ) : null}
-                                    {canArchive && isMine(contract) && contract.archived_at ? (
-                                      <button type="button" role="menuitem"
-                                              className="ws-menu__item"
-                                              onClick={() => {
-                                                closeMenu();
-                                                void api.restoreContract(contract.id).then(refresh).catch(setError);
-                                              }}>
-                                        Restore
-                                      </button>
-                                    ) : null}
-                                    {canArchive && isMine(contract) ? (
-                                      <button type="button" role="menuitem"
-                                              className="ws-menu__item ws-menu__item--bad"
-                                              onClick={() => {
-                                                closeMenu();
-                                                setDeleting(contract);
-                                              }}>
-                                        Delete permanently
-                                      </button>
-                                    ) : null}
-                                  </div>,
-                                  menuPortalTarget(),
-                                )
-                                : null}
-                            </div>
-                          ) : null}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-
-            {/*
-              Two different emptinesses, and they need different answers. Nothing
-              uploaded yet is an invitation; nothing matching a filter is a dead
-              end the reader can back out of. Conflating them would leave someone
-              staring at "upload your first contract" while holding twenty.
-            */}
-            {contracts.length === 0 ? (
-              firstRun ? (
-                <div className="ws-docempty">
-                  <span className="ws-docempty__mark" aria-hidden="true">
-                    <IconFile size={22} />
-                  </span>
-                  {/* No body copy: the heading states the condition, the button
-                      states the action. A sentence between them restates both. */}
-                  <h2>No contracts yet</h2>
-                  {canUpload ? (
-                    <button
-                      type="button"
-                      className="ws-btn ws-btn--primary"
-                      onClick={() => setUploadOpen(true)}
-                    >
-                      Upload your first contract
-                    </button>
-                  ) : null}
-                </div>
-              ) : noFilters ? (
-                /* An empty VIEW, not an empty account (2026-09-08): the shelf
-                   holds nothing, or this department's members own nothing yet.
-                   Either way the reader has contracts, so neither the first-run
-                   invitation nor a "clear your filters" dead end is true. */
-                <div className="ws-docempty">
-                  <span className="ws-docempty__mark" aria-hidden="true">
-                    <IconFile size={22} />
-                  </span>
-                  <h2>{showArchived ? "Nothing archived" : "No deals in this view yet"}</h2>
-                  <p>
-                    {showArchived
-                      ? "A contract you archive is kept here — read-only, with its versions, findings and history — and can be restored at any time."
-                      : "Deals owned by the other people in your department appear here as they are added."}
-                  </p>
-                  {showArchived ? (
-                    <button
-                      type="button"
-                      className="ws-btn"
-                      onClick={() => { setShowArchived(false); setPage(1); }}
-                    >
-                      Back to active contracts
-                    </button>
-                  ) : null}
-                </div>
-              ) : (
-                <div className="ws-docempty">
-                  <span className="ws-docempty__mark" aria-hidden="true">
-                    <IconSearch size={22} />
-                  </span>
-                  <h2>No contracts match this search</h2>
-                  <button
-                    type="button"
-                    className="ws-btn"
-                    onClick={() => {
-                      setQInput("");
-                      setTypeFilter("");
-                      setStatusFilter("");
-                      setPage(1);
-                    }}
-                  >
-                    Clear search and filters
-                  </button>
-                </div>
-              )
-            ) : null}
-          </div>
-        ) : null}
-
-        {/* The upload ceiling used to sit here, under a table that has no file
-            picker anywhere near it; it read as a leftover. It is stated where it
-            is acted on instead — the upload panel's own hint already says "PDF
-            or DOCX, up to 25 MB", so this is a deletion, not a move. */}
-
-        {pagination && pagination.total > 0 ? (
-          <nav className="ws-pager" aria-label="Pagination">
-            {/* Announced (2026-09-08): paging is a keyboard-and-screen-reader
-                operation whose only feedback was the table's own contents
-                changing silently below the fold. */}
-            <span className="ws-pane__note" role="status" aria-live="polite">
-              Showing {pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.page_size + 1}
-              {" "}to {Math.min(pagination.page * pagination.page_size, pagination.total)} of {pagination.total} contracts
-            </span>
-            <span className="ws-pager__spacer" />
-            <button type="button" className="ws-btn ws-btn--sm" disabled={pagination.page <= 1} onClick={() => setPage((p) => p - 1)}>
-              Previous
-            </button>
-            {Array.from({ length: pageCount }, (_, i) => i + 1)
-              .filter((n) => n === 1 || n === pageCount || Math.abs(n - pagination.page) <= 1)
-              .reduce<number[]>((acc, n) => {
-                if (acc.length > 0 && n - acc[acc.length - 1]! > 1) acc.push(-1);
-                acc.push(n);
-                return acc;
-              }, [])
-              .map((n, i) => (n === -1 ? (
-                <span key={`gap-${i}`} className="ws-pane__note">…</span>
-              ) : (
-                <button
-                  key={n}
-                  type="button"
-                  className="ws-btn ws-btn--sm"
-                  aria-current={n === pagination.page ? "page" : undefined}
-                  onClick={() => setPage(n)}
-                >
-                  {n}
-                </button>
-              )))}
-            <button
-              type="button"
-              className="ws-btn ws-btn--sm"
-              disabled={pagination.page * pagination.page_size >= pagination.total}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              Next
-            </button>
-          </nav>
-        ) : null}
-        </div>
-        </div>
-
-        {/*
-          Recent Activity (owner reference, 2026-09-24) — derived from the same
-          `contracts` already loaded for the table above, via `recentActivity()`.
-          No new endpoint, no invented entries: only "uploaded" and "analysis
-          completed" are reproduced, since those are the only two timestamped
-          facts this data actually carries. "View all" is intentionally absent
-          — there is no separate activity feed page to send it to.
-        */}
-        <aside className="ws-dashactivity" aria-label="Recent activity">
-          <header className="ws-dashactivity__head">
-            <h2><IconClock size={16} /> Recent Activity</h2>
-          </header>
-          {contracts && contracts.length > 0 ? (
-            <ol className="ws-dashactivity__list">
-              {recentActivity(contracts).map((entry) => (
-                <li key={entry.id} className="ws-dashactivity__item">
-                  <span className={`ws-dashactivity__icon ws-dashactivity__icon--${entry.kind}`} aria-hidden="true">
-                    {entry.kind === "uploaded" ? <IconFile size={14} /> : <IconCheckCircle size={14} />}
-                  </span>
-                  <span className="ws-dashactivity__body">
-                    <span className="ws-dashactivity__title">
-                      {entry.kind === "uploaded" ? "Contract uploaded" : "Analysis completed"}
-                    </span>
-                    {/* `aria-label` gives this link its own accessible name —
-                        without it, two links reading the exact contract name
-                        (this one and the table's own `.ws-doc-name`) made an
-                        unscoped `getByRole("link", { name, exact: true })`
-                        ambiguous (caught by `workspace.spec.ts`). The visible
-                        text is unchanged. */}
-                    <Link href={`/dashboard?id=${entry.contractId}`} className="ws-dashactivity__doc"
-                          aria-label={`Open ${entry.contractName}`}>
-                      {entry.contractName}
-                    </Link>
-                    <span className="ws-dashactivity__when ws-mono">{relativeTime(entry.at)}</span>
-                  </span>
-                </li>
-              ))}
-            </ol>
-          ) : (
-            <p className="ws-pane__note">Nothing to show yet.</p>
-          )}
-        </aside>
-        </div>
-
-        {/*
-          The five-step explainer, for the one reader it is for.
-
-          It used to render on every visit. It says the same five words every
-          time and never reflects the state of anything, so for someone who has
-          already uploaded a contract it is a permanent block of the fold
-          spent restating what they just did. On an empty account it is
-          orientation. `Pipeline` itself is unchanged — only when the page asks
-          for it changed.
-        */}
-        {firstRun ? <Pipeline /> : null}
+            {list}
+          </section>
+        )}
       </div>
+
+      {chooseOpen ? (
+        <NewContractChooser onClose={() => setChooseOpen(false)}
+                            onUpload={() => { setChooseOpen(false); setUploadOpen(true); }} />
+      ) : null}
 
       {uploadOpen ? (
         <UploadContractDialog
@@ -1472,8 +769,7 @@ function EditContractDialog({
               ))}
             </select>
             <span className="ws-field__help">
-              Where this contract stands — being negotiated, in force, or replaced.
-              Declared by you; recorded on the audit trail.
+              Being negotiated, in force or replaced.
             </span>
           </label>
           <label className="ws-field">
@@ -1495,8 +791,7 @@ function EditContractDialog({
               />
             ) : null}
             <span className="ws-field__help">
-              Linking a deal to a company is what groups its documents together —
-              the NDA, the MSA and their revisions in one place.
+              Keeps this company&rsquo;s documents together.
             </span>
           </label>
           {latest ? (
@@ -1527,8 +822,7 @@ function EditContractDialog({
                   {frozen
                     ? <>These describe version {latest.version_number}, which has been
                         analysed, so they are fixed. Upload a new version to change them.</>
-                    : <>These describe version {latest.version_number}. Declared by you,
-                        never read from the document.</>}
+                    : <>These describe version {latest.version_number}. They are not read from the document.</>}
                 </span>
               </label>
             </>
@@ -1582,8 +876,7 @@ function ArchiveContractDialog({
           <strong>{contract.name}</strong>
         </p>
         <p className="ws-modal__body">
-          It leaves your active deals and becomes read-only. The document, every version, the findings and
-          the history are kept, and you can restore it from the archived view at any time.
+          It becomes read-only and leaves your active deals. Everything is kept, and you can restore it at any time.
         </p>
         {error ? (
           <p className="ws-field__error" role="alert">{describeError(error)}</p>
@@ -1630,8 +923,7 @@ function DeleteContractDialog({
           <strong>{contract.name}</strong>
         </p>
         <p className="ws-modal__body">
-          This cannot be undone. The document, every version, and any findings, evaluations and
-          legal decisions on it are destroyed. If you may want this back, archive it instead.
+          This cannot be undone. The document, every version, its findings and legal decisions are deleted. To keep them, archive it instead.
         </p>
         {error ? (
           <p className="ws-field__error" role="alert">{describeError(error)}</p>
@@ -1734,19 +1026,5 @@ function TransferContractDialog({
   );
 }
 
-function WorkspacePageInner() {
-  const contractId = useSearchParams().get("id");
-  return contractId ? (
-    <WorkspacePage key={contractId} contractId={contractId} />
-  ) : (
-    <DocumentsListView />
-  );
-}
-
-export default function WorkspaceRoute() {
-  return (
-    <Suspense fallback={null}>
-      <WorkspacePageInner />
-    </Suspense>
-  );
-}
+/** `?id=` never reaches this page: next.config.ts redirects it to `/contracts/{id}`. */
+export default DocumentsListView;

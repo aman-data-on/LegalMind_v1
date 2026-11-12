@@ -118,6 +118,25 @@ test("the menu keeps its design tokens and fully covers the row it floats over",
   expect(topElement).toBe(true);
 });
 
+test("the open menu stays with its button when the page moves under it", async ({ page }) => {
+  // A section above the table that loads late shifts the rows; the browser keeps its
+  // place with a scroll. The menu must follow its toggle, not close (CI 2026-11-12).
+  await createAnalysedReview(page);
+  await page.goto("/dashboard");
+  const toggle = page.getByRole("button", { name: /More actions for/ }).first();
+  await toggle.click();
+  const menu = page.locator(".ws-menu__list");
+  await expect(menu).toBeVisible();
+  await page.evaluate(() => window.scrollBy(0, 60));
+  await expect(menu).toBeVisible();
+  const [t, m] = [await toggle.boundingBox(), await menu.boundingBox()];
+  // still directly below (or above) its own toggle
+  expect(Math.abs(m!.y - (t!.y + t!.height + 4)) < 2 || Math.abs(m!.y + m!.height + 4 - t!.y) < 2).toBe(true);
+  // a toggle scrolled out of view takes its menu with it
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  if (((await toggle.boundingBox())?.y ?? -1) < 0) await expect(menu).toHaveCount(0);
+});
+
 /**
  * The search box, typed the way a person types it.
  *
@@ -141,7 +160,8 @@ test("typing in the search box filters the table, and clearing it brings the row
   const name: string = contract.data.name;
 
   await page.goto("/dashboard");
-  const search = page.getByRole("textbox", { name: "Search contracts" });
+  // a `type="search"` input since the Contracts home (CLM S1, 2026-11-03): role searchbox
+  const search = page.getByRole("searchbox", { name: "Search contracts" });
   const rows = page.locator("tbody tr");
   await expect(rows.filter({ hasText: name })).toHaveCount(1);
 

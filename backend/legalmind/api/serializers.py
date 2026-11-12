@@ -16,6 +16,7 @@ established by absence carries zero (49.7 r3, 45D.4.10). It is never ``null``.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 from uuid import UUID
 
@@ -24,15 +25,18 @@ from sqlalchemy.orm import Session as DBSession
 
 from legalmind.db import models as M
 from legalmind.domain.enums import ConfigStatus, FindingStatus, ProcessingStatus
+from legalmind.domain.user_status import in_our_favour
 from legalmind.evaluation.constitution_boundaries import constitution_prohibition_for
 from legalmind.evaluation.user_status import user_status, worst
 from legalmind.evaluation.workflow import (
+    carried_forward,
     current_decision,
     evaluation_requires_decision,
 )
 from legalmind.security import permissions as P
 from legalmind.security.authorization import redact_legal_position
 from legalmind.security.resolver import effective_permissions
+from legalmind.workflow.decisions import reader_justification
 from legalmind.workflow.escalation import is_escalated
 
 # For any PERSISTED Finding, `requirement_required=True` is not a fallback — it is
@@ -135,12 +139,24 @@ def _constitution_for(db: DBSession, finding: M.Finding) -> dict[str, Any] | Non
             "basis": block.get("basis")}
 
 
+#: B3 page 1: a standard's own words that name where they come from — Legal's vocabulary,
+#: never shown to a reader without `legal.review` (PLAIN-LANGUAGE §3)
+_NAMES_SOURCE = re.compile(r"Constitution|§")
+
+
 def serialize_finding(db: DBSession, finding: M.Finding, *,
-                      legal_position: bool) -> dict[str, Any]:
+                      legal_position: bool,
+                      legal_sources: bool = True,
+                      names: dict[str, str] | None = None) -> dict[str, Any]:
     """49.7 r1 — ``classification`` and ``evaluations`` travel together, always.
 
     There is deliberately no Finding-level ``rule_outcome``: none is persisted
     (J-2), and ``requires_decision`` is derived rather than stored (49.7 r2).
+    ``names``: `negotiation.review_unit_names` for the Finding's Review — a list
+    caller reads it once; None reads it here. ``legal_sources``: whether the reader
+    holds `legal.review` — without it, a description that names its source document
+    ("the Constitution", a "§") is omitted, never reworded (rules 7/21: ratified text
+    is not edited here); the page then says the point in words built from the data.
     """
     escalated = is_escalated(db, finding.id)
     evaluations = db.execute(
@@ -162,6 +178,11 @@ def serialize_finding(db: DBSession, finding: M.Finding, *,
                              requirement_code=req.code if req else None)
         for ev in evaluations
     ]
+    status = worst([e["user_status"] for e in serialized],
+                   user_status(finding.classification))
+    if names is None:
+        from legalmind.analysis.negotiation import review_unit_names
+        names = review_unit_names(db, finding.review_id)
 
     return {
         "id": str(finding.id),
@@ -172,7 +193,8 @@ def serialize_finding(db: DBSession, finding: M.Finding, *,
             # Explanatory text only (owner, 2026-09-09): what this requirement
             # checks, in plain words, from the ratified standard's own clause.
             # Never read by an evaluator; never a legal position (no value).
-            "description": rv.description if rv else None,
+            "description": (rv.description if rv and (legal_sources or not
+                            _NAMES_SOURCE.search(rv.description or "")) else None),
             "version_id": str(finding.requirement_version_id),
             "version_number": rv.version_number if rv else None,
             # AM-59 — which Constitution section states the position this
@@ -194,16 +216,38 @@ def serialize_finding(db: DBSession, finding: M.Finding, *,
             FindingStatus.AWAITING_CLARIFICATION,
         },
         "escalated": escalated,
-        "user_status": worst([e["user_status"] for e in serialized],
-                             user_status(finding.classification)),
+        "user_status": status,
+        # Batch 1 (d): the evaluator's recorded rule outcome accepted this deviation
+        # (AM-239 r1, AM-303) — the folded word above, never AM-301 dominance
+        "in_our_favour": in_our_favour(finding.classification, status),
         "evaluations": serialized,
-        "evidence": finding_evidence(db, finding.id),
+        "evidence": finding_evidence(db, finding.id, names),
+        # AM-317 r7: an earlier version's Legal Decision stands for this point —
+        # who, on which version; null when it was decided (or is open) here
+        "carried_decision": _carried(db, finding.id),
         "created_at": _iso(finding.created_at),
         "updated_at": _iso(finding.updated_at),
     }
 
 
-def finding_evidence(db: DBSession, finding_id: UUID) -> list[dict[str, Any]]:
+def _carried(db: DBSession, finding_id: UUID) -> dict[str, Any] | None:
+    record = carried_forward(db, finding_id)
+    if record is None:
+        return None
+    from legalmind.evaluation import workflow as W
+    finding = db.get(M.Finding, finding_id)
+    if W.CARRY_STANDS is not None and finding is not None \
+            and not W.CARRY_STANDS(db, finding):
+        return None       # AM-326 r1: never "Decided on vN by <name>" once it fell
+    by = db.get(M.User, UUID(record["decided_by"]))
+    return {"version_number": record.get("from_version_number"),
+            "decision_type": record.get("decision_type"),
+            "decided_by_name": by.name if by is not None else None,
+            "decided_at": record.get("decided_at")}
+
+
+def finding_evidence(db: DBSession, finding_id: UUID,
+                     names: dict[str, str] | None = None) -> list[dict[str, Any]]:
     """Evidence must survive the evaluator (rule 11): every Finding carries the
     source locations its Evaluations were built from (42.16, 34.13)."""
     rows = db.execute(
@@ -222,6 +266,8 @@ def finding_evidence(db: DBSession, finding_id: UUID) -> list[dict[str, Any]]:
             "section_title": e.section_title,
             "content": e.content,
             "source_type": e.source_type.value,
+            # a clause number the paper uses twice, by the clause's own words (slice A)
+            **({"name": names[str(e.id)]} if names and str(e.id) in names else {}),
         }
         for e, rel in rows
     ]
@@ -240,7 +286,7 @@ def serialize_decision(d: M.LegalDecision, *, is_current: bool = True,
         "evaluation_id": str(d.evaluation_id),
         "finding_id": str(d.finding_id),
         "decision_type": d.decision_type.value,
-        "justification": d.justification,
+        "justification": reader_justification(d.justification),
         "decided_by": str(d.decided_by),
         "decided_by_name": (by.name or by.email) if by is not None else None,
         "version_number": d.version_number,
@@ -273,6 +319,8 @@ def serialize_contract(c: M.Contract) -> dict[str, Any]:
         # AB-13 r2 — who this deal is with. `null` when unlinked, which is the
         # honest state for every contract predating the record.
         "counterparty_id": (str(c.counterparty_id) if c.counterparty_id else None),
+        # AM-287 r1 — the issuing brand; null when nobody chose one
+        "issuing_entity": c.issuing_entity,
         "created_at": _iso(c.created_at),
         "updated_at": _iso(c.updated_at),
     }
@@ -309,6 +357,9 @@ PROFILE_FIELDS: tuple[str, ...] = (
     "city", "state_region", "country",
     "primary_contact_name", "primary_contact_email", "primary_contact_phone",
     "legal_contact_name", "legal_contact_email",
+    # `AM-286` r1/r4 — visible to whoever reads the profile today
+    "entity_type", "cin_or_llpin", "pan", "gstin", "registered_office", "notice_address",
+    "notice_email", "signatory_name", "signatory_designation", "authority_reference",
 )
 
 
@@ -359,6 +410,38 @@ def serialize_document_version(dv: M.DocumentVersion) -> dict[str, Any]:
                               if dv.extraction_status else None),
         "uploaded_by": str(dv.uploaded_by),
         "created_at": _iso(dv.created_at),
+        # AM-260: when it went to the client — present only once it has
+        **({"sent_at": _iso(dv.sent_at), "sent_by": str(dv.sent_by)}
+           if dv.sent_at else {}),
+        # AM-251: our prepared reply — to which version, and how many answers it
+        # writes as tracked changes / leaves to restore by hand; present only then
+        **({"reply": {k: v for k, v in (
+            ("to_version_id", (dv.doc_metadata or {})["reply_to"]),
+            ("tracked", (dv.doc_metadata or {}).get("reply_tracked")),
+            ("by_hand", (dv.doc_metadata or {}).get("reply_by_hand"))) if v is not None}}
+           if (dv.doc_metadata or {}).get("reply_to") else {}),
+        # AM-307: our final contract — the client version it answers and how many
+        # Special Conditions it carries; present only then
+        **({"package": {"of_version_id": (dv.doc_metadata or {})["package_of"],
+                        "special_conditions": len(((dv.doc_metadata or {}).get(
+                            "special_conditions") or (dv.doc_metadata or {}).get(
+                            "amendment") or {}).get("entries", [])),
+                        # AM-310: a changes-only amendment instrument says so
+                        **({"form": "changes_only"}
+                           if (dv.doc_metadata or {}).get("amendment") else {}),
+                        # AM-308: the earlier final contract this one replaces
+                        **({"supersedes": (dv.doc_metadata or {})["supersedes"]}
+                           if (dv.doc_metadata or {}).get("supersedes") else {})}}
+           if (dv.doc_metadata or {}).get("package_of") else {}),
+        # AM-318: a final clean copy — the version it was made from, how (copy · reply)
+        # and the answers it carries (each change's place and answer); present only then
+        **({"final_copy": {"of_version_id": (dv.doc_metadata or {})["final_copy_of"],
+                           "mode": (dv.doc_metadata or {}).get("final_mode"),
+                           "agreed": (dv.doc_metadata or {}).get("agreed") or []}}
+           if (dv.doc_metadata or {}).get("final_copy_of") else {}),
+        # verifier item 5: an amendment's first version — the agreed text, reference only
+        **({"reference_copy_of": (dv.doc_metadata or {})["copy_of"]}
+           if (dv.doc_metadata or {}).get("copy_of") else {}),
         # QA-037: why a FAILED version could not be read, present only then
         **({"unreadable_reason": (dv.doc_metadata or {})["unreadable"]}
            if dv.processing_status is ProcessingStatus.FAILED
@@ -397,12 +480,26 @@ def serialize_evidence(e: M.DocumentEvidence) -> dict[str, Any]:
         # 2026-09-06) — present only then, so the outline can divide the parts
         # the file declares without the UI guessing at them.
         **({"annexure": meta["annexure"]} if meta.get("annexure") else {}),
+        # A contract LegalMind generated sets its paragraphs in the house styles ("LM
+        # Heading 2", "LM Recital" …) and weights its own words (bold names and terms,
+        # underlined run-in titles): both exposed so the reading view sets the file as it
+        # prints. Presentation only; a client's paper carries no "LM " style.
+        **({"house_style": meta["style"]}
+           if str(meta.get("style") or "").startswith("LM ") else {}),
+        **({"emphasis": meta["emphasis"]} if meta.get("emphasis") else {}),
         # What the client's lawyer marked on this row, and their notes on it (owner,
         # 2026-10-27: "the lines he underlined do not catch") — the document's own
         # markup shown as the lawyer made it; presentation only, never measured.
         **({"changes": meta["revision"]["changes"]}
            if (meta.get("revision") or {}).get("changes") else {}),
         **({"comments": meta["comments"]} if meta.get("comments") else {}),
+        # Where the row stands outside the clauses (34.10, N11): a page header or footer,
+        # a footnote or endnote (kept as a note on the passage that cites it), the table
+        # of contents — so the text view sets it apart, never in a clause.
+        **({"part": meta["part"]} if meta.get("part") else {}),
+        # An image the reading could not turn into text, next to this row: the reader is
+        # told text is missing there rather than left to miss it (N11 #3).
+        **({"unread_image": meta["unread_image"]} if meta.get("unread_image") else {}),
     }
 
 

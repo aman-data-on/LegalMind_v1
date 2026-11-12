@@ -28,20 +28,55 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import {
-  requirementTitle, USER_STATUS_LABELS, userStatus,
+  requirementTitle, userStatus,
 } from "@/components/workspace/findingLanguage";
 
 import { api, describeError } from "@/lib/api";
-import { classificationLabel, contractOutcomeLabel, reviewStatusLabel } from "@/lib/labels";
+import { classificationLabel, contractOutcomeLabel, pointCount, reviewStatusLabel } from "@/lib/labels";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
+import { TodoViews } from "@/components/workspace/TodoViews";
 import type { Finding, Review } from "@/lib/types";
+import { StatusChip, chipStatus } from "@/components/StatusChip";
+import { ErrorState } from "@/components/Feedback";
+import { SegmentedFilter } from "@/components/SegmentedFilter";
+import { AccessRestricted } from "@/components/AccessRestricted";
+import { PageHeader } from "@/components/page/PageHeader";
+import { StackTable } from "@/components/StackTable";
+import { relativeTime } from "@/components/workspace/model";
 
 /** Step 30 statuses under which undecided Findings can still exist. LEGAL_REVIEW
  *  first: it is the explicitly-escalated lane. RESOLVED/CLOSED reviews cannot
  *  carry a DECISION_REQUIRED Finding, so they are not fetched. */
 const ACTIVE_STATUSES = ["LEGAL_REVIEW", "ANALYSIS_COMPLETE"] as const;
 const REVIEW_WINDOW = 25;
+
+/** What waits on THIS reader, from the To-do's "decide" items — the same count, so the
+ *  queue and the To-do never disagree (`AM-318` r10). */
+interface Mine { points: number; changes: number }
+
+const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
+
+/** This screen's words (PLAIN-LANGUAGE §2.2/§3): "point", never "finding"; a count is never 0. */
+const WORDS = {
+  note: "Points waiting for a Legal decision. Each one opens in the contract, where you decide.",
+  emptyAll: "No points wait for a Legal decision.",
+  emptyAllHint: "A point appears here when it needs one.",
+  emptyYours: "No points wait for your decision.",
+  emptyYoursHint: "Points with your colleagues are under All with Legal.",
+  columns: [{ label: "Point" }, { label: "Status" }, { label: "Contract" }, { label: "Waiting, oldest first" },
+            { label: "Assigned to" }],
+  nobody: "Not assigned",
+};
+
+/** The header's one line: what waits on this reader, never "nothing" over a full list. */
+function waiting(total: number, mine: Mine | null): string {
+  if (!mine) return `${plural(total, "point")} wait for a decision`;
+  if (mine.points || mine.changes) {
+    return `${plural(mine.points, "point")}${mine.changes ? ` and ${plural(mine.changes, "change")}` : ""} wait for your decision`;
+  }
+  return total ? `${plural(total, "point")} wait for Legal. None are assigned to you.` : "Nothing waits for your decision";
+}
 
 interface QueueRow {
   finding: Finding;
@@ -50,19 +85,28 @@ interface QueueRow {
 
 type Load =
   | { kind: "loading" }
-  | { kind: "ready"; rows: QueueRow[]; truncated: boolean; failed: number }
+  | { kind: "ready"; rows: QueueRow[]; truncated: boolean; failed: number; mine: Mine | null }
   | { kind: "error"; error: unknown };
 
 export default function LegalQueuePage() {
   const { can } = useSession();
   const [state, setState] = useState<Load>({ kind: "loading" });
+  /** Batch 1 (e): the reader's own reviews, or the whole team view (`with_me`, unchanged) */
+  const [pick, setPick] = useState<"yours" | "all" | null>(null);
 
   const load = useCallback(async () => {
     setState({ kind: "loading" });
     try {
-      const pages = await Promise.all(
-        ACTIVE_STATUSES.map((status) => api.reviews({ page: 1, page_size: REVIEW_WINDOW, status })),
-      );
+      const [pages, todo] = await Promise.all([
+        Promise.all(ACTIVE_STATUSES.map((status) =>
+          api.reviews({ page: 1, page_size: REVIEW_WINDOW, status, with_me: "true" }))),
+        api.todo().catch(() => null),
+      ]);
+      const decide = todo?.items.filter((item) => item.kind === "decide") ?? [];
+      const mine = todo ? {
+        points: decide.reduce((n, item) => n + (item.count ?? 0), 0),
+        changes: decide.reduce((n, item) => n + (item.changes ?? 0), 0),
+      } : null;
       const reviews = pages.flatMap((page) => page.items);
       const truncated = pages.some((page) => page.pagination.total > page.pagination.page_size);
 
@@ -82,11 +126,14 @@ export default function LegalQueuePage() {
       // Review this queue exists to show, since Legal scope covers the Review
       // and not the Contract.
       // what the owner sent to this reviewer first (owner, 2026-10-21; AB-100)
+      // then the longest waiting first (B3 p2: the server's `with_legal_since`)
+      const since = (row: QueueRow) => row.review.with_legal_since ?? "9999";
       rows.sort((a, b) => Number(Boolean(b.review.sent_to_you))
-                          - Number(Boolean(a.review.sent_to_you)));
+                          - Number(Boolean(a.review.sent_to_you))
+                          || since(a).localeCompare(since(b)));
       // QA-023: a review whose points could not be read is said, never silently left out
       const failed = perReview.filter((outcome) => outcome.status === "rejected").length;
-      setState({ kind: "ready", rows, truncated, failed });
+      setState({ kind: "ready", rows, truncated, failed, mine });
     } catch (error) {
       setState({ kind: "error", error });
     }
@@ -98,34 +145,36 @@ export default function LegalQueuePage() {
 
   if (!can(P.LEGAL_REVIEW)) {
     return (
-      <div className="ws-state" role="note">
-        <h2>Access restricted</h2>
-        <p>Your account does not include legal review.</p>
+      // one restricted state everywhere (GP-23): the page keeps its h1
+      <div className="lm-page">
+        <PageHeader title="Legal" />
+        <AccessRestricted what="the Legal queue" />
       </div>
     );
   }
 
+  const rows = state.kind === "ready" ? state.rows : [];
+  const yours = rows.filter((row) => row.review.yours);
+  const view = pick ?? (yours.length ? "yours" : "all");
+  const shown = view === "yours" ? yours : rows;
+  const mine = state.kind === "ready" ? state.mine : null;
+
   return (
-    <>
-      <div className="ws-context">
-        <h1>Legal</h1>
-        {state.kind === "ready" ? (
-          <span className="ws-context__meta ws-mono">
-            {state.rows.length} awaiting a decision
-          </span>
+    <div className="lm-page">
+      <PageHeader title="Legal"
+                  meta={state.kind === "ready" ? <span>{waiting(pointCount(rows), mine)}</span> : null} />
+      <TodoViews />
+        {state.kind === "ready" && rows.length > 0 ? (
+          // round 3: the one filter control; "Yours" at 0 is not offered (PLAIN-LANGUAGE §5)
+          <SegmentedFilter label="Whose reviews" value={view} onChange={setPick} segments={[
+            { id: "yours", label: "Yours", text: "Yours", count: pointCount(yours) },
+            { id: "all", label: "All with Legal", text: "All with Legal", count: pointCount(rows), always: true },
+          ]} />
         ) : null}
-      </div>
-      <div className="ws-docs">
-        <p className="ws-pane__note">
-          Findings whose Evaluations await a Legal Decision. Ruling happens in the
-          document&rsquo;s workspace, beside the evidence — each row opens there.
-        </p>
+        <p className="ws-pane__note">{WORDS.note}</p>
 
         {state.kind === "error" ? (
-          <div className="ws-state ws-state--error" role="alert">
-            <h2>The queue could not be loaded.</h2>
-            <p>{describeError(state.error)}</p>
-          </div>
+          <ErrorState title="The Legal queue could not be loaded" error={state.error} onRetry={() => void load()} />
         ) : null}
 
         {state.kind === "ready" && state.failed > 0 ? (
@@ -155,29 +204,16 @@ export default function LegalQueuePage() {
           </div>
         ) : null}
 
-        {state.kind === "ready" && state.rows.length === 0 ? (
+        {state.kind === "ready" && shown.length === 0 ? (
           <div className="ws-state">
-            <h2>Nothing awaits a Legal Decision.</h2>
-            <p>
-              When an Evaluation requires one — any deviation does, under the
-              zero-tolerance rule — the Finding appears here.
-            </p>
+            <h2>{view === "yours" && rows.length ? WORDS.emptyYours : WORDS.emptyAll}</h2>
+            <p>{view === "yours" && rows.length ? WORDS.emptyYoursHint : WORDS.emptyAllHint}</p>
           </div>
         ) : null}
 
-        {state.kind === "ready" && state.rows.length > 0 ? (
-          <div className="ws-docs__table">
-            <table>
-              <thead>
-                <tr>
-                  <th scope="col">Requirement</th>
-                  <th scope="col">Status</th>
-                  <th scope="col">Document</th>
-                  <th scope="col">Review</th>
-                </tr>
-              </thead>
-              <tbody>
-                {state.rows.map(({ finding, review }) => (
+        {state.kind === "ready" && shown.length > 0 ? (
+          <StackTable columns={WORDS.columns}>
+                {shown.map(({ finding, review }) => (
                   <tr key={finding.id} data-finding-id={finding.id}>
                     {/* The finding opens in the document's workspace, beside its
                         evidence — but ONLY when this caller can open that
@@ -199,47 +235,32 @@ export default function LegalQueuePage() {
                         ? <span className="ws-chip">{contractOutcomeLabel(review.contract_outcome)}</span>
                         : null}
                       {finding.escalated ? <span className="ws-chip--flag">Escalated</span> : null}
+                      {/* every row here is With Legal; only another stage is worth a word */}
+                      {review.status !== "LEGAL_REVIEW"
+                        ? <span className="ws-chip" title={review.status}>{reviewStatusLabel(review.status)}</span> : null}
                     </td>
                     <td>
                       {/* the reader's three words, as on every other screen (owner,
                           2026-10-21) — the engine's own word stays in the tooltip */}
-                      <span className={`ws-chip ws-chip--fill ws-chip--status-${userStatus(finding).toLowerCase()}`}
-                            title={classificationLabel(finding.classification)}>
-                        {USER_STATUS_LABELS[userStatus(finding)]}
-                      </span>
+                      <StatusChip status={chipStatus(userStatus(finding), finding.in_our_favour)}
+                                  title={classificationLabel(finding.classification)} />
                     </td>
-                    <td>
-                      {review.document_accessible ? (
-                        <Link href={`/dashboard?id=${review.contract_id}`}>
-                          {review.document_name ?? review.contract_id.slice(0, 8)}
-                        </Link>
-                      ) : (
-                        <span className="ws-docs__name" title="The document itself is not open to your account — the finding and its Report are">
-                          {review.document_name ?? review.contract_id.slice(0, 8)}
-                        </span>
-                      )}
+                    {/* B3 p2: the point is the row's one link; the contract is plain text */}
+                    <td>{review.document_name ?? review.contract_id.slice(0, 8)}</td>
+                    <td title={review.with_legal_since}>
+                      {review.with_legal_since ? relativeTime(review.with_legal_since) : "—"}
                     </td>
-                    <td>
-                      <span className={`ws-chip${review.status === "LEGAL_REVIEW" ? " ws-chip--fill ws-chip--outcome-fill" : ""}`}
-                            title={review.status}>
-                        {reviewStatusLabel(review.status)}
-                      </span>{" "}
-                      <Link href={`/dashboard/reviews?id=${review.id}`}>Report</Link>
-                    </td>
+                    <td>{review.assigned_to?.length ? review.assigned_to.join(", ") : WORDS.nobody}</td>
                   </tr>
                 ))}
-              </tbody>
-            </table>
-          </div>
+          </StackTable>
         ) : null}
 
         {state.kind === "ready" && state.truncated ? (
           <p className="ws-pane__note">
-            Showing Findings from the {REVIEW_WINDOW} most recent Reviews in each active
-            status — older Reviews exist. The Reviews screen lists them all.
+            Showing points from the {REVIEW_WINDOW} most recent reviews in each stage. Reviews lists them all.
           </p>
         ) : null}
-      </div>
-    </>
+    </div>
   );
 }

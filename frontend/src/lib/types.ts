@@ -14,21 +14,13 @@
  * `requires_decision` flag arrives from the server (38.23, 52.7).
  */
 
-/** Locked 43.21 / 49.4 — the three envelope shapes and no others. */
+/** Locked 43.21 / 49.4 — the envelope shapes (the error envelope is read in `api.ts`). */
 export interface DataEnvelope<T> {
   data: T;
 }
 export interface PaginatedEnvelope<T> {
   data: T[];
   pagination: Pagination;
-}
-export interface ErrorEnvelope {
-  error: {
-    code: string;
-    message: string;
-    request_id: string;
-    fields?: { field: string; code: string }[];
-  };
 }
 
 export interface Pagination {
@@ -78,6 +70,16 @@ export interface EvidenceRow {
   changes?: { deleted: string; inserted: string }[];
   /** The reviewer's comments made on this row — notes, never the row's text. */
   comments?: { author: string; text: string }[];
+  /** A contract LegalMind generated: the paragraph's house style ("LM Heading 2") and
+   *  the file's own bold/underlined words as [start, end, kind] offsets into `content`.
+   *  Presentation only; a client's paper carries neither. */
+  house_style?: string;
+  emphasis?: [number, number, "b" | "u"][];
+  /** Where the row stands outside the clauses (34.10): a page header or footer, a footnote
+   *  or endnote, the table of contents. Absent on every clause row. */
+  part?: "header" | "footer" | "footnote" | "endnote" | "contents";
+  /** An image beside this row whose text could not be read — said, never silent. */
+  unread_image?: { page: number | null; number: string | null };
   content: string;
   source_type: string;
   start_offset: number | null;
@@ -86,7 +88,7 @@ export interface EvidenceRow {
 
 /** One list row's analysis reality (2026-08-31 UX correction). `classification_counts`
  *  needs `finding.view` and arrives OMITTED without it — presence-test, never null-test. */
-export interface LatestAnalysis {
+interface LatestAnalysis {
   review_id: string;
   review_status: string;
   created_at: string | null;
@@ -97,9 +99,9 @@ export interface LatestAnalysis {
 }
 
 /** Step 6's source axis — declared by the uploader, never inferred. */
-export type DocumentSource = "ORGANIZATION" | "COUNTERPARTY";
+type DocumentSource = "ORGANIZATION" | "COUNTERPARTY";
 
-export interface LatestVersionSummary {
+interface LatestVersionSummary {
   id: string;
   version_number: number;
   processing_status: string;
@@ -151,6 +153,8 @@ export interface Counterparty {
    *  people legitimately see different numbers for the same company. */
   documents?: number;
   signed_documents?: number;
+  /** `AM-318`: deals that reached Final (counted as the Contracts list's Final filter) */
+  final_documents?: number;
   last_activity?: string | null;
 }
 
@@ -184,6 +188,11 @@ export interface ClientActivity {
 }
 
 export interface Contract {
+  /** `AM-260` — where the deal stands, derived; omitted without `document.view`. */
+  negotiation_stage?: NegotiationStage;
+  /** `AM-291` — the two nouns, counted once by the server; a key is absent when its
+   *  source is not readable or there is no round, never 0 in its place. */
+  counts?: DealCounts;
   /** Newest first. Present on the detail endpoint (2026-08-30 addition). */
   document_versions?: DocumentVersion[];
   /** List rows only (2026-08-31): the newest version and its newest Review. */
@@ -205,6 +214,29 @@ export interface Contract {
   counterparty_id?: string | null;
   created_at: string | null;
   updated_at: string | null;
+  /** `AM-309`, detail only: the signed contract this amends — absent unless readable */
+  governed_by?: { id: string; name: string; contract_type: string | null };
+  /** `AM-316`, detail only: the template it was made from — absent for an upload */
+  made_from?: { template_key: string; version: number; doc_type: string; brand: string | null; name: string | null;
+    /** the template version has since been withdrawn — information only */
+    withdrawn?: boolean };
+  /** `AM-309`, detail only: this contract's amendments the reader may open */
+  amendments?: { id: string; name: string; status: string; signed: boolean; archived: boolean }[];
+}
+
+/** `GET /contracts/{id}/effective` (`AM-309`, R-9): the signed contract as its signed
+ *  amendments change it. A changed clause carries `original` (null = added) and `by`, the
+ *  amendment that made it so — absent when the reader cannot open that amendment. */
+export interface EffectiveClause { number: string | null; heading: string | null; text: string;
+  original?: string | null; by?: string }
+export interface EffectiveText {
+  contract_id: string;
+  original: { document_version_id: string; version_number: number; read: string; reason?: string;
+              clauses: EffectiveClause[] };
+  amendments: { contract_id: string; name: string; signed_at: string;
+                document_version_id: string | null; applied: boolean }[];
+  current: { read: "NONE" | "APPLIED"; clauses: EffectiveClause[]; removed: EffectiveClause[] }
+         | { read: "NOT_APPLIED" | "ABSENT"; reason: string };
 }
 
 /** The Documents list's stat tiles — real counts across EVERY contract the
@@ -218,10 +250,62 @@ export interface ContractsSummary {
   analyzing: number;
   needs_attention: number;
   analyzed: number;
+  /** `AM-260` — contracts per negotiation stage; omitted without `document.view`. */
+  stages?: Record<NegotiationStageCode, number>;
+}
+
+/** `AM-260` r2 — the deal's own vocabulary (`NEGOTIATION_STAGE`). Never a value of the
+ *  five legal state axes, `review_stage`, ContractStatus or ConfigStatus. */
+export type NegotiationStageCode =
+  | "DRAFTING" | "INTERNAL_REVIEW" | "WITH_CLIENT" | "CLIENT_RETURNED"
+  | "READY_TO_SEND" | "READY_TO_SIGN" | "SIGNED" | "FINAL" | "ON_HOLD";
+
+export interface NegotiationStage {
+  stage: NegotiationStageCode;
+  since: string;
+  days: number;
+}
+
+/** `AM-291` — CHANGES are the client's edits in the open round; POINTS the gaps against
+ *  our standard still undecided on the latest version. */
+export interface DealCounts {
+  changes_total?: number;
+  changes_left?: number;
+  changes_left_for_me?: number;
+  /** answered changes our reply carries back to the client (anything but "accept theirs") */
+  changes_ours?: number;
+  points_open?: number;
+  points_for_me?: number;
+  /** points waiting on the client's clarification (sent with `points_open`) */
+  points_waiting?: number;
+  /** the latest version's review is with Legal now — assigned or escalated, at any stage */
+  sent_to_legal?: boolean;
+}
+
+/** `AM-264` — one thing waiting on the caller: a fixed sentence and a link. */
+export interface TodoItem {
+  kind: "decide" | "second_approval" | "client_returned" | "changes_to_answer" | "reply_ready" | "answered"
+    | "contract_decision" | "prepare_final";
+  contract_id: string;
+  contract_name: string;
+  sentence: string;
+  link: string;
+  since: string | null;
+  review_id?: string;
+  count?: number;
+  days?: number;
+  counts?: DealCounts;
+  /** N13: the client's changes waiting on the same person, beside the points */
+  changes?: number;
+}
+
+export interface TodoList {
+  items: TodoItem[];
+  counts: Record<TodoItem["kind"], number>;
 }
 
 /** AM-245 — what the server read the paper as; set once the version has a reading. */
-export interface PaperKind { kind: string; signals: string[]; reviewed_anyway?: boolean }
+interface PaperKind { kind: string; signals: string[]; reviewed_anyway?: boolean }
 
 export interface DocumentVersion {
   id: string;
@@ -238,6 +322,9 @@ export interface DocumentVersion {
   extraction_status: string | null;
   /** QA-037: why a FAILED version could not be read (present only then) */
   unreadable_reason?: string;
+  /** B3 page 1: a Markdown upload read before ingest v11 — its stored text keeps the marks
+   *  (present only then, `GET /contracts/{id}` only) */
+  reader_outdated?: true;
   uploaded_by: string;
   created_at: string | null;
   /** Declared (2026-09-06), from locked 42.4's `metadata` JSONB: present only
@@ -251,6 +338,23 @@ export interface DocumentVersion {
    *  sits. Absent on every version nobody classified, and never inferred from
    *  the version number, the filename or the date. */
   version_role?: string;
+  /** `AM-302`: a contract's only version, made from our blank template — its Changes
+   *  compare it with that template (`GET /contracts/{id}` only) */
+  made_from_template?: { template_key: string; version: number; older: boolean; message: string | null };
+  /** `AM-251` — present only on our prepared reply: the client's version it answers,
+   *  how many of our answers it carries as tracked changes, and the clauses left to
+   *  restore by hand in Word. Counts are absent on a reply prepared before they were kept. */
+  reply?: { to_version_id: string; tracked?: number; by_hand?: string[] };
+  /** `AM-307` — present only on our final contract: the client's version it answers and
+   *  how many Special Conditions (Annexure A) it carries. */
+  package?: { of_version_id: string; special_conditions: number; form?: "changes_only" };
+  /** `AM-318` — a final clean copy: the version it was made from, how, and the answers it
+   *  carries (each change's place and answer). */
+  /** an amendment's first version: the agreed text, copied for reference, never reviewed */
+  reference_copy_of?: string;
+  final_copy?: { of_version_id: string; mode: "copy" | "reply" | null; agreed: { where: string; answer: string }[] };
+  /** `AM-260` — when this version of ours went to the client; absent until then. */
+  sent_at?: string;
   /** Counts, deliberately not a state vocabulary (`AM-29` r1): the client derives
    * ready / lexical-only / not-indexed. Present on the detail endpoint. */
   assist_index?: { chunks: number; embedded_chunks: number; refused?: string[] };
@@ -330,6 +434,14 @@ export interface Review {
   document_accessible: boolean;
   /** AB-100 — the owner sent this Review to the caller (their queue first). */
   sent_to_you?: boolean;
+  /** B3 p2: since when it is with Legal (earliest live assignment or open escalation) —
+   *  present only then */
+  with_legal_since?: string;
+  /** B3 p2: who holds it now, by name; empty when nobody is assigned */
+  assigned_to?: string[];
+  /** Batch 1 (e) — this caller HOLDS the Review (assigned to them, or with Legal and
+   *  assigned to nobody): its points are theirs to decide. */
+  yours?: boolean;
   /** AM-174 — the current decision on the whole contract, if one was recorded */
   contract_outcome?: ContractOutcome | null;
 }
@@ -337,7 +449,7 @@ export interface Review {
 /** AM-174 (owner, 2026-10-22) — what to do with the contract, after every point. */
 export type ContractOutcome = "SIGN_AS_IS" | "SIGN_WITH_CHANGES" | "DO_NOT_SIGN" | "ON_HOLD";
 
-export interface ContractOutcomeVersion {
+interface ContractOutcomeVersion {
   outcome: ContractOutcome;
   suggested: ContractOutcome;
   justification: string;
@@ -353,6 +465,8 @@ export interface ContractOutcomeState {
   ready: boolean;
   /** why no decision can be recorded here (archived, or a newer version analysed) */
   read_only?: string | null;
+  /** `AM-318`: the Review is of a final contract — never "Sign after our changes" */
+  final?: boolean;
   /** oldest first; the last is current */
   history: ContractOutcomeVersion[];
   review_status?: string;
@@ -366,6 +480,9 @@ export interface Evidence {
   section_title: string | null;
   content: string;
   source_type: string;
+  /** a clause number the paper uses twice: this clause's own words (slice A's `name`);
+   *  omitted when the number is unique */
+  name?: string;
 }
 
 export interface Decision {
@@ -487,8 +604,15 @@ export interface Finding {
   escalated: boolean;
   /** The worst of its evaluations' `user_status`, server-derived. */
   user_status?: UserStatusWord;
+  /** Batch 1 (d): a deviation the evaluator's recorded rule outcome accepted in our
+   *  favour (AM-239, AM-303) — the server's word, never derived here */
+  in_our_favour?: boolean;
   evaluations: Evaluation[];
   evidence: Evidence[];
+  /** `AM-317` r7: an earlier version's Legal Decision stands for this point (same
+   *  wording, same standard) — who and on which version; null otherwise. */
+  carried_decision?: { version_number: number | null; decision_type: string | null;
+                       decided_by_name: string | null; decided_at: string | null } | null;
   created_at: string | null;
   updated_at: string | null;
   // There is deliberately no Finding-level `rule_outcome`: none is persisted
@@ -503,11 +627,11 @@ export interface Escalation {
   created_at: string;
 }
 
-export type ApplicabilityOutcome = "APPLIED" | "NOT_APPLICABLE" | "SAME_POSITION"
+type ApplicabilityOutcome = "APPLIED" | "NOT_APPLICABLE" | "SAME_POSITION"
   /** AM-147 — another family's copy of a topic measured once for this document. */
   | "SAME_TOPIC";
 
-export interface ApplicabilityRecord {
+interface ApplicabilityRecord {
   code: string;
   section: string | null;
   outcome: ApplicabilityOutcome;
@@ -515,7 +639,7 @@ export interface ApplicabilityRecord {
 }
 
 /** Who decided what, when and why (owner, 2026-10-21) — each Evaluation's current one. */
-export interface ReportDecision {
+interface ReportDecision {
   finding_id: string;
   requirement_code: string;
   requirement_name: string | null;
@@ -762,13 +886,13 @@ export interface AnalysisSubmission {
 // legal axis, and there is deliberately no "confidence" field anywhere here —
 // retrieval_score is a retrieval score and the UI labels it as exactly that
 // (AI-03 item 16, rule 12).
-export type AssistAnswerState =
+type AssistAnswerState =
   | "ANSWERED"
   | "NO_EVIDENCE_RETRIEVED"
   | "EVIDENCE_INSUFFICIENT"
   | "CLAIM_UNSUPPORTED";
 
-export interface AssistCitation {
+interface AssistCitation {
   chunk_id: string;
   /** The evidence row the chunk was cut from — drives the document highlight. */
   evidence_id: string;
@@ -801,10 +925,12 @@ export interface AssistPosition {
   finding?: AssistPositionFinding | null;
 }
 
-export interface AssistPositionFinding {
+interface AssistPositionFinding {
   finding_id: string;
   classification: string;
   user_status: "ACCEPTABLE" | "REQUIRES_MODIFICATION" | "MISSING" | "NEEDS_DECISION";
+  /** Batch 1 (d): the server's flag, the same as on the Points card */
+  in_our_favour?: boolean;
 }
 
 /** The evaluator handoff on a comparison question (`AM-25` r4): the latest Review
@@ -834,7 +960,7 @@ export interface AssistClauseScope {
 }
 
 /** One statute citation — Domain C (`AM-32` r7): Act + section, never a page alone. */
-export interface AssistStatuteCitation {
+interface AssistStatuteCitation {
   statute_chunk_id: string;
   citation: string;
   official_title: string;
@@ -922,7 +1048,7 @@ export interface DealFile {
 }
 
 /** `AM-231`: a turn's stored payload — the assistant's questions, or the review. */
-export type DealPayload =
+type DealPayload =
   | { kind: "questions"; questions: DealQuestion[] }
   | { kind: "deal_review"; files: DealFile[]; rows: DealRow[]; wins: string | null;
       counts: Record<DealStatus, number>; answers: Record<string, unknown>;
@@ -994,7 +1120,7 @@ export interface AskSource {
 }
 
 /** The model that wrote an answer, as the reader names it and as the provider does. */
-export interface AnsweredBy {
+interface AnsweredBy {
   label: string;
   model: string;
 }
@@ -1109,7 +1235,7 @@ export interface ConversationDetail {
  *  excerpts under a heading saying the wording changed. The truncation flags
  *  say when text was cut, because an excerpt that hides its own truncation
  *  makes a claim about completeness it cannot support. */
-export interface ClauseSide {
+interface ClauseSide {
   evidence_id: string;
   page_number: number | null;
   excerpt: string;
@@ -1129,7 +1255,7 @@ export interface ClauseChange {
   section_title: string | null;
   before: ClauseSide | null;
   after: ClauseSide | null;
-  findings: { finding_id: string; classification: string; user_status?: UserStatusWord; requirement_code: string | null }[];
+  findings: { finding_id: string; classification: string; user_status?: UserStatusWord; in_our_favour?: boolean; requirement_code: string | null }[];
 }
 
 export interface VersionComparison {
@@ -1224,7 +1350,7 @@ export interface BusinessPoint {
 }
 
 /** `AM-159` — a verbatim Constitution sentence and its section (null: no text). */
-export interface EnforceabilityNote {
+interface EnforceabilityNote {
   section: string | null;
   text: string;
   /** `AM-242` — the supplied statute's own words beside it, for Counsel; never a conclusion. */
@@ -1254,7 +1380,7 @@ export interface LegalItem {
 
 /** A clause read together with a finding: leaving and what it costs; a cap and what it
  *  excludes. Context for a person, never a verdict. */
-export interface RelatedClause {
+interface RelatedClause {
   evidence_id: string;
   clause: string | null;
   page: number | null;
@@ -1267,7 +1393,9 @@ export interface RelatedClause {
  *  the gap in one line, the impact the figures support, the related clauses, and the
  *  RECOMMENDED action — a recommendation, never a decision, and never "Reject". */
 export interface FindingCase {
-  contract: { quote: string; clause: string | null; page: number | null } | null;
+  contract: { quote: string; clause: string | null; page: number | null;
+              /** a number the paper uses twice: the clause's own words (slice A) */
+              name?: string } | null;
   standard: {
     section: string | null;
     topic: string | null;
@@ -1281,7 +1409,7 @@ export interface FindingCase {
 }
 
 /** Who a Review was sent to (AB-100), and — for its owner — who it may be sent to. */
-export interface ReviewerPerson {
+interface ReviewerPerson {
   user_id: string;
   name: string | null;
   email: string;
@@ -1304,7 +1432,7 @@ export interface CounterProposal {
 }
 
 /** `GET /reviews/{id}/angles` — the ⚖️ Legal and 💼 Business angles (`AM-152`). */
-export interface ReadingItem {
+interface ReadingItem {
   category: string;
   text: string;
   quote: string;
@@ -1360,7 +1488,7 @@ export interface Observation {
 
 /** AM-179 (owner, 2026-10-22) — where a review stands, derived by the server from what
  *  is recorded; every screen shows this, never its own count. Not one of the five axes. */
-export type ReviewStage =
+type ReviewStage =
   | "SUPERSEDED" | "ANALYSING" | "ANALYSIS_FAILED" | "WAITING_FOR_CLARIFICATION"
   | "REOPENED" | "WITH_LEGAL" | "NOT_SENT" | "CONTRACT_DECISION_PENDING" | "COMPLETE"
   | "NO_ISSUES";
@@ -1392,4 +1520,13 @@ export interface ReportBlock {
   text: string;
   label: string;
   rows: string[][];
+}
+
+/** `AM-318` — the dry run of the final clean copy: every reason it cannot be made yet. */
+export interface FinalCopyPlan {
+  available: boolean;
+  blockers: { code: string; message: string }[];
+  mode: "copy" | "reply" | null;
+  of_version?: number;
+  agreed: { where: string; answer: string }[];
 }

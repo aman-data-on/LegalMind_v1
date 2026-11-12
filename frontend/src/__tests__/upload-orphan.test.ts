@@ -35,7 +35,7 @@ describe("uploadFirstDocument", () => {
       reply(422, { error: { code: "VALIDATION", message: "File content does not match a supported format.", request_id: "r" } }),
       reply(200, { data: { id: "c-1" } }),
     ]);
-    await expect(uploadFirstDocument("c-1", FILE)).rejects.toBeInstanceOf(ApiError);
+    await expect(uploadFirstDocument("c-1", FILE, "COMPANY_DRAFT")).rejects.toBeInstanceOf(ApiError);
     expect(calls.map((c) => c.method)).toEqual(["POST", "POST"]);
     expect(calls[0]!.url).toContain("/contracts/c-1/document-versions");
     expect(calls[1]!.url).toContain("/contracts/c-1/archive");
@@ -47,7 +47,7 @@ describe("uploadFirstDocument", () => {
       reply(422, { error: { code: "VALIDATION", message: "refused", request_id: "r" } }),
       reply(403, { error: { code: "FORBIDDEN", message: "no", request_id: "r" } }),
     ]);
-    await expect(uploadFirstDocument("c-2", FILE)).rejects.toMatchObject({ status: 422 });
+    await expect(uploadFirstDocument("c-2", FILE, "COMPANY_DRAFT")).rejects.toMatchObject({ status: 422 });
   });
 
   it("leaves the contract alone when the failure may have come after the server kept the version", async () => {
@@ -59,7 +59,7 @@ describe("uploadFirstDocument", () => {
         if (failure instanceof Error) throw failure;
         return failure;
       });
-      await expect(uploadFirstDocument("c-9", FILE)).rejects.toBeDefined();
+      await expect(uploadFirstDocument("c-9", FILE, "COMPANY_DRAFT")).rejects.toBeDefined();
       expect(calls).toHaveLength(1);                                       // no archive call
       vi.unstubAllGlobals();
     }
@@ -67,7 +67,7 @@ describe("uploadFirstDocument", () => {
 
   it("archives nothing when the document is accepted", async () => {
     const calls = stub([reply(201, { data: { document_version: { id: "v-1" } } })]);
-    const uploaded = await uploadFirstDocument("c-3", FILE);
+    const uploaded = await uploadFirstDocument("c-3", FILE, "COMPANY_DRAFT");
     expect(uploaded.document_version.id).toBe("v-1");
     expect(calls).toHaveLength(1);
   });

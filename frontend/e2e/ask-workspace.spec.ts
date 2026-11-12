@@ -66,7 +66,7 @@ test.describe("Ask — the AI workspace", () => {
     await expect(page.locator(".ws-chat__card")).toContainText(f.document.filename);
     // The chat-only rule is one visible control away (`AM-226` r2): the ⓘ is on screen.
     await expect(page.getByRole("button", { name: "About attached files" })).toBeVisible();
-    await expect(page.locator("#ws-chat-filehint")).toContainText("not added to the Dashboard");
+    await expect(page.locator("#ws-chat-filehint")).toContainText(/not added to the Dashboard/i);
 
     await page.getByLabel("Your question").fill("What is the termination notice period?");
     await page.getByRole("button", { name: /Send question|Searching/ }).click();
@@ -217,6 +217,22 @@ test.describe("Ask — the AI workspace", () => {
     await expect(page.getByLabel("Your question")).toBeVisible();
   });
 
+  test("On a phone an open chat offers a named New chat that starts over (§B3-P3)", async ({
+    page,
+  }) => {
+    // seeded through the API: an empty chat — no question is asked, no model is called
+    const { id } = await postOk(page, "/conversations", {});
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/dashboard/ask?id=${id}`);
+    const fresh = page.getByRole("link", { name: "New chat" }).and(page.locator(".ws-chat__newphone"));
+    await expect(fresh).toBeVisible();
+    const box = await fresh.boundingBox();
+    expect(box!.height).toBeGreaterThanOrEqual(44);
+    await fresh.click();
+    await expect(page).toHaveURL(/\/dashboard\/ask$/);
+    await expect(page.locator("h1")).toHaveText("Ask");
+  });
+
   test("A chat is renamed and deleted from the rail, through the server (AM-116)", async ({
     page,
   }) => {
@@ -249,8 +265,14 @@ test.describe("Ask — the AI workspace", () => {
   });
 
   test("A model that cannot answer holds Send, says why, and nothing is sent (AM-226)", async ({
-    page,
+    page, browser,
   }) => {
+    // the model is Admin's choice (owner, 2026-11-11): the owner account sees no picker
+    await page.goto("/dashboard/ask");
+    await expect(page.getByLabel("Your question")).toBeVisible();
+    await expect(page.getByRole("combobox", { name: /^Model: / })).toHaveCount(0);
+    const admin = await browser.newContext({ storageState: storageStatePath("admin") });
+    page = await admin.newPage();
     await page.goto("/dashboard/ask");
     const picker = page.getByRole("combobox", { name: /^Model: Gemini$/ });
     await expect(picker).toBeVisible();
@@ -266,5 +288,6 @@ test.describe("Ask — the AI workspace", () => {
     await expect(page.locator(".ws-turn--user")).toHaveCount(0);
     await expect(page.getByLabel("Your question")).toHaveValue(
       "What standards do we require for liability?");
+    await admin.close();
   });
 });

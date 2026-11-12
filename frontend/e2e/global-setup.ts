@@ -13,7 +13,8 @@ import { join } from "node:path";
  * The bootstrap also **recreates the database**. A browser suite that inherited the
  * previous run's Reviews would let one run change another's assertions, which is the
  * `F-4` failure class the backend harness was rebuilt to eliminate. It runs against
- * the dedicated e2e database only, never the development one.
+ * the dedicated e2e database only, never the development one: `e2e_bootstrap`
+ * refuses any name but `legalmind_v1_e2e*` or `*_harness` (2026-11-06 incident).
  *
  * Everything else the specs need is built through the real HTTP endpoints, so the
  * suite exercises the API rather than a fixture loader.

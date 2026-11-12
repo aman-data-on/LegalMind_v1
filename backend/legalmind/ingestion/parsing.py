@@ -18,18 +18,21 @@ Locked rules implemented:
 
 from __future__ import annotations
 
+import math
 import os
 import re
 import shutil
 import threading
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from itertools import pairwise
 from pathlib import Path
 
 from legalmind import config
 from legalmind.domain.enums import EvidenceSourceType, ExtractionStatus
 from legalmind.ingestion.validation import (
     DOCX_MIME,
+    MARKDOWN_MIME,
     PDF_MIME,
     TEXT_MIME_TYPES,
 )
@@ -196,15 +199,23 @@ MAX_PDF_PAGES = 1000
 # --------------------------------------------------------------------------
 # Normalization — locked 34.12
 # --------------------------------------------------------------------------
+#: The Latin ligature glyphs (U+FB00–FB06) as their letters: "Conﬁdential" from a PDF
+#: or a client's copy-paste is "Confidential", or no search and no standard finds it
+#: (N11 #11, 34.12 "encoding problems"). The original keeps the glyph.
+_LIGATURES = str.maketrans({"\ufb00": "ff", "\ufb01": "fi", "\ufb02": "fl",
+                            "\ufb03": "ffi", "\ufb04": "ffl", "\ufb05": "st",
+                            "\ufb06": "st"})
+
+
 def normalize_text(raw: str) -> str:
-    """Whitespace normalization only.
+    """Whitespace normalization, and ligature glyphs as their letters.
 
     Deliberately conservative: it collapses runs of whitespace and normalizes
     line endings. It does NOT correct spelling, expand abbreviations, repair
     OCR errors or alter numbers — locked 45C.18 permits normalizing an OCR
     error only when deterministic, and this layer cannot establish that.
     """
-    text = raw.replace("\r\n", "\n").replace("\r", "\n")
+    text = raw.replace("\r\n", "\n").replace("\r", "\n").translate(_LIGATURES)
     # The third character in this class is U+00A0 NO-BREAK SPACE, deliberately: PDF
     # extraction emits them freely, and a clause whose spacing differs only by an
     # nbsp must normalize to the same text, or `ENG-11` determinism would depend on
@@ -232,7 +243,9 @@ _CLAUSE_PATTERNS = (
     re.compile(r"^(?P<num>\d+(?:\.\d+)+|\d+(?=\.))\.?\s+(?![a-z])"
                r"(?P<title>[A-Z][^\n]{0,120})?"),
     re.compile(r"^(?P<num>\d+)\s+(?P<title>[A-Z][^\n]{0,120})"),
-    re.compile(r"^(?:Section|SECTION|Clause|CLAUSE)\s+(?P<num>\d+(?:\.\d+)*)"
+    # never a cross-reference a line happens to open with: "Clause 16 of this Agreement."
+    re.compile(r"^(?:Section|SECTION|Clause|CLAUSE)\s+(?P<num>\d+(?:\.\d+)*)(?!\d)"
+               r"(?!\s+(?:of|above|below|hereof|and|or|to|in)\b)"
                r"\.?\s*(?P<title>[^\n]{0,120})?"),
     re.compile(r"^(?:Article|ARTICLE)\s+(?P<num>[IVXLC]+|\d+)"
                r"\.?\s*(?P<title>[^\n]{0,120})?"),
@@ -364,6 +377,7 @@ def _split_at_clause_lines(block: str,
     for index, line in enumerate(lines):
         number, _ = detect_clause_number(line)
         following = lines[index + 1] if index + 1 < len(lines) else None
+        number = number or (_bare_heading(line, following) or (None,))[0]
         boundary = (bool(number)
                     or (not after_number and _bold_heading(line, bold_lines))
                     or _is_unnumbered_heading(line, following, after_number))
@@ -378,6 +392,23 @@ def _split_at_clause_lines(block: str,
     if current:
         cuts.append((start, "\n".join(current)))
     return cuts
+
+
+_BARE_NUMBER = re.compile(r"(\d{1,3})\.")
+
+
+def _bare_heading(line: str, following: str | None) -> tuple[str, str] | None:
+    """(number, title) for a top-level number printed alone above its heading — "5." /
+    "TERM AND TERMINATION", a numbered heading in a hanging indent — else None. Only with
+    the dot and only above a heading-shaped line, so a page number ("5") and a wrapped
+    "5." mid-sentence stay text (N11 #9: the specimen PDF's 19 headings lost their
+    numbers to the clause above)."""
+    m = _BARE_NUMBER.fullmatch(line.translate(_ZERO_WIDTH).strip())
+    if m and following is not None and _is_title_line(following) and \
+            sum(c.isupper() for c in following) >= \
+            0.6 * sum(c.isalpha() for c in following):
+        return m.group(1), following.strip()
+    return None
 
 
 def _looks_like_a_heading(line: str) -> bool:
@@ -581,6 +612,9 @@ def segment_paragraphs(text: str, *, page_number: int | None,
             start = block_start + inner_offset
             first_line = normalized.split("\n", 1)[0]
             number, title = detect_clause_number(first_line)
+            bare = None if number else _bare_heading(first_line, _second_line(normalized))
+            if bare:
+                number, title = bare
             if bold_lines and number and title and ": " in title:
                 # A marked-up page (AM-146): "[13.] Service Termination: The" once its
                 # struck sentence is gone — the label is what precedes the colon.
@@ -588,6 +622,8 @@ def segment_paragraphs(text: str, *, page_number: int | None,
             title, markers = _structure_markers(
                 normalized, first_line, number, title, _second_line(normalized),
                 bold=_bold_heading(first_line, bold_lines))
+            if bare and normalized.count("\n") == 1:
+                markers = {**markers, "heading": True}
             # A PDF table stays NATIVE_TEXT inside its clause as `table_row` lines (F1),
             # so source_type cannot say "from a table": this count of tables (runs of
             # `| ` rows) is how a reader knows (BR-1).
@@ -936,9 +972,72 @@ def _neutral(rgb: int) -> bool:
 
 
 def _styled_text(page) -> dict:
+    """The page's spans with their style flags — and a span that is struck AND
+    underlined split at the letter where the one ends and the other begins.
+
+    PyMuPDF flags a whole span, and a deletion and the insertion beside it in one colour
+    are one span when no space falls between them: ")s" of "(30)" struck beside "sixty"
+    inserted read "ixty (60)" — its first letter went with the deletion (N7, 2026-11-09).
+    Each letter is judged by the coloured rule over it: through its middle = struck,
+    along its foot = underlined."""
     import pymupdf
-    return page.get_text("dict",
-                         flags=pymupdf.TEXTFLAGS_TEXT | pymupdf.TEXT_COLLECT_STYLES)
+    styled = page.get_text("rawdict",
+                           flags=pymupdf.TEXTFLAGS_TEXT | pymupdf.TEXT_COLLECT_STYLES)
+    rules = None
+    for block in styled["blocks"]:
+        for line in block.get("lines", ()):
+            spans = []
+            for span in line["spans"]:
+                chars = span.pop("chars", [])
+                span["text"] = "".join(c["c"] for c in chars)
+                if span.get("char_flags", 0) & 3 != 3 or not chars:
+                    spans.append(span)
+                    continue
+                if rules is None:
+                    rules = [d["rect"] for d in page.get_cdrawings() if d.get("rect")
+                             and d["rect"][3] - d["rect"][1] <= 2 and d.get("color")
+                             and max(d["color"]) - min(d["color"]) >= 0.1]
+                if len(rules) * len(chars) > SPLIT_MAX_WORK:
+                    # bounded work: the span is kept whole and the page said (fail safe)
+                    styled["unsplit"] = True
+                    spans.append(span)
+                    continue
+                spans += _split_by_rules(span, chars, rules)
+            line["spans"] = spans
+    return styled
+
+
+#: Letters x coloured rules one span may be judged against (`_styled_text`): a page of
+#: thousands of rules is no redline line, and judging it would be quadratic.
+SPLIT_MAX_WORK = 200_000
+
+
+def _split_by_rules(span: dict, chars: list[dict], rules: list) -> list[dict]:
+    """``span`` cut into runs of letters with one mark each (see `_styled_text`); a
+    letter no rule covers keeps the mark of the letter before it."""
+    def mark(box) -> int:
+        x0, y0, x1, y1 = box
+        h = max(y1 - y0, 0.1)
+        for r in rules:
+            if min(x1, r[2]) - max(x0, r[0]) < 0.5 * (x1 - x0):
+                continue
+            y = (r[1] + r[3]) / 2
+            if y0 + 0.3 * h < y < y0 + 0.75 * h:
+                return 1
+            if y0 + 0.75 * h <= y <= y1 + 2:
+                return 2
+        return 0
+    runs: list[tuple[int, list[dict]]] = []
+    for c in chars:
+        m = mark(c["bbox"]) or (runs[-1][0] if runs else span["char_flags"] & 3)
+        if runs and runs[-1][0] == m:
+            runs[-1][1].append(c)
+        else:
+            runs.append((m, [c]))
+    return [{**span, "text": "".join(c["c"] for c in run),
+             "char_flags": span["char_flags"] & ~3 | m,
+             "bbox": (run[0]["bbox"][0], span["bbox"][1], run[-1]["bbox"][2],
+                      span["bbox"][3])} for m, run in runs]
 
 
 def _has_coloured_rule(page) -> bool:
@@ -1242,6 +1341,244 @@ def _stitch_pages(segments: list[Segment]) -> list[Segment]:
     return out
 
 
+#: How many lines at each end of a page's text can be its header or footer. A PDF's
+#: stream often draws the footer right after the header, so the top window holds both.
+FURNITURE_EDGE_LINES = 4
+#: A line is furniture when (near enough) the same line opens or closes this share of the
+#: pages, and at least three: a running header, "Page 3 of 9", "Document Ref …".
+FURNITURE_MIN_SHARE = 0.3
+#: OCR reads the same footer a little differently on every page; above this many pages
+#: only exact repeats count (ponytail: pairwise fuzzy matching is quadratic).
+FURNITURE_FUZZY_MAX_PAGES = 300
+
+
+def _furniture_key(line: str) -> str:
+    """A line as furniture is compared: lower case, every number the same, punctuation
+    and OCR's stray marks gone ("Demo Client Private Limited { ‘Master …")."""
+    return " ".join(re.sub(r"[^a-z# ]", " ",
+                           re.sub(r"\d+", "#", line.translate(_MARKERS).lower())).split())
+
+
+def _furniture_line(line: str) -> bool:
+    """Whether a line can be furniture at all: a table row never is (a table's repeated
+    header row), nor a clause ("7.", "3.1 The Customer …"); a page number is."""
+    line = line.translate(_MARKERS).strip()
+    return bool(line) and not line.startswith("|") and \
+        detect_clause_number(line)[0] is None and (
+        bool(re.search(r"[A-Za-z]{2}", line)) or
+        bool(re.fullmatch(r"[-\u2013\s]*(?:page\s*)?\d+(?:\s*(?:of|/)\s*\d+)?[-\u2013\s]*",
+                          line, re.I)))
+
+
+def _page_furniture(pages: dict[int, str]) -> dict[str, tuple[int, str]]:
+    """The keys of the lines that are page furniture — each line's `_furniture_key` to
+    (its cluster, "header" or "footer") — from the first and last
+    `FURNITURE_EDGE_LINES` lines of every page. Header or footer by where the line
+    mostly sits in the page's text; both are left out of every clause the same way."""
+    least = max(3, math.ceil(FURNITURE_MIN_SHARE * len(pages)))
+    if len(pages) < 3:
+        return {}
+    fuzzy = len(pages) <= FURNITURE_FUZZY_MAX_PAGES
+    # each cluster: its representative key, the pages it is on, where in them it sits
+    clusters: list[tuple[str, set[int], list[float]]] = []
+    own: dict[str, int] = {}
+    for index, text in pages.items():
+        lines = [line for line in text.split("\n") if line.strip()]
+        edge = {*range(min(FURNITURE_EDGE_LINES, len(lines))),
+                *range(max(0, len(lines) - FURNITURE_EDGE_LINES), len(lines))}
+        for i in sorted(edge):
+            if not _furniture_line(lines[i]):
+                continue
+            key = _furniture_key(lines[i])
+            if key not in own:
+                own[key] = next((n for n, (rep, _, _) in enumerate(clusters)
+                                 if fuzzy and _alike(rep, key)), len(clusters))
+                if own[key] == len(clusters):
+                    clusters.append((key, set(), []))
+            clusters[own[key]][1].add(index)
+            clusters[own[key]][2].append(i / max(1, len(lines) - 1))
+    return {key: (n, "header" if sorted(clusters[n][2])[len(clusters[n][2]) // 2] < 0.5
+                  else "footer")
+            for key, n in own.items() if len(clusters[n][1]) >= least}
+
+
+def _alike(a: str, b: str) -> bool:
+    """Two furniture keys read from one header or footer (OCR's misreads allowed)."""
+    import difflib
+    matcher = difflib.SequenceMatcher(None, a, b)
+    return matcher.quick_ratio() >= 0.75 and matcher.ratio() >= 0.75
+
+
+def _strip_furniture(text: str, furniture: dict[str, tuple[int, str]],
+                     changes: list | None,
+                     ) -> tuple[str, list | None, list[tuple[str, str]]]:
+    """``text`` without its furniture lines (`_page_furniture`), only at its two ends;
+    ``changes`` (`_Change` offsets into ``text``) moved with what is left. Returns the
+    text, the changes and the (key, line) pairs taken out."""
+    lines = text.split("\n")
+    filled = [i for i, line in enumerate(lines) if line.strip()]
+    edge = set(filled[:FURNITURE_EDGE_LINES] + filled[-FURNITURE_EDGE_LINES:])
+    gone, out, cuts, at = [], [], [], 0
+    for i, line in enumerate(lines):
+        key = _furniture_key(line)
+        if i in edge and _furniture_line(line) and key in furniture:
+            gone.append((key, line.translate(_MARKERS).strip()))
+            cuts.append((at, len(line) + 1))
+        else:
+            out.append(line)
+        at += len(line) + 1
+    if not gone or not "".join(out).strip():      # never a page's whole text
+        return text, changes, []
+
+    def moved(pos: int) -> int:
+        return pos - sum(n for start, n in cuts if start < pos)
+    kept = [replace(c, start=moved(c.start), end=moved(c.end)) for c in changes or ()
+            if not any(start <= c.start < start + n for start, n in cuts)]
+    return "\n".join(out), (kept if changes is not None else None), gone
+
+
+#: A contents line: a title, then its page number — after dot leaders, or a space.
+_CONTENTS_LINE = re.compile(r"(?:\d{1,3}(?:\.\d{1,3})*\.?\s+)?"
+                            r"(?P<title>[A-Za-z][^\n]{1,100}?)(?:\s*(?:\.{3,}|…+)\s*|\s+)(?P<page>\d{1,3})")
+_LEADERS = re.compile(r"(?:\.{3,}|…+|\t)\s*\d{1,3}\s*$")
+_CONTENTS_TITLE = re.compile(r"(?:table\s+of\s+)?contents|index", re.I)
+
+
+def _key(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", text.lower())
+
+
+def _is_contents(entries: list[str], titled: bool, later: list[str]) -> bool:
+    """Whether ``entries`` ("title  page" lines) are a table of contents: each written
+    with a leader (dots or Word's tab) or under a "Contents" title, page numbers that
+    never go back, and at least half of the titles found again as a later heading.
+    An order form's "Initial Term in months 12 / Notice in days 90 / Payment within
+    days 30" has none of the three, and is read as the terms it is (review, rule 15)."""
+    found = [m for line in entries if (m := _CONTENTS_LINE.fullmatch(line.strip()))]
+    if len(found) < 3 or len(found) < len(entries):
+        return False
+    if not titled and not all(_LEADERS.search(line) for line in entries):
+        return False
+    pages = [int(m.group("page")) for m in found]
+    if any(b < a for a, b in pairwise(pages)):
+        return False
+    heads = {_key(re.sub(r"^\d{1,3}(?:\.\d{1,3})*\.?\s*", "", h))[:40] for h in later}
+    hits = sum(_key(m.group("title").rstrip(" .…"))[:40] in heads for m in found)
+    return hits * 2 >= len(found)
+
+
+def _mark_contents(segments: list[Segment]) -> None:
+    """The document's table of contents is no clause (N11 #9): a segment of three or
+    more leader lines, or a run of three or more one-line "title  page" segments
+    (Word's TOC field), that `_is_contents` confirms — and the "CONTENTS" title above
+    it — lose their number, title and heading marks and are kept as ``part`` contents:
+    shown, never mapped (BR-4)."""
+    def mark(segment: Segment) -> None:
+        segment.section_number = segment.section_title = None
+        segment.metadata = {k: v for k, v in segment.metadata.items()
+                            if k not in ("heading", "annexure")} | {"part": "contents"}
+
+    def later(at: int) -> list[str]:
+        # a heading's first line with letters: a PDF prints "1." above its title
+        return [next((line for line in g.content.split("\n") if re.search(
+            "[A-Za-z]", line)), "") for g in segments[at:]]
+
+    def line_of(segment: Segment) -> str:
+        """One-line text with Word's tab kept (normalisation turns it into a space)."""
+        raw = segment.original_content.strip()
+        return raw if "\n" not in raw else segment.content
+    for at, segment in enumerate(segments):
+        leader = [line for line in segment.original_content.split("\n")
+                  if _LEADERS.search(line)]
+        if len(leader) >= 3 and _is_contents(leader, True, later(at + 1)):
+            mark(segment)
+    run: list[int] = []
+    for at, one in enumerate([*segments, None]):
+        if one is not None and "\n" not in one.content.strip() and \
+                one.source_type is not EvidenceSourceType.TABLE and \
+                _CONTENTS_LINE.fullmatch(one.content.strip()):
+            run.append(at)
+            continue
+        if len(run) >= 3:
+            titled = bool(run[0]) and bool(_CONTENTS_TITLE.fullmatch(
+                segments[run[0] - 1].content.strip()))
+            if _is_contents([line_of(segments[i]) for i in run], titled,
+                            later(run[-1] + 1)):
+                for i in run:
+                    mark(segments[i])
+                if titled:
+                    mark(segments[run[0] - 1])
+        run = []
+
+
+def _note_marks(page, raw: str) -> tuple[str, frozenset[str]]:
+    """``raw`` without the superscript note references printed after a word ("India.¹",
+    "instrument.ⁱ" — the footnote's text is not the clause's), and the page's footnote
+    LINES: set smaller than its body text, in its lower third, opening with a note
+    number. A DOCX's footnote reference carries no text either (N11 #7)."""
+    import statistics
+
+    import pymupdf
+    lines = [line for block in page.get_text("dict", flags=pymupdf.TEXTFLAGS_TEXT)[
+        "blocks"] for line in block.get("lines", ()) if line["spans"]]
+    sizes = [s["size"] for line in lines for s in line["spans"]
+             for _ in s["text"].strip()]
+    if not sizes:
+        return raw, frozenset()
+    body = statistics.median(sizes)
+    for line in lines:
+        before = ""
+        for span in line["spans"]:
+            mark = span["text"].strip()
+            if span["flags"] & 1 and span["size"] < 0.8 * body and len(before) >= 6 and \
+                    re.fullmatch(r"\d{1,3}|[ivx]{1,4}|[*\u2020\u2021]", mark) and \
+                    raw.count(before[-12:] + mark) == 1:
+                raw = raw.replace(before[-12:] + mark, before[-12:])
+            before += span["text"]
+    small = frozenset(
+        re.sub(r"\s", "", "".join(s["text"] for s in line["spans"])) for line in lines
+        if line["bbox"][1] > 0.66 * page.rect.height
+        and sum(len(s["text"].strip()) for s in line["spans"] if s["size"] < 0.9 * body)
+        >= 0.8 * sum(len(s["text"].strip()) for s in line["spans"]))
+    return raw, small
+
+
+def _mark_footnotes(segments: list[Segment],
+                    footnotes: dict[int, frozenset[str]]) -> None:
+    """A page's footnote (`_note_marks`) as ``part`` footnote — a note on the passage
+    that cites it, never a clause "1" of its own (N11 #7)."""
+    for segment in segments:
+        small = footnotes.get(segment.page_number or 0)
+        lines = [line.strip() for line in segment.content.split("\n") if line.strip()]
+        if small and lines and re.match(r"(?:\d{1,3}|[ivx]{1,4})\s", lines[0]) and \
+                all(re.sub(r"\s", "", line) in small for line in lines):
+            segment.section_number = segment.section_title = None
+            segment.metadata = {k: v for k, v in segment.metadata.items()
+                                if k != "heading"} | {"part": "footnote"}
+
+
+def _place_regions(page_parts: list[tuple[str, EvidenceSourceType, dict]]
+                   ) -> list[tuple[str, EvidenceSourceType, dict]]:
+    """A page's parts with each image region's OCR text moved in after the native line
+    above it (``_anchor``); one whose line is not found stays at the end."""
+    if not page_parts or page_parts[0][1] is not EvidenceSourceType.NATIVE_TEXT:
+        return page_parts
+    text, source, metadata = page_parts[0]
+    out, at, tail = [], 0, []
+    for part in page_parts[1:]:
+        anchor = part[2].pop("_anchor", None)
+        lines = text[at:].split("\n")
+        hit = next((n for n, line in enumerate(lines) if anchor and
+                    " ".join(line.split()) == " ".join(anchor.split())), None)
+        if hit is None:
+            tail.append(part)
+            continue
+        cut = at + sum(len(line) + 1 for line in lines[:hit + 1])
+        out += [(text[at:cut], source, dict(metadata)), part]
+        at = cut
+    return [*out, (text[at:], source, metadata), *tail]
+
+
 def _page_blocks_in_reading_order(page, docling_tables: list[dict] | None = None,
                                   revision: tuple[dict, frozenset[int]] | None = None,
                                   ) -> tuple[str, bool]:
@@ -1374,6 +1711,10 @@ def parse_pdf(data: bytes, *, defer_ocr: bool = False, ocr: bool = True,
     blank_pages: list[int] = []                     # nothing on the page at all
     blank_read: list[int] = []                      # ...and read so: nothing there
     regions: list[tuple[int, tuple]] = []           # an image the text layer misses (F5)
+    anchors: dict[tuple, str | None] = {}           # ... the line above it
+    footnotes: dict[int, frozenset[str]] = {}       # a page's footnote lines
+    strips: set[tuple] = set()                      # ... read only as prose (`_strip`)
+    unread: list[tuple[int, str | None]] = []       # ... not read: said on its passage
     changes: dict[int, list[_Change]] = {}
     bold: dict[int, frozenset[str]] = {}
 
@@ -1384,6 +1725,9 @@ def parse_pdf(data: bytes, *, defer_ocr: bool = False, ocr: bool = True,
             revision = None
             if colours:
                 styled = _styled_text(page)
+                if styled.get("unsplit"):
+                    diagnostics.append(f"page {index}: tracked changes too dense to tell "
+                                       "letter by letter; check this page's changes")
                 bold[index] = _bold_lines(styled, colours)
                 if any(s["color"] in colours for b in styled["blocks"]
                        for line in b.get("lines", ()) for s in line["spans"]):
@@ -1392,6 +1736,8 @@ def parse_pdf(data: bytes, *, defer_ocr: bool = False, ocr: bool = True,
                                                             revision)
             if revision:
                 raw, changes[index] = _resolve_revisions(raw)
+            else:
+                raw, footnotes[index] = _note_marks(page, raw)
             if by_docling:
                 reader["docling_tables"].append(index)
         except Exception as exc:                # pragma: no cover - defensive
@@ -1399,7 +1745,13 @@ def parse_pdf(data: bytes, *, defer_ocr: bool = False, ocr: bool = True,
             diagnostics.append(f"page {index}: extraction error {type(exc).__name__}")
         if len(raw.strip()) >= MIN_USABLE_CHARS_PER_PAGE:
             native[index] = raw
-            regions += [(index, rect) for rect in _unread_images(page)]
+            for rect in _unread_images(page):
+                regions.append((index, rect))
+                anchors[(index, rect)] = _region_anchor(page, rect)
+                if not _strip(pymupdf.Rect(rect), page.rect) or abs(pymupdf.Rect(
+                        rect)) >= IMAGE_REGION_MIN_SHARE * abs(page.rect):
+                    continue
+                strips.add((index, rect))
         else:
             ocr_pages.append(index)
             if _blank_page(page, raw):
@@ -1412,6 +1764,7 @@ def parse_pdf(data: bytes, *, defer_ocr: bool = False, ocr: bool = True,
     partly_read: set[int] = set()
     if not can_ocr:
         partly_read |= {index for index, _ in regions}
+        unread += [(index, anchors[(index, rect)]) for index, rect in regions]
         for index in ocr_pages:
             if index in blank_pages:            # nothing for OCR to read (AM-187)
                 blank_read.append(index)
@@ -1492,6 +1845,10 @@ def parse_pdf(data: bytes, *, defer_ocr: bool = False, ocr: bool = True,
                 # so a region that should have held text never vanishes silently.
                 diagnostics.append(f"page {index}: image region has no readable text")
                 continue
+            if (index, clip) in strips and not isinstance(outcome, Exception) and \
+                    not _prose(outcome[0]):
+                diagnostics.append(f"page {index}: an image read as a picture, not text")
+                continue
             kept = _read_ocr(index, outcome, diagnostics, low_confidence)
             if kept is None:
                 if clip is None and index in blank_pages:
@@ -1505,10 +1862,12 @@ def parse_pdf(data: bytes, *, defer_ocr: bool = False, ocr: bool = True,
                     failed_pages.append(index)
                 else:
                     partly_read.add(index)
+                    unread.append((index, anchors.get((index, clip))))
                 continue
             text, metadata = kept
             if clip is not None:
                 metadata["ocr_region"] = [round(v, 1) for v in clip]
+                metadata["_anchor"] = anchors.get((index, clip))
                 diagnostics.append(f"page {index}: image region read by OCR")
             # 34.8 — OCR text explicitly identified.
             parts.setdefault(index, []).append((text, EvidenceSourceType.OCR, metadata))
@@ -1522,6 +1881,34 @@ def parse_pdf(data: bytes, *, defer_ocr: bool = False, ocr: bool = True,
         for index in sorted(set(tables) & set(native) - set(reader["docling_tables"])):
             reader["fallback_reasons"][index] = "words differ or a ruled grid stands"
         diagnostics.append(_reader_diagnostic(reader))
+
+    # Page headers and footers out of the body (34.10, N11 #8): kept once each at the end
+    # as `part` header/footer rows, as a DOCX's are — mapping never reads them (BR-4).
+    furniture = _page_furniture({i: p[0][0] for i, p in parts.items() if p})
+    found: dict[int, tuple[str, str]] = {}      # cluster -> (part, its first line read)
+    if furniture:
+        for index, page_parts in parts.items():
+            kept_parts = []
+            for text, source, metadata in page_parts:
+                scanned = metadata.get("_changes")
+                own = changes.get(index) if source is EvidenceSourceType.NATIVE_TEXT \
+                    else scanned
+                text, own, gone = _strip_furniture(text, furniture, own)
+                for key, line in gone:
+                    found.setdefault(furniture[key][0], (furniture[key][1], line))
+                if source is EvidenceSourceType.NATIVE_TEXT and index in changes:
+                    changes[index] = own or []
+                elif scanned is not None:
+                    metadata["_changes"] = own
+                kept_parts.append((text, source, metadata))
+            parts[index] = kept_parts
+    # An image region's text where the region stands — after the line above it — not at
+    # the end of its page: "16.3" and its scanned words together (N11 #3). Not on a page
+    # with tracked changes, whose offsets are the whole page's.
+    for index, page_parts in parts.items():
+        parts[index] = _place_regions(page_parts) if not changes.get(index) else [
+            (t, s, {k: v for k, v in m.items() if k != "_anchor"})
+            for t, s, m in page_parts]
 
     segments: list[Segment] = []
     offset = 0
@@ -1543,7 +1930,28 @@ def parse_pdf(data: bytes, *, defer_ocr: bool = False, ocr: bool = True,
             offset += len(text)
     # One clause across a page break is one segment on every PDF, not only a marked-up
     # one: a clean contract's cap split by its page break read as two caps (R-7).
+    _mark_footnotes(segments, footnotes)
     segments = _stitch_pages(segments)
+    _mark_contents(segments)
+    for index, anchor in unread:
+        on_page = [g for g in segments if g.page_number == index
+                   and g.source_type is EvidenceSourceType.NATIVE_TEXT]
+        near = next((g for g in on_page if anchor and " ".join(anchor.split()) in
+                     " ".join(g.content.split())), on_page[-1] if on_page else None)
+        if near is not None:
+            near.metadata["unread_image"] = {"page": index, "number": None}
+    for part in ("header", "footer"):
+        if lines := [line for p, line in found.values() if p == part]:
+            raw = "\n".join(lines)
+            segments.append(Segment(
+                content=normalize_text(raw), original_content=raw,
+                source_type=EvidenceSourceType.OTHER, page_number=None,
+                section_number=None, section_title=None, start_offset=offset,
+                end_offset=offset + len(raw), metadata={"part": part}))
+            offset += len(raw)
+    if found:
+        diagnostics.append(f"{len(found)} page header/footer line(s) kept apart from "
+                           "the clauses (34.10)")
     if colours or placed:
         diagnostics.append(
             f"revision marks read (AM-146): {placed} tracked change(s) on page(s) "
@@ -1802,9 +2210,13 @@ def _unread_images(page) -> list[tuple[float, float, float, float]]:
     """
     import pymupdf
 
+    # N11 #3 (2026-11-09): also a STRIP — half the page wide, 2% of it — a scanned
+    # paragraph pasted into typed text (4% of the page): read only if OCR finds prose in
+    # it (`_prose`), so a wide diagram or banner adds no text.
     large = [rect for rect in (pymupdf.Rect(info["bbox"]) & page.cropbox
                                for info in page.get_image_info())
-             if abs(rect) >= IMAGE_REGION_MIN_SHARE * abs(page.cropbox)]
+             if abs(rect) >= IMAGE_REGION_MIN_SHARE * abs(page.cropbox) or _strip(
+                 rect, page.cropbox)]
     words = page.get_text("words") if large else []
     rects = []
     for rect in large:
@@ -1813,6 +2225,36 @@ def _unread_images(page) -> list[tuple[float, float, float, float]]:
         if inside < MIN_USABLE_CHARS_PER_PAGE:
             rects.append(tuple(rect * page.rotation_matrix))
     return rects
+
+
+def _strip(rect, cropbox) -> bool:
+    """An image shaped like a paragraph of text: half the page wide, 2% of its area."""
+    return rect.width >= 0.5 * cropbox.width and abs(rect) >= 0.02 * abs(cropbox)
+
+
+def _prose(text: str) -> bool:
+    """Whether OCR found sentences, not a diagram's labels: eight words, a tenth of them
+    function words ("the", "of", "shall" …)."""
+    words = re.findall(r"[A-Za-z]{1,12}", text.lower())
+    return len(words) >= 8 and sum(w in LEGIBILITY_STOPWORDS for w in words) >= \
+        0.1 * len(words)
+
+
+def _region_anchor(page, clip) -> str | None:
+    """The last line of text above an image region — where its text belongs in the
+    page's reading (``clip`` in rotated space, as `_unread_images` returns it)."""
+    import pymupdf
+    rect = pymupdf.Rect(clip) * ~page.rotation_matrix
+    # what stands beside it on its left counts as above: a "16.3" printed level with the
+    # scanned words it numbers (an inline picture sits on its line's baseline)
+    above = [w for w in page.get_text("words") if w[3] <= rect.y0 + 6
+             or (w[1] <= rect.y1 and w[2] <= rect.x0 + 2)]
+    if not above:
+        return None
+    last = max(above, key=lambda w: (w[3], w[0]))
+    line = sorted((w for w in above if (w[5], w[6]) == (last[5], last[6])),
+                  key=lambda w: w[0])
+    return " ".join(w[4] for w in line)
 
 
 _PAGE_NUMBER_ONLY = re.compile(r"\s*(?:page\s*)?\d{0,4}\s*(?:(?:of|/)\s*\d{1,4})?\s*",
@@ -2009,6 +2451,17 @@ def _tesseract_pixmap(pix) -> tuple[str, float | None]:  # pragma: no cover
     """
     text, rows = _tesseract(pix)
     marks = _revision_rules(pix)
+    if marks is None and (mean := _mean_confidence(rows)) is not None and \
+            mean < OCR_WARN_CONFIDENCE and \
+            pix.width * pix.height <= MEDIAN_MAX_PIXELS:
+        # A speckled scan read again with its specks smoothed away (3x3 median): the
+        # specimen scan's pages read 0.83-0.92 like their text, 0.97-0.98 smoothed, and
+        # its "15.2"/"16.3" numbers came back. Kept only when tesseract is surer.
+        smooth_text, smooth_rows = _tesseract(_median(pix))
+        if (_mean_confidence(smooth_rows) or 0) > mean:
+            text, rows = smooth_text, smooth_rows
+    if marks is None:
+        text = _hang_numbers(rows) or text
     if marks is not None:
         ink, erased, rules = marks
         marked = _scan_marks(pix, rows, ink)
@@ -2020,9 +2473,86 @@ def _tesseract_pixmap(pix) -> tuple[str, float | None]:  # pragma: no cover
             if (remarked := _scan_marks(pix, erased_rows, ink)) is not None:
                 marked, rows = remarked, erased_rows
         text = marked or text
+    return text, _mean_confidence(rows)
+
+
+#: Lines on one page beyond which numbers are not rejoined (`_hang_numbers` compares
+#: each lone number with every line): a page of contract text holds ~60.
+HANG_MAX_LINES = 2_000
+#: Pixels beyond which a page is not smoothed for a second read (`_median` stacks nine
+#: copies): an A4 page at 300 dpi is 8.7 million.
+MEDIAN_MAX_PIXELS = 20_000_000
+
+#: A line holding only a clause number or list label: "5.4", "12.", "(a)", "(iv)".
+_NUMBER_ONLY = re.compile(r"\(?(?:\d{1,3}(?:\.\d{1,3})*|[a-z]|[ivx]{1,5})[.)]?")
+
+
+def _hang_numbers(rows: list[list[str]]) -> str | None:
+    """The page's text with each clause number put back on its clause's first line, or
+    None when no number stood apart. A hanging indent prints the number in a gutter, and
+    tesseract reads the gutter as a column of its own: "5.4" alone, its clause's text
+    paragraphs later, unnumbered (the specimen scan read 38 of ~120 numbers). A number is
+    joined to the line beside it — level with it, to its right — never moved anywhere
+    else; a real second column has text, not bare numbers, and reads as before."""
+    lines: dict[tuple, list[list[str]]] = {}
+    for r in rows:
+        if len(r) > 11 and r[0] == "5" and r[11].strip():
+            lines.setdefault((int(r[2]), int(r[3]), int(r[4])), []).append(r)
+    if len(lines) > HANG_MAX_LINES:
+        return None             # bounded: tesseract's own reading stands, nothing lost
+
+    def box(words):
+        x0 = min(int(w[6]) for w in words)
+        y0 = min(int(w[7]) for w in words)
+        return (x0, y0, max(int(w[6]) + int(w[8]) for w in words),
+                max(int(w[7]) + int(w[9]) for w in words))
+    text = {key: " ".join(w[11] for w in words) for key, words in lines.items()}
+    boxes = {key: box(words) for key, words in lines.items()}
+    alone = [k for k in lines if _NUMBER_ONLY.fullmatch(text[k])
+             and sum(1 for o in lines if o[0] == k[0]) == sum(
+                 1 for o in lines if o[0] == k[0] and _NUMBER_ONLY.fullmatch(text[o]))]
+    moved = set()
+    for key in alone:
+        x0, y0, x1, y1 = boxes[key]
+        mid, half = (y0 + y1) / 2, max(1, (y1 - y0)) * 0.6
+        beside = [o for o in lines if o[0] != key[0] and o not in alone
+                  and boxes[o][0] >= x1 - 5 and abs((boxes[o][1] + boxes[o][3]) / 2 - mid)
+                  <= half + (boxes[o][3] - boxes[o][1]) * 0.25]
+        if beside:
+            target = min(beside, key=lambda o: boxes[o][0])
+            text[target] = text[key] + " " + text[target]
+            moved.add(key)
+    if not moved:
+        return None
+    out, previous = "", None
+    for key in lines:
+        if key in moved:
+            continue
+        out += ("\n\n" if previous is not None and previous != key[:2] else
+                "\n" if previous is not None else "") + text[key]
+        previous = key[:2]
+    return out + "\n"
+
+
+def _mean_confidence(rows: list[list[str]]) -> float | None:
+    """tesseract's mean word confidence over its tsv ``rows``."""
     confidences = [float(r[10]) for r in rows
                    if len(r) > 10 and r[0] == "5" and float(r[10]) >= 0]
-    return text, (sum(confidences) / len(confidences) if confidences else None)
+    return sum(confidences) / len(confidences) if confidences else None
+
+
+def _median(pix):  # pragma: no cover
+    """``pix`` in grey, each pixel the median of its 3x3 neighbourhood: specks gone,
+    letters kept (`_tesseract_pixmap`)."""
+    import numpy as np
+    import pymupdf
+    grey = pymupdf.Pixmap(pymupdf.csGRAY, pix) if pix.n != 1 or pix.alpha else pix
+    g = np.frombuffer(grey.samples, np.uint8).reshape(grey.height, grey.width)
+    pad = np.pad(g, 1, mode="edge")
+    near = np.stack([pad[i:i + g.shape[0], j:j + g.shape[1]]
+                     for i in range(3) for j in range(3)])
+    out = np.median(near, axis=0).astype(np.uint8)
+    return pymupdf.Pixmap(pymupdf.csGRAY, grey.width, grey.height, out.tobytes(), False)
 
 
 def _tesseract(pix) -> tuple[str, list[list[str]]]:  # pragma: no cover
@@ -2084,6 +2614,16 @@ def _rgb(pix):
     return rgb, np.maximum(np.maximum(r, g), b), np.minimum(np.minimum(r, g), b)
 
 
+#: Grey revision ink per black ink above which a page with no colour is a blurred scan,
+#: not a mono-printed redline (`_revision_rules`). Measured at 300 dpi, 2026-11-09:
+#: crisp pages printed grey — the specimen redline's pages 3/8/9/15/20 (its gold changes
+#: grey) and pages 1/3 of MSA, NDA, SLA-leapswitch, TOS-leapswitch, AUP-cloudpe — read
+#: 0.24-0.55 (15 pages); the blurred, speckled specimen scan 1.33-3.17 (12 pages). 1.0
+#: sits about twice from either side. ponytail: one blurred scan specimen; re-measure
+#: on the first real mono-scanned redline before moving it.
+GREY_BLUR_RATIO = 1.0
+
+
 def _revision_rules(pix):
     """(revision ink, ``pix`` with that ink's long horizontal rules erased, the rules
     as (row, start, end)) — or None for a page with no such rule. Revision ink is
@@ -2099,6 +2639,12 @@ def _revision_rules(pix):
     grey = ink.sum() < 200
     if grey:
         ink = (spread < 30) & (high >= 90) & (high < 200)
+        # A blurred grey scan is grey wherever black type is (its edges): more grey ink
+        # than black means blur, not a revision tone — read so, every speckle and the
+        # running header became a tracked change (1,318 on a 23-page scan, 2026-11-09).
+        # A crisp mono print measured 0.35 grey to black, the blurred scan 1.8-1.96.
+        if ink.sum() > GREY_BLUR_RATIO * (high < 110).sum():
+            return None
     least, height = pix.width / 60, pix.height
     rows, starts, ends = _spans(ink)
     keep = ends - starts >= least
@@ -2348,6 +2894,7 @@ _W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 # The values written to the processing run's `pagination_source`.
 DOCX_RENDERED_PAGE_BREAKS = "DOCX_RENDERED_PAGE_BREAKS"
 DOCX_EXPLICIT_PAGE_BREAKS = "DOCX_EXPLICIT_PAGE_BREAKS"
+DOCX_LIBREOFFICE_RENDER = "DOCX_LIBREOFFICE_RENDER"
 PDF_PHYSICAL_PAGES = "PDF_PHYSICAL_PAGES"
 
 
@@ -2455,6 +3002,112 @@ def _docx_paragraph_pages(paragraphs, skip: frozenset | set = frozenset()) -> tu
     return pages, page, source
 
 
+def _alnum(text: str) -> str:
+    """``text`` as `_docx_rendered_pages` compares it: letters and digits, lower case,
+    ligatures unfolded."""
+    import unicodedata
+    return "".join(c for c in unicodedata.normalize("NFKC", text).lower() if c.isalnum())
+
+
+#: One LibreOffice print of an uploaded DOCX, at most (it runs inside the upload request,
+#: under the contract's lock): past it the whole process group is killed and the file's
+#: own breaks stand.
+RENDER_TIMEOUT_S = 20
+
+
+def _bounded(argv: list[str], timeout: float) -> bytes | None:
+    """``argv``'s stdout, or None on failure or after ``timeout`` — when the WHOLE process
+    group is killed: soffice forks soffice.bin, and killing the parent alone left the
+    child running (review 2026-11-09)."""
+    import signal
+    import subprocess
+    try:
+        proc = subprocess.Popen(argv, stdout=subprocess.PIPE,  # argv list, no shell
+                                stderr=subprocess.DEVNULL, start_new_session=True)
+    except OSError:
+        return None
+    try:
+        out, _ = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:              # pragma: no cover - already gone
+            pass
+        proc.communicate()
+        return None
+    finally:
+        # a child the group leader left behind (it exited, its child did not)
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            pass
+    return out if proc.returncode == 0 else None
+
+
+def _render_docx(data: bytes) -> tuple[bytes, str] | None:
+    """The PDF LibreOffice prints of ``data``'s accepted text, and the LibreOffice
+    version that printed it — or None (no ``LEGALMIND_SOFFICE``, a failure, the time
+    limit)."""
+    import tempfile
+    binary = os.environ.get("LEGALMIND_SOFFICE")
+    if not binary:
+        return None
+    from legalmind.drafting import clean
+    with tempfile.TemporaryDirectory() as tmp:
+        source = Path(tmp, "contract.docx")
+        try:
+            source.write_bytes(clean.clean(data))
+        except Exception:                   # a file clean cannot read: not printed
+            return None
+        profile = f"-env:UserInstallation=file://{tmp}/profile"
+        if _bounded([binary, profile, "--headless", "--norestore", "--convert-to",
+                     "pdf", "--outdir", tmp, str(source)], RENDER_TIMEOUT_S) is None:
+            return None
+        printed = Path(tmp, "contract.pdf")
+        if not printed.is_file():
+            return None
+        version = _bounded([binary, profile, "--version"], RENDER_TIMEOUT_S)
+        return printed.read_bytes(), (version or b"").decode(errors="replace").strip()
+
+
+def _docx_rendered_pages(data: bytes, paragraphs) -> tuple[list[int], int, str] | None:
+    """The page each paragraph starts on in the file as LibreOffice lays it out — for an
+    UPLOADED DOCX that carries no record of Word's own pagination (N10, 2026-11-09: a
+    23-page file written without ``w:lastRenderedPageBreak`` read "of 4", its six hard
+    breaks, and nearly every finding said "page 3"). The operator's LibreOffice prints
+    the accepted text (`_render_docx`); each paragraph's opening words are then found,
+    in order, in the printed pages. Also returns the LibreOffice version, recorded with
+    the run. None when no renderer is configured or it fails — the file's own breaks
+    are used as before.
+
+    Found, not computed: a paragraph whose words are not in the print (a field LibreOffice
+    renders differently) takes the page of the paragraph before it."""
+    rendered = _render_docx(data)
+    if rendered is None:
+        return None
+    try:
+        import pymupdf
+        printed = pymupdf.open(stream=rendered[0], filetype="pdf")
+    except Exception:                       # pragma: no cover - a damaged print
+        return None
+    stream, page_at = "", []
+    for number, page in enumerate(printed, start=1):  # type: ignore[arg-type,var-annotated]
+        text = _alnum(page.get_text())
+        stream += text
+        page_at += [number] * len(text)
+    total = printed.page_count
+    printed.close()
+    pages: list[int] = []
+    cursor, last = 0, 1
+    for para in paragraphs:
+        key = _alnum(_docx_text(para))[:40]
+        at = stream.find(key, cursor) if key else -1
+        if at >= 0:
+            last, cursor = page_at[at], at + len(key)
+        pages.append(last)
+    return pages, total, rendered[1]
+
+
 #: A run the accepted, visible document shows: not moved away, not deleted in a tracked
 #: change, not hidden (w:vanish). The test a footnote reference and a text box's anchor
 #: must pass too — what the reader never sees never reaches evidence (review 2026-10-16).
@@ -2465,7 +3118,7 @@ _VISIBLE_RUN = f"not(ancestor::w:moveFrom) and not(ancestor::w:del) and not({_HI
 _ORIGINAL_RUN = f"not(ancestor::w:moveTo) and not(ancestor::w:ins) and not({_HIDDEN})"
 
 
-def _docx_text(p, original: bool = False) -> str:
+def _docx_text(p, original: bool = False, upper=None) -> str:
     """A ``w:p``'s text in the ACCEPTED view of its tracked changes: python-docx's
     run text PLUS the runs it skips — inside a tracked insertion (w:ins) or an
     inline content control. Deleted text is w:delText, which a run's text never
@@ -2480,15 +3133,42 @@ def _docx_text(p, original: bool = False) -> str:
     A page or column break is a line break here: python-docx reads it as "", which
     fused "…calendar days." and "Issued within…" into "days.Issued" across a break.
 
-    ``original``: the text before its tracked changes instead (`_ORIGINAL_RUN`)."""
+    ``original``: the text before its tracked changes instead (`_ORIGINAL_RUN`).
+    ``upper``: a test on a ``w:r`` — its text upper-cased where it holds (a run printed
+    in capitals by its formatting, for a comparison with the printed text)."""
     depth = len(p.xpath("ancestor-or-self::w:p"))
     runs = _ORIGINAL_RUN if original else _VISIBLE_RUN
-    # python-docx gives w:t (and w:tab, w:cr …) a text form; w:delText it does not.
-    return "".join("\n" if el.tag == _W + "br" else el.text or "" if el.tag == _W +
-                   "delText" else str(el) for r in p.xpath(
-        f".//w:r[count(ancestor::w:p) = {depth} and {runs}]")
-        for el in r.xpath("w:br | w:cr | w:noBreakHyphen | w:ptab | w:t | w:delText"
-                          " | w:tab"))
+
+    def text(r) -> str:
+        # python-docx gives w:t (and w:tab, w:cr …) a text form; w:delText it does not.
+        t = "".join("\n" if el.tag == _W + "br" else el.text or "" if el.tag == _W +
+                    "delText" else str(el) for el in r.xpath(
+            "w:br | w:cr | w:noBreakHyphen | w:ptab | w:t | w:delText | w:tab"))
+        return t.upper() if upper is not None and upper(r) else t
+    return "".join(text(r) for r in p.xpath(
+        f".//w:r[count(ancestor::w:p) = {depth} and {runs}]"))
+
+
+def _docx_emphasis(p) -> list[list]:
+    """Where a ``w:p``'s own runs are bold ("b") or underlined ("u"), as ``[start, end,
+    kind]`` offsets into `_docx_text` — the document's weight, for the reading view to
+    set as the file does (presentation only). Direct run formatting only: a style's
+    weight (a bold heading style) is the paragraph's ``style``."""
+    depth = len(p.xpath("ancestor-or-self::w:p"))
+    out: list[list] = []
+    at = 0
+    for r in p.xpath(f".//w:r[count(ancestor::w:p) = {depth} and {_VISIBLE_RUN}]"):
+        text = "".join("\n" if el.tag == _W + "br" else str(el) for el in r.xpath(
+            "w:br | w:cr | w:noBreakHyphen | w:ptab | w:t | w:tab"))
+        for kind, off in (("b", ("0", "false")), ("u", ("none", "0", "false"))):
+            el = r.find(f"{_W}rPr/{_W}{kind}")
+            if text and el is not None and el.get(_W + "val") not in off:
+                if out and out[-1][2] == kind and out[-1][1] == at:
+                    out[-1][1] = at + len(text)
+                else:
+                    out.append([at, at + len(text), kind])
+        at += len(text)
+    return out
 
 
 def _docx_revision(p) -> dict | None:
@@ -2518,7 +3198,7 @@ def _docx_revision(p) -> dict | None:
     return {"original": normalize_text(_docx_text(p, original=True)), "changes": changes}
 
 
-def _docx_list_numbers(document, paragraphs) -> dict:
+def _docx_list_numbers(document, paragraphs, labels=None) -> dict:
     """The clause number Word DISPLAYS for each paragraph its automatic list numbering
     numbers — the document's own numbering (34.12 preserves it; AM-185, owner
     2026-10-26: a Word MSA read 0 of 219 numbered clauses while its PDF read 213).
@@ -2529,7 +3209,12 @@ def _docx_list_numbers(document, paragraphs) -> dict:
     numbering a paragraph style carries (a numbered "Heading 1") counts too. Only a label
     made of DECIMAL levels becomes a clause number ("6", "6.1"); a bullet or an (a)/(i)
     item is part of the clause above it, never a number of its own. Every paragraph of
-    the document is counted, table cells included, in document order."""
+    the document is counted, table cells included, in document order.
+
+    ``labels``: a function ``(n, numFmt) -> str`` — instead, EVERY numbered paragraph's
+    whole label as printed ("1.1.", "A.", "(a)", a bullet's glyph), each level's counter
+    printed by it: the text a PDF of the file shows before the paragraph (preflight
+    ``TEXT_EQUAL``)."""
     try:
         numbering = document.part.numbering_part.element
     except (AttributeError, KeyError, NotImplementedError):
@@ -2583,6 +3268,11 @@ def _docx_list_numbers(document, paragraphs) -> dict:
         count[ilvl] = count.get(ilvl, defs[ilvl][0] - 1) + 1
         for deeper in [lv for lv in count if lv > ilvl]:
             del count[deeper]
+        if labels is not None:              # "%1.%2." → "4.1.", "(%1)" → "(a)"
+            shown = {lv: labels(count.get(lv, d[0]), d[1]) for lv, d in defs.items()}
+            out[p] = "".join(shown.get(int(t) - 1, "") if i % 2 else t for i, t in
+                             enumerate(re.split(r"%(\d)", defs[ilvl][2])))
+            continue
         used = [int(m) - 1 for m in re.findall(r"%(\d)", defs[ilvl][2])]
         if used and all(defs.get(lv, (1, "", ""))[1] == "decimal" for lv in used):
             out[p] = ".".join(str(count.get(lv, defs[lv][0])) for lv in used)
@@ -2687,7 +3377,7 @@ def _docx_furniture(document) -> list[tuple[str, str]]:
     return out
 
 
-def parse_docx(data: bytes) -> ParseResult:
+def parse_docx(data: bytes, *, render_pages: bool = False) -> ParseResult:
     """DOCX extraction preserving paragraphs and tables (34.11), in document order.
 
     The body is read block by block as Word lays it out (F2e): paragraphs and
@@ -2736,6 +3426,16 @@ def parse_docx(data: bytes) -> ParseResult:
     every = body.xpath(".//w:p[not(ancestor::w:txbxContent)]")
     paragraph_pages, total_pages, pagination_source = _docx_paragraph_pages(
         every, _docx_row_breaks_once(body))
+    renderer: str | None = None
+    # ``render_pages``: an uploaded client or contract file on the ingestion path only —
+    # never a DOCX LegalMind generated (it never carries Word's record) nor an Ask
+    # attachment, which would each pay for a print they do not need (review 2026-11-09).
+    if render_pages and pagination_source != DOCX_RENDERED_PAGE_BREAKS and (
+            rendered := _docx_rendered_pages(data, every)):
+        # Word's own record is the author's pagination and wins; without it, the hard
+        # breaks alone undercount every page that simply filled up (N10).
+        paragraph_pages, total_pages, renderer = rendered
+        pagination_source = DOCX_LIBREOFFICE_RENDER
     page_of = dict(zip(every, paragraph_pages, strict=True)) if paragraph_pages else {}
     try:                                                     # N-AUTONUM, AM-185
         list_numbers = _docx_list_numbers(document, every)
@@ -2815,12 +3515,20 @@ def parse_docx(data: bytes) -> ParseResult:
         page_area = 7772400 * 10058400                       # twips -> EMU; else Letter
     unread_pictures: list[str] = []
 
-    def pictures(p, page: int | None) -> None:
+    def flag_unread(page: int | None, number: str | None) -> None:
+        """A picture that is (or may be) contract text and could not be read: said on
+        the passage before it, so the reader sees where text is missing (N11 #3)."""
+        if segments:
+            segments[-1].metadata["unread_image"] = {"page": page, "number": number}
+
+    def pictures(p, page: int | None, number: str | None = None) -> None:
+        """``number``: the paragraph is a numbered clause with no text of its own — its
+        picture IS the clause (a scanned paragraph pasted in), whatever its size."""
         for inline in p.xpath(f".//w:r[{_VISIBLE_RUN}]//wp:inline[wp:extent]"):
             extent = inline.xpath("wp:extent")[0]
             embed = inline.xpath(".//a:blip/@r:embed")
-            if not embed or int(extent.get("cx")) * int(extent.get("cy")) < \
-                    IMAGE_REGION_MIN_SHARE * page_area:
+            if not embed or (number is None and int(extent.get("cx")) * int(
+                    extent.get("cy")) < IMAGE_REGION_MIN_SHARE * page_area):
                 continue
             try:
                 import pymupdf
@@ -2833,17 +3541,21 @@ def parse_docx(data: bytes) -> ParseResult:
                 unread_pictures.append(f"a picture not read ({type(exc).__name__})"
                                        if ocr_available() else
                                        "a picture not read (OCR toolchain unavailable)")
+                flag_unread(page, number)
                 continue
             if len(text.strip()) < MIN_USABLE_CHARS_PER_PAGE:
                 # Blank — a photograph, a signature: said, never silent, not PARTIAL.
                 picture_notes.append("a picture has no readable text")
+                if number is not None:
+                    flag_unread(page, number)
             elif confidence is not None and confidence < OCR_FAIL_CONFIDENCE:
                 unread_pictures.append(
                     f"a picture's OCR is not legible ({confidence:.0f})")
+                flag_unread(page, number)
             else:
                 picture_notes.append("a picture read by OCR")
                 proposed, changes = _resolve_revisions(text)
-                emit(proposed, EvidenceSourceType.OCR, page,
+                emit(proposed, EvidenceSourceType.OCR, page, number,
                      metadata={"ocr_picture": True})
                 if changes:
                     _record_revisions(segments[-1:], changes,
@@ -2857,7 +3569,7 @@ def parse_docx(data: bytes) -> ParseResult:
         if not normalized:
             drop(_docx_revision(p))
             emit(raw, EvidenceSourceType.NATIVE_TEXT, page)
-            return pictures(p, page)
+            return pictures(p, page, list_numbers.get(p))
         first_line = normalized.split("\n", 1)[0]
         number, title = detect_clause_number(first_line)
         if number is None and p in list_numbers:
@@ -2870,8 +3582,10 @@ def parse_docx(data: bytes) -> ParseResult:
             normalized, first_line, number, title, next_text)
         style = Paragraph(p, document._body).style
         noted = p.xpath("./w:commentRangeStart/@w:id | .//w:r/w:commentReference/@w:id")
+        weight = _docx_emphasis(p) if normalized == raw else []   # offsets hold as-is
         emit(raw, EvidenceSourceType.NATIVE_TEXT, page, number, title,
              {"style": style.name if style else None, **markers,
+              **({"emphasis": weight} if weight else {}),
               **keep(_docx_revision(p), normalized),
               **({"comment_ids": sorted(set(noted))} if noted else {})})
         pictures(p, page)
@@ -2916,15 +3630,17 @@ def parse_docx(data: bytes) -> ParseResult:
     # A note no visible reference points at — its reference deleted, hidden or moved
     # away — is not text the document shows, so it is not read (review 2026-10-16).
     # ponytail: a note referenced only from a header or footer is not read either.
+    _mark_contents(segments)
     for part, text in aux("headers and footers", lambda: _docx_furniture(document), []):
         emit(text, EvidenceSourceType.OTHER, None, metadata={"part": part})
 
     status = (ExtractionStatus.COMPLETE if segments else ExtractionStatus.FAILED)
     diagnostics = [] if segments else ["DOCX contained no extractable text"]
     if segments and pagination_source:
-        diagnostics = [*diagnostics,
-                       "pages from the document's own pagination record "
-                       f"({pagination_source})"]
+        diagnostics = [*diagnostics, (
+            f"pages as LibreOffice lays the file out ({pagination_source})"
+            if pagination_source == DOCX_LIBREOFFICE_RENDER else
+            f"pages from the document's own pagination record ({pagination_source})")]
     diagnostics += unread
     comments = aux("comments", lambda: _docx_part_xml(document, RT.COMMENTS), None)
     if comments is not None and (count := len(comments.findall(_W + "comment"))):
@@ -2960,14 +3676,30 @@ def parse_docx(data: bytes) -> ParseResult:
                        pages_total=total_pages if pagination_source else 0,
                        pages_extracted=pages_extracted,
                        diagnostics=diagnostics,
-                       pagination_source=pagination_source if segments else None)
+                       pagination_source=pagination_source if segments else None,
+                       # the LibreOffice that laid the pages out, recorded with the run
+                       reader={"libreoffice_version": renderer} if renderer else {})
 
 
 _MARKDOWN_HEADING = re.compile(r"^[ \t]{0,3}#{1,6}[ \t]+", re.MULTILINE)
 _MARKDOWN_RULE = re.compile(r"^[ \t]{0,3}(?:[-*_][ \t]*){3,}$", re.MULTILINE)
 
 
-def parse_text(data: bytes) -> ParseResult:
+#: `legalmind-ingest-v11` (Batch 1): a Word->Markdown export's marks, Markdown only — a
+#: heading mark after the clause number ("12. ## **TITLE**"), emphasis ``**`` and the
+#: CommonMark backslash escapes ("\-", "\["). Never ``~~`` / ``[..]{.insertion}`` change
+#: marks (AM-157) nor an underscore run (a blank, AM-324 r3).
+_MARKDOWN_NUMBERED_HEADING = re.compile(r"^([ \t]*\d+(?:\.\d+)*\.?)[ \t]+#{1,6}[ \t]+",
+                                        re.MULTILINE)
+_MARKDOWN_ESCAPE = re.compile(r"\\([!-/:-@\[-`{-~])")
+
+
+def _markdown_plain(text: str) -> str:
+    text = _MARKDOWN_NUMBERED_HEADING.sub(r"\1 ", text).replace("**", "")
+    return _MARKDOWN_ESCAPE.sub(r"\1", text)
+
+
+def parse_text(data: bytes, markdown: bool = False) -> ParseResult:
     """Plain text and Markdown, through the same segmenter as everything else.
 
     `segment_paragraphs` was already source-agnostic — it takes text, a page and a
@@ -2980,12 +3712,17 @@ def parse_text(data: bytes) -> ParseResult:
     and left in place `## 5. Liability` is not a clause number to `detect_clause_number`
     — the numbering the document itself states is what locked 34.12 preserves, and a
     `#` is not part of it. Nothing else about the text is altered: no list
-    renumbering, no emphasis stripping, no link rewriting.
+    renumbering, no link rewriting. ``markdown`` (a .md upload, never .txt): also a
+    heading mark after the number, ``**`` emphasis and backslash escapes
+    (`_markdown_plain`, ingest-v11) — offsets then refer to that text, as for the
+    heading strip.
     """
     try:
         text = data.decode("utf-8")
     except UnicodeDecodeError as exc:
         raise ParseError("text could not be decoded as UTF-8") from exc
+    if markdown:
+        text = _markdown_plain(text)
     text = _MARKDOWN_RULE.sub("", _MARKDOWN_HEADING.sub("", text))
     segments = segment_paragraphs(text, page_number=None,
                                   source_type=EvidenceSourceType.NATIVE_TEXT,
@@ -2998,14 +3735,17 @@ def parse_text(data: bytes) -> ParseResult:
 
 
 def parse(data: bytes, mime_type: str, *, defer_ocr: bool = False,
-          ocr: bool = True, docling: bool | None = None) -> ParseResult:
+          ocr: bool = True, docling: bool | None = None,
+          render_pages: bool = False) -> ParseResult:
     try:
         if mime_type == PDF_MIME:
             return parse_pdf(data, defer_ocr=defer_ocr, ocr=ocr, docling=docling)
         if mime_type == DOCX_MIME:
-            return parse_docx(data)  # a DOCX is text-native; OCR never applies
+            # a DOCX is text-native; OCR never applies
+            return parse_docx(data, render_pages=render_pages)
         if mime_type in TEXT_MIME_TYPES:
-            return parse_text(data)  # no pages, no OCR, no embedded objects
+            # no pages, no OCR, no embedded objects
+            return parse_text(data, markdown=mime_type == MARKDOWN_MIME)
     except ParseError:
         raise
     except Exception as exc:

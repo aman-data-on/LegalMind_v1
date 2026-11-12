@@ -35,7 +35,12 @@ from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
 from legalmind.api.envelope import data, paginated
 from legalmind.api.errors import BusinessRuleRejected, Conflict
 from legalmind.api.pagination import Page, page_params
-from legalmind.api.routers.contracts import _list_summaries, _scoped_contracts
+from legalmind.api.routers.contracts import (
+    _deal_counts,
+    _list_summaries,
+    _scoped_contracts,
+    negotiation_stages,
+)
 from legalmind.api.schemas import CounterpartyCreate, CounterpartyUpdate
 from legalmind.api.serializers import (
     PROFILE_FIELDS,
@@ -45,17 +50,17 @@ from legalmind.api.serializers import (
 )
 from legalmind.db import models as M
 from legalmind.domain import enums as E
+from legalmind.domain.client_profile import FINAL_SIGNED
 from legalmind.security import audit
 from legalmind.security import permissions as P
+from legalmind.security.authorization import can_read_contract
 from legalmind.security.errors import NotVisible
 
 router = APIRouter(tags=["counterparties"], route_class=CommitBeforeResponse)
 
-#: The one version role that means "executed". Named once: the Client Profile's
-#: "signed documents" count, the per-document signed flag and the version list's
-#: badge must all agree about what signed means, and three literals in three
-#: places is how they stop agreeing.
-FINAL_SIGNED = "FINAL_SIGNED"
+#: FINAL_SIGNED, the one version role that means "executed", is named once
+#: (`domain.client_profile`): the Client Profile's "signed documents" count, the
+#: per-document signed flag and the version list's badge must all agree about it.
 
 #: List orderings the client directory offers. An allow-list, per 49.6's rule
 #: that filtering and ordering are never arbitrary field access.
@@ -130,6 +135,16 @@ def _readable_contracts(guard: Guard) -> Select:
     return select(M.Contract).where(M.Contract.id.in_(ids))
 
 
+def _through_a_readable_contract(guard: Guard, counterparty_id: UUID) -> bool:
+    """B12, `AM-42` r6 "rooted in the Contract": a contract the caller may read on any
+    basis — a lawyer's Legal scope (`AM-288`) included — shows its client. Its profile
+    lists only what `_readable_contracts` lets them open; nothing else is widened.
+    ponytail: one read check per linked contract; bounded by one client's contracts."""
+    linked = guard.db.execute(select(M.Contract).where(
+        M.Contract.counterparty_id == counterparty_id)).scalars()
+    return any(can_read_contract(guard.db, guard.user_id, c) for c in linked)
+
+
 def _readable(guard: Guard, counterparty_id: UUID) -> M.Counterparty:
     """A counterparty outside the caller's scope is a 404, byte-identical to one
     that does not exist (49.5 r1) — the same answer `guard.contract` gives.
@@ -139,7 +154,8 @@ def _readable(guard: Guard, counterparty_id: UUID) -> M.Counterparty:
     """
     guard.permission(P.CONTRACT_VIEW)
     row = (guard.db.get(M.Counterparty, counterparty_id)
-           if counterparty_id in set(_all_visible_ids(guard)) else None)
+           if counterparty_id in set(_all_visible_ids(guard))
+           or _through_a_readable_contract(guard, counterparty_id) else None)
     if row is None:
         raise NotVisible("counterparty not found")
     return row
@@ -160,13 +176,14 @@ def _client_stats(guard: Guard, ids: list[UUID]) -> dict[UUID, dict[str, Any]]:
     each may only count what they may open. Deriving it from the scoped
     statement makes that structural rather than remembered.
 
-    Three page-bounded queries, no N+1. `signed_documents` counts DOCUMENTS (a
-    contract with at least one executed version), not versions — "how many of
-    our agreements with this client are signed?" is the question a non-legal
-    reader is asking, and a contract with two signed versions is still one
-    signed agreement.
+    Three page-bounded queries. `signed_documents` counts DOCUMENTS (a contract with at
+    least one executed version, signed before `AM-318`), `final_documents` the Final ones
+    (`AM-318`), not versions: "how many of our agreements with this client are
+    settled?" is the question a non-legal reader is asking, and a contract with two
+    signed versions is still one signed agreement.
     """
-    empty = {"documents": 0, "signed_documents": 0, "last_activity": None}
+    empty = {"documents": 0, "signed_documents": 0, "final_documents": 0,
+             "last_activity": None}
     if not ids:
         return {}
     stats: dict[UUID, dict[str, Any]] = {i: dict(empty) for i in ids}
@@ -200,11 +217,18 @@ def _client_stats(guard: Guard, ids: list[UUID]) -> dict[UUID, dict[str, Any]]:
         .where(M.DocumentVersion.contract_id.in_(list(owner_of)))
         .group_by(M.DocumentVersion.contract_id)
     ).all()
+    from legalmind.api.routers.amendments import final_copy  # circular at import
     for contract_id, newest, signed in version_rows:
         entry = stats[owner_of[contract_id]]
         entry["last_activity"] = _later(entry["last_activity"], newest)
         if signed:
             entry["signed_documents"] += 1
+        # AM-318: "Final" counted as the Contracts list's Final filter counts it; a deal
+        # signed before AB-171 stays in signed_documents only (verifier item 7).
+        # ponytail: one query pair per unsigned contract; a stored stage is the upgrade
+        # if a client holds hundreds of deals.
+        elif final_copy(guard.db, contract_id) is not None:
+            entry["final_documents"] += 1
     return stats
 
 
@@ -339,6 +363,7 @@ def list_counterparties(
             entry = tally.get(row.id, {})
             item["documents"] = entry.get("documents", 0)
             item["signed_documents"] = entry.get("signed_documents", 0)
+            item["final_documents"] = entry.get("final_documents", 0)
             item["last_activity"] = _iso(entry.get("last_activity"))
         payload.append(item)
     return paginated(payload, page=page.page, page_size=page.page_size, total=total)
@@ -450,23 +475,33 @@ def get_counterparty(counterparty_id: UUID,
 
     summaries = _list_summaries(guard, [c.id for c in contracts])
     versions_by_contract = _versions_for(guard, [c.id for c in contracts])
+    # the deal stage the contract page shows, so both screens say the same word
+    stages = negotiation_stages(guard, list(contracts))
+    counts = _deal_counts(guard, list(contracts))       # AM-291: as the Contracts list
     items = []
     for contract in contracts:
         item = serialize_contract(contract)
         item.update(summaries.get(contract.id,
                                   {"latest_version": None, "latest_analysis": None}))
         versions = versions_by_contract.get(contract.id, [])
+        if contract.id in stages:
+            item["negotiation_stage"] = stages[contract.id]
+        item["counts"] = counts[contract.id]
         if P.DOCUMENT_VIEW in guard.permissions:
             item["versions"] = versions
             item["version_count"] = len(versions)
             item["signed"] = any(v.get("version_role") == FINAL_SIGNED
                                  for v in versions)
+            # AM-318: Final — the deal cycle's end (a final copy Legal signed off)
+            item["final"] = item["signed"] or stages.get(
+                contract.id, {}).get("stage") == "FINAL"
         items.append(item)
     payload["contracts"] = items
 
     entry = _client_stats(guard, [counterparty_id]).get(counterparty_id, {})
     payload["documents"] = entry.get("documents", 0)
     payload["signed_documents"] = entry.get("signed_documents", 0)
+    payload["final_documents"] = entry.get("final_documents", 0)
     payload["last_activity"] = _iso(entry.get("last_activity"))
     return data(payload)
 

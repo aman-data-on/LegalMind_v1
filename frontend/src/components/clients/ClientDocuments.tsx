@@ -26,6 +26,7 @@
  * immutability), and this list makes that visible rather than merely true.
  */
 
+import { Plus } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -48,15 +49,10 @@ import { Dialog } from "@/components/Dialog";
 import {
   documentStatusBucket,
   relativeTime,
-  STATUS_BUCKET_LABEL,
-  type DocumentStatusBucket,
+  stageViewer,
 } from "@/components/workspace/model";
-import {
-  IconAlertCircle,
-  IconCheckCircle,
-  IconChevronRight,
-  IconClock,
-} from "@/components/workspace/icons";
+import { CountsCell, StageBadge } from "@/components/workspace/StageBadge";
+import { IconChevronRight } from "@/components/workspace/icons";
 
 import { currentVersion, typesPresent, shortDate } from "./model";
 import { LinkExistingDocuments } from "./LinkExistingDocuments";
@@ -252,9 +248,7 @@ function RemoveFromClientDialog({
       <h2 id="ws-cl-docremove-title">Remove this document from the client?</h2>
       <p className="ws-modal__body"><strong>{contract.name}</strong></p>
       <p className="ws-modal__body">
-        This only removes it from this client&rsquo;s list. The document itself,
-        its versions, findings and audit trail are unchanged — it becomes
-        unlinked, exactly like a document that was never linked to a client.
+        This only removes the link. The document, its versions, findings and history are unchanged.
       </p>
       {error ? (
         <p className="ws-field__error" role="alert">{describeError(error)}</p>
@@ -300,9 +294,7 @@ function DeleteDocumentDialog({
       <h2 id="ws-cl-docdel-title">Delete this document permanently?</h2>
       <p className="ws-modal__body"><strong>{contract.name}</strong></p>
       <p className="ws-modal__body">
-        This cannot be undone. The document, every version, and any findings,
-        evaluations and legal decisions on it are destroyed. If you may want
-        this back, remove it from the client instead — that keeps the document.
+        This cannot be undone. The document, every version, its findings and legal decisions are deleted. To keep it, remove it from the client instead.
       </p>
       {error ? (
         <p className="ws-field__error" role="alert">{describeError(error)}</p>
@@ -318,43 +310,18 @@ function DeleteDocumentDialog({
   );
 }
 
-const STATUS_ICON: Record<DocumentStatusBucket, React.ReactNode> = {
-  draft: <IconClock size={13} />,
-  analyzing: <span className="ws-spin" aria-hidden="true" />,
-  needs_attention: <IconAlertCircle size={13} />,
-  analyzed: <IconCheckCircle size={13} />,
-};
-
 /** The columns, in one place — the header renders them and so does the
  *  empty row's colspan, which must match or the table's footer detaches.
  *
- *  "Agreement stage" and "Review status" are deliberately separate columns
- *  (owner, 2026-09-18): the first is what the negotiation reached — a fact
- *  about the FILE (`version_role`, declared per version) — and the second is
- *  what LegalMind's review found — a judgement about the CONTENT (`AM-56`'s
- *  three reader words). A document can be `Final signed` and still `Needs
- *  attention`; stacking those in one "Status" cell answered the wrong
- *  question half the time. */
+ *  "Agreement stage" and "Changes and points" are deliberately separate columns
+ *  (owner, 2026-09-18): where the negotiation stands, and what is still open in
+ *  it — the client's changes and the points against our standard. Since Batch 1
+ *  (c) both cells are the Contracts list's own (`StageBadge`, `CountsCell`), so
+ *  a client's page and the list never word one deal two ways. */
 const COLUMNS = [
-  "Document", "Type", "Agreement stage", "Review status", "Versions",
+  "Document", "Type", "Agreement stage", "Changes and points", "Versions",
   "Last updated", "",
 ] as const;
-
-/**
- * Whether any Finding under this document specifically needs a human
- * decision — the sharpest of the three AM-56 reader statuses, and the one
- * "Needs attention" alone does not distinguish from an ordinary deviation.
- *
- * Deliberately no number here (owner, 2026-09-19): the main row states a
- * fact ("this needs a decision"), not a count to skim-read as a severity
- * score — the detailed breakdown, with its counts, is one click away in the
- * Review itself. Reads `user_status_counts` — already computed and sent by
- * the server (`AM-56`) — rather than deriving anything new.
- */
-function needsDecision(contract: ClientContract): boolean {
-  const counts = contract.latest_analysis?.user_status_counts;
-  return Boolean(counts && (counts.NEEDS_DECISION ?? 0) > 0);
-}
 
 /** One version, under its document. The role is the reader's own words
  *  ("Company draft" / "Client modified" / "Final signed") and simply absent
@@ -370,17 +337,19 @@ function VersionRow({
   const { can } = useSession();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
-  const role = versionRoleLabel(version.version_role);
+  // a final contract reads "Final" here as on the contract page (verifier item 7)
+  const role = version.final_copy || version.package ? "Final" : versionRoleLabel(version.version_role);
 
   async function download() {
     setBusy(true);
     setError(null);
     try {
-      const blob = await api.documentContentBlob(version.id);
+      // the server's name for it: the contract and the version, not the upload's (M-UI)
+      const { blob, name } = await api.replyFile(version.id, "content");
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = version.original_filename;
+      link.download = name ?? version.original_filename;
       link.click();
       URL.revokeObjectURL(url);
     } catch (cause) {
@@ -392,7 +361,7 @@ function VersionRow({
 
   return (
     <li className="ws-cl__ver">
-      <span className="ws-cl__ver-n ws-mono">v{version.version_number}</span>
+      <span className="ws-cl__ver-n ws-num">v{version.version_number}</span>
       <span className="ws-cl__ver-main">
         {role ? (
           <span className={`ws-cl__role ws-cl__role--${versionRoleTone(version.version_role)}`}>
@@ -472,13 +441,17 @@ function RoleControl({ version, onChanged }: {
         <select value={version.version_role ?? ""} disabled={busy}
                 title="What this version is in the negotiation"
                 onChange={(event) => void choose(event.target.value)}>
-          <option value="">Not classified</option>
+          {/* the prompt, not a value: "Not classified" in the select repeated the row's own
+              word for it; once a role is set, choosing this clears it */}
+          <option value="">{version.version_role ? "Clear what it is" : "Set what it is…"}</option>
           {/* Short labels, deliberately. A native select renders the SELECTED
               option's full text, so "Final signed — what was executed" made
               this control the widest thing in the row and then truncated it
               anyway. The three hints are stated once, in the panel note above
               the list, where they are read rather than clipped. */}
-          {VERSION_ROLES.map((role) => (
+          {/* AM-318 B8: never declared signed here; a legacy signed copy keeps its label */}
+          {VERSION_ROLES.filter((role) => role.role !== "FINAL_SIGNED"
+                                || version.version_role === "FINAL_SIGNED").map((role) => (
             <option key={role.role} value={role.role}>{role.label}</option>
           ))}
         </select>
@@ -532,9 +505,12 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
   }
 
   const analyzed = bucket === "analyzed" || bucket === "needs_attention";
+  const primaryShown = (!!current && !analyzed && !contract.signed && can(P.REVIEW_CREATE)) || !!analyzed;
+  const menuShown = (can(P.CONTRACT_UPDATE) || can(P.CONTRACT_ARCHIVE) || can(P.DOCUMENT_UPLOAD)) && isMine;
   return (
     <>
-      <tr className={bucket === "needs_attention" ? "ws-tr--attention" : undefined}>
+      {/* B3 p5: no unexplained row rule — the status in the row says it */}
+      <tr>
         <td>
           {/* `title` keeps the full name reachable when the CSS below clamps
               a long one to two lines — a hover/long-press affordance, not a
@@ -547,7 +523,7 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
             <span className="ws-chip">Archived</span>
           ) : null}
         </td>
-        <td>
+        <td data-label="Type">
           {contract.contract_type ? (
             // The SHORT form in the cell, the full label as its title: a column
             // is no place for "PRIVACY_POLICY", and an underscore is not a word.
@@ -559,13 +535,19 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
             <span className="ws-cl__absent">Not recorded</span>
           )}
         </td>
-        <td>
+        <td data-label="Agreement stage">
           {/* The CURRENT version's declared role — the same badge VersionRow
               already draws below, just surfaced here so a reader never has to
               open history to learn whether this is a draft or the executed
               copy. Same helper, same tone rule (DD-18 §3): only `FINAL_SIGNED`
               carries colour, the rest read by their text alone. */}
-          {current && currentRole ? (
+          {/* the deal stage the contract page shows (Drafting · With Legal · …), so the two
+              screens never disagree; the declared role is what a version row says */}
+          {/* Batch 1 (c): the /contracts row's own badge and counts, byte for byte */}
+          {contract.negotiation_stage ? (
+            <StageBadge stage={contract.negotiation_stage} counts={contract.counts}
+                        viewer={stageViewer(can, isMine)} showDays={false} />
+          ) : current && currentRole ? (
             <span className={`ws-cl__role ws-cl__role--${versionRoleTone(current.version_role)}`}>
               {currentRole}
             </span>
@@ -573,26 +555,10 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
             <span className="ws-cl__absent">Not classified</span>
           )}
         </td>
-        <td className="ws-cl__reviewcell">
-          {/* "Needs decision" is a refinement WITHIN the "Needs attention"
-              bucket (`documentStatusBucket` sets that bucket for ANY non-
-              ACCEPTABLE finding, `NEEDS_DECISION` included), never a
-              different or independent condition — so showing both read as
-              the same fact said twice (owner, 2026-09-22). The sharper word
-              replaces the generic one only in that one case; a document
-              whose only issue is REQUIRES_MODIFICATION still reads "Needs
-              attention" exactly as before, since that bucket has no sharper
-              word of its own to offer. Every other bucket (Draft, Analyzing,
-              No issues) is untouched. */}
-          {bucket === "needs_attention" && needsDecision(contract) ? (
-            <span className="ws-cl__decision">Needs decision</span>
-          ) : (
-            <span className={`ws-status-pill ws-status-pill--${bucket}`}>
-              {STATUS_ICON[bucket]} {STATUS_BUCKET_LABEL[bucket]}
-            </span>
-          )}
+        <td data-label="Changes and points">
+          <CountsCell contract={contract} viewer={stageViewer(can, isMine)} />
         </td>
-        <td>
+        <td data-label="Versions">
           {versions.length > 0 ? (
             <button type="button" className="ws-cl__vertoggle"
                     aria-expanded={open} aria-controls={panelId}
@@ -610,11 +576,12 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
             <span className="ws-cl__absent">No file yet</span>
           )}
         </td>
-        <td className="ws-mono">{relativeTime(contract.updated_at)}</td>
+        <td data-label="Last updated" className="ws-num">{relativeTime(contract.updated_at)}</td>
         <td className="ws-cl__rowacts">
           {/* Analyze where there is a document and no analysis; Review where
               there is one. One control, saying which it is. */}
-          {current && !analyzed && can(P.REVIEW_CREATE) ? (
+          {/* a signed contract's current version is its signed copy: filed, never analysed */}
+          {current && !analyzed && !contract.signed && can(P.REVIEW_CREATE) ? (
             <button type="button" className="ws-btn ws-btn--sm"
                     onClick={() => void analyze()} disabled={analyzing}>
               {analyzing ? "Analyzing…" : "Analyze"}
@@ -622,13 +589,23 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
           ) : null}
           {analyzed ? (
             <Link className="ws-btn ws-btn--sm" href={`/dashboard?id=${contract.id}`}>
-              Review
+              Open
             </Link>
+          ) : null}
+          {/* §B3-P5/§FINAL: a contract with no file yet gets its one act; "No file yet" is the Versions column's */}
+          {versions.length === 0 && isMine && can(P.DOCUMENT_UPLOAD) && !contract.archived_at ? (
+            <>
+              <button type="button" className="ws-btn ws-btn--sm ws-btn--primary"
+                      onClick={() => onUploadNewVersion(contract.id)}>Upload</button>
+            </>
+          ) : versions.length === 0 ? (
+            <Link className="ws-btn ws-btn--sm" href={`/dashboard?id=${contract.id}`}>Open</Link>
           ) : null}
           {/* The existing comparison, in the workspace that owns it — only
               where there are two versions to compare. Never a control that
               opens onto nothing. */}
-          {versions.length > 1 ? (
+          {/* one button and ⋯ per row (re-review R3): beside Analyze/Review, Compare is a menu item */}
+          {versions.length > 1 && !(menuShown && primaryShown) ? (
             <Link className="ws-btn ws-btn--sm"
                   href={`/dashboard?id=${contract.id}&compare=1`}>
               Compare
@@ -638,9 +615,13 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
               needs CONTRACT_UPDATE, removing/deleting need CONTRACT_ARCHIVE
               (the same grant `AM-55` already gates the permanent delete
               with), both additionally scoped to the caller's own document. */}
-          {(can(P.CONTRACT_UPDATE) || can(P.CONTRACT_ARCHIVE) || can(P.DOCUMENT_UPLOAD))
-           && isMine ? (
+          {menuShown ? (
             <DocMenu label={`More actions for ${contract.name}`}>
+              {versions.length > 1 && primaryShown ? (
+                <Link role="menuitem" className="ws-menu__item" href={`/dashboard?id=${contract.id}&compare=1`}>
+                  Compare versions
+                </Link>
+              ) : null}
               {can(P.CONTRACT_UPDATE) && !contract.archived_at ? (
                 <button type="button" role="menuitem" className="ws-menu__item"
                         onClick={() => setEditingDoc(true)}>
@@ -653,7 +634,9 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
                   Gated like the panel gates a new version: DOCUMENT_UPLOAD,
                   and the contract must not be archived (a write the server
                   would otherwise refuse with 409). */}
-              {can(P.DOCUMENT_UPLOAD) && !contract.archived_at ? (
+              {/* a signed contract takes no new version (409): changes go in an amendment */}
+              {can(P.DOCUMENT_UPLOAD) && !contract.archived_at
+                && !versions.some((v) => v.version_role === "FINAL_SIGNED") ? (
                 <button type="button" role="menuitem" className="ws-menu__item"
                         onClick={() => onUploadNewVersion(contract.id)}>
                   Upload new version
@@ -688,10 +671,9 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
           <td colSpan={COLUMNS.length}>
             <div id={panelId} className="ws-cl__vers">
               <p className="ws-pane__note">
-                Newest first. Every version is kept — uploading a revision never
-                replaces the one before it. <strong>Company draft</strong> is
-                what we sent, <strong>Client modified</strong> is what came
-                back, and <strong>Final signed</strong> is what was executed.
+                Newest first. A revision never replaces an earlier version. <strong>Our draft</strong> is
+                what we sent, <strong>Client&rsquo;s markup</strong> is what came
+                back, and <strong>Final</strong> is the agreed final contract.
               </p>
               <ul className="ws-cl__verlist">
                 {versions.map((version) => (
@@ -763,7 +745,7 @@ export function ClientDocuments({ client, onChanged }: {
       <header className="ws-cl__docs-head">
         <h2 id="ws-cl-docs-title">Legal documents</h2>
         {contracts.length > 0 ? (
-          <span className="ws-cl__docs-count ws-mono">
+          <span className="ws-cl__docs-count ws-num">
             {contracts.length}
           </span>
         ) : null}
@@ -795,7 +777,7 @@ export function ClientDocuments({ client, onChanged }: {
                     setUploadTarget(undefined);
                     setLinkOpen(false);
                   }}>
-            {uploadOpen ? "Close" : "+ Upload document"}
+            {uploadOpen ? "Close" : <><Plus size={16} aria-hidden="true" /> Upload document</>}
           </button>
         ) : null}
       </header>
@@ -818,13 +800,12 @@ export function ClientDocuments({ client, onChanged }: {
         <div className="ws-state">
           <h3>No legal documents for this client yet.</h3>
           <p>
-            Upload a document to start building this client&rsquo;s legal record —
-            or link one that is already in LegalMind.
+            Upload a document, or link one already in LegalMind.
           </p>
           {canUpload && !uploadOpen ? (
             <button type="button" className="ws-btn ws-btn--primary"
                     onClick={() => setUploadOpen(true)}>
-              + Upload document
+              <Plus size={16} aria-hidden="true" /> Upload document
             </button>
           ) : null}
         </div>
@@ -837,8 +818,7 @@ export function ClientDocuments({ client, onChanged }: {
         <div className="ws-cl__table ws-cl__table--docs">
           <table>
             <caption className="ws-visually-hidden">
-              Every legal document for {client.name}, in one list. Document type
-              is shown in its own column and is not a grouping.
+              Legal documents for {client.name}
             </caption>
             <thead>
               <tr>

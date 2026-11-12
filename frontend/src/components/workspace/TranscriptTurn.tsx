@@ -215,6 +215,8 @@ function signal(messageId: string, kind: FeedbackKind) {
   const key = `${messageId}:${kind}`;
   if (sent.has(key)) return;
   sent.add(key);
+  // evaluation-only signals (copy, cite click, quick close): nothing the reader sees depends
+  // on them, so a lost one is not the reader's problem — deliberately quiet
   void feedback(messageId, kind).catch(() => undefined);
 }
 

@@ -44,9 +44,10 @@ import { useCallback, useEffect, useState } from "react";
 import { ChevronRight, Plus, Upload } from "lucide-react";
 
 import { AccessRestricted, PermissionGate } from "@/components/AccessRestricted";
+import { PageHeader } from "@/components/page/PageHeader";
 import { StandardForm } from "@/components/configuration/StandardForm";
 import { Checkbox } from "@/components/ui/checkbox";
-import { EmptyState, ErrorBanner, Loading } from "@/components/Feedback";
+import { ErrorBanner, ErrorState, Loading, LoadingState } from "@/components/Feedback";
 import { Field, formatDate } from "@/components/Primitives";
 import { api } from "@/lib/api";
 import * as P from "@/lib/permissions";
@@ -57,6 +58,7 @@ import {
   type RequirementFilters,
 } from "@/lib/requirementFilter";
 import { useSession } from "@/lib/session";
+import { requirementFamily, requirementTitle } from "@/components/workspace/findingLanguage";
 import type {
   ConfigurationSnapshot,
   Requirement,
@@ -73,7 +75,7 @@ export default function ConfigurationPage() {
   const [publishing, setPublishing] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
-  const [sort, setSort] = useState("code");
+  const [sort, setSort] = useState("name");
   const [filters, setFilters] = useState<RequirementFilters>(NO_FILTERS);
 
   // Only for an account that may see it — no refused request before "Access
@@ -95,12 +97,20 @@ export default function ConfigurationPage() {
   }, [load]);
 
   const plan = publishPlan(requirements, selected);
-  const shown = sortRequirements(filterRequirements(requirements, filters), sort);
+  const shown = sortRequirements(filterRequirements(requirements, filters), sort, stdName);
   const filtering = isFiltered(filters);
   const setFilter = (key: keyof RequirementFilters) => (value: string) =>
     setFilters((current) => ({ ...current, [key]: value }));
 
-  if (!allowed) return <AccessRestricted what="legal configuration" />;
+  // The page keeps its h1 when access is refused; AccessRestricted itself stays an h2 note.
+  if (!allowed) {
+    return (
+      <div className="lm-page">
+        <PageHeader title="Standards" />
+        <AccessRestricted what="legal configuration" />
+      </div>
+    );
+  }
 
   async function createRequirement(event: React.FormEvent) {
     event.preventDefault();
@@ -133,54 +143,36 @@ export default function ConfigurationPage() {
   }
 
   return (
-    <div className="ws-admin">
+    <div className="lm-page ws-admin">
       {/*
         The same shell Administration uses — head, filter bar, one table — because
         this screen was the only one still stacking a card per row. At 40 ratified
         standards that is a scroll, not a screen, and a reader who has learned one
         list in this product had to learn a second one here.
       */}
-      <header className="ws-admin__head">
-        <div>
-          {/* The nav has always called this "Standards"; the page called itself
-              "Legal configuration", so the one word a reader arrives with did not
-              appear on the page they arrived at. */}
-          <h1>Standards</h1>
-          <p className="ws-pane__note">
-            The positions this organization measures every contract against. Changes
-            are versioned and reach no Review until they are published.
-          </p>
-        </div>
-        <div className="ws-detail__acts">
-          {/* Publishing lived at the BOTTOM of the page, so reaching it meant
-              scrolling past every standard. It is an act, like creating one, and
-              belongs beside the other act. */}
-          <PermissionGate granted={can(P.CONFIGURATION_PUBLISH)}>
-            <button
-              type="button"
-              className="ws-btn ws-btn--icon"
-              aria-expanded={publishOpen}
-              onClick={() => { setPublishOpen((open) => !open); setCreateOpen(false); }}
-            >
-              <Upload size={16} />
-              Publish snapshot
-            </button>
-          </PermissionGate>
-          <PermissionGate granted={can(P.CONFIGURATION_DRAFT)}>
-            <button
-              type="button"
-              className="ws-btn ws-btn--primary ws-btn--icon"
-              aria-expanded={createOpen}
-              onClick={() => { setCreateOpen((open) => !open); setPublishOpen(false); }}
-            >
-              <Plus size={16} />
-              New standard
-            </button>
-          </PermissionGate>
-        </div>
-      </header>
+      {/* The house page header. The nav calls this "Standards", so the page does too. */}
+      <PageHeader title="Standards"
+                  meta={<span>The positions every contract is measured against. A change applies only once it is published.</span>}
+                  secondary={(
+                    <PermissionGate granted={can(P.CONFIGURATION_PUBLISH)}>
+                      <button type="button" className="ws-btn ws-btn--icon" aria-expanded={publishOpen}
+                              onClick={() => { setPublishOpen((open) => !open); setCreateOpen(false); }}>
+                        <Upload size={16} />
+                        Publish a new version
+                      </button>
+                    </PermissionGate>
+                  )}
+                  primary={(
+                    <PermissionGate granted={can(P.CONFIGURATION_DRAFT)}>
+                      <button type="button" className="ws-btn ws-btn--primary ws-btn--icon" aria-expanded={createOpen}
+                              onClick={() => { setCreateOpen((open) => !open); setPublishOpen(false); }}>
+                        <Plus size={16} />
+                        New standard
+                      </button>
+                    </PermissionGate>
+                  )} />
 
-      <ErrorBanner error={error} />
+      {requirements !== null ? <ErrorBanner error={error} /> : null}{/* GP-3: a failed list load is said below */}
 
       {/* The same inline-create shape Administration uses (`ws-intake`), so a
           reader who has added an account already knows this form. */}
@@ -202,10 +194,7 @@ export default function ConfigurationPage() {
             </label>
           </div>
           <p className="ws-field__help">
-            The code names the position, not the document — it is how fixtures,
-            snapshots and explanations refer to it. A new standard starts as a draft:
-            it carries no version, affects no Review, and appears in nothing until it
-            is given one and published.
+            A new standard starts as a draft and affects no review until it is published.
           </p>
           <div className="ws-detail__acts">
             <button type="button" className="ws-btn" onClick={() => setCreateOpen(false)}>
@@ -221,13 +210,9 @@ export default function ConfigurationPage() {
       {publishOpen ? (
         <PermissionGate granted={can(P.CONFIGURATION_PUBLISH)}>
           <section className="ws-intake">
-            <h2 className="ws-intake__title">Publish a configuration snapshot</h2>
+            <h2 className="ws-intake__title">Publish a new version of our standards</h2>
             <p className="ws-pane__note">
-              Publishing activates the named draft Requirements and pins the latest
-              version of every active Requirement into an immutable snapshot. If any
-              active Requirement is missing its Company Standard, mapping rules or
-              evaluation rules, publishing is refused rather than producing a snapshot
-              that silently skips it.
+              Publishing saves every active Requirement into a new version that never changes. It is refused if one is missing its Company Standard, mapping rules or evaluation rules.
             </p>
             {/*
               A checkbox list, not a comma-separated field. Activating the AB-20 batch
@@ -246,14 +231,12 @@ export default function ConfigurationPage() {
                   <p className="ws-pane__note">
                     Nothing is in draft. Publishing now re-pins the{" "}
                     {plan.active.length} already-active Requirement
-                    {plan.active.length === 1 ? "" : "s"} into a fresh snapshot.
+                    {plan.active.length === 1 ? "" : "s"} into a new version.
                   </p>
                 ) : (
                   <>
                     <p className="ws-pane__note">
-                      Ticking a Requirement activates it (DRAFT &rarr; ACTIVE) and pins it
-                      into this snapshot. Leaving everything unticked publishes the
-                      active configuration as it stands.
+                      Ticked Requirements become active in this version. Leave all unticked to republish the active set.
                     </p>
                     {/* SELECT ALL — 39 individual ticks is the tedium the bulk-action
                         guideline names, and the owner hit it publishing AB-25. Buttons,
@@ -303,7 +286,8 @@ export default function ConfigurationPage() {
                               }
                             />
                             <label htmlFor={`publish-${requirement.code}`} className="ws-check__label">
-                              {requirement.code}
+                              {stdName(requirement)}{" "}
+                              <span className="ws-pane__note">{requirement.code}</span>
                               {blocked ? (
                                 /* Activating this makes it ACTIVE, and the publish then
                                    fails on "no version" — refusing the WHOLE snapshot,
@@ -322,14 +306,12 @@ export default function ConfigurationPage() {
               <details className="ws-formsec">
                 <summary>Already active — {plan.active.length}</summary>
                 <p className="ws-pane__note">
-                  Every one is pinned into the snapshot whether or not anything above is
-                  ticked. That is what makes a snapshot the whole configuration rather
-                  than a diff.
+                  All of these are in every new version.
                 </p>
                 <ul className="ws-checks">
                   {plan.active.map((requirement) => (
                     <li key={requirement.id} className="ws-check">
-                      <span className="ws-check__label">{requirement.code}</span>
+                      <span className="ws-check__label">{stdName(requirement)}</span>
                     </li>
                   ))}
                 </ul>
@@ -339,14 +321,12 @@ export default function ConfigurationPage() {
                 <details className="ws-formsec">
                   <summary>Retired — {plan.retired.length}</summary>
                   <p className="ws-pane__note">
-                    These cannot be published, and publishing does not bring one back:
-                    reversing a retirement is an owner decision that goes through the
-                    standard file and the record (<code>AM-65</code>).
+                    These cannot be published or brought back from here.
                   </p>
                   <ul className="ws-checks">
                     {plan.retired.map((requirement) => (
                       <li key={requirement.id} className="ws-check">
-                        <span className="ws-check__label">{requirement.code}</span>
+                        <span className="ws-check__label">{stdName(requirement)}</span>
                       </li>
                     ))}
                   </ul>
@@ -369,10 +349,10 @@ export default function ConfigurationPage() {
             </form>
             {snapshot ? (
               <p className="ws-stated">
-                Snapshot <strong className="ws-stated__value">{snapshot.id}</strong> · {snapshot.requirement_count}{" "}
-                Requirement{snapshot.requirement_count === 1 ? "" : "s"} ·{" "}
+                Version <strong className="ws-stated__value">{snapshot.id}</strong> holds{" "}
+                {snapshot.requirement_count} standard{snapshot.requirement_count === 1 ? "" : "s"} and is{" "}
                 {snapshot.reused_existing
-                  ? "identical to an existing snapshot, which was reused"
+                  ? "identical to an existing version, which was reused"
                   : "newly created"}
                 . Use this id when starting a Review.
               </p>
@@ -380,7 +360,7 @@ export default function ConfigurationPage() {
           </section>
         </PermissionGate>
       ) : null}
-      <div className="ws-filter-bar">
+      {requirements === null ? null : <div className="ws-filter-bar">{/* GP-3: filters wait for the list */}
         <label className="ws-field">
           <span className="ws-field__label">Search</span>
           <input
@@ -434,19 +414,19 @@ export default function ConfigurationPage() {
             ))}
           </select>
         </label>
-      </div>
+      </div>}
 
       <div className="ws-admin__body">
         <div className="ws-admin__main">
-          {requirements === null ? (
-            <Loading what="standards" />
-          ) : shown.length === 0 ? (
+          {requirements === null && error ? <ErrorState title="Standards could not be loaded" error={error} onRetry={() => void load()} />
+          : requirements === null ? <LoadingState label="Loading standards…" rows={6} />
+          : shown.length === 0 ? (
             <div className="ws-state">
               <h2>{filtering ? "No standard matches." : "No standards are configured."}</h2>
               <p>
                 {filtering
                   ? "Try a broader filter — search matches the code and every version name."
-                  : "Which Requirements V1 ships with is an open decision, and their content must come from the organization's own legal material."}
+                  : "Standards appear here once Legal adds them."}
               </p>
             </div>
           ) : (
@@ -456,29 +436,31 @@ export default function ConfigurationPage() {
                   ? `Showing ${shown.length} of ${requirements.length} standards.`
                   : `${requirements.length} standard${requirements.length === 1 ? "" : "s"}.`}
               </p>
-              <div className="ws-docs__table">
-                <table>
-                  <thead>
-                    <tr>
-                      <th scope="col">Standard</th>
-                      <th scope="col">Status</th>
-                      <th scope="col">Evaluator</th>
-                      {/* One column, both facts. Two columns reading "1" and the
-                          same date on every row is noise, not information. */}
-                      <th scope="col">Latest version</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {shown.map((requirement) => (
-                      <RequirementRow
-                        key={requirement.id}
-                        requirement={requirement}
-                        onChanged={() => void load()}
-                      />
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              {/* B3 p4: grouped by contract family, each a disclosure — the first open; a
+                  search or filter opens them all */}
+              {groupStandards(shown).map(([family, rows], index) => (
+                <details key={family} className="ws-stdgroup" open={filtering || index === 0}>
+                  <summary>{family} <span className="ws-pane__note">{rows.length}</span></summary>
+                  <div className="ws-docs__table ws-stdtable">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th scope="col">Standard</th>
+                          <th scope="col">Status</th>
+                          <th scope="col">Evaluator</th>
+                          <th scope="col">Latest version</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.map((requirement) => (
+                          <RequirementRow key={requirement.id} requirement={requirement}
+                                          onChanged={() => void load()} />
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </details>
+              ))}
             </>
           )}
         </div>
@@ -486,6 +468,29 @@ export default function ConfigurationPage() {
 
     </div>
   );
+}
+
+/** B3 p4: a standard's plain name — the server's own version name, else words from its code.
+ *  The stored code is untouched; it shows only in the expanded row. */
+function stdName(requirement: Requirement): string {
+  const name = latestVersion(requirement)?.name?.trim();
+  // a name that is itself a code ("ACCEPTANCE-ORDER_FORM-001") is no name to a reader
+  return name && !/^[A-Z0-9_-]+$/.test(name) ? name : requirementTitle({ code: requirement.code });
+}
+
+/** Standards by the contract family their code declares (MSA, NDA…), in the list's order. */
+function groupStandards(rows: Requirement[]): [string, Requirement[]][] {
+  const groups = new Map<string, Requirement[]>();
+  for (const r of rows) {
+    // the declared family (MSA, NDA…), else the contract-type word before the number ("Order form")
+    const parts = r.code.split("-");
+    const raw = requirementFamily({ code: r.code })
+      ?? (parts.length > 2 ? parts[parts.length - 2]! : null);
+    const family = raw && raw.length > 3 ? raw.replace(/_/g, " ").toLowerCase().replace(/^./, (c) => c.toUpperCase()) : raw;
+    const key = family ? `${family} standards` : "Other standards";
+    groups.set(key, [...(groups.get(key) ?? []), r]);
+  }
+  return [...groups.entries()];
 }
 
 function RequirementRow({
@@ -584,21 +589,21 @@ function RequirementRow({
             onClick={() => setExpanded((value) => !value)}
           >
             <ChevronRight size={13} className="ws-std__twist" aria-hidden="true" />
-            {requirement.code}
+            {stdName(requirement)}
           </button>
         </td>
         <td>
           {/* Same rule as the account roster: ACTIVE is the resting state and gets
               no emphasis — a list where every row shouts is a list nobody scans.
               Draft and Retired both mean "not in force", so both carry it. */}
-          <span className={`ws-chip${requirement.status === ACTIVE ? "" : " ws-chip--fill ws-chip--outcome-fill"}`}>
+          <span className={`ws-chip${requirement.status === ACTIVE ? "" : " lm-lozenge"}`}>
             {statusLabel(requirement.status)}
           </span>
         </td>
         <td>{evaluatorLabel(newest?.evaluator_type)}</td>
         <td>
           {newest
-            ? `v${newest.version_number} · ${formatDate(newest.created_at)}`
+            ? `v${newest.version_number}, ${formatDate(newest.created_at)}`
             : "No version yet"}
         </td>
       </tr>
@@ -606,6 +611,7 @@ function RequirementRow({
       {!expanded ? null : (
       <tr className="ws-std__detail">
         <td colSpan={4}>
+      <p className="ws-pane__note">Code: {requirement.code}</p>
       {versions.length === 0 ? (
         <p className="ws-pane__note">No versions yet.</p>
       ) : (
@@ -623,15 +629,15 @@ function RequirementRow({
             <tbody>
               {versions.map((version) => (
                 <tr key={version.id}>
-                  <td>
+                  <td data-label="Version">
                     v{version.version_number}
                     {current && version.id === current.id ? " (current)" : ""}
                   </td>
-                  <td>{version.name}</td>
-                  <td>{evaluatorLabel(version.evaluator_type)}</td>
-                  <td>{formatDate(version.created_at)}</td>
+                  <td data-label="Name">{version.name}</td>
+                  <td data-label="Evaluator">{evaluatorLabel(version.evaluator_type)}</td>
+                  <td data-label="Created">{formatDate(version.created_at)}</td>
                   {showValues ? (
-                    <td>
+                    <td data-label="Stored values">
                       <ValueCell version={version} />
                       <PermissionGate granted={can(P.CONFIGURATION_DRAFT)}>
                         {version.company_standard ? (
@@ -690,7 +696,7 @@ function RequirementRow({
 
       <PermissionGate granted={can(P.CONFIGURATION_DRAFT)}>
         {open ? (
-          <form onSubmit={submit}>
+          <form className="ws-stackform" onSubmit={submit}>
             <ErrorBanner error={error} />
             <label>
               Name
@@ -710,34 +716,35 @@ function RequirementRow({
                   Exactly the two locked evaluator types (AM-16). A third option here
                   would be inventing an evaluator.
                 */}
-                <option value="NUMERIC_COMPARISON">NUMERIC_COMPARISON</option>
-                <option value="PRESENCE">PRESENCE</option>
+                <option value="NUMERIC_COMPARISON">{evaluatorLabel("NUMERIC_COMPARISON")}</option>
+                <option value="PRESENCE">{evaluatorLabel("PRESENCE")}</option>
               </select>
             </label>
             <label>
-              Company Standard (JSON) — the organization&rsquo;s own position
-              <textarea className="code-input" name="company_standard" rows={4} required defaultValue="{}" />
+              Company standard values (JSON; leave empty for none)
+              <textarea className="code-input" name="company_standard" rows={4} />
             </label>
             <label>
-              Mapping rules (JSON)
-              <textarea className="code-input" name="mapping_rules" rows={4} required defaultValue="{}" />
+              How the clause is found (JSON; leave empty for none)
+              <textarea className="code-input" name="mapping_rules" rows={4} />
             </label>
             <label>
-              Evaluation rules (JSON)
-              <textarea className="code-input" name="evaluation_rules" rows={4} required defaultValue="{}" />
+              How it is compared (JSON; leave empty for none)
+              <textarea className="code-input" name="evaluation_rules" rows={4} />
             </label>
             <label>
               Legal Rule type (optional — not every Requirement has one)
               <select name="legal_rule_type" defaultValue="">
                 <option value="">None</option>
-                <option value="THRESHOLD">THRESHOLD</option>
-                <option value="ALLOWED_VALUES">ALLOWED_VALUES</option>
-                <option value="PRESENCE">PRESENCE</option>
+                {/* plain words; the value sent is the code, unchanged */}
+                <option value="THRESHOLD">Minimum or maximum</option>
+                <option value="ALLOWED_VALUES">One of a fixed list</option>
+                <option value="PRESENCE">Must be present</option>
               </select>
             </label>
             <label>
-              Legal Rule configuration (JSON)
-              <textarea className="code-input" name="legal_rule_configuration" rows={3} defaultValue="{}" />
+              Legal Rule settings (JSON — a fixed list stays a JSON list; empty for none)
+              <textarea className="code-input" name="legal_rule_configuration" rows={3} />
             </label>
             <button type="submit" className="ws-btn ws-btn--primary">
               Save draft version

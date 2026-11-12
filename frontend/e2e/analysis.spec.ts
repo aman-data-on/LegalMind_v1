@@ -52,9 +52,14 @@ test.describe("The analysis surface", () => {
     // Where the review stands, in a reviewer's words (AB-103, 2026-10-22): the server's
     // stage — analysed, a point to decide, not yet sent to a reviewer — with the
     // progress beside it. The lifecycle enum is unchanged on the wire.
-    const stage = page.locator('[data-region="findings"] .ws-pane__stage');
-    await expect(stage).toContainText("Not yet sent for review");
-    await expect(stage).toContainText("0 of 1 decided");
+    // CLM Page 2 (AM-291, 2026-11-03): the Points pane no longer carries a stage
+    // header; each point's second line says who has it, and the "Open" filter counts
+    // what is undecided — the same server stage and the same count, one place each.
+    const card = page.locator('[data-region="findings"] article[data-finding-id]').first();
+    await expect(card.locator(".ws-point__who")).toContainText("Not sent to Legal yet");
+    // UX Batch 2: one filter control, "Show points", counted by status (zero counts hidden)
+    await expect(page.getByRole("group", { name: "Show points" })
+      .getByRole("button", { name: "Change needed, 1" })).toBeVisible();
     // The requirement code moved into "How this was determined" (2026-09-08,
     // third pass): a raw identifier is exactly the "internal ID" the manager's
     // report asked off the default-visible surface. It moved one level further
@@ -64,9 +69,14 @@ test.describe("The analysis surface", () => {
     // now — and the assertion is unchanged in substance: the code is still
     // reachable, and still proves the right requirement fired, which is the
     // property this exists for.
+    //
+    // CLM S1 (2026-11-03): the engine's chain — codes included — is Legal details, shown only
+    // to a holder of the legal position and Legal's review; for this owner it is absent. The
+    // property survives as the requirement's NAME on the card (proving the right one fired)
+    // and the code never reaching the owner's screen.
+    await expect(card.getByRole("heading", { name: f.configuration.name })).toBeVisible();
     await page.locator(".ws-determined > summary").first().click();
-    await page.locator(".ws-determined__more > summary").first().click();
-    await expect(page.getByText(f.configuration.requirement_code)).toBeVisible();
+    await expect(page.getByText(f.configuration.requirement_code)).toHaveCount(0);
   });
 
   test("re-submitting reports the existing analysis rather than duplicating it", async ({
@@ -123,7 +133,7 @@ test.describe("The analysis surface", () => {
     // Finding to be reconstructible. The provenance line carries the evaluator
     // version and the evidence count, which is the visible end of that chain.
     await expect(evaluation.locator(".ws-evaluation__provenance")).toContainText(
-      "evidence reference",
+      "passage",
     );
     await expect(evaluation.locator(".ws-evaluation__provenance")).toContainText(
       "NUMERIC-COMPARISON-v1",

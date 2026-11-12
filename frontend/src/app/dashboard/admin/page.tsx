@@ -41,6 +41,12 @@ import {
   dateTime,
 } from "@/components/admin/AdminShell";
 import { UserDetail } from "@/components/admin/UserDetail";
+import { toastFailure } from "@/components/Toast";
+import { ErrorState } from "@/components/Feedback";
+import { AccessRestricted } from "@/components/AccessRestricted";
+import { PageHeader } from "@/components/page/PageHeader";
+import { StackTable } from "@/components/StackTable";
+import { FilterPanel } from "@/components/FilterPanel";
 
 const PAGE_SIZE = 25;
 
@@ -125,9 +131,11 @@ function UsersScreen() {
   // note instead of a grant control — the server would refuse the grant anyway.
   useEffect(() => {
     if (!canManageUsers) return;
-    api.departments({ page_size: 100 }).then((r) => setDepartments(r.items)).catch(() => {});
+    api.departments({ page_size: 100 }).then((r) => setDepartments(r.items))
+      .catch(toastFailure("Departments could not be loaded for the filters"));
     if (canGrant) {
-      api.roles({ page_size: 100 }).then((r) => setRoles(r.items)).catch(() => {});
+      api.roles({ page_size: 100 }).then((r) => setRoles(r.items))
+        .catch(toastFailure("Roles could not be loaded"));
     }
   }, [canGrant, canManageUsers]);
 
@@ -142,9 +150,10 @@ function UsersScreen() {
 
   if (!canManageUsers) {
     return (
-      <div className="ws-state" role="note">
-        <h2>Access restricted</h2>
-        <p>Your account does not include user administration.</p>
+      // one restricted state everywhere (GP-23): the page keeps its h1, the note is AccessRestricted
+      <div className="lm-page">
+        <PageHeader title="Administration" />
+        <AccessRestricted what="user administration" />
       </div>
     );
   }
@@ -193,23 +202,26 @@ function UsersScreen() {
         />
       ) : null}
 
-      <div className="ws-filter-bar">
+      {/* B3 p2: search stays; role, department, status and sort fold behind "Filters" on a phone */}
+      <FilterPanel active={[roleFilter, departmentFilter, statusFilter].filter(Boolean).length}
+                   lead={<>
         {/* The filter controls and the create form both talk about a role and a
             department. Two controls with the same accessible name on one screen
             is a real defect, not just an ambiguous selector: a screen reader
             announces "Role, combo box" twice and neither one says which. The
             visible text stays short and is a substring of the accessible name,
             so WCAG 2.5.3 is satisfied rather than traded away. */}
-        <label className="ws-field">
-          <span className="ws-field__label">Search</span>
-          <input
-            type="search"
-            aria-label="Search accounts"
-            placeholder="Name or email"
-            value={searchInput}
-            onChange={(event) => setSearchInput(event.target.value)}
-          />
-        </label>
+          <label className="ws-field">
+            <span className="ws-field__label">Search</span>
+            <input
+              type="search"
+              aria-label="Search accounts"
+              placeholder="Name or email"
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+            />
+          </label>
+        </>}>
         <label className="ws-field">
           <span className="ws-field__label">Role</span>
           <select aria-label="Filter by role" value={roleFilter}
@@ -255,15 +267,12 @@ function UsersScreen() {
             ))}
           </select>
         </label>
-      </div>
+      </FilterPanel>
 
       <div className="ws-admin__body">
         <div className="ws-admin__main">
           {error ? (
-            <div className="ws-state ws-state--error" role="alert">
-              <h2>Accounts could not be loaded.</h2>
-              <p>{describeError(error)}</p>
-            </div>
+            <ErrorState title="Accounts could not be loaded" error={error} onRetry={() => void load()} />
           ) : null}
 
           {users === null && !error ? (
@@ -293,26 +302,7 @@ function UsersScreen() {
           ) : null}
 
           {users !== null && users.length > 0 ? (
-            <div className="ws-docs__table">
-              <table>
-                <thead>
-                  <tr>
-                    <th scope="col">Name</th>
-                    <th scope="col">Email</th>
-                    <th scope="col">Role</th>
-                    <th scope="col">Department</th>
-                    <th scope="col">Status</th>
-                    <th scope="col">Last sign-in</th>
-                    <th scope="col">Created</th>
-                    {/* The roster showed a name, an email and role chips and NOTHING
-                        that said any of it could be changed. The only way into the
-                        panel that grants and revokes roles was clicking a name
-                        rendered in ink-900 with no underline — indistinguishable
-                        from the email beside it. A complete feature with no door. */}
-                    <th scope="col" className="ws-admin__rowact"><span className="ws-visually-hidden">Actions</span></th>
-                  </tr>
-                </thead>
-                <tbody>
+            <StackTable columns={[{ label: "Name" }, { label: "Email" }, { label: "Role" }, { label: "Department" }, { label: "Status" }, { label: "Last sign-in" }, { label: "Created" }, { label: "Actions", hidden: true, className: "ws-admin__rowact" }]}>
                   {users.map((user) => (
                     <tr
                       key={user.id}
@@ -328,7 +318,7 @@ function UsersScreen() {
                           {user.name}
                         </button>
                       </td>
-                      <td className="ws-mono">{user.email}</td>
+                      <td>{user.email}</td>
                       <td>
                         {user.roles.length === 0 ? (
                           <span className="ws-pane__note">no roles</span>
@@ -342,10 +332,10 @@ function UsersScreen() {
                       </td>
                       <td className="ws-admin__dept">{user.department?.name ?? <span className="ws-pane__note">—</span>}</td>
                       <td><AccountStatus status={user.status} /></td>
-                      <td className="ws-mono">
+                      <td className="ws-num">
                         {user.last_login_at ? dateTime(user.last_login_at) : "Never"}
                       </td>
-                      <td className="ws-mono">{dateOnly(user.created_at)}</td>
+                      <td className="ws-num">{dateOnly(user.created_at)}</td>
                       <td className="ws-admin__rowact">
                         <button
                           type="button"
@@ -363,9 +353,7 @@ function UsersScreen() {
                       </td>
                     </tr>
                   ))}
-                </tbody>
-              </table>
-            </div>
+            </StackTable>
           ) : null}
 
           {pagination && pagination.total > pagination.page_size ? (
@@ -378,7 +366,7 @@ function UsersScreen() {
               >
                 Previous
               </button>
-              <span className="ws-mono">
+              <span className="ws-num">
                 Page {pagination.page} of {pageCount} · {pagination.total} accounts
               </span>
               <button
@@ -496,9 +484,7 @@ function CreateAccount({
         </label>
       </div>
       <p className="ws-field__help">
-        Credentials are provisioned outside this screen: the account can sign in once an
-        identity is linked to it. Leaving the role empty is fine — the account simply cannot
-        act until you grant one.
+        The person can sign in once their sign-in identity is linked. Without a role, the account can do nothing.
       </p>
       {error ? (
         <p className="ws-field__error" role="alert">{describeError(error)}</p>

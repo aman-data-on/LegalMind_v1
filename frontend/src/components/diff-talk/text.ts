@@ -5,7 +5,7 @@ import type { ComparedClause, DocumentComparison } from "@/lib/types";
 
 export type Row = DocumentComparison["clauses"][number];
 /** A row that takes a choice: a wording difference (not a clause that only moved). */
-export type Decidable = Exclude<Row["status"], "UNCHANGED">;
+type Decidable = Exclude<Row["status"], "UNCHANGED">;
 /** The reader's drafting choice on one difference (owner, 2026-10-13). A choice
  *  about wording, never a Legal Decision: the final contract still goes through
  *  the review, where Legal decides (AB-12 r9, RESOLVED ≠ MATCH). */
@@ -86,6 +86,6 @@ export function choicesForLegal(oursTitle: string, theirsTitle: string, rows: Ro
     ...rows.filter(isDecidable).map((row) => {
       const pick = choices[rowKey(row)];
       return `• ${clauseName(row.right ?? row.left)} — ${pick
-        ? CHOICE_WORDS[row.status][pick] : "not decided yet"}`;
+        ? CHOICE_WORDS[row.status][pick] : "not chosen yet"}`;
     })].join("\n");
 }

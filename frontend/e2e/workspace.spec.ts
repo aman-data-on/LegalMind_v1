@@ -51,11 +51,11 @@ test.describe("the document pane", () => {
     // The fixture is entirely unnumbered, so no marker renders at all; the
     // toolbar says so plainly instead of a fake "— of —".
     await expect(doc.locator(".ws-page__marker")).toHaveCount(0);
-    await expect(doc.locator(".ws-doccard__bar")).toContainText("Not paginated");
-    await expect(doc.locator(".ws-readiness")).toHaveAttribute(
-      "data-readiness",
-      /ready|lexical-only|not-indexed/,
-    );
+    await expect(doc.locator(".ws-doccard__bar")).not.toContainText("Not paginated");
+    // CLM Page 2 (2026-11-03): the sheet's footer no longer describes search readiness
+    // (the system describing itself); it shows only what the reading could NOT read, so
+    // a fully read DOCX has no footer at all.
+    await expect(doc.locator(".ws-doccard__meta")).toHaveCount(0);
     // Verbatim text is set in the quote voice; nothing here says "confidence".
     await expect(doc.locator(".ws-row__text").first()).toBeVisible();
     expect((await page.content()).toLowerCase()).not.toContain("confidence");
@@ -110,10 +110,12 @@ test.describe("the document pane", () => {
     await expect(page.getByRole("heading", { name: "No document uploaded yet." })).toBeVisible();
     await expect(page.locator('[data-region="document"]')).toHaveCount(0);
 
-    // 2026-08-30 cleanup: no path back into the legacy application from here.
-    await expect(page.locator('a[href^="/contracts"]')).toHaveCount(0);
+    // 2026-08-30 cleanup: no path back into the legacy application from here. Since
+    // AM-262 `/contracts` IS the application; the retired form is `/contracts?id=`.
+    await expect(page.locator('a[href^="/contracts?"], a[href^="/reviews"]')).toHaveCount(0);
 
     await page.setInputFiles('input[type="file"]', f.document.path);
+    await page.getByLabel("What is this version?").selectOption("COMPANY_DRAFT");   // AM-324 r4
     await page.getByRole("button", { name: "Upload" }).click();
     await showDocument(page);
     await expect(page.locator('[data-region="document"] .ws-row').first()).toBeVisible();
@@ -134,12 +136,12 @@ test.describe("the document pane", () => {
     await counsel.close();
 
     await page.goto(`/dashboard?id=${theirs}`);
-    await expect(page.getByRole("heading", { name: "Not found." })).toBeVisible();
-    const stolen = await page.locator(".ws-state").innerText();
+    await expect(page.getByRole("heading", { name: "Not found" })).toBeVisible();
+    const stolen = await page.locator(".lm-state").first().innerText();
 
     await page.goto(`/dashboard?id=00000000-0000-4000-8000-000000000000`);
-    await expect(page.getByRole("heading", { name: "Not found." })).toBeVisible();
-    const ghost = await page.locator(".ws-state").innerText();
+    await expect(page.getByRole("heading", { name: "Not found" })).toBeVisible();
+    const ghost = await page.locator(".lm-state").first().innerText();
     expect(stolen).toBe(ghost);
     expect(stolen.toLowerCase()).not.toContain("access");
   });
@@ -151,13 +153,15 @@ test.describe("the new UI is the entire post-login experience (2026-08-30 cleanu
     // point is the SIGNED-OUT redirect, which an inherited session would hide.
     test.use({ storageState: { cookies: [], origins: [] } });
 
-    test("a successful login lands on /dashboard, never /contracts", async ({ page }) => {
+    // AM-262 (CLM R7, 2026-11-02): the home is the Contracts list at /contracts; /dashboard
+    // is its old address and redirects there. Same property: login lands on the one home.
+    test("a successful login lands on the Contracts home", async ({ page }) => {
       const f = fixture();
       await page.goto("/login");
       await page.getByLabel("Work email").fill(f.accounts.owner.email);
       await page.getByLabel("Password", { exact: true }).fill(f.accounts.owner.password);
       await page.getByRole("button", { name: /sign in/i }).click();
-      await page.waitForURL(/\/dashboard$/, { timeout: 20_000 });
+      await page.waitForURL(/\/contracts$/, { timeout: 20_000 });
       await expect(page.locator(".ws-shell")).toBeVisible();
       await expect(page.locator(".topbar")).toHaveCount(0);
     });
@@ -186,7 +190,7 @@ test.describe("the new UI is the entire post-login experience (2026-08-30 cleanu
     });
   });
 
-  test("the Dashboard lists documents and links only into /dashboard", async ({ page }) => {
+  test("the Contracts home lists documents and links only into /contracts/{id}", async ({ page }) => {
     const created = await apiPost(page, "/contracts", {
       name: `Index ${Date.now()}`,
       contract_type: "MSA",
@@ -195,8 +199,9 @@ test.describe("the new UI is the entire post-login experience (2026-08-30 cleanu
 
     await page.goto("/dashboard");
     await expect(page.locator(".ws-shell")).toBeVisible();
-    // `AM-38` (AB-11, 2026-09-01) renamed this screen: the heading is "Dashboard".
-    await expect(page.getByRole("heading", { name: "Dashboard", exact: true })).toBeVisible();
+    // `AM-38` named this screen "Dashboard"; CLM S1 (2026-11-03) names it for the reader —
+    // "My contracts" for a deal owner — at /contracts (AM-262).
+    await expect(page.getByRole("heading", { name: "My contracts", exact: true })).toBeVisible();
 
     // `exact` (2026-09-08): the row's action link is now named "Analyze <the
     // contract>" rather than a bare "Analyze" — twenty-five links all
@@ -206,11 +211,12 @@ test.describe("the new UI is the entire post-login experience (2026-08-30 cleanu
     // began resolving to two links. Both point at the same href; this asserts
     // exactly what it always did, against the document-name link alone.
     const row = page.getByRole("link", { name: contract.name, exact: true });
-    await expect(row).toHaveAttribute("href", `/dashboard?id=${contract.id}`);
-    await expect(page.locator('a[href^="/contracts"]')).toHaveCount(0);
+    await expect(row).toHaveAttribute("href", `/contracts/${contract.id}`);
+    // nothing legacy: the retired `?id=` forms are never offered as a click
+    await expect(page.locator('a[href^="/contracts?"], a[href^="/dashboard?id="]')).toHaveCount(0);
 
     await row.click();
-    await expect(page).toHaveURL(`/dashboard?id=${contract.id}`);
+    await expect(page).toHaveURL(`/contracts/${contract.id}`);
   });
 
   test("intake is upload-first: file → derived name + declared type → workspace (2026-08-31 UX correction)", async ({
@@ -238,12 +244,14 @@ test.describe("the new UI is the entire post-login experience (2026-08-30 cleanu
     // disclosure away, never an empty-record detour and never "No document
     // uploaded yet". Since 2026-09-08 the workspace opens on the analysis, so
     // the document is disclosed rather than already filling the screen.
-    await page.waitForURL(/\/dashboard\?id=[0-9a-f-]{36}$/, { timeout: 30_000 });
+    await page.waitForURL(/\/contracts\/[0-9a-f-]{36}$/, { timeout: 30_000 });   // AM-263
     await showDocument(page);
     await expect(page.locator('[data-region="document"] .ws-row').first()).toBeVisible();
     // No type was declared (no generation credential in e2e, no question asked),
     // and nothing pretends one was: the header carries no type chip (AM-51).
-    await expect(page.locator(".ws-context")).not.toContainText(/\b(MSA|NDA|TOS|SLA)\b/);
+    // (`.ws-record` is the record header since CLM UI pass 2)
+    await expect(page.locator(".ws-record")).toBeVisible();
+    await expect(page.locator(".ws-record")).not.toContainText(/\b(MSA|NDA|TOS|SLA)\b/);
   });
 });
 
@@ -323,13 +331,14 @@ test.describe("the Findings pane, slice 2", () => {
       // 2026-08-31 v2 / seventh pass: the excerpt renders verbatim inside the
       // finding's "How this was determined", and its location button keeps the
       // highlight gesture into the document pane.
-      await pane.locator(".ws-finding").first().locator(".ws-determined > summary").first().click();
-      await expect(pane.locator(".ws-evidence__quote").first()).toBeVisible();
-      const evidenceButton = pane.locator(".ws-evidence__loc").first();
-      await evidenceButton.click();
+      // CLM Page 2 (M6, 2026-11-03): the card itself quotes the cited passage verbatim, and
+      // "Where it says this" lists only passages the card does not already quote — so the
+      // quote is on the card face and "View in document" is the highlight gesture.
+      const card = pane.locator(".ws-finding").first();
+      await expect(card.locator(".ws-case__quote").first()).toBeVisible();
+      await card.getByRole("button", { name: "View in document" }).click();
       const lit = page.locator('[data-region="document"] .ws-row--lit');
       await expect(lit).toHaveCount(1);
-      await expect(evidenceButton).toHaveAttribute("aria-current", "true");
     }
   });
 
@@ -359,13 +368,13 @@ test.describe("the Findings pane, slice 2", () => {
     await evaluation.getByRole("button", { name: "Decide" }).click();
     // LA-1: nothing is preselected — the decider picks the type
     await evaluation.locator(".ws-decision__form select").selectOption("ACCEPT_DEVIATION");
-    await evaluation.getByLabel("Justification (required)").fill("STRUCTURAL — not a legal position (rule 21).");
+    await evaluation.getByRole("textbox", { name: "Reason", exact: true }).fill("STRUCTURAL — not a legal position (rule 21).");
     await evaluation.getByRole("button", { name: "Record decision" }).click();
 
     await expect(evaluation.locator(".ws-decision__conflict")).toContainText("Not recorded");
     await expect(evaluation.getByRole("button", { name: "Record decision" })).toBeDisabled();
 
-    await evaluation.getByRole("button", { name: "Refresh to see the latest decision" }).click();
+    await evaluation.getByRole("button", { name: "Refresh", exact: true }).click();
     await expect(evaluation.locator(".ws-decision__done")).toContainText("Accepted as an exception");
   });
 
@@ -376,11 +385,11 @@ test.describe("the Findings pane, slice 2", () => {
     const finding = page.locator(".ws-finding").first();
     await expect(finding).toBeVisible();
 
-    await finding.getByRole("button", { name: "Escalate for authorized review" }).click();
-    await finding.getByPlaceholder("Why does this need authorized review?").fill("STRUCTURAL test escalation.");
-    await finding.getByRole("button", { name: "Escalate", exact: true }).click();
+    await finding.getByRole("button", { name: "Ask Legal" }).click();
+    await finding.getByPlaceholder("What should Legal look at?").fill("STRUCTURAL test escalation.");
+    await finding.getByRole("button", { name: "Ask Legal", exact: true }).click();
 
-    await expect(finding).toContainText("a request, not an approval");
+    await expect(finding).toContainText("Asking is not an approval");
     await expect(finding.getByRole("button", { name: "Withdraw" })).toBeVisible();
   });
 });
@@ -455,65 +464,39 @@ test.describe("the 3-column redesign (2026-08-31)", () => {
     // read as a second analysis beside "Findings" rather than as its summary.
     await expect(page.getByRole("tab", { name: "Summary", exact: true })).toHaveAttribute("aria-selected", "true");
     const panel = page.locator('[data-region="analysis"]');
-    await expect(panel.locator(".ws-tiles")).toBeVisible();
+    await expect(panel.getByRole("heading", { name: "What needs attention", level: 2 })).toBeVisible();
 
-    // The Summary speaks the reader's four words (AB-104) (owner, 2026-09-09, AM-50 r4 —
-    // reversing the 2026-09-01 correction that pinned the engine's words here).
-    // The engine vocabulary is unchanged underneath and lives in View details.
+    // CLM Page 2 (AM-291 r4/r6, 2026-11-03): the Summary leads with what needs attention —
+    // where the deal stands and how many points are open, in words — and lists each open
+    // point with the reader's word and who has it. The engine's tallies (the four tiles)
+    // are Legal details, absent for this owner (never greyed, SEC-07).
     const USER_WORDS = ["Matches our standard", "Change needed", "Missing", "Needs a decision"];
-    expect(await panel.locator(".ws-tile").count()).toBeLessThanOrEqual(4);
-    const tileLabels = await panel.locator(".ws-tile__label").allTextContents();
-    expect(tileLabels.length).toBeGreaterThan(0);
-    for (const label of tileLabels) expect(USER_WORDS).toContain(label);
-    // One fixed order and one set of tones (owner, 2026-09-09): the tiles that
-    // render keep USER_WORDS' order, and each wears its own channel — green
-    // Matches, amber Change needed and Missing, red Needs a decision.
-    expect(tileLabels).toEqual(USER_WORDS.filter((w) => tileLabels.includes(w)));
-    const TONE = { "Matches our standard": "ok", "Change needed": "warn", Missing: "warn",
-                   "Needs a decision": "bad" } as const;
-    for (const label of tileLabels) {
-      const tile = panel.locator(".ws-tile").filter({ hasText: label });
-      expect(await tile.getAttribute("class")).toContain(`ws-tile--${TONE[label as keyof typeof TONE]}`);
-    }
+    await expect(panel.locator(".ws-tiles")).toHaveCount(0);
+    await expect(panel.locator(".ws-attn__count")).toContainText(/1 open point/);
+    const open = panel.getByRole("region", { name: /Points to settle \(\d+\)/ });
+    const first = open.locator(".ws-open__go").first();
+    await expect(first).toBeVisible();
+    const words = await first.innerText();
+    expect(USER_WORDS.filter((w) => words.includes(w))).toHaveLength(1);
     for (const engineWord of ["DEVIATION", "MISSING", "UNABLE_TO_EVALUATE"]) {
       expect(await panel.innerText()).not.toContain(engineWord);
     }
 
-    // One set of numbers (owner, 2026-10-21): the tiles and one line built from them —
-    // no ring, no bar, no percentage, never a grade or confidence.
+    // One set of numbers (owner, 2026-10-21): no ring, no percentage, never a grade or
+    // confidence — the one progress bar counts decided points, labelled in words.
     await expect(panel.locator(".ws-ring__svg")).toHaveCount(0);
-    // AB-103: the Summary leads with where the review stands, in words
-    await expect(panel.locator(".ws-stage__line")).toContainText(
-      /Not yet sent for review|With Legal|No point needs a decision/);
+    await expect(panel.locator(".ws-risk")).toHaveCount(0);
     expect(await panel.innerText()).not.toMatch(/\d+%/);
     expect((await panel.innerText()).toLowerCase()).not.toContain("confidence");
 
-    /*
-     * Summary states HOW MANY findings need a decision and offers ONE way into
-     * them — it no longer renders a card per finding beside a Findings tab that
-     * opens on the very same set (2026-09-04 audit: the same question answered
-     * twice in one panel). What must survive is the PATH, so it is asserted end
-     * to end here: summary → the list → the passage lit in the document.
-     */
-    /* The count and the way through are the hero's own button now. The "What
-       needs a decision" section restated the identical number — both counted
-       `requires_decision` — and its "Open the list →" opened ALL findings while
-       the sentence above it named the pending ones, so it went on 2026-09-17.
-       The PATH this test exists for is unchanged; it simply starts from the
-       button a reader actually meets first. */
-    await expect(panel.locator(".ws-stage__line")).toBeVisible();
-    await expect(panel.locator(".ws-risk")).toHaveCount(0);
-    await panel.getByRole("button", { name: /Review the points to decide/ }).click();
-    await expect(page.getByRole("tab", { name: "Findings", exact: true }))
+    // The PATH survives (2026-09-04 audit): summary → the point → the passage lit in the
+    // document. An open point opens its card on Points; the card's "View in document"
+    // lights the cited passage.
+    await first.click();
+    await expect(page.getByRole("tab", { name: "Points", exact: true }))
       .toHaveAttribute("aria-selected", "true");
-    // The list is the work surface: a finding's cited evidence is a button
-    // labelled with the location itself (§ / title / page), and pressing it
-    // lights that passage in the document pane.
     await page.locator('[data-region="findings"] .ws-finding').first()
-      .locator(".ws-determined > summary").first().click();
-    const cited = page.locator('[data-region="findings"] .ws-evidence__loc').first();
-    await expect(cited).toBeVisible();
-    await cited.click();
+      .getByRole("button", { name: "View in document" }).click();
     await expect(page.locator(".ws-row--lit")).toBeVisible();
 
     // Back to Summary for the obligations assertion below.
@@ -534,12 +517,16 @@ test.describe("the 3-column redesign (2026-08-31)", () => {
     // The fixture analysis yields a DEVIATION, so at least one outline row is
     // marked needs-review. Every marker is one of the three DD-9 buckets and
     // carries an accessible name — never color alone.
-    const review = page.locator(".ws-outline .ws-status--review").first();
+    // UX Batch 2: the outline's mark is the Points pane's icon and word (one vocabulary)
+    // the legend inside the outline prints its words beside decorative icons; a row's mark is an img
+    const review = page.locator(".ws-outline .ws-status[role=img]").first();
     await expect(review).toBeVisible();
-    await expect(review).toHaveAttribute("aria-label", /review/i);
-    const markers = page.locator(".ws-outline .ws-status");
-    for (const cls of await markers.evaluateAll((els) => els.map((e) => e.className))) {
-      expect(cls).toMatch(/ws-status--(match|decided|review|missing)/);
+    await expect(review).toHaveAttribute("aria-label", /change needed/i);
+    const markers = page.locator(".ws-outline .ws-status[role=img]");
+    for (const [cls, label] of await markers.evaluateAll(
+      (els) => els.map((e) => [e.className, e.getAttribute("aria-label") ?? ""]))) {
+      expect(cls).toMatch(/lm-mark--\w+/);
+      expect(label).toMatch(/^(Matches|In our favour|Change needed|Missing|Needs a decision|Decided)/);
     }
   });
 
@@ -572,7 +559,7 @@ test.describe("collapse behavior", () => {
 
     const tabs = page.getByRole("tab");
     await expect(tabs).toHaveCount(3);
-    await expect(page.getByRole("tab", { name: "Document" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Contract" })).toBeVisible();
 
     await page.getByRole("tab", { name: "Summary", exact: true }).click();
     await expect(page.locator('[data-region="analysis"]')).toBeVisible();
@@ -583,7 +570,7 @@ test.describe("collapse behavior", () => {
     // DD-15 — what changed is that it costs no height, not that it hides).
     const launcher = askOpener(page);
     await expect(launcher).toBeVisible();
-    await page.getByRole("tab", { name: "Findings" }).click();
+    await page.getByRole("tab", { name: "Points" }).click();
     await expect(launcher).toBeVisible();
     // And it opens from here, on this tab, without changing tabs.
     await expect(await openAsk(page)).toBeVisible();
@@ -591,8 +578,8 @@ test.describe("collapse behavior", () => {
 
     // Arrow keys move between tabs — the collapsed state is keyboard-operable.
     await page.getByRole("tab", { name: "Summary", exact: true }).focus();
-    await page.keyboard.press("ArrowLeft");
-    await expect(page.getByRole("tab", { name: "Findings" })).toBeFocused();
+    await page.keyboard.press("ArrowRight");          // page 2: Contract · Summary · Points
+    await expect(page.getByRole("tab", { name: "Points" })).toBeFocused();
     await expect(page.locator('[data-region="findings"]')).toBeVisible();
   });
 

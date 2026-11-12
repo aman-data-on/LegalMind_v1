@@ -9,7 +9,7 @@ import {
   openFindingsTab,
   openUploadPanel,
   showDocument,
-  storageStatePath,
+  storageStatePath, uploadNewVersionFile,
 } from "./support";
 
 test.use({ storageState: storageStatePath("owner") });
@@ -52,8 +52,8 @@ test("journey: upload → analysis → report → findings → ask, with finding
   // AM-51: upload → review → workspace, with no question asked. In e2e there is
   // no generation credential, so no type is recorded and the engine measures
   // the document by its content alone.
-  await page.waitForURL(/\/dashboard\?id=[0-9a-f-]{36}$/, { timeout: 45_000 });
-  const contractId = page.url().match(/dashboard\?id=([0-9a-f-]{36})/)![1];
+  await page.waitForURL(/\/(dashboard\?id=|contracts\/)[0-9a-f-]{36}$/, { timeout: 45_000 });
+  const contractId = page.url().match(/(?:dashboard\?id=|contracts\/)([0-9a-f-]{36})/)![1];
 
   // The workspace opens on the analysis (2026-09-08: the document no longer
   // holds the majority of the screen permanently); the document is one
@@ -67,81 +67,52 @@ test("journey: upload → analysis → report → findings → ask, with finding
   // fixture's zero-tolerance rule ruled this deviation UNACCEPTABLE, so the
   // reader sees Not accepted (owner's final status decision, 2026-09-09).
   await expect(finding.locator("[data-status]")).toHaveText("Change needed");
-  await expect(finding.locator(".ws-determined")).toContainText("DEVIATION");
+  // S1: the engine's word is a Legal detail — the deal owner holds no `legal.review`,
+  // so their disclosure is "Where it says this" and the classification is absent.
+  await expect(finding.locator(".ws-determined > summary")).toHaveText("Where it says this");
+  await expect(finding.locator(".ws-determined")).not.toContainText("DEVIATION");
 
   // The drill (2026-08-31 v2): the summary strip's counts are pressable
   // filters — category → finding → evidence without leaving the pane.
-  /*
-   * The count is a `.ws-filter__n` badge beside the word since the reference-design
-   * restyle (2026-09-09), so a pill reads "Change needed 1" — the count
-   * separated by whitespace, not wrapped in parentheses as it was before.
-   *
-   * The shape is written ONCE here rather than spelled out at each of the four
-   * places below that need it. Three of them were still matching `(n)` after the
-   * restyle: one failed loudly, and `labels[0].match(...)![1]` failed as a
-   * TypeError on a null match, which reads like a broken page rather than a
-   * renamed label.
-   */
-  const PILL = /^(.*?)\s+(\d+)$/;               // [, word, count]
-  const countOf = (label: string) => Number(label.match(PILL)![2]);
-  const wordOf = (label: string) => label.match(PILL)![1];
-
-  const filters = page.locator(".ws-filter");
-  await expect(filters.getByRole("button", { name: /^Change needed\s+\d+$/ })).toBeVisible();
-
-  /*
-   * The row is ONE fixed order the reader can learn (owner, 2026-09-09): "All"
-   * first and pressed on arrival, then `AM-56`'s three words in their own fixed
-   * order. It used to open pre-filtered, on a requires_decision filter that
-   * pushed "All" into second place — so the row a reader learned on one
-   * contract was not the row the next contract gave them.
-   *
-   * Asserted in a browser because a click is the one thing the static suite
-   * cannot make: `src/__tests__/findings-filter.test.tsx` pins the order, the
-   * labels, the counts and the default; only here can the subset each filter
-   * actually shows be checked.
-   */
-  const labels = await filters.getByRole("button").allTextContents();
-  expect(wordOf(labels[0]!)).toBe("All");
-  const total = countOf(labels[0]!);
-  const words = labels.slice(1).map(wordOf);
-  // A subsequence of the fixed order — a word with no findings renders no
-  // button, and the words that remain keep their places.
-  // AB-103 (2026-10-22): where the points stand leads — To decide, Awaiting clarification,
-  // Decided — then the analysis words; a word with no point renders no button
-  expect(words).toEqual(["To decide", "Awaiting clarification", "Decided",
-    "Matches our standard", "Change needed", "Missing", "Needs a decision"]
-    .filter((w) => words.includes(w)));
+  // UX Batch 2: one filter control, "Show points" — "All" first and pressed on arrival,
+  // then the status words (the Points pane's own vocabulary), each "Word, n"; a status
+  // with no point renders no button.
+  const filters = page.getByRole("group", { name: "Show points" });
+  const PILL = /^(.*), (\d+)$/;               // aria-label: [, word, count]
+  const named = async () => (await filters.getByRole("button").evaluateAll(
+    (els) => els.map((e) => e.getAttribute("aria-label") ?? ""))).map((l) => l.match(PILL)!);
+  const all = await named();
+  expect(all[0]![1]).toBe("All");
+  const total = Number(all[0]![2]);
   await expect(filters.getByRole("button").first()).toHaveAttribute("aria-pressed", "true");
   const cards = page.locator("article[data-finding-id]");
   await expect(cards).toHaveCount(total);
 
-  for (const word of words) {
-    const button = filters.getByRole("button", { name: new RegExp(`^${word}\\s+\\d+$`) });
-    const n = countOf((await button.textContent())!);
+  for (const [, word, count] of all.slice(1)) {
+    const button = filters.getByRole("button", { name: `${word}, ${count}`, exact: true });
     await button.click();
     await expect(button).toHaveAttribute("aria-pressed", "true");
-    // Its own count, and nothing but its own findings.
-    await expect(cards).toHaveCount(n);
-    for (let i = 0; i < n; i += 1) {
-      // a point still to decide reads its analysis word (it is not decided yet)
-      await expect(cards.nth(i).locator("[data-status]").first()).toHaveText(
-        word === "To decide" ? /^(Change needed|Missing|Needs a decision)$/ : word);
+    // Its own count, and nothing but its own points.
+    await expect(cards).toHaveCount(Number(count));
+    for (let i = 0; i < Number(count); i += 1) {
+      if (word === "Decided") continue;
+      await expect(cards.nth(i)).toContainText(word!);
     }
   }
 
-  // "All" comes back to every finding, which is what makes the filters undoable.
-  await filters.getByRole("button", { name: /^All\s+\d+$/ }).click();
+  // "All" comes back to every point, which is what makes the filters undoable.
+  await filters.getByRole("button", { name: `All, ${total}`, exact: true }).click();
   await expect(cards).toHaveCount(total);
 
-  await filters.getByRole("button", { name: /^Change needed/ }).click();
+  await filters.getByRole("button").nth(1).click();
   await expect(finding).toBeVisible();
   // …and the drill ends in verbatim text: the cited excerpt sits one click
   // inside "How this was determined" (seventh pass — the face is the four
   // answers only), and its location button lights the passage in the document.
-  await finding.locator(".ws-determined > summary").first().click();
-  await expect(finding.locator(".ws-evidence__quote").first()).toBeVisible();
-  await finding.locator(".ws-evidence__loc").first().click();
+  // CLM Page 2 (M6): the card quotes the cited passage on its face, and "View in document"
+  // lights it in the document.
+  await expect(finding.locator(".ws-case__quote").first()).toBeVisible();
+  await finding.getByRole("button", { name: "View in document" }).click();
   await expect(page.locator(".ws-row--lit")).toBeVisible();
 
   // Finding → Ask handoff: the dock OPENS, an EDITABLE draft lands in the input,
@@ -153,8 +124,11 @@ test("journey: upload → analysis → report → findings → ask, with finding
   await expect(askInput).toHaveValue(/What does this document say about/);
 
   // The report is seen before it is downloaded (owner, 2026-10-22): the header opens it.
-  await expect(page.getByRole("link", { name: "View report" })).toHaveAttribute(
+  // S1: it lives under the header's ⋯ now, beside the other secondary actions.
+  await page.getByRole("button", { name: "More actions" }).click();
+  await expect(page.getByRole("menuitem", { name: "View report" })).toHaveAttribute(
     "href", /\/dashboard\/reviews\?id=/);
+  await page.keyboard.press("Escape");
 
   // Chat, immediately — the open finding gates nothing (AM-25 r1).
   await (await openAsk(page)).fill("Explain the zorbulated framblewitz stipulations");
@@ -163,7 +137,7 @@ test("journey: upload → analysis → report → findings → ask, with finding
     timeout: 20_000,
   });
   // …and the finding is still open beside it. Nothing was auto-resolved.
-  await expect(finding).toContainText("Decision required");
+  await expect(finding.locator(".ws-point__who")).toHaveText("Not sent to Legal yet");   // H2 (Page 2): "With Legal" once sent
 
   // The report exists and speaks in counts — reached from the Reviews queue.
   const listed = await page.request.get(`/api/v1/reviews?contract_id=${contractId}`);
@@ -180,23 +154,13 @@ test("journey: upload → analysis → report → findings → ask, with finding
   // badge, matching the DEVIATION finding just recorded (2026-09-01 redesign:
   // classification names moved from a text chip to a status pill + count
   // badges — the underlying fact is the same).
-  await page.goto("/dashboard");
-  const row = page.locator("tbody tr").filter({ has: page.locator(`a[href="/dashboard?id=${contractId}"]`) });
-  await expect(row.locator(".ws-status-pill")).toContainText("Needs attention");
-  // Four badges (AB-104), always in the one order, wearing the one set of tones
-  // (owner, 2026-09-09; AB-104 2026-10-23): green Matches, amber Change needed and
-  // Missing, red Needs a decision. The fixture's DEVIATION is a Change needed, so
-  // the AMBER badge is the non-zero one — it was the red one until the tones
-  // were put right.
-  const badges = row.locator(".ws-findings-badge");
-  await expect(badges).toHaveCount(4);
-  expect(await badges.nth(0).getAttribute("class")).toContain("ws-findings-badge--ok");
-  expect(await badges.nth(1).getAttribute("class")).toContain("ws-findings-badge--warn");
-  expect(await badges.nth(2).getAttribute("class")).toContain("ws-findings-badge--warn");
-  expect(await badges.nth(3).getAttribute("class")).toContain("ws-findings-badge--bad");
-  // two badges share amber: each says its word to a screen reader
-  await expect(badges.nth(2)).toHaveAttribute("aria-label", /Missing$/);
-  await expect(badges.nth(1)).not.toHaveClass(/ws-findings-badge--zero/);
+  await page.goto("/contracts");
+  const row = page.locator("tbody tr").filter({ has: page.locator(`a[href="/contracts/${contractId}"]`) });   // AM-262
+  // CLM S1 (2026-11-03): the Contracts home says it in words, one count per cell — the
+  // stage, and the open points (the DEVIATION just recorded is one open point). No pills,
+  // no badges, no tone to read: the same fact, as the header and Summary say it.
+  await expect(row.locator('td[data-label="Changes and points"]')).toContainText("1 open point");
+  await expect(row.locator('td[data-label="Stage"]')).not.toBeEmpty();
 });
 
 test("journey: a revised version is a real new analysis; v1 stays historically valid", async ({
@@ -208,13 +172,10 @@ test("journey: a revised version is a real new analysis; v1 stays historically v
   // Upload the revision through the workspace's own control.
   await page.goto(`/dashboard?id=${v1.contractId}`);
   await showDocument(page);
-  await page.getByRole("button", { name: "Upload a revised version" }).click();
-  await expect(page.getByText("becomes a NEW version")).toBeVisible();
-  await page.setInputFiles('input[type="file"]', f.document.path);
-  await page.getByRole("button", { name: "Upload", exact: true }).click();
+  await uploadNewVersionFile(page, f.document.path);
 
   // The workspace lands on v2; the picker knows both versions.
-  const picker = page.locator(".ws-version select");
+  const picker = page.locator("select.ws-version");
   await expect(picker).toBeVisible({ timeout: 20_000 });
   await expect(picker.locator("option")).toHaveCount(2);
   await expect(picker).toHaveValue(/^(?!$)/); // a concrete id
@@ -265,8 +226,10 @@ test("journey: a revised version is a real new analysis; v1 stays historically v
   await page.goto(`/dashboard/reviews?id=${v1.reviewId}`);
   await expect(page.getByText(/was checked against our standard terms on \d+ point/)).toBeVisible();
 
-  // And the reviews queue lists both analyses.
+  // And both reports still open by their own links. (The legacy queue is Legal's since
+  // UX Batch 2: this owner is sent to Contracts.)
+  await page.goto(`/dashboard/reviews?id=${review2.id}`);
+  await expect(page.getByText(/was checked against our standard terms on \d+ point/)).toBeVisible();
   await page.goto("/dashboard/reviews");
-  await expect(page.locator(`tr[data-review-id="${v1.reviewId}"]`)).toBeVisible();
-  await expect(page.locator(`tr[data-review-id="${review2.id}"]`)).toBeVisible();
+  await expect(page).toHaveURL(/\/contracts$/);
 });

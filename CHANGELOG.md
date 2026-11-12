@@ -10,6 +10,14 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-11-12 — C-19 resolved: one MSA for every brand (AB-183: AM-341)
+
+Owner ruling (2026-11-11, recorded on the owner's "yes" 2026-11-12): one MSA of LeapSwitch Networks Pvt Ltd covers every brand; only the services in MSA cl. 5 vary; the brand split is the website policies only. Supersedes `AM-287`'s "MSA LeapSwitch-only". Records only — the New contract screen still offers no CloudPe MSA and follows in a later change.
+
+### 2026-11-12 — Integration fixes (integration/clm-ux-20261112)
+
+The final contract is never prepared while its review is unfinished or a point awaits Legal (dry run lists them; 409 names "the final contract"). A contract's stored name is shown as typed; only the generated name is title-cased, once, at creation. The Legal queue's no-access page keeps its header, and To-do no longer lights for it. Sales' "Keep our wording" line now says Legal decides only if they accept the client's wording.
+
 ### 2026-11-09 — Fourteen Constitution positions become standards: §12, §15, §31.14 (AB-174: AM-322) — branch `feat/constitution-standards-20261109`, NOT committed
 
 - New ratified standards (78 → 92 active, 99 files): data residency (MSA, Vendor), breach-notification timeline (MSA, TOS), sub-processors (MSA, TOS), trade-secret survival on an MSA, assignment per family (MSA, Vendor, Partner, Distribution), the Partner change-of-control termination right, and 30-day change-of-control notice for Vendor and Distribution. Twelve generated from L1.15 by `tools/generate_section31_standards.py` (new `POSITIONS`); the two numeric ones hand-written. Catalogue: `CLAUSE_CATALOGUE.md` § "§12, §15 and §31.14 positions".
@@ -32,6 +40,135 @@ A PNG/JPEG in an Ask chat is read by the existing OCR (chat only; the Dashboard 
 `tools/eval_claims.py` (V-1: typed claims from real source text, perturbed, split dev / held-out / unseen by document, zero Gemini) and `assist/verification/structural.py` (V-2a: limb coverage, scope widening, unsupported conclusion, ABSTAIN), wired into `verify.judge` only on a claim already judged SUPPORTED, behind `LEGALMIND_STRUCTURAL_CHECK` — `off` by default, so stage 9's behaviour is unchanged; `shadow` logs, `on` can only refuse more. No lock touched. Ported from an uncommitted agent worktree.
 
 ### 2026-11-09 — Agent instruction files restructured to the official Claude Code guidance — merged (PR #288, `7510589`)
+### 2026-11-05 (later) — MSA template drafting decisions (`AM-312`, AB-165) — local DBs only, NOT deployed
+
+- Owner decision 2026-11-05 on Claude's drafting recommendation (no advocate has reviewed): "AUP" defined in
+  clause 1 (1.4, LeapSwitch's published AUP; later definitions renumber, every xref is by key), 16.2.5 "breach of
+  Applicable Laws", 16.2 lead-in kept; with 16.3/16.4 removed and 8.2's purchase order, published as
+  `MSA.LEAPSWITCH.APPROVED` v3 in `legalmind_clm_e2e` (demo v16). Special Conditions Q-1–Q-8 decided, Q-9
+  confirmed; `backend/config/templates/special_conditions/reference.json` `_note` no longer calls the deletion
+  lead a placeholder. Management pack v2 rebuilt (`/root/legalmind-clm-local/msa-for-management/v2/`).
+
+### 2026-11-05 — CLM: Special Conditions annexure, round 2, Terms in force, changes-only amendments, indemnity fix — committed on `feat/clm-p1-negotiate` (PR #287), NOT merged, NOT deployed
+
+- **Special Conditions annexure (`AM-307`):** the body never changes; accepted points go to "ANNEXURE A — SPECIAL
+  CONDITIONS" on a new page; `drafting/effective.py` is the text a version is read as, given to analysis as a
+  `clause_loader` (fail closed); package dry-run and POST, gates, audit events; UI U1–U6.
+- **Round 2 (`AM-308`/`AM-309`):** a later round on our final contract compares effective texts and its entries
+  add up; amendments after signing (`routers/amendments.py`, migration `b4f8e2a6d9c1`
+  `contracts.governed_by_contract_id`, 409 `NO_AMENDMENT_TEMPLATE`); change rows carry `target`/`in_package`;
+  Annexure A line per change, Amendments panel, Templates badge.
+- **Terms in force (`AM-309`):** `/contracts/{id}/terms` — the signed contract with its signed amendments applied,
+  each changed clause naming its amendment (omitted where the caller cannot read it).
+- **Changes-only amendments (`AM-310`, Q-9):** "Prepare amendment" lists only this amendment's changes from the
+  approved AMENDMENT template; restating the whole contract is Legal's choice, audited.
+- **Engine (`AM-311`):** a mutual §10 clause no longer speaks for the rest of the indemnity — a one-way, broader
+  customer indemnity or a one-sided defence/settlement right beside it is a DEVIATION, sub-clause named.
+- **Owner decisions:** MSA 17.3 (d)/(e) withdrawn pending management; clause 16 = Constitution §10 mutual framework;
+  the MSA published in the local e2e DB only. Since `AM-311` the publish gate holds INDEMNITY-MSA-001 on 16.3/16.4,
+  left for the lawyer.
+- **CI:** new job 17 installs LibreOffice Writer + Liberation/Carlito fonts and runs the PDF tests with
+  `LEGALMIND_SOFFICE` set; a LibreOffice skip fails the job. Every PDF test now keys on `LEGALMIND_SOFFICE`.
+- **Removed:** `backend/legalmind/drafting/reply_pdf.py` (PyMuPDF reading copy) and its one test — no caller in
+  the app, tools or frontend; the reply PDF is LibreOffice's (`AM-293`). The PyMuPDF-licence question for it is moot.
+
+### 2026-11-04 — The approved MSA template, our opening positions, engine fixes, "For us", playbook, blank download — local, NOT committed
+
+- **MSA template to the approved format** (`MSA.LEAPSWITCH.APPROVED`, from the owner's
+  `msa-approved-2025-07.docx`): house style rounds 1–6 — A4, Times New Roman 12, two indent ladders,
+  front matter, paired execution table, footer doc ID; Word compatibility mode 14 and a MARGIN
+  pre-publish check; underlined run-in titles; reading view shows house style and emphasis. Word
+  fixes (typos, cross-references in place of typed numbers, "LeapSwitch" as the defined short name).
+- **Positions:** first B (our ratified standard) on all five points, then the owner's opening
+  positions: 17.2 = **six months of the affected services' fees, mutual** (the approved file's
+  wording, made "either Party"); 8.5 = **seven days**. Change of control (21.7 + definition 1.6),
+  service discontinuation (6.6), 17.3 mutual lawful-floor carve-out. **17.3 (d)/(e) (payment and
+  indemnity outside the cap) pending management approval and a Constitution §9 amendment** — do not
+  publish that version. KYC-RETENTION-TOS-001 `not_applicable_to: ["MSA"]` (owner ruling).
+- **Engine:** venue "no …, then Bombay High Court" not read as exclusion; DATA-PURGE-MSA-001
+  measurable; payment period no longer reads 8.6's GST "10 days"; non-solicit and confidentiality
+  definition readings; the NDA term-notice standard ported off MSAs; carve-outs beyond the lawful
+  floor read UNLIMITED → CONFLICT (`AM-304`). Preflight ignores a space before punctuation.
+- **For us:** `effect_for_us` Better / No change / Fallback / Worse on every client change, bulk
+  accept of the first three by the deal owner (`AM-299`, `AM-301`, `AM-306`); a lower mutual cap on
+  our template passes the publish gate in our favour (`AM-303`).
+- **Playbook** "What we can offer" (`AM-305`), see the entry below. **Blank / review-copy download and
+  compare-on-return** (`AM-302`). **Management file**:
+  `/root/legalmind-clm-local/msa-for-management/LeapSwitch-MSA-template.docx` + `.pdf`.
+- **Templates page:** the check and the playbook always finish — "Couldn’t check right now — try
+  again" after 60 s or an error (`loadPlaybook`, test in `template-approval.test.tsx`); a hand-published
+  demo version reads "Demo — not approved by Legal" instead of its clause count (the label is read from
+  `source.label`, which the demo publish writes — the API read `demo_label` and showed nothing); each
+  card names the file it was imported from, so two MSA templates are told apart;
+  `GET /templates/{id}/check` on a non-draft is 409, not 500. Demo DB: the old reference MSA draft
+  RETIRED (not deleted).
+- Fixed from the full suite: the two playbook routes added to `permission_map.py`; router count 21.
+  Locks: AB-158…AB-160 (`AM-299`, `AM-301`–`AM-306`) on `records/clm-amendments-20261102`.
+
+### 2026-11-04 — What we can offer: the negotiation playbook (AB-160 `AM-305`) — local, NOT committed
+
+- `analysis/playbook.py` derives each point's line from our paper (opening) and the ratified
+  standard (limit); `drafting/playbook.py` reads it from a contract's own version or a published
+  template (temporary Review, rolled back, cached per template version + snapshot);
+  `GET /contracts/{id}/playbook`, `GET /templates/{id}/playbook` (`legal_position.view`).
+- UI: Summary "What we can offer", Changes card/row "Within/Beyond what we can offer", Templates
+  read-only per published template (sales see the Templates page for this view only).
+- Tests: `tests/legal_regression/test_playbook.py` (manager's examples agree with `effect_for_us`),
+  `src/__tests__/playbook.test.tsx`; `docs/api/openapi.json` regenerated.
+- Coordination: `drafting/playbook.py` repeats `publish._findings`' temporary-Review setup
+  (that one returns classifications only) — fold the two once the publish-gate work lands.
+  `tests/test_api_resources.py::test_import_tool_writes_ratified_standards_idempotently` fails
+  on `LIABILITY-MSA-001`'s new `favourable_outcome` (AM-303, not this change) — the test's
+  expected Legal Rule needs updating by its owner.
+
+### 2026-11-03 — Contract creation and lawyer review (AB-152…AB-154) — built and tested locally, NOT committed
+
+- Person-specific homes and one plain vocabulary; two-line points (reader word vs who answers); Legal details only for Legal.
+- Lawyer: Write our wording / Use our standard with client note (Word comment) + internal note (Legal only); access to contracts sent to Legal; own-contract second approver; decisions carried into the reply; AM-293 gate on download/send.
+- Document engine: templates + clause library, enterprise DOCX (style numbering, REF \w, tables, images, schedules, execution block), clean copy, preflight, LibreOffice PDF; reference NDA/MSA imported as drafts; template approval + publish gate; New contract with live preview and pre-create Legal check; counterparty legal fields; brand per contract.
+- Coordination: `test_evaluation_service` decider changed to a non-owner (AM-289); `test_rbac_personas` Lead negotiation writes (AM-259 r2); `test_import_boundaries` gains drafting/notifications/outbound.
+
+### 2026-11-02 — CLM Phase 1: negotiate and decide (AB-150, AB-151) — built and tested locally, NOT committed
+
+- One Changes tab per returned version: every change typed, "changed without tracking" flagged, routed to the deal owner, to Legal, or in our favour (fail closed); answers kept with history (`comparison_choices` append-only, `expected_version` 409); holders decide in place, second person enforced (`effective_decision`).
+- "Prepare our reply": the client's own DOCX with our tracked changes by "LeapSwitch Legal", ingested and reviewed as the next version; unplaceable answers listed then left as Word comments; round closed once the reply exists.
+- Deal stages, "Contracts" + readable paths, To-do, notifications (+ file-sink / relay mail), collaborators (read + negotiate), Ask files a returned copy. Migration `f7c2a9e4b1d6`. Enterprise UI pass (`08-PHASE1-UI-DESIGN-PASS.md`).
+- UI Pass 2 (owner review): reply reviewed automatically; `READY_TO_SEND`; reply notice with downloads; one header and one Ask surface; contract typesetting in the reading view; inline Word-style marks with Show/Hide.
+- Coordination note: `test_rbac_personas.py::test_the_lead_cannot_write_to_a_colleagues_deal` updated to `AM-259` r2 (the Lead may do negotiation writes; rename/archive/delete still refused); `test_import_boundaries.py` gains `drafting`, `notifications`, `outbound`.
+### 2026-11-09 — Batch 0 safety (AB-182: AM-340, PROPOSED) — branch `feat/clm-p1-negotiate`, not deployed
+
+- The point decision form preselects nothing (LA-1); a version nobody declared is never counted as ours — comparing, replying or the final contract stops and asks whose paper it is, and a reviewed legacy version may be declared once (`AM-340`, proposed) (Changes P1); readers see "(our approved wording)" in place of the wording hash, which the record keeps (LA-4).
+
+### 2026-11-09 — Last corrections before the owner's test (AB-179: AM-326) — branch `feat/clm-p1-negotiate`, not deployed
+
+- A carried point whose chain falls is Legal's again (status, queue, To-do); more placeholder shapes; no prefilled effective date. `origin/main` merged into the CLM branch with the records branch's L1.16 (superseded) / L1.17 (current).
+
+### 2026-11-09 — Constitution L1.17 carries both L1.16s (AB-178: AM-325)
+
+- `origin/main` merged into the records branch. Main's L1.16 (`AM-300`, the NDA counterparty redaction) kept as history under a SUPERSEDED banner; `LEGAL_CONSTITUTION_L1.17.md` = that text + `AM-313`'s §9 addition byte for byte (payment obligations outside the cap). Ask reads L1.17. `all_lock.md`: main's 27,710 lines byte-identical, then this branch's records, then AB-178 (29,769 lines).
+
+### 2026-11-09 — Corrections after the re-verification (AB-177: AM-324) — branch `feat/clm-p1-negotiate`, not deployed
+
+- A carried acceptance is re-checked when used (decider lost the right, REJECT or escalation on any hop → not accepted); liability months 1–60 and never prefilled; `[●]`/`[•]`/`[ ]`/dot runs are blanks; the upload requires and stores whose paper it is. `all_lock.md` 29672 → 29709 lines.
+
+### 2026-11-09 — Corrections after the combined-branch verification (AB-176: AM-323) — branch `feat/clm-p1-negotiate`, not deployed
+
+- Our reply goes to the client before a final copy; a carried acceptance lets the client's wording stand; no final contract with a blank (places listed); the 2025 MSA's blanks as its own slots in a v2 (scratch data only); an amendment's copied text is reference only; Client Profile "Final" counted like the Final filter; permission map + layer boundary fixed (CI); empty table cells keep their column; a 300 s UI proxy; small wording fixes. `all_lock.md` 29608 → 29672 lines, prefix byte-identical.
+
+### 2026-11-09 — The deal cycle ends at "Final" (AB-171: AM-318) — branch `feat/clm-p1-negotiate`, not deployed
+
+- Owner ruling 2026-11-06: the deal ends at the final clean copy; signing happens in another tool. New stage FINAL; "Prepare final contract" for every route (Annexure package, or the new final clean copy: client paper, a client who accepted our version, a 2025-template deal, a tracked-changes round); Legal records Sign as is on it; "Download final contract" replaces "Send for signature"; nothing leads to the signing sheet; amendments and Terms in force start from the final copy (migration `c7e2a9f4d1b6` replaces the governed-by trigger); To-do closing tasks; Legal queue = what is with the reader now; Ask calls a final copy the final agreed contract. Also N5, N13, N15, N16, N17, the tabs' hidden panel and five template nits. `all_lock.md` 29517 → 29608 lines, prefix byte-identical.
+
+### 2026-11-03 — CLM plan lock records (AB-152: AM-282 … AM-293) — records only, nothing built
+
+- Owner approved the CLM plan (create contracts, lawyer review & replacement, plain language per person); its twelve lock records appended to `all_lock.md` as **AB-152**, one AM per item: in-app lawyer clause approval as the recorded source, DRAFT text DB-only (`AM-282`); template approve/publish = `legal.approve_customization` (`AM-283`); "Write our wording" decided before render, amending `AM-251` r1 / `AM-252` r2, client notes as Word comments (`AM-284`); `comparison_choices` standard/custom, wording, SHA-256, notes, internal note omitted (`AM-285`); Client Profile legal fields (`AM-286`); **C-19 resolved** — brand per contract, MSA LeapSwitch-only, evaluator brand scoping (`AM-287`); lawyer read/negotiate scope, no global Legal read (`AM-288`); own-contract second approver, reverses `AM-170` O2 (`AM-289`); client-paper-first rows (`AM-290`); two-line vocabulary per person (`AM-291`); stamp/authority before Mark signed (`AM-292`); download/send gate, LibreOffice-only client PDF (`AM-293`). `all_lock.md` 27894 → 28152 lines; prefix byte-identical (`cmp`). Registry rows + amended-row annotations; C-19 annotated resolved in CONFLICTS.md.
+### 2026-11-02 — CLM programme amendments locked (AB-150: AM-250 … AM-279) — records only, nothing built
+
+- Owner confirmed the CLM R&D report's §17.1 (A-1 … A-30, "yes do", product first); appended to `all_lock.md` as **AB-150**, one AM per item in order (A-1 → `AM-250` … A-30 → `AM-279`), each naming the lock it amends with its current text and line. Effective forward, not retroactive. `all_lock.md` 27410 → 27856 lines; `origin/main` prefix byte-identical.
+- `LOCKED_DECISIONS.md`: 30 rows added; amended rows annotated (PROD-07, IMPL-01, ARCH-06, FE-01, TEST-10/54.6, AM-25, AM-30, AM-34, AM-38, AM-39/AB-12, AM-42, AM-49 (referenced, not amended), AM-55, AM-57, AM-133, AM-136, AM-156, AM-179, AM-224).
+- §17.2's A-31 … A-39 recorded as proposed, owner choice pending, default off — nothing amended for them. The issuing-entity column waits on C-19.
+
+### 2026-11-09 — Agent instruction files restructured to the official Claude Code guidance — branch `docs/agent-instructions-20261109`, NOT committed
 
 No lock, rule or decision changed; guidance reorganised. `CLAUDE.md` 665 → 141 lines (all 23 rules and their IDs kept; history removed; the old file verbatim at `docs/00-project/archive/CLAUDE_MD_2026-11-09.md`). Path-scoped `.claude/rules/` (ui-ux, ask-rag, legal-engine-config, records-and-locks, testing), skills `local-stack`, `team-delivery`, `lock-amendment`, read-only agent `independent-verifier`. Contradictions fixed: MSA cap 6 vs 12 months, "two" standards/evaluators, Ask stage 6 "never built", commit-to-main git text, the `AM-239` favour form missing, DESIGN.md as binding; AGENTS.md §7/§8/§20 no longer advise stash, `add -A`, checkpoint commits or pushing without the owner, and it now carries the shared-working-tree section. Hooks proposed, not enabled: `docs/00-project/PROPOSED_HOOKS_2026-11-09.md`. Audit: `docs/00-project/AGENT_INSTRUCTIONS_AUDIT_2026-11-09.md`.
 

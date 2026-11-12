@@ -65,8 +65,12 @@ export function documentTypeChip(code: string | null | undefined): string | null
  * original_filename, not on this display name.
  */
 export function nameFromFilename(filename: string): string {
-  const stem = filename.replace(/\.[A-Za-z0-9]{1,5}$/, "");
-  const tidied = stem.replace(/[_\-.]+/g, " ").replace(/\s+/g, " ").trim();
+  // a Word→Markdown export stacks its extensions ("….docx.md"); else one is taken off
+  const known = filename.replace(/(\.(docx?|pdf|md|txt|rtf))+$/i, "");
+  const stem = known !== filename ? known : filename.replace(/\.[A-Za-z0-9]{1,5}$/, "");
+  // a leading date stamp ("26 10 26 - ") is the file's, never the contract's name
+  const undated = stem.replace(/^\d{1,2}[ .\-_]\d{1,2}[ .\-_]\d{2,4}\s*[-–]?\s*/, "");
+  const tidied = undated.replace(/[_\-.]+/g, " ").replace(/\s+/g, " ").trim();
   return tidied || filename;
 }
 
@@ -108,6 +112,16 @@ export function sectionRef(sectionNumber: string | null | undefined): string | n
   // document carries stays; none is ever added.
   const trimmed = (sectionNumber ?? "").trim();
   return trimmed || null;
+}
+
+/** "2 Fees", or — a number the paper uses twice — "2 — Invoicing and Payment" by the
+ *  clause's own words (the server's `name`); "" when the clause has neither number nor
+ *  heading. */
+export function clauseName({ number, heading, name }: {
+  number: string | null; heading: string | null; name?: string | null | undefined;
+}): string {
+  const ref = sectionRef(number);
+  return ref && name ? `${ref} — ${name}` : [ref, heading].filter(Boolean).join(" ");
 }
 
 /**
@@ -155,9 +169,10 @@ export function documentSourceChip(value: string | null | undefined): string | n
  * inferred from the version number, the filename or the date.
  */
 export const VERSION_ROLES: ReadonlyArray<{ role: string; label: string; hint: string }> = [
-  { role: "COMPANY_DRAFT", label: "Company draft", hint: "What we sent" },
-  { role: "CLIENT_MODIFIED", label: "Client modified", hint: "What came back" },
-  { role: "FINAL_SIGNED", label: "Final signed", hint: "What was executed" },
+  // one set of words everywhere (verifier item 7): the contract page's ROLE_WORDS too
+  { role: "COMPANY_DRAFT", label: "Our draft", hint: "What we sent" },
+  { role: "CLIENT_MODIFIED", label: "Client's markup", hint: "What came back" },
+  { role: "FINAL_SIGNED", label: "Signed", hint: "Signed in LegalMind before Final" },
 ];
 
 /** The reader's word for a version role, or null when nobody declared one —
@@ -165,6 +180,13 @@ export const VERSION_ROLES: ReadonlyArray<{ role: string; label: string; hint: s
  *  "Unknown", which reads as a checked fact. */
 export function versionRoleLabel(role: string | null | undefined): string | null {
   return VERSION_ROLES.find((r) => r.role === role)?.label ?? null;
+}
+
+/** Ours as the server reads it (`negotiation.is_ours`, P1 2026-11-09): declared our draft,
+ *  or our paper by `source` with no role. A version nobody declared is no one's — never
+ *  ours, so it never offers "Send to client". */
+export function isOurs(v: { version_role?: string | null; source?: string | null } | null | undefined): boolean {
+  return !!v && (v.version_role === "COMPANY_DRAFT" || (!v.version_role && v.source === "ORGANIZATION"));
 }
 
 /** Which of the three status tones a version role wears. Green for the executed

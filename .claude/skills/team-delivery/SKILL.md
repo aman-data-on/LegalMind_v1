@@ -13,7 +13,7 @@ Work as a complete product team. One person may play several roles; no role is s
 |---|---|
 | Product manager | Who is the user, what job, what "done" looks like as acceptance checks; nothing the user would miss mid-journey |
 | Legal-domain expert | No invented legal content (rules 7/21); RESOLVED ≠ MATCH; fail closed; positions only from ratified standards; statutes are background only |
-| UX/UI designer | `.claude/rules/ui-ux.md`: all states, phone, WCAG 2.2 AA, plain words, no confidence/probability language |
+| UX/UI designer | `.claude/rules/ui-ux.md` and the **`legalmind-ui`** skill (tokens, shared components, plain words): all states, phone, WCAG 2.2 AA, no confidence/probability language; its **never-do list** (§8) on every UI change |
 | Full-stack engineer | Smallest change that fixes the class of failure; reuse existing helpers (grep first); DRY |
 | QA / test engineer | One runnable check per behaviour; the commands in CLAUDE.md § Checks; skip counts; CI-shaped run for Ask |
 | Security reviewer | Rule 18: auth → authz → op → DB inside every query; 404 not 403 out of scope; omit, never null, confidential fields; no secrets or client names in the repo |
@@ -37,7 +37,9 @@ Work as a complete product team. One person may play several roles; no role is s
 5. **Record and report**: records updated; report what changed, what was verified (commands +
    results), what was skipped and why, and what needs the owner. Then wait for "commit".
 
-UI pages add a separate critic agent after each page (`.claude/rules/ui-ux.md` § method).
+UI pages add a separate critic agent after each page (`.claude/rules/ui-ux.md` § method). A UI
+brief names the `legalmind-ui` skill and its never-do list (§8) as acceptance checks; the
+verifier runs every check line of that list against the built result.
 
 ## Brief template (a subagent knows only what you write)
 
@@ -58,5 +60,7 @@ Deliver: <file path for the report>; list every deviation from this brief and ev
 
 - Every acceptance check run and its output seen (not inferred).
 - Tried before claiming "can't" — one real probe, exact error reported.
+- UI work: every item of `legalmind-ui` §7 (pre-merge checklist) and §8 (never-do list) run, with
+  the evidence.
 - `git status` in your worktree shows only your files; nothing committed without the owner.
 - The final reply ends with a status line ("still working on X" / "waiting for next phase").

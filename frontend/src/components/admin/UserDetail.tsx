@@ -87,7 +87,7 @@ export function UserDetail({
       <header className="ws-detail__head">
         <div>
           <h2 className="ws-detail__title">{user.name}</h2>
-          <p className="ws-detail__sub ws-mono">{user.email}</p>
+          <p className="ws-detail__sub">{user.email}</p>
         </div>
         <button type="button" className="ws-btn ws-btn--sm" onClick={onClose}>
           Close
@@ -199,8 +199,7 @@ export function UserDetail({
           </select>
         </label>
         <p className="ws-pane__note">
-          A Department Lead sees every deal owned by someone in their department. Moving this account
-          moves what its Lead can see; it does not move the deals themselves.
+          Moving this person changes which Department Lead sees their deals.
         </p>
       </section>
 
@@ -218,8 +217,7 @@ export function UserDetail({
           </button>
         </div>
         <p className="ws-pane__note">
-          Disabling signs the account out immediately and refuses every future sign-in. The
-          server refuses a change that would leave nobody able to administer the platform.
+          Disabling signs the person out and blocks sign-in. The last administrator cannot be disabled.
         </p>
       </section>
 
@@ -233,7 +231,7 @@ export function UserDetail({
           <ul className="ws-timeline">
             {history.map((event) => (
               <li key={event.id}>
-                <span className="ws-mono ws-timeline__when">{dateTime(event.timestamp)}</span>
+                <span className="ws-num ws-timeline__when">{dateTime(event.timestamp)}</span>
                 <span className="ws-timeline__what">{event.action}</span>
                 <span className="ws-pane__note">
                   {event.actor ? `by ${event.actor.name}` : "by the system"}

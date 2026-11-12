@@ -21,6 +21,7 @@ import type { ClientActivity, Counterparty } from "@/lib/types";
 
 import { Fact, websiteHref } from "./ClientBits";
 import { activityWords, shortDate } from "./model";
+import { ErrorState } from "@/components/Feedback";
 
 /**
  * Everything recorded about the client, in one plain list.
@@ -128,10 +129,7 @@ export function ClientNotes({ client, onSaved }: {
                   placeholder="Anything worth knowing about this relationship"
                   onChange={(event) => { setText(event.target.value); setSaved(false); }} />
         <span className="ws-field__help">
-          Context for your colleagues, and visible to everyone who can see this
-          client. A note is not a legal record — the organisation&rsquo;s position
-          lives in an approved Company Standard, and a ruling on a document is a
-          Legal Decision.
+          Visible to everyone who can see this client. Notes are not a legal record.
         </span>
       </label>
       {error ? (
@@ -163,6 +161,7 @@ export function ClientNotes({ client, onSaved }: {
 export function ClientActivityFeed({ clientId }: { clientId: string }) {
   const [rows, setRows] = useState<ClientActivity[] | null>(null);
   const [error, setError] = useState<unknown>(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -172,14 +171,12 @@ export function ClientActivityFeed({ clientId }: { clientId: string }) {
       .then((result) => { if (!cancelled) setRows(result); })
       .catch((cause) => { if (!cancelled) setError(cause); });
     return () => { cancelled = true; };
-  }, [clientId]);
+  }, [clientId, attempt]);
 
   if (error) {
     return (
-      <div className="ws-state ws-state--error" role="alert">
-        <h2>This client&rsquo;s history could not be loaded.</h2>
-        <p>{describeError(error)}</p>
-      </div>
+      <ErrorState title="This client’s history could not be loaded" error={error}
+                  onRetry={() => setAttempt((n) => n + 1)} />
     );
   }
   if (rows === null) {
@@ -190,8 +187,7 @@ export function ClientActivityFeed({ clientId }: { clientId: string }) {
   if (rows.length === 0) {
     return (
       <p className="ws-pane__note">
-        Nothing has happened to this client yet. Activity appears here as
-        documents are uploaded, analyzed and decided.
+        No activity yet. Uploads, reviews and decisions appear here.
       </p>
     );
   }
@@ -202,7 +198,7 @@ export function ClientActivityFeed({ clientId }: { clientId: string }) {
       <ol className="ws-cl__timeline">
         {rows.map((row) => (
           <li key={row.id}>
-            <span className="ws-cl__when ws-mono">
+            <span className="ws-cl__when ws-num">
               {shortDate(row.timestamp) ?? "—"}
             </span>
             <span className="ws-cl__what">

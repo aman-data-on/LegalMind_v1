@@ -30,15 +30,22 @@ from sqlalchemy.orm import Session as DBSession
 from legalmind import config
 from legalmind.analysis import change_triage, consistency, reading
 from legalmind.analysis.client_changes import client_changes
+from legalmind.analysis.negotiation import unit_names
 from legalmind.analysis.service import _review_document_type
 from legalmind.assist.knowledge import constitution
 from legalmind.db import models as M
 from legalmind.domain.document_types import DOCUMENT_TYPES
 from legalmind.domain.enforceability import note_for
 from legalmind.domain.enums import FindingStatus
+from legalmind.domain.user_status import in_our_favour as favoured_word
 from legalmind.evaluation.constitution_boundaries import constitution_prohibition_for
 from legalmind.evaluation.rule_config import FAVOURABLE_COUNSEL_CHECK, in_our_favour
-from legalmind.evaluation.user_status import _requirement_title, group_ids
+from legalmind.evaluation.user_status import (
+    _requirement_title,
+    group_ids,
+    user_status,
+    worst,
+)
 from legalmind.extraction import commercial, parties
 from legalmind.mapping.service import load_clauses
 
@@ -163,7 +170,14 @@ def _rows(db: DBSession, review: M.Review) -> list[dict[str, Any]]:
     for f in findings:
         rv, req = versions.get(f.requirement_version_id, (None, None))
         ev = _governing(evaluations[f.id], f.classification)
-        out.append({"finding": f, "code": req.code if req else "",
+        code = req.code if req else ""
+        # the folded reader word, as `by_finding` projects it (AM-56/AM-63/AM-239)
+        word = worst([user_status(e.classification, e.rule_outcome,
+                                  constitution_prohibition_for(code, e.actual_value)
+                                  is not None) for e in evaluations[f.id]],
+                     user_status(f.classification))
+        out.append({"finding": f, "code": code,
+                    "in_our_favour": favoured_word(f.classification, word),
                     "evidence_ids": linked[f.id],
                     "title": ((rv.description if rv else None)
                               or (req.code if req else "")),
@@ -182,10 +196,13 @@ def _where(row) -> str | None:
     e = row["evidence"]
     if e is None:
         return None
-    # the document's own number, never an added sign (owner, 2026-09-10)
-    parts = [e.section_number or None, e.section_title,
+    # the document's own number, never an added sign (owner, 2026-09-10); said as a
+    # reader says it — "Clause 5.3, page 5" (page 2 critic round, AM-291 r5)
+    number = (e.section_number or "").rstrip(".")
+    parts = [f"Clause {number}" if number else None,
              f"page {e.page_number}" if e.page_number is not None else None]
-    return " · ".join(p for p in parts if p) or None
+    said = ", ".join(p for p in parts if p)
+    return (said[0].upper() + said[1:]) if said else None
 
 
 def _days(actual: dict) -> str:
@@ -371,22 +388,23 @@ def _enforceability(code: str, legal_position: bool) -> dict:
 
 #: AM-156 — the action a reader takes on a Finding, in the Constitution's own terms
 #: (§24.3, §24.4, §25.1): never "reject", never "approved"; a person always decides.
-ACCEPT = "Accept — it matches our position"
-SEND_WORDING = "Send our wording; accepting the difference is a Legal decision"
-NO_WORDING = "Legal decides — no approved wording exists for this point"
-MUST_CHANGE = ("Must change before signing — only an authorised approver may grant an "
-               "exception (Constitution §25.1)")
-READ_IT = "A person must read this clause before it can be relied on"
+#: AM-291 r5 (S1b): plain words for every reader; the § behind each stays in the comment
+#: above and in Legal details, never in the sentence.
+ACCEPT = "Accept — it matches our standard"
+SEND_WORDING = "Ask them to use our wording"                       # accepting it: Legal
+NO_WORDING = "Legal decides — we have no approved wording for this"
+MUST_CHANGE = "Must change before signing — not negotiable"        # §25.1 exception only
+READ_IT = "Legal must read this clause before we rely on it"
 #: AM-159 — a point the document states more than once, differently (locked 45C.2), and a
 #: point the Constitution defines no boundary for (§23.4: "must not infer or invent a
 #: boundary").
-CONFLICT_DECIDE = ("The document states this point more than once, differently — a "
-                   "person decides which governs")
-FAVOURABLE = ("Differs from our standard in our favour — a person confirms it; do not "
-              "send our wording, which would ask the other side for less")
+CONFLICT_DECIDE = ("The contract says this more than once, differently — Legal decides "
+                   "which one counts")
+FAVOURABLE = ("In our favour — Legal confirms it; don't send our wording, it would ask "
+              "them for less")
 #: AM-239 — accepted by the approved favourable rule; a person may still look.
-ACCEPT_FAVOURABLE = "Accept — it differs from our position in our favour"
-UNDEFINED = "Legal decides — the Constitution defines no boundary for this point (§23.4)"
+ACCEPT_FAVOURABLE = "Accept — it differs from our standard in our favour"
+UNDEFINED = "Our standards don't cover this — Legal decides"          # §23.4
 
 
 def _in_our_favour(row) -> bool:
@@ -394,7 +412,8 @@ def _in_our_favour(row) -> bool:
     provider — never inferred (`rule_config.in_our_favour`)."""
     actual = row.get("actual") or {}
     return (row.get("document_type") or "") in parties.PROVIDER_TYPES and in_our_favour(
-        actual.get("cap_value"), actual.get("cap_unit"), row.get("standard") or {})
+        actual.get("cap_value"), actual.get("cap_unit"), row.get("standard") or {},
+        actual.get("cap_party"))
 
 
 def action(row, has_wording: bool) -> str:
@@ -415,7 +434,7 @@ def action(row, has_wording: bool) -> str:
     if cls == "CONFLICT":
         return CONFLICT_DECIDE
     number = row["evidence"].section_number if row.get("evidence") is not None else None
-    return f"A person must read clause {number} before it can be relied on" if number \
+    return f"Legal must read clause {number} before we rely on it" if number \
         else READ_IT                        # where it is, page and title, shows apart
 
 
@@ -423,11 +442,10 @@ def action(row, has_wording: bool) -> str:
 #: A recommendation, never a decision: only an authorised reviewer records one, and the
 #: system never recommends "Reject" (Constitution §24.3/§25.1).
 ACCEPT_WORDS = "Accept"
-EXCEPTION_WORDS = "Accept as an exception — a person decides"
-REVISE_WORDS = "Request revised wording"
-NOT_NEGOTIABLE_WORDS = ("Request revised wording — not negotiable "
-                        "(Constitution §24.4, §25.1)")
-LEGAL_REVIEW_WORDS = "Seek legal review"
+EXCEPTION_WORDS = "Accept as an exception — Legal decides"
+REVISE_WORDS = "Ask them to change the wording"
+NOT_NEGOTIABLE_WORDS = "Must change — not negotiable"               # §24.4, §25.1
+LEGAL_REVIEW_WORDS = "Ask Legal to look at this"
 
 
 def recommend(action_text: str, uncertain: bool = False) -> str:
@@ -577,7 +595,7 @@ def _unread(actual: dict, theirs: str | None, where: str = "") -> str:
 
 
 def _case(r, item: dict, point: dict | None, source: dict | None,
-          legal_position: bool) -> dict[str, Any]:
+          legal_position: bool, names: dict[str, str] | None = None) -> dict[str, Any]:
     """One finding as a careful reviewer states it (owner, 2026-10-21, Step 3): what the
     contract says, what our standard says and where it comes from, the gap, the business
     impact the figures support, the related clauses, and the recommended action. Built by
@@ -593,7 +611,10 @@ def _case(r, item: dict, point: dict | None, source: dict | None,
     return {
         "contract": None if r["classification"] == "MISSING" or passage is None else {
             "quote": " ".join((passage.content or "").split()),
-            "clause": passage.section_number, "page": passage.page_number},
+            "clause": passage.section_number, "page": passage.page_number,
+            # a number the paper uses twice, by the clause's own words (slice A)
+            **({"name": names[str(passage.id)]} if names and str(passage.id) in names
+               else {})},
         "standard": standard,
         "gap": _gap(r, legal_position),
         "business": ({"headline": point["headline"], "body": point["body"],
@@ -612,7 +633,7 @@ def _action_rank(text: str) -> int:
 #: what a person does with an observation (AM-159); a precedence rule is information
 _OBSERVATION_ACTION = {
     consistency.RENEWAL_TWO_WAYS: CONFLICT_DECIDE,
-    consistency.SUBJECT_TO: "A person reads these clauses together",
+    consistency.SUBJECT_TO: "Legal reads these clauses together",
     consistency.PRECEDENCE: None,
     consistency.NO_NONPAYMENT_REMEDY: UNDEFINED,
     consistency.OUR_DETAILS: "Correct our own details before signing",
@@ -629,41 +650,51 @@ def recommendation(items: list[dict], observed: dict, measured: int,
     """AM-160 — one line, computed from the actions above and nothing else: a
     recommendation an authorised person decides on (§24.3, §25.1), never a score, a level
     or a decision of the system's own. With nothing measured there is nothing to
-    recommend — no line at all, whatever was observed (no claim about our positions)."""
+    recommend — no line at all, whatever was observed (no claim about our positions).
+
+    S1b — ONE count, so every surface agrees (AM-291 r5): `items` are the open points
+    (the Summary's "Open points (N)"). Of them, a point "needs Legal" unless the approved
+    rule already accepts it (ACCEPT/ACCEPT_FAVOURABLE) — the same set `review_progress`
+    counts as `required`. Things the document says twice or about us (`observed`) are
+    counted apart, never mixed into the points."""
     if not measured:
         return None
     def n(count: int, word: str) -> str:
         return f"{count} {word}{'s' * (count != 1)}"
+    checks = sum(o.get("action") is not None for o in observed["structural"])
+    also = f" Also check {n(checks, 'thing')} in the contract." if checks else ""
     if decided and not items:
         # AM-179 (2026-10-22): every point a person had to act on is decided — the
         # recommendation no longer counts them; what follows is the contract decision
-        return (f"Every point is decided ({n(decided, 'point')}); the decision on the "
-                "contract follows (§24.3).")
+        return (f"Every point is decided ({n(decided, 'point')}) — the decision on the "
+                f"contract is next.{also}")
     must = sum(i["action"] == MUST_CHANGE for i in items)
     change = sum(i["action"] == SEND_WORDING for i in items)   # NO_WORDING: decide
-    decide = len(items) - must - change + sum(
-        o.get("action") is not None for o in observed["structural"])
-    tail = f"; a person must decide or read {n(decide, 'point')} first" if decide else ""
+    accepted = sum(i["action"] in (ACCEPT, ACCEPT_FAVOURABLE) for i in items)
+    decide = len(items) - must - change - accepted
+    kept = (f" {n(accepted, 'point')} {'differs' if accepted == 1 else 'differ'} in our "
+            "favour and can stay." if accepted else "")
+    tail = f" and Legal must look at {decide} more" if decide else ""
     if must:
-        more = f", and {n(change, 'other change')} proposed" if change else ""
-        return (f"Recommendation: do not sign as drafted — {n(must, 'point')} must "
-                f"change before signing{more}{tail}. Only an authorised approver may "
-                "grant an exception (§25.1).")
+        more = f", {n(change, 'more')} to ask them to change" if change else ""
+        return (f"Not ready to sign: {n(must, 'point')} must change{more}{tail}."
+                f"{kept}{also}")
     if change:
-        return (f"Recommendation: sign after {n(change, 'change')}{tail}. An authorised "
-                "person decides (§24.3).")
+        return (f"Sign after {n(change, 'change')} to ask them for{tail}. Legal "
+                f"decides.{kept}{also}")
     # a deviation with no approved wording still differs from our positions (review r27)
     differ = sum(i.get("classification") in ("DEVIATION", "MISSING") for i in items)
     if decide and differ:
-        return (f"Recommendation: a person must decide or read {n(decide, 'point')} "
-                f"before signing; {n(differ, 'point')} "
-                f"{'differs' if differ == 1 else 'differ'} from our positions with no "
-                "approved wording to send.")
-    if decide:
-        return ("Recommendation: no point differs from our positions, but a person must "
-                f"decide or read {n(decide, 'point')} before signing.")
-    return ("No point differs from our positions — a person still reviews before final "
-            "sign-off (§25.2).")
+        return (f"Not ready to sign: Legal must look at {n(decide, 'point')}; "
+                f"{n(differ, 'point')} {'differs' if differ == 1 else 'differ'} from our "
+                f"standards and we have no approved wording to send.{kept}{also}")
+    if decide or checks:
+        what = f"Legal must look at {n(decide, 'point')}" if decide else \
+            f"check {n(checks, 'thing')} in the contract"
+        return (f"Nothing differs from our standards, but {what} before signing."
+                f"{kept}{also if decide else ''}")
+    return ("Nothing differs from our standards — Legal still reviews before signing."
+            + kept)
 
 
 def _proposals(db: DBSession, sections: set[str]) -> dict[str, dict[str, str]]:
@@ -712,6 +743,7 @@ def review_angles(db: DBSession, review: M.Review, *, legal_position: bool) -> d
     for r in rows:
         r["document_type"] = document_type     # whose roles "provider"/"customer" name
     clauses = load_clauses(db, review.document_version_id)
+    names = unit_names(clauses)
     facts = commercial.read(clauses)
     notice = next(((r["actual"]["cap_value"], _days(r["actual"])) for r in rows
                    if _stem(r["code"]) == "CONVENIENCE-NOTICE"
@@ -732,7 +764,10 @@ def review_angles(db: DBSession, review: M.Review, *, legal_position: bool) -> d
     wording: dict[str, dict[str, str]] = {}
     for r in actionable:
         section = str((r["standard"].get("constitution") or {}).get("section") or "")
-        if section in by_section and r["classification"] in ("DEVIATION", "MISSING"):
+        # never wording to send back on a point the approved rule accepted in our
+        # favour (Batch 1 d): there is nothing to counter
+        if section in by_section and r["classification"] in ("DEVIATION", "MISSING") \
+                and not r.get("in_our_favour"):
             wording[str(r["finding"].id)] = by_section[section]
     # the action is the same for every reader; only the wording is position-gated (SEC-07)
     proposals = wording if legal_position else {}
@@ -770,7 +805,7 @@ def review_angles(db: DBSession, review: M.Review, *, legal_position: bool) -> d
         item["decided"] = item["finding_id"] in resolved
         section = str((r["standard"].get("constitution") or {}).get("section") or "")
         item["case"] = _case(r, item, by_finding.get(item["finding_id"]),
-                             by_section.get(section), legal_position)
+                             by_section.get(section), legal_position, names)
     observed = consistency.observe(clauses, document_type)
     # what the client changed, each change beside the standard that measured its clause
     measured: dict[str, list[str]] = {}

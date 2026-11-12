@@ -1,0 +1,16 @@
+/* What we can offer, per published template (`AM-305`): one section per template, the
+   points in a readable measure, two columns where the page is wide enough. */
+.tpl-offers { margin-top: 0; }
+.tpl-offers__head h2 { margin: 0; font-size: var(--ws-text-lg); font-weight: 600; color: var(--ws-ink-900); }
+.tpl-offers__head p { margin: var(--ws-s1) 0 var(--ws-s4); color: var(--ws-ink-700); max-width: 62ch; line-height: 1.5; }
+.tpl-offer { background: var(--ws-surface); border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-card);
+  padding: var(--ws-s4) var(--ws-s5); }
+.tpl-offer + .tpl-offer { margin-top: var(--ws-s4); }
+.tpl-offer__head { margin-bottom: var(--ws-s3); padding-bottom: var(--ws-s3); border-bottom: 1px solid var(--ws-ink-100); }
+.tpl-offer__head h2 { margin: 0; font-size: var(--ws-text-md); font-weight: 600; color: var(--ws-ink-900); }
+.tpl-offer__head p { margin: 2px 0 0; font-size: var(--ws-text-sm); color: var(--ws-ink-500); }
+@media (min-width: 1100px) {
+  .tpl-offer .lm-offer__list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ws-s3) var(--ws-s6); }
+  .tpl-offer .lm-offer__point + .lm-offer__point { margin-top: 0; }
+}
+@media (max-width: 640px) { .tpl-offer { padding: var(--ws-s3); } }

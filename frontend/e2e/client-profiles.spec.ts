@@ -46,14 +46,15 @@ async function patchOk(page: import("@playwright/test").Page, path: string, body
 }
 
 /** Upload the fixture document to a contract and return the new version. */
-async function upload(page: import("@playwright/test").Page, contractId: string) {
+async function upload(page: import("@playwright/test").Page, contractId: string,
+                      role: "COMPANY_DRAFT" | "CLIENT_MODIFIED" = "COMPANY_DRAFT") {
   const f = fixture();
   const response = await page.request.post(
     `/api/v1/contracts/${contractId}/document-versions`,
     {
       headers: {
         "Content-Type": f.document.mime,
-        "X-Filename": f.document.filename,
+        "X-Version-Role": role, "X-Filename": f.document.filename,
         "X-CSRF-Token": await csrfToken(page),
       },
       data: readFileSync(f.document.path),
@@ -86,10 +87,12 @@ async function buildClient(page: import("@playwright/test").Page, stamp: number)
     name: "Master Services Agreement", contract_type: "MSA",
     counterparty_id: client.id,
   });
-  const roles = ["COMPANY_DRAFT", "CLIENT_MODIFIED", "FINAL_SIGNED"] as const;
-  for (const role of roles) {
-    const version = await upload(page, msa.id);
-    await patchOk(page, `/document-versions/${version.id}`, { version_role: role });
+  // AM-324 r4: each upload says whose paper it is. A negotiated contract is signed only
+  // by "Mark signed" (AM-298 r1) and takes no write once signed, so the MSA's three
+  // versions are our draft, the client's markup and our next draft; "filed as signed"
+  // is the Amendment's (no client round) below.
+  for (const role of ["COMPANY_DRAFT", "CLIENT_MODIFIED", "COMPANY_DRAFT"] as const) {
+    await upload(page, msa.id, role);
   }
 
   for (const [name, type, role] of [
@@ -102,8 +105,9 @@ async function buildClient(page: import("@playwright/test").Page, stamp: number)
     const contract = await postOk(page, "/contracts", {
       name, contract_type: type, counterparty_id: client.id,
     });
-    const version = await upload(page, contract.id);
-    if (role) {
+    const version = await upload(page, contract.id,
+                                 role === "CLIENT_MODIFIED" ? role : "COMPANY_DRAFT");
+    if (role === "FINAL_SIGNED") {
       await patchOk(page, `/document-versions/${version.id}`, { version_role: role });
     }
   }
@@ -153,63 +157,43 @@ test("three versions of one document all survive, each with its own role",
   await expect(versions).toHaveCount(3);
   // Newest first, and every one still there — the third upload replaced nothing.
   await expect(versions.nth(0)).toContainText("v3");
-  await expect(versions.nth(0)).toContainText("Final signed");
+  await expect(versions.nth(0)).toContainText("Our draft");
   await expect(versions.nth(1)).toContainText("v2");
-  await expect(versions.nth(1)).toContainText("Client modified");
+  await expect(versions.nth(1)).toContainText("Client's markup");
   await expect(versions.nth(2)).toContainText("v1");
-  await expect(versions.nth(2)).toContainText("Company draft");
+  await expect(versions.nth(2)).toContainText("Our draft");
   // The current version is the highest number, and it is said so — a
   // dedicated "Current" badge rather than inline text (owner, 2026-09-18).
   await expect(versions.nth(0)).toContainText("Current");
 });
 
-test("the Agreement stage column shows Final signed immediately after upload, and survives a reload",
+test("an upload says whose paper it is, and is never declared signed (AM-318 B8, AM-324 r4)",
      async ({ page }) => {
   const stamp = Date.now();
-  const client = await postOk(page, "/counterparties", { name: `Signed Co ${stamp}` });
+  const client = await postOk(page, "/counterparties", { name: `Paper Co ${stamp}` });
   await page.goto(`/dashboard/clients?id=${client.id}`);
-
-  // A brand-new client shows the toolbar's upload button AND the zero-state's
-  // own — same action, offered twice, so pick the toolbar's explicitly.
-  await page.getByRole("button", { name: "+ Upload document" }).first().click();
+  await page.getByRole("button", { name: "Upload document" }).first().click();
   const f = fixture();
   await page.locator('input[type="file"]').setInputFiles(f.document.path);
-  await page.getByLabel("Version").selectOption("FINAL_SIGNED");
-  await page.getByLabel("Document name").fill(`Signed Agreement ${stamp}`);
+  const select = page.getByLabel("Version");
+  await expect(select.locator('option[value="FINAL_SIGNED"]')).toHaveCount(0);
+  await select.selectOption("CLIENT_MODIFIED");
+  await page.getByLabel("Document name").fill(`Client Paper ${stamp}`);
   await page.getByRole("button", { name: "Upload" }).click();
-
-  const row = page.locator("tr", { hasText: `Signed Agreement ${stamp}` }).first();
-  // Visible in the MAIN row, without opening version history — the exact gap
-  // this change closes (owner, 2026-09-18): the stage used to be readable
-  // only after expanding "View history".
-  await expect(row).toContainText("Final signed", { timeout: 15_000 });
-  // ...and it stays a SEPARATE fact from the review-status pill next to it —
-  // the two columns must never merge into one compound answer (Decision 2).
-  await expect(row.locator(".ws-status-pill")).not.toContainText("Final signed");
-
-  // Reload — Part 10's explicit check that the declared stage was actually
-  // persisted (via the existing `PATCH /document-versions/{id}`) rather than
-  // only reflecting optimistic local state.
-  await page.reload();
-  const rowAfterReload = page.locator("tr", { hasText: `Signed Agreement ${stamp}` }).first();
-  await expect(rowAfterReload).toContainText("Final signed");
-
-  // Version history still expands correctly, still shows the role, and the
-  // one version present is clearly marked Current.
-  await rowAfterReload.getByRole("button", { name: /View history \(1\)/ }).click();
-  const versionRow = page.locator(".ws-cl__verlist .ws-cl__ver").first();
-  await expect(versionRow).toContainText("Final signed");
-  await expect(versionRow).toContainText("Current");
+  const row = page.locator("tr", { hasText: `Client Paper ${stamp}` }).first();
+  await expect(row).toBeVisible({ timeout: 15_000 });
+  await row.getByRole("button", { name: /View history \(1\)/ }).click();
+  await expect(page.locator(".ws-cl__verlist .ws-cl__ver").first()).toContainText("Client's markup");
 });
 
-test("an unclassified version says so rather than being guessed at",
+test("an uploaded version says what it was declared as (AM-324 r4: never unclassified)",
      async ({ page }) => {
   const client = await buildClient(page, Date.now());
   await page.goto(`/dashboard/clients?id=${client.id}`);
   const row = page.locator("tr", { hasText: "Order Form" }).first();
   await row.getByRole("button", { name: /View history \(1\)/ }).click();
   await expect(page.locator(".ws-cl__verlist .ws-cl__ver").first())
-    .toContainText("Not classified");
+    .toContainText("Our draft");
 });
 
 test("a document already in LegalMind is linked, never re-uploaded",
@@ -261,10 +245,13 @@ test("the existing analysis engine is what a client's document is analyzed by",
   // that used to sit under it is gone from the main row (owner, 2026-09-19):
   // a count to skim-read as a severity score, not a fact — the Review itself
   // still has the full breakdown, one click away.
-  await expect(row.locator(".ws-status-pill")).toBeVisible();
+  // Batch 1 (c): the /contracts row's own stage badge, so the two screens never disagree
+  await expect(row.locator(".ws-dealstage")).toBeVisible();
   await expect(row.locator(".ws-findings-badge")).toHaveCount(0);
-  // ...and leads to the existing workspace rather than a second reader.
-  await expect(row.getByRole("link", { name: "Review" })).toBeVisible();
+  // ...and the name leads to the existing workspace rather than a second reader
+  // (one link per row).
+  await expect(row.getByRole("link", { name: `Analysed MSA ${stamp}` }))
+    .toHaveAttribute("href", `/dashboard?id=${contract.id}`);
 });
 
 test("a client this caller shares no contract with is not on their screen",
@@ -298,7 +285,7 @@ test("the Add Client form replaces the open client's page, rather than sitting i
   // The sidebar's "+ Add" — not the directory's own "+ Add client" — is the
   // one that used to leave the open client's header, tabs and documents
   // rendered underneath the form for a different, not-yet-created client.
-  await page.getByRole("button", { name: "+ Add", exact: true }).click();
+  await page.getByRole("button", { name: "Add", exact: true }).click();
 
   // The dedicated Add Client view is up...
   await expect(page.getByRole("heading", { name: "Add a client" })).toBeVisible();
@@ -323,7 +310,7 @@ test("the Add Client form replaces the open client's page, rather than sitting i
 
   // Submitting still lands on the new client's own page (post-save navigation
   // unchanged).
-  await page.getByRole("button", { name: "+ Add", exact: true }).click();
+  await page.getByRole("button", { name: "Add", exact: true }).click();
   const name = `Sidecar Add ${stamp}`;
   await page.getByLabel("Company name", { exact: false }).fill(name);
   await page.getByRole("button", { name: "Add client" }).click();
@@ -400,11 +387,11 @@ test("capture the screens for visual review", async ({ page }) => {
 
   // The two disclosures.
   await page.getByRole("tab", { name: "Documents" }).click();
-  await page.getByRole("button", { name: "+ Upload document" }).click();
+  await page.getByRole("button", { name: "Upload document" }).click();
   await page.screenshot({ path: join(SHOTS, "07-upload-1440.png"), fullPage: true });
 
   await page.goto("/dashboard/clients");
-  await page.getByRole("button", { name: "+ Add client" }).click();
+  await page.getByRole("button", { name: "Add client", exact: true }).click();
   await page.screenshot({ path: join(SHOTS, "08-addclient-1440.png"), fullPage: true });
 
   // A 1366×768 laptop — the short viewport the Dashboard audit called out.
@@ -538,6 +525,7 @@ test("Upload new version opens the existing panel pre-targeted, and keeps the ol
 
   const f = fixture();
   await page.locator('input[type="file"]').setInputFiles(f.document.path);
+  await page.getByRole("combobox", { name: "Version", exact: true }).selectOption("COMPANY_DRAFT");   // AM-324 r4
   await page.getByRole("button", { name: "Upload" }).click();
   await expect(page.getByRole("heading", { name: "Legal documents" })).toBeVisible();
 

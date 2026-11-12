@@ -1,0 +1,107 @@
+/* Record signing (CLM flow 5, AM-292): a sheet on the right, three sections in the order
+   they happen, one footer with what still stops "Mark signed". Workspace tokens only. */
+
+.ws-modal.lm-sign { justify-content: flex-end; align-items: stretch; padding: 0; }
+.ws-modal.lm-sign .ws-modal__box {
+  max-width: 36rem; height: 100dvh; max-height: none; border-radius: 0; padding: 0; gap: 0;
+  display: flex; flex-direction: column; overflow: hidden;
+  box-shadow: -12px 0 40px rgba(14, 20, 32, 0.2);
+}
+.lm-sign__head {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--ws-s3);
+  padding: var(--ws-s4) var(--ws-s5); border-bottom: 1px solid var(--ws-ink-100);
+}
+.lm-sign__head h2 { margin: 0; font-size: var(--ws-text-lg); font-weight: 600; }
+.lm-sign__body { flex: 1; min-height: 0; overflow-y: auto; padding: var(--ws-s2) var(--ws-s5) var(--ws-s5); }
+
+.lm-sign__sec { padding: var(--ws-s4) 0; border-bottom: 1px solid var(--ws-ink-100); display: grid; gap: var(--ws-s3); }
+.lm-sign__sec:last-child { border-bottom: 0; }
+.lm-sign__sechead { display: flex; align-items: baseline; justify-content: space-between; gap: var(--ws-s3); }
+.lm-sign__sechead h3 { margin: 0; font-size: var(--ws-text-md); font-weight: 600; }
+.lm-sign__mark {
+  display: inline-flex; align-items: center; gap: 4px; font-size: var(--t-caption);
+  color: var(--ws-ink-500); white-space: nowrap;
+}
+.lm-sign__mark--done { color: var(--ws-ok); font-weight: 600; }
+.lm-sign__why {
+  margin: 0; max-width: 62ch; font-size: var(--ws-text-sm); line-height: 1.55; color: var(--ws-ink-700);
+}
+
+.lm-sign__choice { border: 0; margin: 0; padding: 0; display: grid; gap: var(--ws-s2); }
+.lm-sign__choice legend { margin-bottom: var(--ws-s2); }
+.lm-sign__opt {
+  display: flex; align-items: flex-start; gap: var(--ws-s2); cursor: pointer;
+  padding: var(--ws-s2) var(--ws-s3); border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-sm);
+}
+.lm-sign__opt input, .lm-sign__ack input {
+  width: 16px; height: 16px; min-height: 0; padding: 0; flex: none; margin: 4px 0 0; accent-color: var(--ws-accent);
+}
+.lm-sign__opt span { display: grid; gap: 2px; font-size: var(--ws-text-sm); }
+.lm-sign__opt small { color: var(--ws-ink-500); font-size: var(--t-caption); }
+.lm-sign__opt--on { border-color: var(--ws-accent); background: var(--ws-accent-soft); }
+.lm-sign__opt:focus-within { outline: 2px solid var(--ws-accent); outline-offset: 1px; }
+
+.lm-sign__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ws-s3); }
+.lm-sign__ack { display: flex; align-items: flex-start; gap: var(--ws-s2); font-size: var(--ws-text-sm); line-height: 1.5; }
+
+.lm-sign__party { border: 0; margin: 0; padding: 0; }
+.lm-sign__party legend { font-size: var(--t-caption); font-weight: 600; margin-bottom: var(--ws-s2); }
+.lm-sign__party + .lm-sign__party { padding-top: var(--ws-s3); border-top: 1px dashed var(--ws-ink-100); }
+.lm-sign__more summary { cursor: pointer; font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+.lm-sign__more[open] { display: grid; gap: var(--ws-s3); }
+
+.lm-sign__upload { display: flex; align-items: center; gap: var(--ws-s3); }
+.lm-sign__upload label { cursor: pointer; }
+.lm-sign__file { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.lm-sign__upload:focus-within label { outline: 2px solid var(--ws-accent); outline-offset: 1px; }
+
+.lm-sign__verdict {
+  margin: 0; padding: var(--ws-s3); border-radius: var(--ws-radius-sm); font-size: var(--ws-text-sm);
+  display: grid; gap: var(--ws-s2); border-left: 3px solid;
+}
+.lm-sign__verdict p { margin: 0; }
+p.lm-sign__verdict { display: flex; align-items: center; gap: var(--ws-s2); }
+.lm-sign__verdict--ok { background: var(--ws-ok-soft); border-color: var(--ws-ok); color: var(--ws-ink-900); }
+.lm-sign__verdict--warn { background: var(--ws-warn-soft); border-color: var(--ws-warn); }
+.lm-sign__diffs { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--ws-s2); }
+.lm-sign__diffs li { display: grid; gap: 4px; padding-top: var(--ws-s2); border-top: 1px solid rgba(14, 20, 32, 0.08); }
+.lm-sign__where { font-weight: 600; display: flex; gap: var(--ws-s2); align-items: baseline; }
+.lm-sign__where small { font-weight: 400; color: var(--ws-ink-500); }
+.lm-sign__diffs del, .lm-sign__diffs ins {
+  display: block; padding: 4px var(--ws-s2); border-radius: 4px; font-family: var(--ws-serif);
+  font-size: var(--ws-text-sm); line-height: 1.5; text-decoration: none;
+}
+.lm-sign__diffs del { background: var(--ws-diff-ours-line, #fef4f4); border-left: 2px solid var(--ws-diff-ours-rule, #d9534f); }
+.lm-sign__diffs ins { background: var(--ws-diff-client-line, #f0f9f3); border-left: 2px solid var(--ws-diff-client-rule, #2f9e5b); }
+.lm-sign__sec > a.ws-btn { justify-self: start; }
+.lm-sign__accept { display: grid; gap: var(--ws-s2); justify-items: start; }
+.lm-sign__accept .ws-field { width: 100%; }
+.lm-sign__accept textarea { width: 100%; font: inherit; padding: var(--ws-s2); border: 1px solid var(--ws-input-border); border-radius: var(--ws-radius-sm); }
+
+.lm-sign__foot {
+  border-top: 1px solid var(--ws-ink-100); padding: var(--ws-s3) var(--ws-s5) var(--ws-s4);
+  display: grid; gap: var(--ws-s2); background: var(--ws-surface);
+}
+.lm-sign__todo { margin: 0; font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+.lm-sign__todo p { margin: 0 0 4px; font-weight: 600; }
+.lm-sign__todo ul { margin: 0; padding-left: 1.1rem; display: grid; gap: 2px; }
+.lm-sign__todo--ok { display: flex; align-items: center; gap: var(--ws-s2); color: var(--ws-ok); }
+.lm-sign__acts { display: flex; justify-content: flex-end; gap: var(--ws-s2); }
+
+.lm-sign__signed { margin: var(--ws-s3) 0 0; display: flex; align-items: center; gap: var(--ws-s2); font-size: var(--ws-text-lg); font-weight: 600; color: var(--ws-ok); }
+.lm-sign__dl { margin: 0; display: grid; grid-template-columns: 8rem 1fr; gap: var(--ws-s2) var(--ws-s3); font-size: var(--ws-text-sm); }
+.lm-sign__dl dt { color: var(--ws-ink-500); }
+.lm-sign__dl dd { margin: 0; }
+.lm-sign__dl dd small { display: block; color: var(--ws-ink-500); }
+.lm-sign__dlrow { display: contents; }
+/* signed is lifecycle, not Matches: ink with a check, never the status green */
+.lm-signed-on { display: inline-flex; align-items: center; gap: var(--s-1); color: var(--c-state); font-weight: 600; }
+
+@media (max-width: 640px) {
+  .ws-modal.lm-sign .ws-modal__box { max-width: none; }
+  .lm-sign__head, .lm-sign__body, .lm-sign__foot { padding-left: var(--ws-s4); padding-right: var(--ws-s4); }
+  .lm-sign__grid { grid-template-columns: 1fr; }
+  .lm-sign__dl { grid-template-columns: 1fr; }
+  .lm-sign__dl dt { margin-top: var(--ws-s2); }
+  .lm-sign__acts .ws-btn { flex: 1; }
+}

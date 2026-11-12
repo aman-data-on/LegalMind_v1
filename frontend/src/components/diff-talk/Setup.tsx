@@ -8,18 +8,19 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { IconCheck, IconUploadCloud } from "@/components/workspace/icons";
+import { IconCheck } from "@/components/workspace/icons";
 import { api, describeError, uploadFirstDocument } from "@/lib/api";
 import { documentTypeChip, nameFromFilename } from "@/lib/documentTypes";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { Contract, WebsiteDocument } from "@/lib/types";
+import { formatDate } from "@/lib/dates";
+import { FilePicker } from "@/components/FilePicker";
 
 type Option = { value: string; label: string };
 
 /** The upload date of the version a slot would compare — with the year, so the same
  *  name uploaded in different years reads apart. One formatter for the module. */
-const UPLOADED = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric" });
 const uploaded = (c: Contract) => {
   const at = Date.parse(c.latest_version?.created_at ?? "");
   return Number.isNaN(at) ? null : at;
@@ -42,7 +43,7 @@ const option = (c: Contract): Option => {
   const version = (c.latest_version?.version_number ?? 1) > 1
     ? ` · v${c.latest_version!.version_number}` : "";
   return { value: c.latest_version!.id,
-           label: at === null ? `${base}${version}` : `${base} · ${UPLOADED.format(at)}${version}` };
+           label: at === null ? `${base}${version}` : `${base} · ${formatDate(at)}${version}` };
 };
 
 export function Setup({ left, right, website, documents, listError, onChange, onUploaded }: {
@@ -65,7 +66,7 @@ export function Setup({ left, right, website, documents, listError, onChange, on
       {listError ? <p className="ws-dt__msg is-error" role="alert">{listError}</p> : null}
       <div className="ws-dt__slots">
         <Slot step={1} label="Our document" source="ORGANIZATION" side="ours" value={left}
-              hint="A website document is always today's version — no upload needed."
+              hint="A website document is always today's version. No upload needed."
               placeholder="Choose our document…"
               groups={[
                 { label: "Website documents",
@@ -75,7 +76,7 @@ export function Setup({ left, right, website, documents, listError, onChange, on
               onChange={(ref) => onChange(ref, right)}
               onUploaded={(ref) => onUploaded("left", ref)} />
         <Slot step={2} label="Client contract" source="COUNTERPARTY" side="client" value={right}
-              hint="The client's paper — any type, any numbering."
+              hint="The client's paper, of any type and numbering."
               placeholder="Choose the client contract…"
               groups={[
                 { label: "Client documents", options: client.map(option) },
@@ -85,8 +86,7 @@ export function Setup({ left, right, website, documents, listError, onChange, on
               onUploaded={(ref) => onUploaded("right", ref)} />
       </div>
       <p className="ws-dt__setupnote">
-        The two are lined up clause by clause — even when the client numbers, orders or
-        words them differently — and only the differences are shown.
+        Clauses are matched even when the client renumbers, reorders or rewords them. Only differences are shown.
       </p>
     </section>
   );
@@ -107,7 +107,6 @@ function Slot({ step, label, hint, placeholder, value, source, side, groups, onC
   const { can } = useSession();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [over, setOver] = useState(false);
   const id = `dt-pick-${step}`;
   const chosen = groups.flatMap((g) => g.options).find((o) => o.value === value);
   // The wait below can outlive the slot, and the reader may choose another document
@@ -125,7 +124,8 @@ function Slot({ step, label, hint, placeholder, value, source, side, groups, onC
       // An ordinary LegalMind document — same storage, parsing, access and audit as
       // any upload; a refused file: the shared helper archives the empty contract.
       const contract = await api.createContract(nameFromFilename(file.name));
-      const result = await uploadFirstDocument(contract.id, file);
+      const result = await uploadFirstDocument(contract.id, file,
+                                               source === "COUNTERPARTY" ? "CLIENT_MODIFIED" : "COMPANY_DRAFT");
       const versionId = result.document_version.id;
       // An ordinary document, declared ours or theirs. Deliberately NOT analysed
       // here: a review spends Gemini calls (semantic recognition, type suggestion)
@@ -185,32 +185,9 @@ function Slot({ step, label, hint, placeholder, value, source, side, groups, onC
         ))}
       </select>
       {can(P.CONTRACT_CREATE) && can(P.DOCUMENT_UPLOAD) ? (
-        <label className={`ws-dt__drop${over ? " is-over" : ""}${busy ? " is-busy" : ""}`}
-               onDragOver={(e) => { e.preventDefault(); setOver(true); }}
-               // Only when the pointer leaves the zone itself, not one of its children.
-               onDragLeave={(e) => {
-                 if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(false);
-               }}
-               onDrop={(e) => {
-                 e.preventDefault();
-                 setOver(false);
-                 const file = e.dataTransfer.files?.[0];
-                 if (file && !busy) void upload(file);
-               }}>
-          <IconUploadCloud size={20} />
-          <span>
-            {busy ? "Uploading and reading the file — a scanned PDF takes up to a minute…" : (
-              <><strong>Upload a file</strong> — drop a PDF or DOCX here, or click to browse</>
-            )}
-          </span>
-          <input type="file" accept=".pdf,.docx,.md,.txt" disabled={busy}
-                 className="ws-visually-hidden"
-                 onChange={(e) => {
-                   const file = e.target.files?.[0];
-                   e.target.value = "";
-                   if (file) void upload(file);
-                 }} />
-        </label>
+        <FilePicker compact disabled={busy} title="Upload a file"
+                    busyText={busy ? "Uploading and reading the file. A scanned PDF takes up to a minute." : undefined}
+                    hint="PDF or Word, up to 25 MB" onFile={(file) => { if (file && !busy) void upload(file); }} />
       ) : null}
       {error ? <p className="ws-dt__msg is-error" role="alert">{error}</p> : null}
     </div>

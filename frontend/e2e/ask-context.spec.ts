@@ -46,7 +46,7 @@ test.describe("Ask — context that survives", () => {
     });
     // The chat-only rule is one visible control away (`AM-226` r2): the ⓘ is on screen.
     await expect(page.getByRole("button", { name: "About attached files" })).toBeVisible();
-    await expect(page.locator("#ws-chat-filehint")).toContainText("read in this chat only");
+    await expect(page.locator("#ws-chat-filehint")).toContainText(/read in this chat only/i);
 
     await page.getByLabel("Your question").fill("What is the termination notice period?");
     await page.getByRole("button", { name: /Send question|Searching/ }).click();

@@ -36,7 +36,7 @@ from sqlalchemy.orm import Session as DBSession
 from legalmind import config
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[4]
-CURRENT_FILE = REPO_ROOT / "docs/02-legal-domain/LEGAL_CONSTITUTION_L1.16.md"
+CURRENT_FILE = REPO_ROOT / "docs/02-legal-domain/LEGAL_CONSTITUTION_L1.17.md"
 #: Every earlier version, kept as history: a source row each, SUPERSEDED, never searched.
 SUPERSEDED_FILES = {
     "L1.5": REPO_ROOT / "docs/02-legal-domain/LEGAL_CONSTITUTION_L1.5.md",
@@ -45,7 +45,8 @@ SUPERSEDED_FILES = {
     "L1.12": REPO_ROOT / "docs/02-legal-domain/LEGAL_CONSTITUTION_L1.12.md",
     "L1.13": REPO_ROOT / "docs/02-legal-domain/LEGAL_CONSTITUTION_L1.13.md",
     "L1.14": REPO_ROOT / "docs/02-legal-domain/LEGAL_CONSTITUTION_L1.14.md",
-    "L1.15": REPO_ROOT / "docs/02-legal-domain/LEGAL_CONSTITUTION_L1.15.md"}
+    "L1.15": REPO_ROOT / "docs/02-legal-domain/LEGAL_CONSTITUTION_L1.15.md",
+    "L1.16": REPO_ROOT / "docs/02-legal-domain/LEGAL_CONSTITUTION_L1.16.md"}
 SOURCE_TYPE = "COMPANY_CONSTITUTION"
 TITLE = "Legal Mind — Legal Constitution"
 # Adoption dates from the lock records, oldest first: L1.5 by AM-43 (2026-09-08), L1.10
@@ -54,13 +55,15 @@ TITLE = "Legal Mind — Legal Constitution"
 # by AM-131 (the incorporating statute as the website states it), L1.14 by AM-163 (the
 # manager's data-loss exclusion and its relationship to the cap, in Section 9), L1.15 by
 # AM-243 (the Leapswitch SLA's uptime as the live site publishes it, in Section 11),
-# L1.16 by AM-300 (the NDA counterparty's name redacted in the reference table).
+# L1.16 by AM-300 (the NDA counterparty's name redacted in the reference table),
+# L1.17 by AM-313 as AM-325 records it (a Party's payment obligation outside the cap, §9).
 VERSIONS = {"L1.5": datetime.date(2026, 9, 8), "L1.10": datetime.date(2026, 9, 13),
             "L1.11": datetime.date(2026, 10, 6), "L1.12": datetime.date(2026, 10, 9),
             "L1.13": datetime.date(2026, 10, 9), "L1.14": datetime.date(2026, 10, 19),
             "L1.15": datetime.date(2026, 11, 2),
-            "L1.16": datetime.date(2026, 11, 4)}
-CURRENT_VERSION = "L1.16"
+            "L1.16": datetime.date(2026, 11, 4),
+            "L1.17": datetime.date(2026, 11, 9)}
+CURRENT_VERSION = "L1.17"
 
 _HEADING = re.compile(r"^(#{1,4})\s+(.*)$")
 _NUMBER = re.compile(r"^(?:Section\s+)?(\d+(?:\.\d+)*[a-z]?)\.?\s+(.*)$")

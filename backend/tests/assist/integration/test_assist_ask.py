@@ -338,7 +338,7 @@ def test_ask_endpoint_answers_and_labels_scores_as_retrieval_scores(
     contract_id = created.json()["data"]["id"]
     api.post(f"/api/v1/contracts/{contract_id}/document-versions",
              content=build_docx(PARAGRAPHS),
-             headers={"content-type": DOCX_MIME, "x-filename": "msa.docx"})
+             headers={"content-type": DOCX_MIME, "x-version-role": "COMPANY_DRAFT", "x-filename": "msa.docx"})
 
     _fake_generation(monkeypatch,
                      "Termination for convenience requires ninety days prior "
@@ -421,7 +421,7 @@ def _ask_over_uploaded_contract(api, db, user, monkeypatch, *, name="Replay"):
                            json={"name": name, "contract_type": "MSA"}).json()["data"]["id"]
     uploaded = api.post(f"/api/v1/contracts/{contract_id}/document-versions",
                         content=build_docx(PARAGRAPHS),
-                        headers={"content-type": DOCX_MIME, "x-filename": "msa.docx"})
+                        headers={"content-type": DOCX_MIME, "x-version-role": "COMPANY_DRAFT", "x-filename": "msa.docx"})
     version_id = uploaded.json()["data"]["document_version"]["id"]
     _fake_generation(monkeypatch,
                      "Termination for convenience requires ninety days prior "
@@ -812,7 +812,7 @@ def test_replay_carries_the_position_citations(api, db, seeded, user, storage, t
     contract_id = created.json()["data"]["id"]
     api.post(f"/api/v1/contracts/{contract_id}/document-versions",
              content=build_docx(PARAGRAPHS),
-             headers={"content-type": DOCX_MIME, "x-filename": "msa.docx"})
+             headers={"content-type": DOCX_MIME, "x-version-role": "COMPANY_DRAFT", "x-filename": "msa.docx"})
     cid = api.post("/api/v1/conversations", json={"contract_id": contract_id}).json()["data"]["id"]
     live = api.post(f"/api/v1/conversations/{cid}/messages",
                     json={"question": "What is our approved position on widget handling?"})
@@ -1195,7 +1195,7 @@ def test_the_assessment_is_the_evaluators_existing_finding_and_needs_finding_vie
                             permissions=USER_PERMS | {"finding.view"}, question=question)
     assert with_view.positions[0]["finding"] == {
         "finding_id": str(finding.id), "classification": "MATCH",
-        "user_status": "ACCEPTABLE"}
+        "user_status": "ACCEPTABLE", "in_our_favour": False}   # a match is never favour
 
     without = service.ask(db, conversation_id=_conversation(db, user, contract),
                           document_version_id=version.id, permissions=USER_PERMS,

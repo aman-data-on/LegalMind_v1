@@ -186,7 +186,7 @@ test.describe("the audit log", () => {
   test("a contract event is listed without naming the contract", async ({ page }) => {
     // Step 24 r8 — the envelope is the administrator's, the payload is not.
     await page.goto("/dashboard/admin/audit");
-    await page.getByLabel("Entity type").fill("contract");
+    await page.getByLabel("Record type").fill("contract");
     await page.getByRole("button", { name: "Apply" }).click();
 
     const rows = page.locator("tbody tr");

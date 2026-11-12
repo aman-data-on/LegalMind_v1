@@ -363,10 +363,11 @@ def test_version_role_and_source_are_two_axes_not_one(api, db, owner):
     document = make_document(api, "MSA", counterparty_id=client["id"])
     version = add_version(db, document["id"], 1)
     row = api.patch(f"{V1}/document-versions/{version.id}",
-                    json={"version_role": "FINAL_SIGNED",
+                    json={"version_role": "CLIENT_MODIFIED",
                           "source": "ORGANIZATION"}).json()["data"]
-    assert row["version_role"] == "FINAL_SIGNED"
+    assert row["version_role"] == "CLIENT_MODIFIED"
     assert row["source"] == "ORGANIZATION"
+    # FINAL_SIGNED: by "Mark signed", or declared to file a contract signed outside (AM-298)
 
 
 # =====================================================================

@@ -74,7 +74,7 @@ test.describe("52.7 — the decision shown is the decision recorded", () => {
     await evaluation.getByRole("button", { name: "Decide" }).click();
     // LA-1: nothing is preselected — the decider picks the type
     await evaluation.locator(".ws-decision__form select").selectOption("ACCEPT_DEVIATION");
-    await evaluation.getByLabel("Justification (required)").fill(JUSTIFICATION);
+    await evaluation.getByRole("textbox", { name: "Reason", exact: true }).fill(JUSTIFICATION);
     await evaluation.getByRole("button", { name: "Record decision" }).click();
 
     expect((await posted).status()).toBe(201);
@@ -124,7 +124,7 @@ test.describe("52.7 — the decision shown is the decision recorded", () => {
     await evaluation.getByRole("button", { name: "Decide" }).click();
     // LA-1: nothing is preselected — the decider picks the type
     await evaluation.locator(".ws-decision__form select").selectOption("ACCEPT_DEVIATION");
-    await evaluation.getByLabel("Justification (required)").fill(JUSTIFICATION);
+    await evaluation.getByRole("textbox", { name: "Reason", exact: true }).fill(JUSTIFICATION);
     await evaluation.getByRole("button", { name: "Record decision" }).click();
 
     // 49.7 / N-1 Option C — a collision is a 409, surfaced as its own state. The
@@ -143,7 +143,7 @@ test.describe("52.7 — the decision shown is the decision recorded", () => {
     ).toBeDisabled();
 
     await evaluation
-      .getByRole("button", { name: "Refresh to see the latest decision" })
+      .getByRole("button", { name: "Refresh", exact: true })
       .click();
 
     // The refresh re-reads from the server; what renders is what actually won.

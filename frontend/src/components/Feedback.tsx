@@ -1,25 +1,148 @@
 "use client";
 
 /**
- * Shared status and error presentation — locked 49.5, 49.9, 52.4.
+ * The shared states — error, loading, empty (UX Batch 2; GP-3, GP-4, GP-24) — and the
+ * legacy `ErrorBanner` they replaced the wording of. Locked 49.5, 49.9, 52.4 still hold:
  *
- * The request id is shown with every failure. Locked 49.9 makes it the correlation
- * anchor between a request and the audit events it produced, so quoting it is what
- * lets an operator find what happened without the user having to reconstruct it.
+ * - An error says what failed (title, no full stop), why (the server's sentence, through
+ *   `describeError`) and the fix, with one "Try again". It never renders beside a loading
+ *   indicator: callers show loading only while `data === null && !error`.
+ * - The request id (49.9, the correlation anchor) is printed only when there IS one —
+ *   "Reference -" was the old line for a response without one.
+ * - Not-found stays the one identical sentence for every cause (49.5 r1 / 52.4).
  */
 
-import { ApiError } from "@/lib/api";
+import Link from "next/link";
 
+import { ApiError, describeError } from "@/lib/api";
+import { FEEDBACK_COPY } from "@/lib/labels";
+import { IconAlertCircle, IconInfo } from "@/components/workspace/icons";
+
+/** The id support can look up, or null when the response carried none. */
+export function supportReference(error: unknown): string | null {
+  if (!(error instanceof ApiError)) return null;
+  const id = error.requestId?.trim();
+  return id && id !== "-" ? id : null;
+}
+
+/** The fix for a failure the reader can only retry (network, 5xx, rate limit). A refusal
+ *  the server explained (401, 404, a validation) carries its own next step already. */
+function transient(error: unknown): boolean {
+  return !(error instanceof ApiError) || error.status === 0 || error.status >= 500 || error.isRateLimited;
+}
+
+export function ErrorState({ title, fix, error, onRetry, back, heading: Heading = "h2", children }: {
+  /** what failed, without a full stop: "Standards could not be loaded" */
+  title: string;
+  /** what to do; defaults to the connection fix for a transient failure */
+  fix?: string | null;
+  error?: unknown;
+  onRetry?: () => void;
+  /** the way out, beside "Try again" (Carbon: actions together, primary first) */
+  back?: { href: string; label: string };
+  /** "h1" where the error IS the page (an error boundary in the shell) */
+  heading?: "h1" | "h2" | "h3";
+  /** an extra control a caller needs (a declare-roles form, a link home) */
+  children?: React.ReactNode;
+}) {
+  // a transient failure (5xx, network) says only the fix — never the server's raw word
+  // ("Internal error"); a refusal the server explained (401, 404, a validation) says why
+  const why = error && !transient(error) ? describeError(error) : null;
+  const next = fix === undefined ? (error === undefined || transient(error) ? FEEDBACK_COPY.defaultFix : null) : fix;
+  const reference = supportReference(error);
+  return (
+    <div className="lm-state lm-state--error" role="alert">
+      <span className="lm-state__icon"><IconAlertCircle size={20} /></span>
+      <div className="lm-state__text">
+        <Heading className="lm-state__title">{title}</Heading>
+        {why ? <p className="lm-state__body">{why}</p> : null}
+        {next ? <p className="lm-state__body">{next}</p> : null}
+        {children}
+        {onRetry || back ? (
+          <p className="lm-state__acts">
+            {onRetry ? (
+              <button type="button" className={`ws-btn${back ? " ws-btn--primary" : ""}`} onClick={onRetry}>
+                {FEEDBACK_COPY.retry}
+              </button>
+            ) : null}
+            {back ? <Link className="ws-btn" href={back.href}>{back.label}</Link> : null}
+          </p>
+        ) : null}
+        {reference ? <p className="lm-state__ref">{FEEDBACK_COPY.reference(reference)}</p> : null}
+      </div>
+    </div>
+  );
+}
+
+/** A question or notice for the reader — not a failure (round 2): the action-blue rule and
+ *  an info icon, no red, no `role="alert"`, no support reference (Carbon actionable
+ *  notification, info kind; Atlassian section message). The answer goes in `children`. */
+export function NoticeState({ title, body, heading: Heading = "h2", children }: {
+  title: string;
+  body?: React.ReactNode;
+  heading?: "h1" | "h2" | "h3";
+  children?: React.ReactNode;
+}) {
+  return (
+    <section className="lm-state lm-state--notice" aria-label={title}>
+      <span className="lm-state__icon"><IconInfo size={20} /></span>
+      <div className="lm-state__text">
+        <Heading className="lm-state__title">{title}</Heading>
+        {body ? <p className="lm-state__body">{body}</p> : null}
+        {children}
+      </div>
+    </section>
+  );
+}
+
+/** Fixed-height skeleton rows (shape only, no shimmer) and the word, announced once. */
+export function LoadingState({ label = FEEDBACK_COPY.loading, rows = 0 }: { label?: string; rows?: number }) {
+  return (
+    <div className="lm-state lm-state--loading" role="status" aria-live="polite">
+      <p className="lm-state__body">{label}</p>
+      {rows > 0 ? (
+        <div className="lm-skel" aria-hidden="true">
+          {Array.from({ length: rows }, (_, i) => <span key={i} className="lm-skel__row" />)}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** One centred block in the pane that would hold the content: what is true, what to do,
+ *  and the one action. */
+export function EmptyState({ icon, title, body, action, heading: Heading = "p", children }: {
+  icon?: React.ReactNode;
+  title?: string;
+  /** "h1" where the empty state IS the page; a pane's own heading level otherwise */
+  heading?: "h1" | "h2" | "h3" | "p";
+  body?: React.ReactNode;
+  action?: React.ReactNode;
+  /** the older one-sentence form (`<EmptyState>No rows.</EmptyState>`) */
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="lm-state lm-state--empty">
+      {icon ? <span className="lm-state__icon" aria-hidden="true">{icon}</span> : null}
+      {title ? <Heading className="lm-state__title">{title}</Heading> : null}
+      {(body ?? children) ? <p className="lm-state__body">{body ?? children}</p> : null}
+      {action ? <p className="lm-state__acts">{action}</p> : null}
+    </div>
+  );
+}
+
+/** The legacy screens' banner (sign-in, Standards, Departments): the same reference rule. */
 export function ErrorBanner({ error }: { error: unknown }) {
   if (!error) return null;
 
   if (error instanceof ApiError) {
+    const reference = supportReference(error);
     return (
       <div className="banner banner--error" role="alert">
         <p>{message(error)}</p>
-        <p className="hint">
-          {error.code} · reference {error.requestId}
-        </p>
+        {/* the request id lets support find what happened (49.9); the raw code is theirs
+            to read in the log, not the reader's (B13) */}
+        {reference ? <p className="hint">{FEEDBACK_COPY.reference(reference)}</p> : null}
         {error.fields && error.fields.length > 0 ? (
           <ul className="banner__fields">
             {error.fields.map((field) => (
@@ -47,7 +170,7 @@ export function ErrorBanner({ error }: { error: unknown }) {
 }
 
 function message(error: ApiError): string {
-  if (error.isUnauthenticated) return "Your session has ended. Please sign in again.";
+  if (error.isUnauthenticated) return "Your session has ended. Sign in again.";
   /*
    * 49.5 r1 / 52.4 — an out-of-scope object and a nonexistent one are
    * byte-identical on the wire and must read identically here. Wording such as
@@ -55,26 +178,13 @@ function message(error: ApiError): string {
    * disclosure the identical response exists to prevent.
    */
   if (error.isNotFound) return "Not found.";
-  if (error.isRateLimited) return "Too many requests. Please try again shortly.";
+  if (error.isRateLimited) return "Too many requests. Try again shortly.";
   return error.message;
 }
 
+/** The legacy one-line loading row, now the shared state. */
 export function Loading({ what }: { what: string }) {
-  /*
-   * Phase 1 design foundation — the audit found loading states were silent to
-   * assistive technology (docs/design/UX_AUDIT.md §2 "Accessibility"). This is
-   * the one narrowly-scoped exception to "no existing screen is redesigned" in
-   * that pass: an `aria-live` region, not a markup or behavior change.
-   */
-  return (
-    <p className="hint" role="status" aria-live="polite">
-      Loading {what}…
-    </p>
-  );
-}
-
-export function EmptyState({ children }: { children: React.ReactNode }) {
-  return <p className="empty">{children}</p>;
+  return <LoadingState label={`Loading ${what}…`} />;
 }
 
 export function Pager({

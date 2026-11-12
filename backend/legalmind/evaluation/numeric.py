@@ -402,7 +402,7 @@ def _compare(base, cap: Cap, standard: dict, legal_rule,
     outcome, rule_detail = _rule_outcome_for(actual, legal_rule)
     outcome, rule_detail, favour = _favourable(
         actual, cap.cap_unit, standard, legal_rule, provider and not one_party,
-        outcome, rule_detail)
+        outcome, rule_detail, cap.cap_party)
     converted = (*favour, *converted)
     return _result(base, FindingClassification.DEVIATION, outcome,
                    expected_value=expected, actual_value=actual_value,
@@ -471,12 +471,12 @@ def _rule_outcome_for(actual: float, legal_rule) -> tuple[RuleOutcome, str]:
 
 
 def _favourable(value, unit, standard: dict, legal_rule, provider: bool,
-                outcome: RuleOutcome, detail: str,
+                outcome: RuleOutcome, detail: str, party: str | None = None,
                 ) -> tuple[RuleOutcome, str, tuple[str, ...]]:
     """`AM-239` — a deviation on LeapSwitch's side of the standard. ACCEPTABLE only
     under the approved favourable rule, with LeapSwitch established as the provider and
     no Counsel check declared; otherwise the outcome stands and the reason is said."""
-    if not (provider and in_our_favour(value, unit, standard)):
+    if not (provider and in_our_favour(value, unit, standard, party)):
         return outcome, detail, ()
     note = (f"differs in LeapSwitch's favour: a {standard[FAVOURABLE_DIRECTION].lower()} "
             "figure is ours (AM-239)")

@@ -1,8 +1,13 @@
 import type { Metadata } from "next";
 
+import { Toaster } from "@/components/Toast";
 import { SessionProvider } from "@/lib/session";
 
+// the product faces app-wide (UX Batch 2): sign-in, 404 and errors read Plex too
+import "./dashboard/fonts.css";
 import "./globals.css";
+// the shared components' classes (.ws-btn, .ws-modal) wherever they render; class-scoped only
+import "./dashboard/workspace.css";
 
 export const metadata: Metadata = {
   // Each section names itself ("Diff-Talk · LegalMind") through its own layout.
@@ -24,6 +29,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <SessionProvider>
           {children}
         </SessionProvider>
+        <Toaster />
       </body>
     </html>
   );

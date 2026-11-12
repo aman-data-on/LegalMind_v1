@@ -22,11 +22,13 @@
  * version's declared role, and the counterparty link.
  */
 
+import { Plus } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
 import { api, describeError } from "@/lib/api";
 import { clientLocation } from "@/lib/documentTypes";
+import { closedWords } from "@/lib/labels";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { Counterparty, DepartmentMembers } from "@/lib/types";
@@ -43,6 +45,7 @@ import {
   hasProfileDetail,
   mergeProfile,
 } from "./model";
+import { ErrorState } from "@/components/Feedback";
 
 const TABS = [
   { key: "documents", label: "Documents" },
@@ -66,7 +69,7 @@ type TabKey = (typeof TABS)[number]["key"];
  * `.ws-cl__main` set no `overflow`), so the plain absolutely-positioned list is
  * correct and carries none of that machinery.
  */
-function ClientMenu({ children, label }: { children: ReactNode; label: string }) {
+export function ClientMenu({ children, label }: { children: ReactNode; label: string }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const toggleRef = useRef<HTMLButtonElement | null>(null);
@@ -144,9 +147,7 @@ function DeleteClientDialog({
       <h2 id="ws-cl-del-title">Delete this client profile?</h2>
       <p className="ws-modal__body"><strong>{client.name}</strong></p>
       <p className="ws-modal__body">
-        This removes the client profile only — its details, contacts and notes.
-        No documents are filed under it, so nothing else is affected. This
-        cannot be undone.
+        This deletes the profile, its contacts and notes. It has no documents, so nothing else changes. This cannot be undone.
       </p>
       {error ? (
         <p className="ws-field__error" role="alert">{describeError(error)}</p>
@@ -188,7 +189,7 @@ function ClientRail({
           All clients
         </Link>
         {total !== null ? (
-          <span className="ws-cl__rail-total ws-mono">{total}</span>
+          <span className="ws-cl__rail-total ws-num">{total}</span>
         ) : null}
       </div>
       <div className="ws-cl__rail-tools">
@@ -200,7 +201,7 @@ function ClientRail({
         {canAdd ? (
           <button type="button" className="ws-btn ws-btn--sm ws-cl__rail-add"
                   onClick={onAdd}>
-            + Add
+            <Plus size={16} aria-hidden="true" /> Add
           </button>
         ) : null}
       </div>
@@ -308,11 +309,8 @@ export function ClientWorkspace({ clientId }: { clientId: string }) {
 
   if (error) {
     return (
-      <div className="ws-state ws-state--error" role="alert">
-        <h2>This client could not be opened.</h2>
-        <p>{describeError(error)}</p>
-        <Link className="ws-btn" href="/dashboard/clients">All clients</Link>
-      </div>
+      <ErrorState title="This client could not be opened" error={error} fix={null}
+                  back={{ href: "/dashboard/clients", label: "All clients" }} />
     );
   }
 
@@ -327,6 +325,7 @@ export function ClientWorkspace({ clientId }: { clientId: string }) {
   const location = clientLocation(client);
   const documents = client.documents ?? 0;
   const signed = client.signed_documents ?? 0;
+  const final = client.final_documents ?? 0;
 
   return (
     <div className="ws-cl ws-cl--work">
@@ -338,7 +337,7 @@ export function ClientWorkspace({ clientId }: { clientId: string }) {
         {/* Breadcrumb, so a reader arriving from a document knows where they
             are and can get back to the list in one click. */}
         <nav className="ws-cl__crumbs" aria-label="Breadcrumb">
-          <Link href="/dashboard/clients">Client profiles</Link>
+          <Link href="/dashboard/clients">Clients</Link>
           <span aria-hidden="true"><IconChevronRight size={12} /></span>
           <span aria-current="page">{adding ? "Add client" : client.name}</span>
         </nav>
@@ -383,7 +382,7 @@ export function ClientWorkspace({ clientId }: { clientId: string }) {
               <div className="ws-cl__headcounts">
                 <span>{documentCountLabel(documents)}</span>
                 {documents > 0 ? (
-                  <span className="ws-cl__signed">{signed} signed</span>
+                  <span className={final || signed ? "ws-cl__signed" : "ws-cl__absent"}>{closedWords(client)}</span>
                 ) : null}
               </div>
               {can(P.CONTRACT_UPDATE) ? (

@@ -15,16 +15,17 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response
 from sqlalchemy import func, select, text
 
-from legalmind import config
-from legalmind.analysis import document_comparison
+from legalmind import config, notifications
+from legalmind.analysis import document_comparison, negotiation
 from legalmind.analysis.version_comparison import (
     ComparisonNotPossible,
     compare_versions,
 )
 from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
 from legalmind.api.envelope import attachment_headers, data, paginated
-from legalmind.api.errors import BusinessRuleRejected, Conflict
+from legalmind.api.errors import BusinessRuleRejected, Conflict, ReplyUndecided
 from legalmind.api.pagination import Page, page_params, run
+from legalmind.api.routers import execution
 from legalmind.api.schemas import ComparisonChoices, DocumentVersionDeclare
 from legalmind.api.serializers import serialize_document_version, serialize_evidence
 from legalmind.api.storage import get_storage
@@ -33,6 +34,7 @@ from legalmind.assist.knowledge import store as assist_store
 from legalmind.db import models as M
 from legalmind.db.lookup import latest_completed_run_id, paper_kind_of
 from legalmind.domain import enums as E
+from legalmind.domain.client_profile import FINAL_SIGNED
 from legalmind.ingestion.service import process_document_version
 from legalmind.ingestion.storage import StorageBackend
 from legalmind.security import audit
@@ -46,6 +48,10 @@ from legalmind.worker.dispatch import (
 )
 
 router = APIRouter(tags=["documents"], route_class=CommitBeforeResponse)
+
+#: `AM-253` r5': a stale answer is told, never silently overwritten.
+CHANGED_BY_A_COLLEAGUE = ("This was changed by a colleague a moment ago — reload to "
+                          "see it.")
 
 
 @router.get("/document-versions/{document_version_id}")
@@ -95,23 +101,41 @@ def declare_document_version(document_version_id: UUID, body: DocumentVersionDec
     once a Review exists, and the owner ruled (2026-09-06) that declared metadata
     follows the same line: it may be corrected only while no Review exists. So
     the check is on Reviews, not on analysis outcome — a DRAFT Review freezes it.
+    One exception (`AM-340`, proposed): a version nobody declared may be declared
+    ours or the client's once, after review — a missing fact, never a change.
 
     Declared, never inferred: nothing here reads the document. The upload
     endpoint's body is the file itself (38.24), which is why the declaration is
     a second call rather than a header — a counterparty name is exactly the kind
     of non-ASCII value that broke the `X-Filename` header path (2026-09-03).
     """
-    version = guard.document_version(document_version_id, P.DOCUMENT_UPLOAD)
+    version = guard.document_version(document_version_id, P.DOCUMENT_UPLOAD,
+                                     negotiable=True)   # AM-259 r2
     reviewed = guard.db.execute(
         select(M.Review.id).where(M.Review.document_version_id == version.id).limit(1)
     ).first()
-    if reviewed is not None:
-        raise Conflict("this version has a Review; its declared metadata is fixed "
-                       "(locked 33.7) — upload a new version to change it")
+    # `AM-340` (proposed): on a reviewed version only the FIRST declaration of whose paper
+    # it is (null -> ours / the client's) — a legacy version nobody declared would
+    # otherwise block its deal for good (P1). It records a missing fact, never changes one
+    late = (reviewed is not None and body.model_fields_set == {"version_role"}
+            and not negotiation.is_declared(version)
+            and body.version_role in ("COMPANY_DRAFT", "CLIENT_MODIFIED"))
+    if reviewed is not None and not late:
+        # locked 33.7: declared metadata is fixed once a Review exists
+        raise Conflict("This version has been reviewed, so what it is can no longer be "
+                       "changed. Upload a new version to change it.")
+    if late and body.version_role != "COMPANY_DRAFT" and (
+            version.sent_at is not None or guard.db.execute(
+                select(M.ComparisonChoice.id).where(
+                    M.ComparisonChoice.left_version_id == version.id).limit(1)).first()):
+        # `AM-340` r6: already used as ours — declaring it the client's would recast that
+        raise Conflict("This version was already used as ours (sent to the client, or "
+                       "compared as our side), so it can only be declared ours.")
 
     # A NEW dict, not a mutation: the column is plain JSONB (no MutableDict), so
     # SQLAlchemy only sees the change when the attribute is reassigned.
     before = dict(version.doc_metadata or {})
+    _refuse_signing_by_declaration(guard, version, before, body)
     meta = dict(before)
     for key in body.model_fields_set:
         value = getattr(body, key)
@@ -124,12 +148,35 @@ def declare_document_version(document_version_id: UUID, body: DocumentVersionDec
                      if meta.get(k) != before.get(k))
     if changed:
         audit.record(
-            guard.db, action=audit.DOCUMENT_DECLARED, entity_type="document_version",
+            guard.db, action=audit.DOCUMENT_ROLE_DECLARED_AFTER_REVIEW if late
+            else audit.DOCUMENT_DECLARED, entity_type="document_version",
             entity_id=version.id, actor_id=guard.user_id, request_id=guard.request_id,
             before={"version_role": before.get("version_role")},
             after={"version_role": meta.get("version_role"), "changed": changed})
+        if ("version_role" in changed and not late    # an old version, not a new return
+                and meta.get("version_role") == "CLIENT_MODIFIED"):     # AM-273 m3
+            contract = guard.db.get(M.Contract, version.contract_id)
+            if contract is not None:
+                notifications.client_returned(guard.db, contract, actor_id=guard.user_id)
     guard.db.flush()
     return data(serialize_document_version(version))
+
+
+def _refuse_signing_by_declaration(guard: Guard, version: M.DocumentVersion, before: dict,
+                                   body: DocumentVersionDeclare) -> None:
+    """`AM-292` r1 / `AM-298` r1–r2: a contract negotiated in LegalMind becomes signed
+    only by "Mark signed"; one that was not is FILED as signed by this declaration, which
+    starts its signing record. The signed copy of a signing record is not un-declared."""
+    if "version_role" not in body.model_fields_set \
+            or body.version_role == before.get("version_role"):
+        return
+    if body.version_role == FINAL_SIGNED:
+        execution.file_as_signed(guard, version)
+        return
+    if before.get("version_role") == FINAL_SIGNED and guard.db.execute(
+            select(M.Execution.id).where(
+                M.Execution.signed_document_version_id == version.id).limit(1)).first():
+        raise Conflict("this is the contract's signed copy; its signing record is final")
 
 
 def _reprocess_blockers(db, version: M.DocumentVersion) -> list[str]:
@@ -208,8 +255,12 @@ def reprocess_document_version(
 
     previous_run = latest_completed_run_id(guard.db, version.id)
     standing = (version.processing_status, version.extraction_status)
+    meta = version.doc_metadata or {}
     run = process_document_version(guard.db, storage, version,
-                                   run_type=E.ProcessingRunType.REPROCESS, defer_ocr=True)
+                                   run_type=E.ProcessingRunType.REPROCESS, defer_ocr=True,
+                                   # a person's upload, never one LegalMind generated
+                                   render_pages=not meta.get("reply_to") and
+                                   meta.get("version_role") != "COMPANY_DRAFT")
     run.run_metadata = {**(run.run_metadata or {}),
                         "reprocess_of": str(previous_run) if previous_run else None}
     if run.status is E.ProcessingRunStatus.FAILED and previous_run is not None:
@@ -296,11 +347,38 @@ def download_document_version(
         # 404 keeps storage state from being probeable and keeps the body
         # identical to every other 404 (49.5 r1).
         raise NotVisible("document content not available")
+    # AM-293 r1: our prepared reply never leaves while its Review has an undecided point
+    # or has not finished; every other version (an ordinary upload) is unchanged
+    gate = negotiation.reply_open_points(guard.db, version)
+    if gate is not None:
+        raise ReplyUndecided(gate)
     return Response(
         content=storage.get(version.storage_key),
         media_type=version.mime_type,
-        headers=attachment_headers(version.original_filename, "document"),
+        headers=attachment_headers(download_name(guard.db, version), "document"),
     )
+
+
+#: what a version is, said after its number in a downloaded file's name
+_ROLE_SUFFIX = {"COMPANY_DRAFT": "ours", "CLIENT_MODIFIED": "client's",
+                FINAL_SIGNED: "signed"}
+
+
+def download_name(db, version: M.DocumentVersion, ext: str | None = None) -> str:
+    """A downloaded file named for the deal, not the upload: "<contract> – v3 (our
+    reply).docx" - the contract's name, the version and what it is; the original's own
+    extension unless ``ext`` names another (a PDF made from it)."""
+    contract = db.get(M.Contract, version.contract_id)
+    meta = version.doc_metadata or {}
+    what = ("our reply" if meta.get("reply_to")
+            else "final" if meta.get("final_copy_of") or meta.get("package_of")
+            else _ROLE_SUFFIX.get(meta.get("version_role") or ""))
+    name = f"{contract.name if contract else 'Contract'} - v{version.version_number}"
+    if what:
+        name += f" ({what})"
+    original = version.original_filename or ""
+    ext = ext or (original.rsplit(".", 1)[1] if "." in original else None)
+    return f"{name}.{ext}" if ext else name
 
 
 @router.get("/contracts/{contract_id}/version-comparison")
@@ -439,10 +517,16 @@ def set_comparison_choices(body: ComparisonChoices,
                            guard: Guard = Depends(get_guard)) -> dict:
     """Record choices for one pair (AB-81): PATCH, because the choices sent are set and
     every other one is left as it was (49.1: PUT is not used). One statement, however
-    many. Each stored
+    many; each a NEW version of its difference with an optional `reason`, and a stale
+    `expected_versions` entry is 409 (`AM-253` r5'). Each stored
     side resolves OWNER-scoped with `contract.update` — AB-12's writes are owner-only
     (r4). Returns the pair's choices, so the page shows what was stored."""
     guard.permission(P.CONTRACT_UPDATE)        # also when both sides are website pages
+    if any(k.startswith(negotiation.KEY_PREFIX) for k in body.choices):
+        # a negotiation answer (AM-253) is written only by its own route, under its
+        # own resolver and holder rules — never as a Diff-Talk choice on the same pair
+        raise BusinessRuleRejected("that is a negotiation answer; answer it on the "
+                                   "contract's Changes tab")
     (left_side, lv), (right_side, rv) = _comparison_pair(guard, body.left, body.right)
     for version in (lv, rv):
         if version is not None:
@@ -454,7 +538,11 @@ def set_comparison_choices(body: ComparisonChoices,
         guard.permission(P.CONFIGURATION_PUBLISH)
     try:
         document_comparison.write_choices(guard.db, left_side, right_side,
-                                          dict(body.choices), guard.user_id)
+                                          dict(body.choices), guard.user_id,
+                                          reason=body.reason,
+                                          expected=body.expected_versions)
+    except document_comparison.ChoiceChanged as exc:
+        raise Conflict(CHANGED_BY_A_COLLEAGUE) from exc
     except document_comparison.ComparisonNotPossible as exc:
         raise BusinessRuleRejected(str(exc)) from exc
     return data(document_comparison.read_choices(guard.db, left_side, right_side,

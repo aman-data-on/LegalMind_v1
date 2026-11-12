@@ -132,7 +132,7 @@ export async function createAnalysedReview(
     {
       headers: {
         "Content-Type": f.document.mime,
-        "X-Filename": f.document.filename,
+        "X-Version-Role": "COMPANY_DRAFT", "X-Filename": f.document.filename,
         "X-CSRF-Token": await csrfToken(page),
       },
       data: readFileSync(f.document.path),
@@ -176,7 +176,8 @@ export async function signIn(
   await page.getByLabel("Work email").fill(account.email);
   await page.getByLabel("Password", { exact: true }).fill(account.password);
   await page.getByRole("button", { name: /sign in/i }).click();
-  await page.waitForURL(/\/dashboard/, { timeout: 20_000 });
+  // login lands on /dashboard, which now redirects to /contracts (CLM R7, AM-262)
+  await page.waitForURL(/\/(dashboard|contracts)/, { timeout: 20_000 });
 }
 
 /**
@@ -207,10 +208,34 @@ export async function openUploadPanel(page: Page): Promise<void> {
   const input = page.locator('input[type="file"]');
   if (await input.count()) return;          // already open — nothing to do
 
-  const toggle = page.getByRole("button", { name: "+ Upload Contract" });
+  const toggle = page.getByRole("button", { name: "New contract" });
   await toggle.waitFor({ state: "visible", timeout: 15_000 });
   await toggle.click();
+  // CLM S5 (2026-11-03): "New contract" first asks how — from our template, or an upload
+  await page.getByRole("dialog", { name: "New contract" }).getByRole("button", { name: /Upload a contract/ }).click();
   await input.waitFor({ state: "attached", timeout: 15_000 });
+}
+
+/**
+ * The workspace's "Upload new version" — since the CLM record header (2026-11-02) a
+ * quiet item under "More actions" (⋯), no longer a button of its own. Opens the same
+ * upload form it always did.
+ */
+export async function openUploadNewVersion(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "More actions" }).click();
+  await page.getByRole("menuitem", { name: "Upload new version" }).click();
+}
+
+/** Upload `path` as the next version from the workspace's "Upload a new version" dialog:
+ *  it says what the version is (AM-324 r4, nothing preselected) and the button names the
+ *  version it makes ("Upload version 2"). */
+export async function uploadNewVersionFile(page: Page, path: string,
+                                           role: "COMPANY_DRAFT" | "CLIENT_MODIFIED" = "COMPANY_DRAFT"): Promise<void> {
+  await openUploadNewVersion(page);
+  const dialog = page.getByRole("dialog", { name: "Upload a new version" });
+  await dialog.locator('input[type="file"]').setInputFiles(path);
+  await dialog.getByLabel("What is this version?").selectOption(role);
+  await dialog.getByRole("button", { name: /^Upload version \d+$/ }).click();
 }
 
 /**
@@ -222,7 +247,10 @@ export async function openUploadPanel(page: Page): Promise<void> {
  * on `setInputFiles` alone starting the chain now calls this immediately
  * after.
  */
-export async function confirmUpload(page: Page): Promise<void> {
+export async function confirmUpload(page: Page, paper: "Our draft" | "The client's paper" = "Our draft"): Promise<void> {
+  // AM-324 r4: every upload says whose paper it is — nothing is preselected
+  const whose = page.getByRole("group", { name: "Whose paper is it?" });
+  if (await whose.count()) await whose.getByRole("radio", { name: paper }).check();
   await page.getByRole("button", { name: "Upload & Analyze" }).click();
 }
 
@@ -275,7 +303,7 @@ export async function showDocument(page: Page): Promise<void> {
 }
 
 export async function openFindingsTab(page: Page): Promise<void> {
-  const tab = page.getByRole("tab", { name: "Findings" });
+  const tab = page.getByRole("tab", { name: "Points" });
   await tab.waitFor({ state: "visible", timeout: 15_000 });
   if ((await tab.getAttribute("aria-selected")) !== "true") {
     await tab.click();
@@ -304,12 +332,10 @@ export async function openAsk(page: Page) {
   // `isVisible()` on a not-yet-rendered launcher answers false immediately, so
   // the click was skipped and the wait then timed out on the still-hidden input
   // — which is how the first version of this helper failed on a slow load.
+  // The dock itself loads only when Ask first opens (2026-11-06), so wait for its opener.
   const launcher = askOpener(page);
-  await page.locator(".ws-dock").waitFor({ state: "attached", timeout: 20_000 });
-  if (!(await input.isVisible())) {
-    await launcher.waitFor({ state: "visible", timeout: 20_000 });
-    await launcher.click();
-  }
+  await launcher.waitFor({ state: "visible", timeout: 20_000 });
+  if (!(await input.isVisible())) await launcher.click();
   await expect(input).toBeVisible();
   return input;
 }

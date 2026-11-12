@@ -172,9 +172,11 @@ def test_no_route_mutates_a_document_version(api, db, seeded):
                 # `/reprocess` (2026-09-06, Option C) is the one POST that writes:
                 # a NEW processing run over the preserved original — never the
                 # file, never existing evidence — and only while nothing relies
-                # on the current reading (pinned in test_api_resources).
+                # on the current reading (pinned in test_api_resources). `/mark-sent`
+                # (AM-260, AB-150) records once WHEN it went to the client — never the
+                # file, its evidence or its reading (pinned in test_negotiation).
                 assert path.endswith(("/suggest-type", "/extract-obligations",
-                                      "/reprocess")), path
+                                      "/reprocess", "/mark-sent")), path
             if method == "PATCH":
                 assert path == f"{V1}/document-versions/{{document_version_id}}", path
                 assert ENDPOINT_PERMISSIONS[(method, path)] == P.DOCUMENT_UPLOAD
@@ -246,7 +248,7 @@ def test_an_archived_contract_refuses_every_write(api, db, seeded):
     assert api.post(f"{V1}/contracts/{contract.id}/document-versions",
                     content=b"%PDF-1.4 fake",
                     headers={"content-type": "application/pdf",
-                             "x-filename": "x.pdf"}).status_code == 409
+                             "x-version-role": "COMPANY_DRAFT", "x-filename": "x.pdf"}).status_code == 409
     assert api.post(f"{V1}/reviews", json={
         "document_version_id": str(version.id),
         "configuration_snapshot_id": str(snapshot.id)}).status_code == 409

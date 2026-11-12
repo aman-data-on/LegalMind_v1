@@ -30,6 +30,7 @@ from sqlalchemy.orm import Session as DBSession
 
 from legalmind.db import models as M
 from legalmind.domain import enums as E
+from legalmind.domain.client_profile import FINAL_SIGNED
 
 
 class MissingReference(Exception):
@@ -75,6 +76,21 @@ def latest_completed_run_id(db: DBSession, document_version_id: UUID) -> UUID | 
     ).scalar_one_or_none()
 
 
+def contract_principals(db: DBSession, contract_id: UUID) -> set[UUID]:
+    """The contract's OWNER and its CREATOR — whoever uploaded (or generated) its first
+    version; ownership may have moved since (AB-12 r5), the creation has not. One
+    definition for `AM-288` r1(c) (a Legal holder who created it reads it), `AM-289` r1
+    (a decision by either needs a second person) and r2 (no assignment back to either).
+    Lives in `db` because the evaluation core may import `db` and `domain` only."""
+    owner = db.execute(select(M.Contract.owner_id)
+                       .where(M.Contract.id == contract_id)).scalar_one_or_none()
+    creator = db.execute(
+        select(M.DocumentVersion.uploaded_by)
+        .where(M.DocumentVersion.contract_id == contract_id)
+        .order_by(M.DocumentVersion.version_number).limit(1)).scalar_one_or_none()
+    return {u for u in (owner, creator) if u is not None}
+
+
 def paper_kind_of(db: DBSession, document_version_id: UUID) -> dict | None:
     """AM-245: ``{kind, signals[, override]}`` of the version's reading — recorded on its
     run when the reading completed (`ingestion.service`), so nothing re-reads the text;
@@ -94,3 +110,14 @@ def paper_kind_of(db: DBSession, document_version_id: UUID) -> dict | None:
                   M.DocumentEvidence.start_offset.asc().nulls_last(),
                   M.DocumentEvidence.id.asc())).all())
     return {"kind": paper.kind, "signals": list(paper.signals)}
+
+
+def contract_signed(db: DBSession, contract_id: UUID) -> bool:
+    """The contract is signed: its execution record is sealed ("Mark signed") or a
+    version is FINAL_SIGNED. A signed contract takes no negotiation write."""
+    return db.execute(select(M.Execution.id).where(
+        M.Execution.contract_id == contract_id, M.Execution.signed_at.is_not(None))
+        .limit(1)).first() is not None or db.execute(select(M.DocumentVersion.id).where(
+            M.DocumentVersion.contract_id == contract_id,
+            M.DocumentVersion.doc_metadata["version_role"].astext == FINAL_SIGNED)
+        .limit(1)).first() is not None

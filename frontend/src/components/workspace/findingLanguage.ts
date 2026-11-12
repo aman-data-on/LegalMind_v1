@@ -24,8 +24,8 @@
  * a decision.
  */
 
-import { DOCUMENT_TYPES } from "@/lib/documentTypes";
-import { classificationLabel } from "@/lib/labels";
+import { DOCUMENT_TYPES, clauseName } from "@/lib/documentTypes";
+import { POINT_WHO, answeredWords, classificationLabel } from "@/lib/labels";
 import type { Evaluation, Evidence, Finding } from "@/lib/types";
 
 /** The ten declared document-type codes, as a set — so the title parser below
@@ -71,6 +71,14 @@ const CODE_WORDS: Record<string, string> = {
   TOS: "TOS",
 };
 
+/** Template re-check #6 (2026-11-09): the plain name of a point whose code words read as
+ *  shorthand. Words only — the standard behind each is unchanged. */
+const PLAIN_NAMES: Record<string, string> = {
+  "DATA-PURGE": "Deleting data after the end",
+  "DISPUTE-VENUE": "Where disputes are heard",
+  "LATE-INTEREST": "Interest on late payment",
+};
+
 export function requirementTitle(
   requirement: { code?: string | null; name?: string | null } | null | undefined,
 ): string {
@@ -83,6 +91,8 @@ export function requirementTitle(
   // the requirement's own words stays ("REFERENCE-GOVERNING-MSA-…").
   const parts = code.split(/[-\s]+/).filter((part) => part.length > 0 && !/^\d+$/.test(part));
   if (parts.length > 1 && TYPE_CODES.has(parts[parts.length - 1]!.toUpperCase())) parts.pop();
+  const plain = PLAIN_NAMES[parts.join("-").toUpperCase()];
+  if (plain) return plain;
   const words = parts
     .flatMap((piece) => piece.split("_"))
     .filter((part) => part.length > 0)
@@ -203,7 +213,8 @@ function readerIdentity(finding: Finding): string | null {
 /** Where one POINT stands (AM-179) — the same rule the server's `review_progress` uses:
  *  any member awaiting clarification, else any to decide, else any decided, else what
  *  the analysis says. A point decided as one keeps its members' states together. */
-export type PointState = "to_decide" | "clarification" | "decided" | "matches" | "no_action";
+export type PointState = "to_decide" | "clarification" | "decided" | "favour" | "matches"
+  | "no_action";
 
 export function pointState(finding: PresentedFinding): PointState {
   const members = [finding, ...(finding.alsoMeasuredAgainst ?? [])];
@@ -211,7 +222,15 @@ export function pointState(finding: PresentedFinding): PointState {
   if (statuses.has("AWAITING_CLARIFICATION")) return "clarification";
   if (statuses.has("DECISION_REQUIRED")) return "to_decide";
   if (statuses.has("RESOLVED")) return "decided";
+  // Batch 1 (d): the server's flag (the recorded rule outcome), never derived here
+  if (finding.in_our_favour) return "favour";
   return userStatus(finding) === "ACCEPTABLE" ? "matches" : "no_action";
+}
+
+/** Line 1 of a point: "In our favour" where the server says so, else the reader word. */
+export const IN_OUR_FAVOUR = "In our favour";
+export function readerWord(finding: Pick<Finding, "user_status" | "in_our_favour">): string {
+  return finding.in_our_favour ? IN_OUR_FAVOUR : USER_STATUS_LABELS[userStatus(finding)];
 }
 
 /** The decision a decided point carries — its members share it when decided as one. */
@@ -223,6 +242,38 @@ export function pointDecision(finding: PresentedFinding): string | null {
     }
   }
   return null;
+}
+
+/**
+ * The second line under a point (S1): who answers it, or what was answered — kept apart
+ * from the first line, the review's word against our standard, and never merged into it
+ * (five axes, RESOLVED ≠ MATCH). Read from the server's states only; `canDecide` is the
+ * reader's presentation flag (`legal.decision`), never an authority. Null when nothing
+ * is owed on the point.
+ */
+export function pointAnswer(finding: PresentedFinding, canDecide: boolean,
+                            sent = true): string | null {
+  const state = pointState(finding);
+  if (state === "decided") {
+    const carried = [finding, ...(finding.alsoMeasuredAgainst ?? [])]
+      .map((f) => f.carried_decision).find(Boolean);
+    if (carried) return carriedWords(carried);
+    const decision = pointDecision(finding);
+    return decision ? answeredWords(decision) : "Answered";
+  }
+  if (state === "clarification") return POINT_WHO.client;
+  if (state !== "to_decide") return null;
+  // a decision is on record but the point is still open: a second person approves it
+  const pending = [finding, ...(finding.alsoMeasuredAgainst ?? [])]
+    .some((f) => f.evaluations.some((e) => e.current_decision));
+  if (pending) return POINT_WHO.approval;
+  return canDecide ? POINT_WHO.yours : sent ? POINT_WHO.legal : POINT_WHO.notSent;
+}
+
+/** `AM-317` r7: "Decided on version 1 by <name>, same wording". */
+export function carriedWords(c: NonNullable<Finding["carried_decision"]>): string {
+  const on = c.version_number ? ` on version ${c.version_number}` : " on an earlier version";
+  return `Decided${on}${c.decided_by_name ? ` by ${c.decided_by_name}` : ""}, same wording`;
 }
 
 export function mergeEquivalentFindings(findings: Finding[]): PresentedFinding[] {
@@ -329,8 +380,8 @@ export const USER_STATUS_TONE: Record<UserStatus, StatusTone> = {
 /** The engine's determination, as the short phrase under a card's title (owner's
  *  reference, 2026-09-09) — the five answers in plain words, never the enum. */
 const DETERMINATION_LABELS: Record<string, string> = {
-  MATCH: "Constitution match",
-  DEVIATION: "Deviates from the Constitution",
+  MATCH: "Matches our standards",
+  DEVIATION: "Differs from our standards",
   MISSING: "Required clause missing",
   CONFLICT: "Conflicting provisions",
   UNABLE_TO_EVALUATE: "Not confirmed — a person reads it",
@@ -473,14 +524,14 @@ export function nextStep(
     case "REQUIRES_MODIFICATION":
       // The owner's own words (2026-09-09): a clear, rule-backed conflict is
       // the one status where the card may say the contract needs changing.
-      return "This does not match the company standard. The clause needs to be modified, or someone with legal authority must decide.";
+      return "This does not match the company standard. The clause needs to change, or Legal decides.";
     case "MISSING":
-      return "The contract has no clause on this. Our wording needs to be added, or someone with legal authority must decide.";
+      return "The contract has no clause on this. Our wording needs to be added, or Legal decides.";
     case "ACCEPTABLE":
       // An escalated MATCH still needs a person (workflow.py clause (d)): the
       // server's flag wins over the status's default.
       return escalated
-        ? "This has been escalated. Someone with legal authority needs to review it and record a decision."
+        ? "Legal has been asked to look at this. Legal decides."
         : "No action is needed.";
     default:
       // One sentence for every Needs review, whatever the engine recorded: it
@@ -490,12 +541,29 @@ export function nextStep(
       {
         const why = sameFigureDifferentBasis(evaluation);
         if (why) {
-          return `${why} Someone with legal authority needs to decide whether that is acceptable.`;
+          return `${why} Legal decides whether that is acceptable.`;
         }
         // AB-104 (owner, 2026-10-23): a "needs a decision" says WHAT a person decides
-        return `${decisionReason(finding, evaluation)} Someone with legal authority decides.`;
+        return `${decisionReason(finding, evaluation)} Legal decides.`;
       }
   }
+}
+
+/** B3 page 1 (PLAIN-LANGUAGE §4 rule 4): the card's ONE action, by one actor, agreeing with
+ *  its status. "Send our standard wording" / "Ask the client to add our clause" only when
+ *  the server holds our wording to send (`sendable`) — never invented. A decided point says
+ *  what was decided (`nextStep`). Language only: the status is the server's (rule 18). */
+export function whatToDo(finding: PresentedFinding, evaluation: Evaluation | undefined,
+                         status: UserStatus, sendable: boolean, legalReader = false): string {
+  const state = pointState(finding);
+  if (evaluation?.current_decision) return nextStep(finding, evaluation, status) ?? "Decided.";
+  if (state === "decided") return "Decided.";
+  if (state === "clarification") return "Waiting for the client's answer; then Legal decides.";
+  if (state === "matches") return "Nothing to do.";
+  if (state === "favour") return "You can accept this.";
+  if (status === "REQUIRES_MODIFICATION" && sendable) return "Send our standard wording, or Legal decides.";
+  if (status === "MISSING" && sendable) return "Ask the client to add our clause.";
+  return legalReader ? "Read it and decide." : "Legal decides this one.";
 }
 
 /** Why a point needs a person, in one sentence — from what the engine recorded, never
@@ -506,7 +574,7 @@ function decisionReason(finding: Finding, evaluation?: Evaluation): string {
   const reason = typeof actual.reason === "string" ? actual.reason : "";
   if (cls === "CONFLICT") return "Two clauses say different things on this.";
   if (cls === "DEVIATION" || cls === "MISSING") {
-    return "The Constitution calls this position not negotiable.";
+    return "Our standards say this point is not negotiable.";
   }
   if (reason && UNREADABLE_WORDS[reason]) return `${UNREADABLE_WORDS[reason]}.`;
   if (actual.presence === "INDETERMINATE") {
@@ -907,12 +975,9 @@ export function reasoningSteps(
   evaluation: Evaluation,
   evidenceCount: number,
 ): Step[] {
+  // page 2: the chain starts at the document — "<title> was checked against the company
+  // standard" said nothing the card head does not
   const steps: Step[] = [];
-  const title = requirementTitle(finding.requirement);
-  steps.push({
-    label: "Requirement",
-    text: `${title} was checked against the company standard.`,
-  });
 
   const contract = sideOf(evaluation.actual_value);
   steps.push({
@@ -921,13 +986,13 @@ export function reasoningSteps(
       ? "No matching provision was found."
       : evidenceCount === 0
         ? `Recorded as ${contract.text.toLowerCase()}; no supporting passage was cited.`
-        : `${contract.text} in ${evidenceCount === 1 ? "1 passage" : `${evidenceCount} passages`}, quoted below.`,
+        : `${contract.text} in ${evidenceCount === 1 ? "1 passage" : `${evidenceCount} passages`}, quoted above.`,
   });
 
   if (evaluation.expected_value !== undefined) {
     const standard = sideOf(evaluation.expected_value);
     steps.push({
-      label: "Company standard",
+      label: "Our standard",
       text: standard.tone === "present" && standard.text === "Found"
         ? "The standard expects this to be present."
         : standard.tone === "absent"
@@ -977,17 +1042,59 @@ export function evidenceLocation(row: Evidence, index: number): string {
   return parts.length > 0 ? parts.join(" · ") : `Passage ${index + 1}`;
 }
 
+/** The contract page's form of the same place (page 2): "Clause 5.3, page 5". */
+export function clauseAndPage(row: Pick<Evidence, "section_number" | "page_number" | "name">,
+                              index: number): string {
+  const number = row.section_number?.replace(/\.$/, "") ?? null;
+  const said = [
+    // a number the paper uses twice says its own words: "Clause 2 — Invoicing"
+    number ? `Clause ${clauseName({ number, heading: null, name: row.name })}` : null,
+    row.page_number != null ? `page ${row.page_number}` : null,
+  ].filter(Boolean).join(", ");
+  return said ? said.charAt(0).toUpperCase() + said.slice(1) : `Passage ${index + 1}`;
+}
+
 /** A long excerpt, cut at a sentence or word boundary rather than mid-word.
  *  Returns the whole string when it is already short enough, so a caller can
  *  compare the two to decide whether a "show all" control is needed. */
-export function excerpt(content: string, limit = 320): string {
+export function excerpt(content: string, limit = 320, focus?: string | null): string {
   const text = content.trim();
+  if (text.length <= limit) return text;
+  const head = cut(text, limit);
+  const at = focus ? findFocus(text, focus) : -1;
+  if (at < 0 || at + focus!.length <= head.length - 1) return head;
+  // the card's figure lies past the cut: start at the sentence that holds it
+  const before = text.slice(0, at);
+  const start = Math.max(before.lastIndexOf(". "), before.lastIndexOf("; "),
+                         before.lastIndexOf("\n")) + 1;
+  const from = at - start > limit * 0.6 ? before.lastIndexOf(" ", at - 40) + 1 : start;
+  return `…${cut(text.slice(from).trimStart(), limit)}`;
+}
+
+function cut(text: string, limit: number): string {
   if (text.length <= limit) return text;
   const window = text.slice(0, limit);
   const stop = Math.max(window.lastIndexOf(". "), window.lastIndexOf("; "));
   if (stop > limit * 0.5) return `${window.slice(0, stop + 1)}…`;
   const space = window.lastIndexOf(" ");
   return `${(space > 0 ? window.slice(0, space) : window).trimEnd()}…`;
+}
+
+/** Where a figure sits: a number never inside a longer one ("45" is not "145"). */
+function findFocus(text: string, focus: string): number {
+  const escaped = focus.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = /^\d/.test(focus) ? `(?<![\\d.])${escaped}(?![\\d])` : escaped;
+  return text.search(new RegExp(pattern, "i"));
+}
+
+/** The figure a card is about, as the clause states it — the first stated value, else
+ *  the first number the engine read; null when it read none. Presentation only. */
+export function figureOf(value: unknown): string | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  if (Array.isArray(record.values) && record.values.length > 0) return String(record.values[0]);
+  const number = firstOf(record, NUMBER_KEYS);
+  return typeof number === "number" ? String(number) : null;
 }
 
 /**

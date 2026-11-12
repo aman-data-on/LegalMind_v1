@@ -15,6 +15,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { FindingCard } from "@/components/workspace/FindingsPane";
+import { pointAnswer } from "@/components/workspace/findingLanguage";
 import { HighlightProvider } from "@/components/workspace/highlight";
 import type { Evaluation, Evidence, Finding, FindingExplanation } from "@/lib/types";
 
@@ -28,7 +29,12 @@ function evidence(over: Partial<Evidence> = {}): Evidence {
 }
 
 function card(over: Partial<Finding> = {}, evalOver: Partial<Evaluation> = {},
-              explanation: FindingExplanation | null = null, canEscalate = true): string {
+              explanation: FindingExplanation | null = null, canEscalate = true,
+              /* S1: the engine's chain is "Legal details", rendered only for a holder of
+                 legal_position.view + legal.review. Most of this file asserts that chain,
+                 so it renders the legal reader's card; the non-legal reader has its own
+                 block below. */
+              legalDetails = true, canDecide = false): string {
   const evaluation = {
     id: "e1", finding_id: "f1", scope_key: "GENERAL", scope_label: null,
     evaluation_kind: "PRIMARY", classification: over.classification ?? "MISSING",
@@ -56,7 +62,7 @@ function card(over: Partial<Finding> = {}, evalOver: Partial<Evaluation> = {},
   return renderToStaticMarkup(
     <HighlightProvider>
       <FindingCard finding={finding} onChanged={() => {}} prepared={null} explanation={explanation}
-                   canEscalate={canEscalate} />
+                   canEscalate={canEscalate} legalDetails={legalDetails} canDecide={canDecide} />
     </HighlightProvider>,
   );
 }
@@ -125,7 +131,7 @@ function splitAtDetails(html: string): { before: string; inside: string; after: 
 
 describe("evidence shapes", () => {
   it("says plainly when nothing was cited", () => {
-    expect(card()).toMatch(/No supporting text was found in the document/i);
+    expect(card()).toMatch(/Nothing in the document says this/i);
   });
 
   it("quotes one passage with its location", () => {
@@ -133,7 +139,7 @@ describe("evidence shapes", () => {
       { classification: "MATCH", evidence: [evidence()] },
       { classification: "MATCH", actual_value: { presence: "PRESENT" }, evidence_refs: ["ev1"] },
     );
-    expect(html).toMatch(/11 · Residuals · page 4/);
+    expect(html).toMatch(/Clause 11, page 4/);                 // page 2: as a reader says it
     expect(html).toContain("The Receiving Party may use Residuals.");
     expect(html).toMatch(/Quoted from this document/i);
   });
@@ -195,7 +201,7 @@ describe("LEGAL-02 — an omitted legal position leaves no trace", () => {
     expect(html).not.toMatch(/ws-evaluation__outcome/);
     expect(html).not.toMatch(/ws-explain/);
     // What survives: the contract's own value and the audit provenance.
-    expect(html).toMatch(/<dt>Contract<\/dt>/);
+    expect(html).toMatch(/<dt>What it says<\/dt>/);
     expect(html).toMatch(/PRESENCE-v1/);
   });
 });
@@ -270,7 +276,7 @@ describe("technical/engineering facts stay off the default-visible card (owner, 
     expect(before).toMatch(/Residuals/);                        // what was checked
     expect(before).toMatch(/24 months/);                          // what the document says
     expect(before).toMatch(/6 months/);                           // what the standard expects
-    expect(before).toMatch(/NEXT STEP/i);                         // what to do next
+    expect(before).toMatch(/What to do/);                         // what to do next
     // And NOT the raw outcome label that used to sit right beside it.
     expect(before).not.toMatch(/Not acceptable/);
   });
@@ -319,12 +325,12 @@ describe("the five required real-world cases (owner, 2026-09-08, third pass)", (
     const { before, inside } = splitAtDetails(html);
     expect(before).toMatch(/Residuals/);
     expect(before).toMatch(/does not include residuals, which the company standard requires/i);
-    expect(before).toMatch(/Not found/);
+    expect(before).toMatch(/Nothing — the contract has no clause on this/);
     // "Required", not "Found" — a presence-shaped Company Standard value
     // states what the standard requires, not that the standard was "found".
     expect(before).toMatch(/Required/);
     expect(before).toMatch(/data-status="MISSING"/);   // a required clause is missing
-    expect(before).toMatch(/Our wording needs to be added/);
+    expect(before).toMatch(/What to do<\/dt><dd[^>]*>(?:Read it and decide|Legal decides this one)/);
     // Nothing technical on the visible surface: no evaluator name, no raw
     // "presence" operator word, no scope key, no raw outcome label.
     expect(before).not.toMatch(/PRESENCE-v1/);
@@ -354,7 +360,7 @@ describe("the five required real-world cases (owner, 2026-09-08, third pass)", (
     // The locked word lives in the disclosure now; the face says "Needs a decision".
     expect(before).toMatch(/Needs a decision/);
     expect(inside).toMatch(/Needs Review/);
-    expect(before).toMatch(/legal authority decides/i);
+    expect(before).toMatch(/(?:Read it and decide|Legal decides this one)/);
     // Honest about having nothing to compare — never a guess, never silence. And
     // never "Not recorded" for the standard: it exists, the requirement above states
     // it (owner, 2026-10-09 — read as "we have no standard").
@@ -388,7 +394,7 @@ describe("the five required real-world cases (owner, 2026-09-08, third pass)", (
     // "No action is needed" is more useful to a Sales reader than silently
     // omitting the row, and it is a fact about the workflow state, not an
     // invented legal conclusion.
-    expect(before).toMatch(/NEXT STEP.*No action is needed/is);
+    expect(before).toMatch(/What to do.*Nothing to do/s);
     expect(before).not.toMatch(/PRESENCE-v1/);
     expect(before).not.toMatch(/GOVLAW-NDA-001/);
     expect(inside).toContain("PRESENCE-v1");
@@ -412,8 +418,8 @@ describe("the five required real-world cases (owner, 2026-09-08, third pass)", (
     expect(before).toMatch(/60 days/);
     // The approved zero-tolerance rule ruled this deviation UNACCEPTABLE, so the
     // reader sees Not accepted (owner's own example, 2026-09-09: 12 vs 6 months).
-    expect(before).toMatch(/data-status="REQUIRES_MODIFICATION"[^>]*>Change needed</);
-    expect(before).toMatch(/needs to be modified/);
+    expect(before).toMatch(/data-status="CHANGE_NEEDED"[^>]*>(?:<svg[\s\S]*?<\/svg>)Change needed</);
+    expect(before).toMatch(/What to do<\/dt><dd[^>]*>(?:Read it and decide|Legal decides this one)/);
     expect(before).not.toMatch(/Not acceptable/);
     expect(before).not.toMatch(/>!=</);
     expect(before).not.toMatch(/NUMERIC-COMPARISON-v1/);
@@ -423,24 +429,16 @@ describe("the five required real-world cases (owner, 2026-09-08, third pass)", (
 });
 
 describe("the status mark and the merged three-part comparison (owner, 2026-09-08, fourth pass)", () => {
-  it("gives every classification a status mark with the right tone, before any click", () => {
-    // One tone per user-facing status — owner, 2026-09-09: Acceptable green,
-    // Requires modification AMBER, Needs a decision RED. The amber and the red
-    // were the other way round until that instruction; `USER_STATUS_TONE` is
-    // now the only place the pairing lives (see `status-tones.test.tsx`).
+  it("says each status once on the card face: one StatusChip, no second icon tile (UX Batch 2)", () => {
     const cases: Array<[string, string]> = [
-      ["MATCH", "ws-finding__mark--ok"],
-      ["DEVIATION", "ws-finding__mark--warn"],
-      ["MISSING", "ws-finding__mark--warn"],
-      ["CONFLICT", "ws-finding__mark--bad"],
-      ["UNABLE_TO_EVALUATE", "ws-finding__mark--bad"],
+      ["MATCH", "MATCHES"], ["DEVIATION", "CHANGE_NEEDED"], ["MISSING", "MISSING"],
+      ["CONFLICT", "NEEDS_DECISION"], ["UNABLE_TO_EVALUATE", "NEEDS_DECISION"],
     ];
-    for (const [classification, markClass] of cases) {
+    for (const [classification, chip] of cases) {
       const html = card({ classification }, { classification });
       const { before } = splitAtDetails(html);
-      expect(before, classification).toContain(markClass);
-      // aria-hidden: the chip right beside it already carries the word.
-      expect(before).toMatch(/ws-finding__mark[^>]*aria-hidden="true"/);
+      expect(before, classification).toContain(`data-status="${chip}"`);
+      expect(before, classification).not.toContain("ws-finding__mark");
     }
   });
 
@@ -456,7 +454,7 @@ describe("the status mark and the merged three-part comparison (owner, 2026-09-0
     // One `.ws-facts--compare` block; "Next step" is a dt/dd pair inside it,
     // not a second, separately-styled element after it.
     expect((before.match(/ws-facts--compare/g) ?? []).length).toBe(1);
-    expect(before).toMatch(/<dt>Next step<\/dt><dd class="ws-facts__next">/);
+    expect(before).toMatch(/<dt>What to do<\/dt><dd class="ws-facts__next">/);
     // The old standalone paragraph class is gone.
     expect(before).not.toContain("ws-eval__next");
   });
@@ -498,7 +496,7 @@ describe("the status mark and the merged three-part comparison (owner, 2026-09-0
       } as unknown as Partial<Evaluation>,
     );
     const { before } = splitAtDetails(html);
-    expect(before).toMatch(/<dt>Next step<\/dt><dd[^>]*>No action is needed\.<\/dd>/);
+    expect(before).toMatch(/<dt>What to do<\/dt><dd[^>]*>Nothing to do\.<\/dd>/);
   });
 });
 
@@ -514,19 +512,23 @@ describe("the four-word status on the card face", () => {
   it("says a point a reviewer decided as Decided — never Acceptable (owner, 2026-10-22)", () => {
     const html = face({ classification: "DEVIATION", status: "RESOLVED" },
                       { classification: "DEVIATION" });
-    expect(html).toMatch(/data-status="REQUIRES_MODIFICATION"[^>]*>Decided</);
+    // S1 — two lines: the review's word stays ("Change needed"), and line two says
+    // what was answered; a decided point never reads "Matches" (rule 14).
+    expect(html).toMatch(/data-status="CHANGE_NEEDED"[^>]*>(?:<svg[\s\S]*?<\/svg>)Change needed</);
+    expect(html).toMatch(/ws-point__who[^>]*data-answer="decided"[^>]*>.*Answered</);
+    expect(html).not.toMatch(/Matches our standard/);
     expect(html).not.toMatch(/>Acceptable</);
   });
 
   it("maps MATCH to Matches our standard, DEVIATION to Change needed, MISSING to Missing, the rest to Needs a decision (AB-104)", () => {
-    expect(face({ classification: "MATCH" }, { classification: "MATCH" })).toMatch(/data-status="ACCEPTABLE"[^>]*>Matches our standard</);
+    expect(face({ classification: "MATCH" }, { classification: "MATCH" })).toMatch(/data-status="MATCHES"[^>]*>(?:<svg[\s\S]*?<\/svg>)Matches</);
     expect(face({ classification: "DEVIATION" }, { classification: "DEVIATION" }))
-      .toMatch(/data-status="REQUIRES_MODIFICATION"[^>]*>Change needed</);
+      .toMatch(/data-status="CHANGE_NEEDED"[^>]*>(?:<svg[\s\S]*?<\/svg>)Change needed</);
     expect(face({ classification: "MISSING" }, { classification: "MISSING" }))
-      .toMatch(/data-status="MISSING"[^>]*>Missing</);
+      .toMatch(/data-status="MISSING"[^>]*>(?:<svg[\s\S]*?<\/svg>)Missing</);
     for (const classification of ["CONFLICT", "UNABLE_TO_EVALUATE"]) {
       const html = face({ classification }, { classification });
-      expect(html, classification).toMatch(/data-status="NEEDS_DECISION"[^>]*>Needs a decision</);
+      expect(html, classification).toMatch(/data-status="NEEDS_DECISION"[^>]*>(?:<svg[\s\S]*?<\/svg>)Needs a decision</);
       expect(html, classification).not.toMatch(/Change needed/);
     }
   });
@@ -534,7 +536,7 @@ describe("the four-word status on the card face", () => {
   it("puts one Next step on every Needs-a-decision card without pre-deciding the outcome", () => {
     for (const classification of ["CONFLICT", "UNABLE_TO_EVALUATE"]) {
       const html = face({ classification }, { classification });
-      expect(html, classification).toMatch(/Someone with legal authority decides\./);
+      expect(html, classification).toMatch(/(?:Read it and decide|Legal decides this one)\./);
       expect(html, classification).not.toMatch(/would make|modification/);
     }
   });
@@ -544,10 +546,10 @@ describe("the four-word status on the card face", () => {
       for (const rule_outcome of ["UNACCEPTABLE", "NOT_APPLICABLE"]) {
         const html = face({ classification, requires_decision: true }, { classification, rule_outcome });
         if (classification === "DEVIATION") {
-          expect(html, classification).toMatch(/data-status="REQUIRES_MODIFICATION"[^>]*>Change needed</);
-          expect(html, classification).toMatch(/needs to be modified/);
+          expect(html, classification).toMatch(/data-status="CHANGE_NEEDED"[^>]*>(?:<svg[\s\S]*?<\/svg>)Change needed</);
+          expect(html, classification).toMatch(/(?:Read it and decide|Legal decides this one)/);
         } else {
-          expect(html, classification).toMatch(/data-status="MISSING"[^>]*>Missing</);
+          expect(html, classification).toMatch(/data-status="MISSING"[^>]*>(?:<svg[\s\S]*?<\/svg>)Missing</);
           expect(html, classification).toMatch(/has no clause on this/);
         }
       }
@@ -569,15 +571,17 @@ describe("the four-word status on the card face", () => {
       },
     );
     const { before, inside } = splitAtDetails(html);
-    expect(before).toMatch(/data-status="REQUIRES_MODIFICATION"[^>]*>Change needed</);
+    expect(before).toMatch(/data-status="CHANGE_NEEDED"[^>]*>(?:<svg[\s\S]*?<\/svg>)Change needed</);
     // Amber, not red: a cited prohibition still means the clause has to change,
     // and red belongs to the word that says nobody could determine acceptance
     // (owner, 2026-09-09).
-    expect(before).toContain("ws-finding__mark--warn");
-    expect(before).toMatch(/Legal Constitution §9: “Unlimited liability is Unacceptable\.”/);
+    expect(before).toContain('lm-chip lm-chip--change" data-status="CHANGE_NEEDED"');
+    // S1: "our standards" on the face; the § is a Legal detail
+    expect(before).toMatch(/Our standards: “Unlimited liability is Unacceptable\.”/);
+    expect(before).not.toMatch(/§9/);
     // Not accepted routes to a person; it never claims a self-service edit fixes it.
     expect(before).not.toMatch(/would make/);
-    expect(before).toMatch(/does not match the company standard/);
+    expect(before).toMatch(/(?:Read it and decide|Legal decides this one)/);
     // The engine's own words are still there, one click away.
     expect(inside).toMatch(/DEVIATION/);
     expect(inside).toMatch(/Not acceptable/);
@@ -616,7 +620,7 @@ describe("the four-word status on the card face", () => {
     expect(before).toMatch(/Residuals/);
     expect(before).toMatch(/24 months/);
     expect(before).toMatch(/12 months/);
-    expect(before).toMatch(/Next step/i);
+    expect(before).toMatch(/What to do/);
   });
 });
 
@@ -636,7 +640,7 @@ describe("the face is only the four answers; the proof is one click away (owner,
   it("shows exactly three labelled facts on the face for a caller who sees the standard, two otherwise", () => {
     const full = splitAtDetails(card({ classification: "MISSING" }, { classification: "MISSING" })).before;
     expect(full.match(/<dt>/g)?.length).toBe(3);
-    expect(full).toMatch(/<dt>Contract<\/dt>.*<dt>Company standard<\/dt>.*<dt>Next step<\/dt>/s);
+    expect(full).toMatch(/<dt>What it says<\/dt>.*<dt>What we need<\/dt>.*<dt>What to do<\/dt>/s);
     const limited = splitAtDetails(card({}, { expected_value: undefined, rule_outcome: undefined, explanation: undefined } as unknown as Partial<Evaluation>)).before;
     expect(limited.match(/<dt>/g)?.length).toBe(2);
   });
@@ -682,7 +686,7 @@ describe("the face is only the four answers; the proof is one click away (owner,
     it("puts the evaluator, the scope, the comparison and the requirement code behind it", () => {
       const { inside } = splitAtDetails(detailed());
       const { plain, technical } = splitAtTechnical(inside);
-      for (const jargon of ["PRESENCE-v1", "evidence reference", "RESIDUALS-NDA-001",
+      for (const jargon of ["PRESENCE-v1", "· 1 passage", "RESIDUALS-NDA-001",
                             "Scope", "Evaluator", ">GENERAL<", ">!=<", "mapping"]) {
         expect(plain, jargon).not.toContain(jargon);
         expect(technical, jargon).toContain(jargon);
@@ -694,7 +698,7 @@ describe("the face is only the four answers; the proof is one click away (owner,
       const { plain } = splitAtTechnical(inside);
       // Evidence → Fact → Standard → Result (rule 12). The action is the card's own Next
       // step, on the face; repeating it here was the owner's "said three times" (2026-10-21).
-      for (const readable of ["Requirement", "This document", "Company standard", "Result"]) {
+      for (const readable of ["This document", "Our standard", "Result"]) {
         expect(plain, readable).toContain(readable);
       }
       expect(plain).not.toContain("What happens next");
@@ -767,9 +771,9 @@ describe("the approved plain-English description (owner, 2026-09-09)", () => {
       classification: "DEVIATION",
       constitution_prohibition: { section: "9", quote: "An uncapped/unlimited liability term […]" },
     });
-    expect(accepted).toMatch(/data-status="ACCEPTABLE"/);
-    expect(review).toMatch(/data-status="REQUIRES_MODIFICATION"/);
-    expect(notAccepted).toMatch(/data-status="REQUIRES_MODIFICATION"/);
+    expect(accepted).toMatch(/data-status="MATCHES"/);
+    expect(review).toMatch(/data-status="CHANGE_NEEDED"/);
+    expect(notAccepted).toMatch(/data-status="CHANGE_NEEDED"/);
     for (const html of [accepted, review, notAccepted]) expect(html).toContain(text);
   });
 
@@ -814,7 +818,7 @@ describe("the grounded explanation (AM-49, owner 2026-09-09) — language only",
   });
 
   it("never decides the status — the same sentence sits under every status", () => {
-    for (const [classification, status] of [["MATCH", "ACCEPTABLE"], ["DEVIATION", "REQUIRES_MODIFICATION"], ["UNABLE_TO_EVALUATE", "NEEDS_DECISION"]] as const) {
+    for (const [classification, status] of [["MATCH", "MATCHES"], ["DEVIATION", "CHANGE_NEEDED"], ["UNABLE_TO_EVALUATE", "NEEDS_DECISION"]] as const) {
       const html = card({ classification, requirement: req }, { classification }, accepted);
       expect(html, classification).toMatch(new RegExp(`data-status="${status}"`));
       expect(html, classification).toContain(accepted.text);
@@ -841,7 +845,75 @@ describe("Constitution citation on the card", () => {
 
 describe("QA-024 — a control the reader cannot use is not shown", () => {
   it("offers Escalate only where the server would accept it", () => {
-    expect(card({ classification: "DEVIATION" })).toContain("Escalate");
-    expect(card({ classification: "DEVIATION" }, {}, null, false)).not.toContain("Escalate");
+    expect(card({ classification: "DEVIATION" })).toContain("Ask Legal");
+    expect(card({ classification: "DEVIATION" }, {}, null, false)).not.toContain("Ask Legal");
+  });
+});
+
+/* S1 — plain language: a point reads as two lines, and the engine's chain is a Legal
+   detail. These pin the non-legal reader's card, the other half of the helper's default. */
+describe("S1 — two lines per point, and Legal details only for Legal", () => {
+  const owner = (over: Partial<Finding> = {}, evalOver: Partial<Evaluation> = {}) =>
+    card({ classification: "DEVIATION", evidence: [evidence()], ...over },
+         { classification: "DEVIATION", evidence_refs: ["ev1"], ...evalOver },
+         null, true, false);
+
+  // `requires_decision: false` keeps the decision control (which needs a session) off
+  // the static render; the point's state is read from `status`, as the server sets it.
+  it("keeps the review's word on line one and who answers on line two, never merged", () => {
+    const open = owner({ status: "DECISION_REQUIRED" });
+    expect(open).toMatch(/data-status="CHANGE_NEEDED"[^>]*>(?:<svg[\s\S]*?<\/svg>)Change needed<\/span>/);
+    expect(open).toMatch(/ws-point__who[^>]*>With Legal</);
+    // the lawyer reading the same point owns it
+    const legal = card({ classification: "DEVIATION", status: "DECISION_REQUIRED" },
+                       { classification: "DEVIATION" }, null, true, true, true);
+    expect(legal).toMatch(/ws-point__who[^>]*>Yours to decide</);
+    // nothing is owed on a match, so it has no second line
+    expect(card({ classification: "MATCH" }, { classification: "MATCH" })).not.toContain("ws-point__who");
+  });
+
+  it("says what was answered once a decision closes the point — never Matches", () => {
+    const base = { id: "f1", status: "RESOLVED", user_status: "REQUIRES_MODIFICATION",
+                   evaluations: [{ current_decision: { decision_type: "REJECT" } }] } as unknown as Finding;
+    expect(pointAnswer(base, false)).toBe("Kept ours");
+    const accepted = { ...base, evaluations: [{ current_decision: { decision_type: "ACCEPT_DEVIATION" } }] } as unknown as Finding;
+    expect(pointAnswer(accepted, true)).toBe("Accepted theirs");
+    // a decision on record while the point is still open waits for a second person
+    const pending = { ...base, status: "DECISION_REQUIRED" } as unknown as Finding;
+    expect(pointAnswer(pending, true)).toBe("Waiting for approval");
+    const html = owner({ status: "RESOLVED" });
+    expect(html).toMatch(/>Change needed</);
+    expect(html).not.toMatch(/Matches our standard/);
+  });
+
+  it("says a point decided on an earlier version on the same words was carried (AM-317 r7)", () => {
+    const carried = { id: "f1", status: "RESOLVED", user_status: "REQUIRES_MODIFICATION",
+                      evaluations: [{ current_decision: null }],
+                      carried_decision: { version_number: 1, decision_type: "ACCEPT_DEVIATION",
+                                          decided_by_name: "Lawyer Test", decided_at: null } } as unknown as Finding;
+    expect(pointAnswer(carried, true)).toBe("Decided on version 1 by Lawyer Test, same wording");
+    // reopened (escalated or still open): nothing carried is claimed
+    expect(pointAnswer({ ...carried, status: "DECISION_REQUIRED" } as Finding, true)).not.toMatch(/Decided on/);
+  });
+
+  it("gives a non-legal reader the passage and its provenance, and NO Legal details", () => {
+    const html = owner({}, { rule_outcome: "UNACCEPTABLE" });
+    expect(html).toContain("<summary>Where it says this</summary>");
+    expect(html).toContain("The Receiving Party may use Residuals.");
+    expect(html).toMatch(/ws-evaluation__provenance[^>]*>PRESENCE-v1 · 1 passage</);
+    // absent, not hidden: no classification, rule outcome, code, § or engine record
+    for (const absent of ["Legal details", "ws-evaluation__outcome", "ws-explain",
+                          "DEVIATION", "RESIDUALS-NDA-001", "Technical details", "Constitution"]) {
+      expect(html, absent).not.toContain(absent);
+    }
+  });
+
+  it("gives the Legal reader the same passage inside Legal details, with the chain", () => {
+    const html = card({ classification: "DEVIATION", evidence: [evidence()] },
+                      { classification: "DEVIATION", evidence_refs: ["ev1"], rule_outcome: "UNACCEPTABLE" });
+    expect(html).toContain("<summary>Legal details</summary>");
+    expect(html).toContain("The Receiving Party may use Residuals.");
+    expect((html.match(/ws-evaluation__outcome/g) ?? []).length).toBe(1);
+    expect(html).toContain("Recorded as DEVIATION");
   });
 });

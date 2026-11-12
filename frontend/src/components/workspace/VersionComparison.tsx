@@ -45,8 +45,9 @@ import { useEffect, useState } from "react";
 
 import { api, describeError } from "@/lib/api";
 import { sectionRef } from "@/lib/documentTypes";
-import { USER_STATUS_LABELS, requirementTitle, userStatus } from "./findingLanguage";
+import { requirementTitle, userStatus } from "./findingLanguage";
 import type { ClauseChange, DocumentVersion, VersionComparison as Comparison } from "@/lib/types";
+import { StatusChip, chipStatus } from "@/components/StatusChip";
 
 type Load =
   | { kind: "loading" }
@@ -190,7 +191,7 @@ function Result({
           {shown.map((clause) => (
             <li key={`${clause.status}-${clause.section_number}`} className="ws-compare__row">
               <p className="ws-compare__clause">
-                <span className="ws-mono">{sectionRef(clause.section_number) ?? "—"}</span>
+                <span className="ws-num">{sectionRef(clause.section_number) ?? "—"}</span>
                 {clause.section_title ? (
                   <span className="ws-compare__title">{clause.section_title}</span>
                 ) : null}
@@ -218,12 +219,9 @@ function Result({
                     /* The reader's word in the reader's colour: this chip wore
                        `--ws-classify` while every other surface showing the
                        same word wore ok/warn/bad (2026-09-09). */
-                    <span
-                      key={finding.finding_id}
-                      className={`ws-chip ws-chip--fill ws-chip--status-${userStatus(finding).toLowerCase()}`}
-                    >
-                      {USER_STATUS_LABELS[userStatus(finding)]}
-                      {finding.requirement_code ? ` · ${requirementTitle({ code: finding.requirement_code })}` : ""}
+                    <span key={finding.finding_id} className="ws-compare__finding">
+                      <StatusChip status={chipStatus(userStatus(finding), finding.in_our_favour)} />
+                      {finding.requirement_code ? ` ${requirementTitle({ code: finding.requirement_code })}` : ""}
                     </span>
                   ))}
                 </p>
@@ -237,12 +235,10 @@ function Result({
           implied: clause numbering is the document's own (34.12), so text
           carrying none of it can only be counted honestly. */}
       <p className="ws-pane__note">
-        Clauses are matched on the document&rsquo;s own numbering. Text with no clause
-        number of its own is not paired up: {unnumbered.unchanged} passage
-        {unnumbered.unchanged === 1 ? "" : "s"} appear in both versions,{" "}
+        Clauses are matched by their numbers. Of the unnumbered text, {unnumbered.unchanged} passage
+        {unnumbered.unchanged === 1 ? " appears" : "s appear"} in both versions,{" "}
         {unnumbered.added} only in the later one and {unnumbered.removed} only in the
-        earlier. A comparison is not a legal decision — it reports what the text does,
-        not what should be done about it.
+        earlier.
       </p>
       {comparison.summary.UNCHANGED > 0 ? (
         <button type="button" className="ws-viewall" onClick={onToggleUnchanged}>
@@ -271,7 +267,7 @@ function Side({ side, was = false }: { side: NonNullable<ClauseChange["before"]>
         {side.truncated_end ? <span className="ws-compare__cut">…</span> : null}
       </blockquote>
       {side.page_number !== null ? (
-        <span className="ws-compare__page ws-mono">p. {side.page_number}</span>
+        <span className="ws-compare__page ws-num">p. {side.page_number}</span>
       ) : null}
     </div>
   );

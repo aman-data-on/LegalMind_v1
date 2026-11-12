@@ -1,0 +1,386 @@
+/* The Changes page, S2 (CLM plan flow 3). Only the workspace's own tokens — no new hue.
+   Serif is what the contract says (passages, wording, previews); sans is what LegalMind
+   says. Two notes are told apart by shape and words: a note to the client is a Word-style
+   comment balloon ("goes out"), an internal note a dashed inset on paper ("stays in"). */
+
+/* ---- the card head: line 1 the review's word, line 2 who answers (AM-291 r1) ---- */
+.cx .cx-line1 { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 0 0 var(--ws-s2);
+  font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+.cx .cx-line1 strong { color: var(--ws-ink-900); font-weight: 600; }
+.cx .cx-line2 { display: grid; gap: 2px; margin: 0; padding: var(--ws-s2) var(--ws-s3);
+  background: var(--ws-paper); border-left: 3px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm);
+  font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+.cx .cx-line2 strong { color: var(--ws-ink-900); font-weight: 600; }
+.cx .cx-line2[data-route="holder"] { border-left-color: var(--ws-ink-900); }
+
+/* ---- the answer on record ---- */
+.cx .cx-given { display: grid; gap: var(--ws-s2); font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+.cx .cx-given:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 4px; border-radius: 4px; }
+.cx .cx-given__line { display: flex; gap: 8px; align-items: flex-start; margin: 0; }
+.cx .cx-given__line svg { flex: none; margin-top: 4px; }
+.cx .cx-given__wording { padding: var(--ws-s2) var(--ws-s3); background: var(--ws-paper); border-radius: var(--ws-radius-sm); }
+.cx .cx-given__wording .cx-marked, .cx .cx-wording .cx-marked { font-size: var(--ws-text-sm); line-height: 1.55; }
+.cx .cx-waiting { margin: 0; padding: var(--ws-s2) var(--ws-s3); border: 1px solid var(--ws-ink-100);
+  border-left: 3px solid var(--ws-ink-700); border-radius: var(--ws-radius-sm); line-height: 1.5; }
+.cx .cx-waiting strong { color: var(--ws-ink-900); font-weight: 600; }
+.cx-row__done[data-waiting] { color: var(--ws-ink-900); font-weight: 600; }
+/* AM-308 U2: what the final contract does to the row — quiet, except where it cannot */
+.cx-row__final { font-size: var(--t-caption); color: var(--ws-ink-500); }
+.cx-row__final[data-in="cannot"] { color: var(--ws-ink-900); font-weight: 600; }
+
+/* ---- the four actions: one radio group, the choice's panel under it ---- */
+.cx-compose { display: grid; gap: var(--ws-s2); }
+.cx-compose > .cx-label, .cx-compose > .ws-pane__note { margin: 0; }
+.cx-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.cx-choice { position: relative; display: flex; align-items: center; justify-content: center; min-height: 34px; padding: 0 12px;
+  font-size: var(--ws-text-sm); font-weight: 500; color: var(--ws-ink-700); cursor: pointer;
+  background: var(--ws-surface); border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm);
+  transition: background var(--ws-t), border-color var(--ws-t), color var(--ws-t); }
+.cx-choice:hover { border-color: var(--ws-ink-500); color: var(--ws-ink-900); }
+.cx-choice input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.cx-choice[data-on] { background: var(--ws-ink-900); border-color: var(--ws-ink-900); color: var(--c-on-action); }
+.cx-choice:has(input:focus-visible) { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+
+.cx-panel { display: grid; gap: var(--ws-s3); margin: 0; padding: var(--ws-s3);
+  border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius); background: var(--ws-surface); }
+.cx-panel > * { margin: 0; }
+.cx-panel__what { font-size: var(--ws-text-sm); line-height: 1.5; color: var(--ws-ink-700); }
+.cx-panel__foot { display: flex; justify-content: flex-end; }
+.cx-panel .cx-reason input { min-height: 34px; }
+
+/* "Write our wording": their text against ours, the editor in the contract's face, and
+   the redline the client will receive — computed as you type, in the same marks. */
+.cx-wording { display: grid; gap: var(--ws-s2); }
+.cx-wording__ref { max-height: 22vh; overflow-y: auto; padding: var(--ws-s2) var(--ws-s3);
+  background: var(--ws-paper); border-radius: var(--ws-radius-sm); }
+.cx-field { font-size: var(--t-caption); font-weight: 500; color: var(--ws-ink-700); }
+.cx-wording__input { width: 100%; min-height: 9em; resize: vertical; padding: 8px 12px;
+  font-family: var(--ws-serif); font-size: var(--ws-text-base); line-height: 1.6; color: var(--ws-ink-900);
+  background: var(--ws-surface); border: 1px solid var(--ws-input-border); border-radius: var(--ws-radius-sm); }
+.cx-wording__input:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 1px; }
+.cx-wording__preview { padding: 2px 0 2px var(--ws-s3); border-left: 2px solid var(--ws-accent); }
+.cx-wording__preview .ws-pane__note { margin: 0; }
+
+/* the notes: "goes out" vs "stays in", by shape and by the words in each label */
+.cx-note { display: grid; gap: 4px; font-size: var(--t-caption); font-weight: 500; color: var(--ws-ink-700); }
+.cx-note textarea { width: 100%; resize: vertical; padding: 8px 12px; font: inherit; font-size: var(--ws-text-sm);
+  font-weight: 400; line-height: 1.5; color: var(--ws-ink-900); }
+.cx-note textarea:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 1px; }
+.cx-note--client textarea, .cx-note-read--client {
+  background: var(--ws-accent-soft); border: 1px solid var(--ws-accent-soft); border-left: 3px solid var(--ws-accent);
+  border-radius: 4px var(--ws-radius) var(--ws-radius) var(--ws-radius); }
+.cx-note--internal textarea, .cx-note-read--internal {
+  background: var(--ws-paper); border: 1px dashed var(--ws-ink-300); border-radius: var(--ws-radius-sm); }
+.cx-note-read { display: grid; gap: 2px; margin: 0; padding: 8px 12px; font-size: var(--t-caption); color: var(--ws-ink-900); }
+.cx-note-read > span { font-size: var(--t-caption); font-weight: 600; color: var(--ws-ink-500); }
+
+/* ---- the reply: what is still open, each a link to it (AM-293 for the files) ---- */
+.cx-bar { position: relative; }
+button.cx-bar__open { display: inline-flex; align-items: center; gap: 4px; padding: 4px 2px; font: inherit;
+  font-weight: 500; color: var(--ws-ink-900); background: none; border: 0; border-bottom: 1px solid var(--ws-ink-300);
+  cursor: pointer; }
+button.cx-bar__open:hover { border-bottom-color: var(--ws-ink-900); }
+button.cx-bar__open:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+button.cx-bar__open svg { transition: transform var(--ws-t); transform: rotate(90deg); }
+button.cx-bar__open[aria-expanded="true"] svg { transform: rotate(-90deg); }
+.cx-blocked { flex-basis: 100%; display: grid; gap: var(--ws-s3); max-height: 40vh; overflow-y: auto;
+  padding: var(--ws-s3) var(--ws-s4); text-align: left; background: var(--ws-surface);
+  border: 1px solid var(--ws-ink-100); border-left: 3px solid var(--ws-ink-900); border-radius: var(--ws-radius-sm); }
+.cx-blocked > * { margin: 0; min-width: 0; }
+.cx-blocked { grid-template-columns: minmax(0, 1fr); }
+/* under the bar's right end, over the grid — opening it moves nothing on the page */
+.cx-blocked--pop { position: absolute; top: calc(100% + 6px); right: 0; z-index: 5; width: min(44rem, 100%);
+  max-height: 55vh; box-shadow: 0 8px 24px rgba(14, 20, 32, 0.12); }
+.cx-blocked__words { color: var(--ws-ink-500); }
+.cx-blocked__title { font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-900); }
+.cx-blocked__list { list-style: none; margin: 4px 0 0; padding: 0; columns: 2 18rem; column-gap: var(--ws-s5); }
+.cx-blocked__list li { display: flex; gap: var(--ws-s2); align-items: baseline; break-inside: avoid;
+  padding: 2px 0; font-size: var(--ws-text-sm); }
+.cx-blocked__list li > span { flex: none; font-size: var(--t-caption); color: var(--ws-ink-500); }
+.cx-blocked__list .ws-escalate__link, .cx-blocked__list a { min-width: 0; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; text-align: left; }
+.ws-replynote__acts:has(.cx-blocked) { flex-basis: 100%; }
+
+@media (max-width: 1100px) {
+  .cx-blocked__list { columns: 1; }
+}
+@media (pointer: coarse) {
+  .cx-choice { min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cx-choice, button.cx-bar__open svg { transition: none; }
+}
+
+/* ==========================================================================
+ * Page 3 — Changes page (critic round, 2026-11-03). Existing tokens only.
+ * ========================================================================== */
+
+/* tags: what LegalMind says, in its own face — sans, sentence case, never mono */
+.cx .cx-tag { display: inline-flex; align-items: center; padding: 1px 8px; font-family: var(--ws-sans);
+  font-size: var(--t-caption); font-weight: 500; letter-spacing: 0; color: var(--ws-ink-700);
+  border: 1px solid var(--ws-ink-100); border-radius: 999px; white-space: nowrap; }
+.cx .cx-passage h3 { font-size: var(--ws-text-sm); font-weight: 600; color: var(--ws-ink-700); }
+
+.cx { position: relative; }
+.cx .cx-skip { position: absolute; left: var(--ws-s4); top: var(--ws-s2); z-index: 6; padding: var(--ws-s2) var(--ws-s3);
+  font-size: var(--ws-text-sm); font-weight: 500; color: var(--ws-ink-900); background: var(--ws-surface);
+  border: 2px solid var(--ws-accent); border-radius: var(--ws-radius-sm); }
+.cx .cx-skip:not(:focus) { width: 1px; height: 1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); }
+.cx .cx-list:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: -2px; }
+
+/* the redline that reads: a heading stays a heading; capitals said, not struck */
+.cx .cx-marked--heading { font-weight: 600; }
+.cx .cx-case { text-decoration: underline dotted var(--ws-accent); text-decoration-thickness: 1.5px; text-underline-offset: 3px; }
+.cx-replaced { display: grid; gap: var(--ws-s2); max-width: 75ch; }
+.cx-replaced > div { display: grid; gap: 2px; padding: var(--ws-s2) var(--ws-s3); border-left: 3px solid var(--ws-ink-300);
+  border-radius: 0 var(--ws-radius-sm) var(--ws-radius-sm) 0; }
+.cx-replaced__old { background: var(--ws-paper); }
+.cx-replaced__new { border-left-color: var(--ws-accent) !important; background: var(--ws-surface); }
+.cx-replaced__label { font-family: var(--ws-sans); font-size: var(--t-caption); font-weight: 600; color: var(--ws-ink-500); }
+.cx .cx-replaced del { text-decoration-color: var(--ws-ink-300); }
+.cx .cx-replaced ins { text-decoration: none; }
+.cx-passage[aria-current="true"] .cx-replaced__new { background: var(--ws-surface); }
+
+/* formatting only: one closed group, first, with its one action under the head */
+.cx-index > li[data-fmt] { background: var(--ws-paper); }
+.cx-index > li[data-fmt] .cx-index__head { background: var(--ws-paper); }
+.cx-index__sub { font-weight: 400 !important; color: var(--ws-ink-500); }
+.cx-index__bulk { padding: 0 var(--ws-s3) var(--ws-s2) calc(var(--ws-s3) + 16px); }
+
+/* the reason says who reads it */
+.cx-reason__who { font-weight: 400; color: var(--ws-ink-500); }
+
+/* the two notes: "sent" a comment balloon, "Only Legal" a dashed inset with a lock */
+.cx-notes { display: grid; gap: var(--ws-s3); }
+.cx-note--internal > span, .cx-note-read--internal > span { display: inline-flex; align-items: center; gap: 4px; }
+.cx-balloon { display: grid; gap: 2px; align-self: start; padding: 8px 12px; font-family: var(--ws-sans);
+  font-size: var(--ws-text-sm); color: var(--ws-ink-900); background: var(--ws-accent-soft);
+  border: 1px solid color-mix(in srgb, var(--ws-accent) 30%, transparent); border-left: 3px solid var(--ws-accent);
+  border-radius: 4px var(--ws-radius) var(--ws-radius) var(--ws-radius); }
+.cx-balloon > span { font-size: var(--t-caption); font-weight: 600; color: var(--ws-ink-500); }
+
+/* "Write our wording", wide: over the list and the passage, the card left in view */
+.cx-editor-slot { grid-column: 1 / 3; grid-row: 1; min-height: 0; display: flex; z-index: 3; }
+/* every column placed, so the slot laid over the first two never re-flows them */
+.cx-grid > .cx-list { grid-area: 1 / 1; }
+.cx-grid > .cx-doc { grid-area: 1 / 2; }
+.cx-grid > .cx-card { grid-area: 1 / 3; }
+.cx-editor-slot:empty { display: none; }
+.cx-editor { flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--ws-surface);
+  border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-card); box-shadow: 0 8px 24px rgba(14, 20, 32, 0.10); }
+.cx-editor__head { display: flex; align-items: center; gap: var(--ws-s3); padding: var(--ws-s3) var(--ws-s4);
+  border-bottom: 1px solid var(--ws-ink-100); }
+.cx-editor__head h3 { margin: 0; min-width: 0; font-size: var(--ws-text-md); font-weight: 600; color: var(--ws-ink-900);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cx-editor__head h3 span { font-weight: 400; color: var(--ws-ink-500); }
+.cx-editor__back { display: inline-flex; align-items: center; gap: 8px; flex: none; }
+.cx-editor__body { flex: 1; min-height: 0; overflow-y: auto; display: grid; align-content: start; gap: var(--ws-s4);
+  padding: var(--ws-s4); }
+.cx-editor__cols { display: grid; gap: var(--ws-s4); grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.cx-editor__theirs, .cx-editor__ours { display: flex; flex-direction: column; min-width: 0; }
+.cx-editor__ref { flex: 1; max-height: 32vh; overflow-y: auto; padding: var(--ws-s2) var(--ws-s3);
+  background: var(--ws-paper); border-radius: var(--ws-radius-sm); }
+.cx-editor__ref .cx-marked, .cx-editor__page .cx-marked { font-size: var(--ws-text-sm); line-height: 1.6; }
+.cx-editor .cx-wording__input { flex: 1; min-height: 12em; max-height: 32vh; }
+.cx-editor__preview { display: grid; gap: 4px; }
+.cx-editor__page { display: grid; gap: var(--ws-s3); grid-template-columns: minmax(0, 1fr) minmax(0, 15rem);
+  padding: var(--ws-s3) var(--ws-s4); border: 1px solid var(--ws-ink-100); border-left: 2px solid var(--ws-accent);
+  border-radius: var(--ws-radius-sm); }
+.cx-editor__page > :only-child { grid-column: 1 / -1; }
+.cx-editor__page .ws-pane__note { margin: 0; }
+.cx-editor .cx-notes { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.cx-editor__foot { display: flex; flex-wrap: wrap; align-items: end; gap: var(--ws-s3) var(--ws-s4);
+  padding: var(--ws-s3) var(--ws-s4); border-top: 1px solid var(--ws-ink-100); background: var(--ws-surface);
+  border-radius: 0 0 var(--ws-radius-card) var(--ws-radius-card); }
+.cx-editor__foot .cx-reason { flex: 1 1 22rem; }
+.cx-editor__submit { display: flex; align-items: center; gap: var(--ws-s3); margin-left: auto; }
+.cx-editor__submit .cx-error { max-width: 28rem; }
+
+/* the phone's back button is drawn only on the phone's detail screen */
+.cx .cx-back { display: none; }
+
+@media (max-width: 1100px) {
+  .cx-editor-slot { position: fixed; inset: 0; z-index: var(--ws-z-dialog); padding: 0; }
+  .cx-editor { border-radius: 0; border: 0; }
+  .cx-editor__page { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Phone: the list, then one change as its own screen — never both stacked */
+@media (max-width: 760px) {
+  .cx-bar .cx-filter { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; padding-bottom: 2px;
+    scrollbar-width: none; }
+  .cx-bar .cx-filter button { flex: none; }
+  .cx-bar { flex-direction: column; align-items: stretch; }
+  .cx[data-view="list"] .cx-card { display: none; }
+  .cx[data-view="list"] .cx-list { max-height: none; }
+  .cx[data-view="detail"] .cx-list,
+  .cx[data-view="detail"] .cx-bar,
+  .cx[data-view="detail"] .cx-banner { display: none; }
+  .cx[data-view="detail"] .cx-back { display: inline-flex; align-items: center; gap: 8px; margin-bottom: var(--ws-s3); }
+  .cx-blocked--pop { position: static; width: auto; min-width: 0; max-width: 100%; box-shadow: none; }
+  .cx-bar__end { min-width: 0; max-width: 100%; }
+  .cx-blocked__list li { min-width: 0; }
+  .cx-editor__foot { flex-direction: column; align-items: stretch; }
+  .cx-editor__foot .cx-reason { flex: none; }
+  .cx-editor__submit { margin-left: 0; justify-content: flex-end; }
+  .cx-editor__head { flex-wrap: wrap; }
+}
+
+/* ---- "For us" (AM-299): Better / No change / Worse — its own field, never the review's
+   word. Told apart by the glyph's shape (arrow up, equals, arrow down) and the words, never
+   by a hue (WCAG 1.4.1; the list carries no colour for state). Worse reads in full ink:
+   it is the one that goes to Legal. ---- */
+.cx-forus { display: inline-flex; align-items: center; gap: 4px; color: var(--ws-ink-700); white-space: nowrap; }
+.cx-forus svg { flex: none; }
+.cx-forus[data-effect="NEGATIVE"] { color: var(--ws-ink-900); font-weight: 600; }
+.cx .cx-line-forus { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 0 0 var(--ws-s2);
+  font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+.cx .cx-line-forus .cx-forus { font-size: var(--ws-text-sm); }
+
+/* accept the better-for-us / no-change rows together — above the list, one quiet strip */
+.cx-together { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ws-s2);
+  margin: 0 0 var(--ws-s2); padding: var(--ws-s2) 0; border-bottom: 1px solid var(--ws-ink-100); }
+.cx-together .ws-btn { display: inline-flex; align-items: center; gap: 8px; }
+.cx-together .cx-forus { color: inherit; font-weight: 500; }
+.cx-together__note { font-size: var(--t-caption); color: var(--ws-ink-500); }
+
+/* ---- the final contract (AM-307): Annexure A's entries, or what stops it ---- */
+.lm-pkg { display: grid; gap: var(--ws-s2); margin: 0; padding: var(--ws-s3) var(--ws-s4);
+  background: var(--ws-surface); border: 1px solid var(--ws-ink-100); border-left: 3px solid var(--ws-accent);
+  border-radius: var(--ws-radius-sm); }
+.lm-pkg[data-state="blocked"] { border-left-color: var(--ws-ink-900); }
+.lm-pkg > * { margin: 0; min-width: 0; }
+.lm-pkg__title { font-size: var(--ws-text-base); font-weight: 600; color: var(--ws-ink-900); }
+.lm-pkg__lead { font-size: var(--ws-text-sm); color: var(--ws-ink-700); max-width: 72ch; }
+.lm-pkg__alt { font-size: var(--ws-text-sm); }
+.lm-pkg__entries { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; max-width: 44rem; }
+.lm-pkg__entries > li { display: grid; grid-template-columns: 1.5rem minmax(0, 1fr) auto; gap: 2px var(--ws-s3);
+  align-items: baseline; padding: 8px 0; border-top: 1px solid var(--ws-ink-100); font-size: var(--ws-text-sm); }
+.lm-pkg__entries > li:first-child { border-top: 0; }
+.lm-pkg__n { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--ws-ink-500); text-align: right; }
+.lm-pkg__what { display: flex; flex-wrap: wrap; gap: 0 var(--ws-s2); min-width: 0; }
+.lm-pkg__what strong { font-weight: 600; color: var(--ws-ink-900); }
+.lm-pkg__what span { color: var(--ws-ink-700); }
+.lm-pkg__text { grid-column: 2 / -1; }
+.lm-pkg__text summary, .lm-pkgtrace > summary { cursor: pointer; width: fit-content; font-size: var(--ws-text-sm);
+  font-weight: 500; color: var(--ws-ink-900); }
+.lm-pkg__text summary:focus-visible, .lm-pkgtrace > summary:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+.lm-pkg__text blockquote { margin: 8px 0 0; padding: 4px 0 4px var(--ws-s3); border-left: 2px solid var(--ws-ink-300);
+  font-family: var(--ws-serif); font-size: var(--ws-text-base); line-height: 1.55;
+  color: var(--ws-ink-900); max-width: 68ch; }
+.lm-pkg__blockers { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font-size: var(--ws-text-sm); }
+.lm-pkg__blockers li { display: flex; flex-wrap: wrap; gap: 2px var(--ws-s3); align-items: baseline; color: var(--ws-ink-900);
+  padding-left: var(--ws-s3); border-left: 2px solid var(--ws-ink-300); }
+.lm-pkg__blockers .ws-escalate__link { white-space: nowrap; }
+.cx-dialog__foot ~ .lm-pkg__entries, .ws-modal .lm-pkg__entries { margin: var(--ws-s3) 0; max-height: 46vh; overflow-y: auto; }
+
+/* the final contract on the Document tab: Annexure A's record below the files */
+.lm-pkgcard .lm-pkgtrace { flex-basis: 100%; }
+.lm-pkgtrace__list { list-style: none; margin: var(--ws-s2) 0 0; padding: 0; display: grid; gap: var(--ws-s3); max-width: 72ch; }
+.lm-pkg__body { font-size: var(--ws-text-base); color: var(--ws-ink-900); line-height: 1.5; }
+.lm-pkgtrace__list > li { display: grid; gap: 4px; padding-top: var(--ws-s2); border-top: 1px solid var(--ws-ink-100); }
+.lm-pkgtrace__list p { margin: 0; }
+.lm-pkgtrace__head { display: flex; flex-wrap: wrap; gap: 2px var(--ws-s2); align-items: baseline; font-size: var(--ws-text-sm); }
+.lm-pkgtrace__head .lm-pkg__n { min-width: 1.5rem; }
+.lm-pkgtrace__line, .lm-pkgtrace__note { font-size: var(--t-caption); color: var(--ws-ink-700); padding-left: calc(1.5rem + var(--ws-s2)); }
+.lm-pkgtrace__note span { font-weight: 600; color: var(--ws-ink-500); margin-right: var(--ws-s2); }
+.lm-pkgtrace__list .cx-note-read, .lm-pkgtrace__list .lm-pkg__text { margin-left: calc(1.5rem + var(--ws-s2)); }
+
+@media (max-width: 560px) {
+  .lm-pkg { padding: var(--ws-s3); }
+  .lm-pkg__entries > li { grid-template-columns: 1.25rem minmax(0, 1fr); }
+  .lm-pkg__entries .cx-forus { grid-column: 2; }
+  .lm-pkgtrace__line, .lm-pkgtrace__note { padding-left: 0; }
+  .lm-pkgtrace__list .cx-note-read, .lm-pkgtrace__list .lm-pkg__text { margin-left: 0; }
+}
+@media (pointer: coarse) {
+  .lm-pkg__text summary, .lm-pkgtrace > summary { min-height: 44px; display: flex; align-items: center; }
+}
+.cx-inpkg { margin: 0; font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+.cx-inpkg strong { font-weight: 600; color: var(--ws-ink-900); }
+@media (max-width: 560px) {
+  .ws .ws-replynote.lm-pkgcard { flex-wrap: wrap; }
+  .ws .ws-replynote.lm-pkgcard .ws-replynote__sub { display: block; }
+}
+.lm-pkgcard .ws-replynote__acts:has(.cx-error) { flex-wrap: wrap; justify-content: flex-end; }
+.lm-pkgcard .ws-replynote__acts .cx-error { flex-basis: 100%; margin: 0; text-align: right; }
+.cx-banner--strong { border-left-color: var(--ws-warn); }
+.cx-banner--strong ul { margin: 4px 0 0; padding-left: 1.1rem; }
+
+/* AM-309 U7: a signed contract's amendments — one line each, its state beside it */
+.lm-amend__list { margin: 4px 0 0; padding: 0; list-style: none; display: grid; gap: 2px; font-size: var(--ws-text-sm); }
+.lm-amend__list li { display: flex; flex-wrap: wrap; gap: 0 var(--ws-s2); align-items: baseline; }
+.lm-amend__list span { color: var(--ws-ink-500); }
+@media (max-width: 640px) {
+  .ws .ws-replynote.lm-amend { flex-wrap: wrap; }
+  .ws .ws-replynote.lm-amend .ws-replynote__sub { display: block; }
+}
+
+/* AM-309 R-9: Terms in force — the Document tab's sheet, a quiet line under each clause an
+   amendment changed (the change bar is the Document tab's own `data-changed`) */
+/* the header's words line up with the centred sheet below them (its band stays full width) */
+.lm-terms-page > .lm-ph--wide { padding-inline: max(var(--ws-s4), calc((100% - 1040px) / 2 + var(--ws-s4))); }
+.lm-terms__body { max-width: 1040px; margin: 0 auto; padding: var(--ws-s4) var(--ws-s4) var(--ws-s7); display: grid; gap: var(--ws-s4); }
+.lm-terms__summary { max-width: 74ch; font-size: var(--ws-text-sm); color: var(--ws-ink-700); display: grid; gap: var(--ws-s2); }
+.lm-terms__summary p { margin: 0; }
+.lm-terms__amends { margin: 0; padding-left: 1.4em; display: grid; gap: 2px; }
+.lm-terms__amends li span { color: var(--ws-ink-500); margin-left: var(--ws-s2); }
+.lm-terms__removed { margin: 0; padding: 0; display: grid; gap: var(--ws-s2); }
+.lm-terms__well { background: var(--ws-viewer); border-radius: var(--ws-radius); padding: var(--ws-s5) var(--ws-s4); }
+.lm-terms__note { color: var(--ws-ink-500); }
+.lm-terms__note summary { cursor: pointer; width: max-content; color: var(--ws-ink-500); }
+.lm-terms__note summary:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+.lm-terms__was { margin: 2px 0 0; font-family: var(--ws-serif); font-size: var(--ws-text-sm); color: var(--ws-ink-700); white-space: pre-wrap; }
+.lm-terms__stopped { max-width: 74ch; }
+@media (max-width: 640px) {
+  .lm-terms__body { padding: var(--ws-s3) 0 var(--ws-s6); }
+  .lm-terms__summary, .lm-terms__stopped { margin: 0 16px; }
+  .lm-terms__well { border-radius: 0; padding: var(--ws-s3) 0; }
+  .lm-terms__well .ws-page { padding: 24px 16px; }
+  .ws .ws-replynote.lm-terms__stopped { display: block; }
+}
+.lm-terms__head { font-weight: 700; margin-bottom: 0.35em; }  /* serif contract heading: the static 700 face */
+.lm-terms__head--title { text-align: center; max-width: none; margin-bottom: 0.9em; }
+/* the note's indent is in the clause text's em, so it lines up under the text */
+.ws-row__notes.lm-terms__note { font-size: var(--ws-text-md); }
+.lm-terms__note > * { font-size: var(--t-caption); }
+
+/* AM-310: the conformed copy's line — said on screen and kept on paper */
+.lm-terms__binding { margin: 0; padding: 8px 0 8px var(--ws-s3); border-left: 2px solid var(--ws-ink-300);
+  color: var(--ws-ink-900); font-weight: 500; }
+.lm-terms__acts { display: inline-flex; flex-wrap: wrap; gap: var(--ws-s2); }
+@media print {
+  .ws-shell, .ws-skip, .lm-terms__acts, .lm-terms__note details { display: none !important; }
+  .lm-terms__well { box-shadow: none; background: none; }
+}
+
+/* AM-310: amendment — the restated form, Legal's secondary choice, with its warning */
+.lm-pkg__restate { display: grid; gap: var(--ws-s1); max-width: 72ch; font-size: var(--ws-text-sm);
+  color: var(--ws-ink-700); padding-top: var(--ws-s2); border-top: 1px solid var(--ws-ink-100); }
+.lm-pkg__restate p { margin: 0; }
+.lm-pkg__warn { margin: 0; color: var(--ws-ink-700); font-size: var(--ws-text-sm); max-width: 72ch; }
+.lm-pkg__date { display: grid; gap: 4px; margin-top: var(--ws-s3); font-size: var(--t-caption); max-width: 16rem; }
+.lm-pkg__date span { font-weight: 500; color: var(--ws-ink-900); }
+.lm-pkg__date input { font: inherit; padding: 8px 8px; border: 1px solid var(--ws-input-border); border-radius: var(--ws-radius-sm);
+  background: var(--ws-surface); color: inherit; }
+/* B3 p1: "Legal decides this one." and Ask Legal as the one action-blue button beside it
+   (style only — EscalateControl's behaviour is unchanged) */
+.cx-asklegal__line { margin: 0 0 var(--ws-s2); font-size: var(--ws-text-base); color: var(--ws-ink-900); }
+.cx-asklegal .ws-escalate__link {
+  display: inline-flex; align-items: center; gap: var(--ws-s2); min-height: 36px; padding: 8px 16px;
+  border: 1px solid var(--c-action); border-radius: var(--r-card); background: var(--c-action);
+  color: var(--c-on-action); font: inherit; font-size: var(--t-dense); font-weight: 500; text-decoration: none; cursor: pointer;
+}
+.cx-asklegal .ws-escalate__link:hover { background: var(--c-action-hover); border-color: var(--c-action-hover); color: var(--c-on-action); text-decoration: none; }
+.cx-asklegal .ws-escalate__link:focus-visible { outline: 2px solid var(--c-action); outline-offset: 2px; }
+/* B3 p1: a clause wholly the client's — normal reading text in one block, a 3px client
+   rule and a one-line header; no underline on every line (DESIGN-FOUNDATION §2.5) */
+.cx-whole { border: 1px solid var(--c-line); border-left: 3px solid var(--c-diff-client-rule); border-radius: var(--r-control);
+  background: var(--c-surface); padding: var(--ws-s3) var(--ws-s4); max-width: 75ch; }
+.cx-whole__head { margin: 0 0 var(--ws-s2); font-size: var(--t-caption); font-weight: 600; color: var(--c-text-2); }
+.cx-whole__text { margin: 0; font-family: var(--ws-serif); font-size: var(--ws-text-base); line-height: 1.6;
+  color: var(--c-text); white-space: pre-wrap; }
+.cx .cx-whole ins { text-decoration: none; background: none; color: inherit; }
+/* B3 p1: one left rule per clause — a whole client clause already carries the client rule, so
+   its selection is the paper background and the index row, not a second (blue) rule */
+.cx-passage[aria-current="true"]:has(.cx-whole) { border-left-color: transparent; }

@@ -104,3 +104,75 @@ def test_a_figure_beside_the_word_invoice_is_never_read_as_a_period_we_accept(bu
     review, _ = _review(build, db, ["PAYMENT-PERIOD-MSA-001"], clauses, kind="MSA")
     found = _outcome(db, review, "PAYMENT-PERIOD-MSA-001")
     assert found is None or found[1] is not R.ACCEPTABLE
+
+
+# ------------------------------------- AM-303: our template may open better for us (cap)
+CAP = "LIABILITY-MSA-001"
+
+
+def _cap(sentence: str) -> list[str]:
+    return ["17. Limitation of Liability", f"17.2 {sentence}"]
+
+
+def _gate(db, review, code: str):
+    from legalmind.drafting import publish
+    finding = db.execute(
+        select(M.Finding)
+        .join(M.RequirementVersion, M.RequirementVersion.id == M.Finding.requirement_version_id)
+        .join(M.Requirement, M.Requirement.id == M.RequirementVersion.requirement_id)
+        .where(M.Finding.review_id == review.id, M.Requirement.code == code)).scalar_one()
+    return finding.classification, publish.in_our_favour(db, finding, code)
+
+
+@pytest.mark.parametrize("sentence, accepted, passes", [
+    # a lower mutual cap on the same basis: accepted in our favour, and the gate passes
+    ("The total aggregate liability of each party shall not exceed the fees paid in the six "
+     "(6) months preceding the claim.", True, True),
+    # a higher cap than ours still fails, mutual or not
+    ("The total aggregate liability of each party shall not exceed the fees paid in the "
+     "eighteen (18) months preceding the claim.", False, False),
+    # a one-sided cap still fails, however low (AM-239 r2, Constitution §9)
+    ("The total aggregate liability of LeapSwitch shall not exceed the fees paid in the six "
+     "(6) months preceding the claim.", False, False),
+])
+def test_the_gate_passes_a_mutual_lower_cap_and_nothing_else(build, db, sentence, accepted,
+                                                             passes):
+    review, _ = _review(build, db, [CAP], _cap(sentence), kind="MSA")
+    cls, rule = _outcome(db, review, CAP)
+    assert cls is C.DEVIATION and (rule is R.ACCEPTABLE) is accepted
+    assert _gate(db, review, CAP) == (C.DEVIATION, passes)
+
+
+@pytest.mark.parametrize("party, passes", [("each party", True), ("LeapSwitch", False)])
+def test_the_gate_passes_affected_services_fees_only_on_a_mutual_cap(build, db, party,
+                                                                     passes):
+    """AM-301: N months of the affected services' fees is never more than N months of total
+    fees — still never a MATCH, and never for a cap limiting one party."""
+    review, _ = _review(build, db, [CAP], _cap(
+        f"The total aggregate liability of {party} shall not exceed the total amount "
+        "actually paid by the Customer for the specific Services giving rise to the claim "
+        "during the six (6) month period immediately preceding the event giving rise to such "
+        "liability."), kind="MSA")      # our approved file's 17.2, its party aside
+    assert _gate(db, review, CAP) == (C.UNABLE_TO_EVALUATE, passes)
+
+
+_17_3 = ("17.3 Exclusions from Limitation: Nothing in this Agreement shall limit or exclude "
+         "either Party\u2019s liability for: (a) death or personal injury caused by negligence; "
+         "(b) fraud or fraudulent misrepresentation; (c) any liability that cannot be limited "
+         "or excluded under applicable law; or (d) a Party\u2019s obligation to pay fees and "
+         "charges due under this Agreement.")
+_17_3_E = _17_3.replace("; or (d)", "; (d)").replace(
+    "Agreement.", "Agreement; or (e) a Party\u2019s indemnification obligations under this "
+    "Agreement.")
+
+
+@pytest.mark.parametrize("carve, passes", [(_17_3, True), (_17_3_E, False)])
+def test_payment_obligations_outside_the_cap_stay_ours_an_indemnity_does_not(
+        build, db, carve, passes):
+    """AM-313 (Constitution L1.17 §9, AM-325): the payment-obligation carve-out leaves our mutual
+    cap in our favour; taking indemnities out of the cap is still a CONFLICT (AM-304 r2)."""
+    review, _ = _review(build, db, [CAP], [*_cap(
+        "The total aggregate liability of each party shall not exceed the fees paid in the six "
+        "(6) months preceding the claim."), carve], kind="MSA")
+    cls, ours = _gate(db, review, CAP)
+    assert ours is passes and (cls is C.CONFLICT) is not passes

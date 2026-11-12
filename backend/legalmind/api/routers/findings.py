@@ -38,7 +38,8 @@ router = APIRouter(tags=["findings"], route_class=CommitBeforeResponse)
 def get_finding(finding_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
     finding = guard.finding(finding_id, P.FINDING_VIEW)
     return data(serialize_finding(guard.db, finding,
-                                  legal_position=guard.sees_legal_position))
+                                  legal_position=guard.sees_legal_position,
+                                  legal_sources=P.LEGAL_REVIEW in guard.permissions))
 
 
 @router.get("/findings/{finding_id}/evaluations")
@@ -96,7 +97,8 @@ def escalate(finding_id: UUID, body: EscalationCreate,
         # The derived Finding status, so the caller can see that authorized review
         # is now required — and can see that no disposition was recorded.
         "finding": serialize_finding(guard.db, finding,
-                                     legal_position=guard.sees_legal_position),
+                                     legal_position=guard.sees_legal_position,
+                                     legal_sources=P.LEGAL_REVIEW in guard.permissions),
     })
 
 
@@ -113,4 +115,5 @@ def withdraw(finding_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
     finding = must_exist(guard.db.get(M.Finding, finding_id),
                          "findings row", finding_id)
     return data(serialize_finding(guard.db, finding,
-                                  legal_position=guard.sees_legal_position))
+                                  legal_position=guard.sees_legal_position,
+                                  legal_sources=P.LEGAL_REVIEW in guard.permissions))

@@ -19,15 +19,14 @@ export function AccessRestricted({ what }: { what?: string }) {
   return (
     <section className="access-restricted" role="note">
       <h2>Access restricted</h2>
+      {/* GP-23 (owner OK 2026-11-11, wording only): why it is blocked, in the reader's
+          words, and the one thing they can do. The server still checks every request. */}
       <p>
         {what
-          ? `You do not have permission to view ${what}.`
-          : "You do not have permission to view this section."}
+          ? `Your account doesn’t include access to ${what}.`
+          : "Your account doesn’t include access to this section."}
       </p>
-      <p className="hint">
-        Permissions are granted by an administrator. Access is always checked on the
-        server, so this is the same answer any other route would give.
-      </p>
+      <p className="hint">Ask your administrator if you need it.</p>
     </section>
   );
 }

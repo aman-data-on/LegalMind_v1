@@ -27,7 +27,7 @@
 
 import {
   ArrowLeft,
-  ArrowRight,
+  Menu,
   Check,
   Bell,
   Building2,
@@ -35,6 +35,10 @@ import {
   ChevronRight,
   ChevronUp,
   CircleAlert,
+  CircleArrowDown,
+  CircleArrowUp,
+  CircleArrowLeft,
+  CircleEqual,
   CircleCheck,
   CirclePause,
   CircleX,
@@ -42,7 +46,6 @@ import {
   Download,
   Ellipsis,
   ExternalLink,
-  FileCheck,
   ArrowDown,
   ArrowUp,
   Copy,
@@ -50,11 +53,10 @@ import {
   FileDiff,
   FileMinus,
   FilePlus,
+  PencilLine,
   Replace,
   FileText,
-  History,
   Lightbulb,
-  Link2,
   Lock,
   LogOut,
   Maximize2,
@@ -68,11 +70,8 @@ import {
   Plus,
   RefreshCw,
   Scale,
-  ScanText,
   Search,
-  Send,
   Sparkles,
-  Tag,
   Trash2,
   UploadCloud,
   Users,
@@ -88,6 +87,10 @@ function decorative(Glyph: LucideIcon) {
 }
 
 export const IconCheckCircle = decorative(CircleCheck);
+export const IconBetter = decorative(CircleArrowUp);
+export const IconSame = decorative(CircleEqual);
+export const IconWorse = decorative(CircleArrowDown);
+export const IconFallback = decorative(CircleArrowLeft);
 export const IconAlertCircle = decorative(CircleAlert);
 export const IconXCircle = decorative(CircleX);
 export const IconSearch = decorative(Search);
@@ -110,31 +113,26 @@ export const IconChevronRight = decorative(ChevronRight);
 export const IconMaximize = decorative(Maximize2);
 export const IconRefresh = decorative(RefreshCw);
 export const IconDownload = decorative(Download);
-export const IconLink = decorative(Link2);
 export const IconArrowLeft = decorative(ArrowLeft);
-export const IconArrowRight = decorative(ArrowRight);
 export const IconSparkle = decorative(Sparkles);
-export const IconSend = decorative(Send);
-export const IconHistory = decorative(History);
 export const IconFile = decorative(FileText);
 export const IconClock = decorative(Clock);
 export const IconPause = decorative(CirclePause);
 export const IconUploadCloud = decorative(UploadCloud);
-export const IconScanText = decorative(ScanText);
 export const IconFileDiff = decorative(FileDiff);
 export const IconArrowUp = decorative(ArrowUp);
 export const IconArrowDown = decorative(ArrowDown);
 export const IconCopy = decorative(Copy);
 export const IconList = decorative(ListOrdered);
 export const IconFilePlus = decorative(FilePlus);
+export const IconPencilLine = decorative(PencilLine);
 export const IconFileMinus = decorative(FileMinus);
 export const IconReplace = decorative(Replace);
-export const IconTag = decorative(Tag);
 export const IconScale = decorative(Scale);
-export const IconFileCheck = decorative(FileCheck);
 export const IconLock = decorative(Lock);
 export const IconExternal = decorative(ExternalLink);
 export const IconX = decorative(X);
+export const IconMenu = decorative(Menu);
 /** Ask workspace (2026-09-11): start a chat, attach a file, a chat in the rail. */
 export const IconPlus = decorative(Plus);
 export const IconPaperclip = decorative(Paperclip);

@@ -30,7 +30,7 @@ import { useEffect, useState } from "react";
 
 import { ErrorBanner } from "@/components/Feedback";
 import { Field } from "@/components/Primitives";
-import { api } from "@/lib/api";
+import { ApiError, api } from "@/lib/api";
 import { safeNext, useSession } from "@/lib/session";
 import { type SsoOutcome, ssoNotice, ssoOutcomeOf } from "@/lib/sso";
 
@@ -41,6 +41,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [reveal, setReveal] = useState(false);
   const [error, setError] = useState<unknown>(null);
+  const refused = error instanceof ApiError && error.isUnauthenticated;
   const [busy, setBusy] = useState(false);
   const [ssoOutcome, setSsoOutcome] = useState<SsoOutcome | null>(null);
 
@@ -91,14 +92,17 @@ export default function LoginPage() {
 
       <div className="login__main">
         <div className="login__card">
-          {/* Owner-directed heading (DD-4 addendum): the mock's tagline replaces
-              the plain task heading. */}
-          <h1>Smart legal review, built in.</h1>
+          {/* GP-21 (WCAG 2.4.6): the heading a screen reader lands on names the task; the
+              owner-directed tagline (DD-4 addendum) stays the visible line. */}
+          <h1 className="lm-visually-hidden">Sign in to LegalMind</h1>
+          <p className="login__tagline">Smart legal review, built in.</p>
 
           <form onSubmit={submit} className="login__form">
             <Field id="login-email" label="Work email">
               <input
                 id="login-email"
+                aria-invalid={refused || undefined}
+                aria-describedby={refused ? "login-error" : undefined}
                 type="email"
                 autoComplete="username"
                 autoFocus
@@ -113,6 +117,8 @@ export default function LoginPage() {
               <div className="login__pw">
                 <input
                   id="login-password"
+                  aria-invalid={refused || undefined}
+                  aria-describedby={refused ? "login-error" : undefined}
                   type={reveal ? "text" : "password"}
                   autoComplete="current-password"
                   required
@@ -137,7 +143,20 @@ export default function LoginPage() {
               </div>
             </Field>
 
-            <ErrorBanner error={error} />
+            {/* B13: a refused sign-in says so in the form's own words — not "your session
+                has ended", and no error code (the generic banner keeps it for support) */}
+            {/* round 2: the message names the fix, and is tied to both fields (WCAG 3.3.1) */}
+            {refused ? (
+              <div className="banner banner--error" role="alert" id="login-error">
+                <p>Email or password is incorrect. Check both and try again.</p>
+              </div>
+            ) : error instanceof ApiError && error.status < 500 ? (
+              <ErrorBanner error={error} />
+            ) : error ? (
+              <div className="banner banner--error" role="alert" id="login-error">
+                <p>Sign-in is not available right now. Try again in a minute.</p>
+              </div>
+            ) : null}
 
             <button type="submit" className="login__submit" disabled={busy}>
               <span>{busy ? "Signing in…" : "Sign in"}</span>

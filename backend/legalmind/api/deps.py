@@ -27,6 +27,7 @@ from sqlalchemy.orm import Session as DBSession
 from legalmind.api.context import SESSION_COOKIE, request_id_of
 from legalmind.api.errors import Conflict
 from legalmind.db import models as M
+from legalmind.db.lookup import contract_signed
 from legalmind.db.session import new_session
 from legalmind.domain import enums as E
 from legalmind.observability.logs import log_event
@@ -35,11 +36,16 @@ from legalmind.security import permissions as P
 from legalmind.security import tokens
 from legalmind.security.authorization import (
     ASSIGNED,
+    COLLABORATOR,
+    CREATOR,
     DEPARTMENT,
+    LEGAL_BASES,
     LEGAL_SCOPE,
     OWNER,
     contract_read_basis,
     department_of,
+    negotiation_basis,
+    require_contract_negotiable,
     require_contract_owned,
     require_contract_readable,
     require_evaluation_visible,
@@ -297,8 +303,31 @@ class Guard:
             self._refuse_archived(contract)
         return contract
 
+    def contract_negotiable(self, contract_id: UUID, permission: str, *,
+                            after_signing: bool = False) -> M.Contract:
+        """The owner or a collaborator — for answering a client's changes (`AM-259`
+        r2). Anyone else gets the same 404 as `contract`; archived refuses with 409,
+        and so does a signed contract — except the signing step's own confirmation
+        (``after_signing``: Mark signed and the record of a contract filed as signed)."""
+        contract = self._visible(require_contract_negotiable, contract_id, "contract")
+        self._require(self.negotiation_permission(contract, permission), "contract",
+                      contract_id)
+        self._refuse_archived(contract)
+        if not after_signing:
+            self._refuse_signed(contract)
+        return contract
+
+    def negotiation_permission(self, contract: M.Contract, permission: str) -> str:
+        """The permission a negotiation write needs from THIS caller: ``permission`` for
+        the owner, a collaborator or the Lead; `legal.decision` for a lawyer on a Legal
+        basis (`AM-288` r2 — they may hold no `contract.update` at all)."""
+        if negotiation_basis(self.db, self.user_id, contract) in LEGAL_BASES:
+            return P.LEGAL_DECISION
+        return permission
+
     def contract_readable(self, contract_id: UUID, permission: str) -> M.Contract:
-        """READ-scoped resolution — owner, department scope, or Legal scope.
+        """READ-scoped resolution — owner, department scope, a collaborator (`AM-280`),
+        an assignment, or Legal scope.
 
         Archived contracts resolve here too: archive hides a contract from the
         working lists, it does not erase it (AB-12 r6).
@@ -308,17 +337,24 @@ class Guard:
         self._audit_cross_owner_read(contract)
         return contract
 
-    def document_version(self, document_version_id: UUID,
-                         permission: str) -> M.DocumentVersion:
+    def document_version(self, document_version_id: UUID, permission: str, *,
+                         negotiable: bool = False) -> M.DocumentVersion:
         """Traverses to the owning Contract for WRITING — locked 47.6: a Document
-        Version is reachable only through a Contract the caller can see."""
+        Version is reachable only through a Contract the caller can see.
+        ``negotiable`` admits a collaborator too (`AM-259` r2: declaring a returned
+        copy)."""
         version = self.db.get(M.DocumentVersion, document_version_id)
         if version is None:
             self._audit_not_visible("document_version", document_version_id)
             raise NotVisible("document version not found")
-        contract = self._visible(require_contract_owned, version.contract_id, "contract")
-        self._require(permission, "document_version", document_version_id)
+        contract = self._visible(
+            require_contract_negotiable if negotiable else require_contract_owned,
+            version.contract_id, "contract")
+        self._require(self.negotiation_permission(contract, permission) if negotiable
+                      else permission, "document_version", document_version_id)
         self._refuse_archived(contract)
+        if negotiable:
+            self._refuse_signed(contract)
         return version
 
     def document_version_readable(self, document_version_id: UUID,
@@ -346,6 +382,14 @@ class Guard:
         if contract.archived_at is not None:
             raise Conflict("this contract is archived; restore it to make changes")
 
+    def _refuse_signed(self, contract: M.Contract) -> None:
+        """A signed contract takes no negotiation write: its execution record is sealed
+        ("Mark signed") or a version is FINAL_SIGNED. 409, as archived — the caller is
+        already established; the state is the reason."""
+        if contract_signed(self.db, contract.id):
+            raise Conflict("This contract is signed. Changes after signing go in an "
+                           "amendment.")
+
     def _audit_review_read(self, review: M.Review | None) -> None:
         """The review, finding and evaluation routes disclose the same contract
         content (`/reviews/{id}/report` quotes clauses verbatim), so a
@@ -371,7 +415,9 @@ class Guard:
             return
         action = {DEPARTMENT: A.CONTRACT_READ_VIA_DEPARTMENT_SCOPE,
                   LEGAL_SCOPE: A.CONTRACT_READ_VIA_LEGAL_SCOPE,
-                  ASSIGNED: A.CONTRACT_READ_VIA_ASSIGNMENT}[basis]
+                  ASSIGNED: A.CONTRACT_READ_VIA_ASSIGNMENT,
+                  CREATOR: A.CONTRACT_READ_VIA_CREATION,
+                  COLLABORATOR: A.CONTRACT_READ_VIA_COLLABORATION}[basis]
         A.record(self.db, action=action,
                  entity_type="contract", entity_id=contract.id,
                  actor_id=self.user_id, request_id=self.request_id,

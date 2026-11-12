@@ -61,6 +61,34 @@ class Conflict(SecurityError):
     code = "CONFLICT"
 
 
+class LegalDecisionRequired(SecurityError):
+    """403 — accepting this client change is a Legal Decision (`AM-250` r2): a holder of
+    the right records it through the decision endpoints. Its own code, so the screen
+    says who can decide rather than show a bare refusal."""
+
+    status_code = 403
+    code = "LEGAL_DECISION_REQUIRED"
+
+
+class ReplyUndecided(Conflict):
+    """409 — `AM-293` r1: our prepared reply is not downloaded or sent while its Review
+    has an undecided point or has not finished its analysis (fail closed, `AM-284` r2).
+    ``reason`` ANALYSIS_NOT_FINISHED | UNDECIDED_POINTS and ``open_points`` (finding id
+    and requirement code — never a position) travel with the refusal."""
+
+    code = "REPLY_UNDECIDED"
+
+    def __init__(self, gate: dict[str, Any]) -> None:
+        n = len(gate["open_points"])
+        what = "The final contract" if gate.get("final") else "This reply"
+        super().__init__(
+            f"{what} cannot leave LegalMind yet: its review has not finished."
+            if gate["reason"] == "ANALYSIS_NOT_FINISHED" else
+            f"{what} cannot leave LegalMind yet: {n} point{'s' if n != 1 else ''} "
+            "in its review still need a decision.")
+        self.extra = {k: v for k, v in gate.items() if k != "final"}
+
+
 def _json(status: int, body: dict[str, Any], request_id: str) -> JSONResponse:
     return JSONResponse(status_code=status, content=body,
                         headers={REQUEST_ID_HEADER: request_id})
@@ -116,8 +144,11 @@ def install(app: FastAPI) -> None:
         rid = request_id_of(request)
         if exc.status_code == 404:                      # pragma: no cover
             return not_found(rid)
-        return _json(exc.status_code,
-                     error(code=exc.code, message=str(exc), request_id=rid), rid)
+        body = error(code=exc.code, message=str(exc), request_id=rid)
+        # a refusal that lists what the caller may act on (REPLY_NOT_APPLIED's
+        # `manual_rows`, AB-151) — row keys and clause labels, never a position
+        body["error"].update(getattr(exc, "extra", None) or {})
+        return _json(exc.status_code, body, rid)
 
     @app.exception_handler(UploadRejected)
     async def _upload_rejected(request: Request,
