@@ -9,7 +9,8 @@ say which clause it is now.
 
 FAIL CLOSED (rule 15): the reading is ``NOT_APPLIED`` — with its reason, never a guess —
 when the annexure is missing or its lead sentences do not read as the approved frame's,
-a named clause is not in the body or its heading differs, the precedence clause is
+a named clause is not in the body or its heading differs, the precedence clause (or,
+with ``precedence: "frame"``, the frame's precedence sentence after the opening) is
 gone, or (on our own generated file) the entries differ from the record. A version with
 no frame anywhere in its contract's chain reads ``NONE``: raw, exactly as before
 (third-party paper and the golden corpus never come here).
@@ -149,13 +150,25 @@ def _apply(db: DBSession, raw: list[Clause], package: M.DocumentVersion,
         if own:                       # our own final contract always carries them
             raise _NotApplied("the Special Conditions are not in this copy")
         raise _Absent()
-    # the precedence clause must still be in the body, word for word
-    pin = next((c for c in base["body"] if c["clause_key"] == cfg.get("precedence")),
-               None)
-    body_text = _flat(" ".join(c.content or "" for c in raw[:at]))
-    if pin is None or not all(_flat(model_.text_of(b.get("runs"))) in body_text
-                              for b in pin["body"] if b.get("runs")):
-        raise _NotApplied("the order-of-precedence clause is missing or changed")
+    in_frame = cfg.get("precedence") == special_conditions.IN_FRAME
+    precedence = [_pattern(t) for t in said.get("precedence", [])] if in_frame else []
+    if in_frame:   # S3: Legal's sentence, between the opening and entry 1, exactly
+        lines = []
+        for c in raw[at + 1:]:
+            text = _flat(_LEAD_NUMBER.sub("", c.content or ""))
+            if any(p.fullmatch(text) for p in leads.values()):
+                break
+            lines.append(_flat(c.content or ""))
+        if not precedence or not all(any(p.fullmatch(t) for t in lines)
+                                     for p in precedence):
+            raise _NotApplied("the frame's precedence sentence is absent or different")
+    else:          # the precedence clause must still be in the body, word for word
+        pin = next((c for c in base["body"] if c["clause_key"] == cfg.get("precedence")),
+                   None)
+        body_text = _flat(" ".join(c.content or "" for c in raw[:at]))
+        if pin is None or not all(_flat(model_.text_of(b.get("runs"))) in body_text
+                                  for b in pin["body"] if b.get("runs")):
+            raise _NotApplied("the order-of-precedence clause is missing or changed")
     entries: list[dict[str, Any]] = []
     end = len(raw)
     for i in range(at + 1, len(raw)):
@@ -173,7 +186,7 @@ def _apply(db: DBSession, raw: list[Clause], package: M.DocumentVersion,
                             "new": m.groupdict().get("new"), "rows": []})
         elif entries:
             entries[-1]["rows"].append(raw[i])
-        elif not any(o.fullmatch(text) for o in openings):
+        elif not any(o.fullmatch(text) for o in [*openings, *precedence]):
             raise _NotApplied("the Special Conditions open with words that are not the "
                               "approved frame's")
     if not entries:

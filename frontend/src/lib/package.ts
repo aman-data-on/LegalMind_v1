@@ -42,7 +42,9 @@ export interface PackagePlan {
   restatement?: string[];
   blockers: PackageBlocker[];
   entries: PackageEntry[];
-  precedence: { clause_key: string; number: string | null; approved: boolean } | null;
+  /** a body clause (AM-307) — or, on Annexure 2 (S3), Legal's sentence in the annexure */
+  precedence: { clause_key: string; number: string | null; approved: boolean }
+    | { in_frame: true; supplied: boolean } | null;
   entries_sha256: string | null;
 }
 
