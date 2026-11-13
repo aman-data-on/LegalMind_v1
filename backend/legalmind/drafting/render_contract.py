@@ -670,8 +670,8 @@ def _special_conditions(b: _Builder, sc: Mapping[str, Any], model: Mapping[str, 
             RGBColor.from_string(house()["colour"])
     start = b.mark()
     b.para("LM Schedule Title", sc["title"])
-    for runs in sc["opening"]:
-        b.para("LM Front", runs)
+    for runs in [*sc["opening"], *sc.get("precedence_lines", [])]:   # S3: then Legal's
+        b.para("LM Front", runs)                                        # precedence
     num = b.restart(_ENTRIES)
     tail = bool(sc.get("signature"))
     for i, e in enumerate(sc["entries"]):

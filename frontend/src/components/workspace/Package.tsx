@@ -178,7 +178,9 @@ export function PackageBar({ contractId, plan: changesOnly, canPrepare, canResta
   }
 
   const count = changesOnly.entries.length;
-  const precedence = changesOnly.precedence?.number;
+  const rule = changesOnly.precedence;
+  const inFrame = !!rule && "in_frame" in rule;
+  const precedence = rule && "number" in rule ? rule.number : null;
   const changes = count === 1 ? "the 1 agreed change" : `the ${count} agreed changes`;
   const reasons = changesOnly.restatement ?? [];
   const action = restated ? "Restate the whole contract" : amendment ? "Prepare amendment" : "Prepare final contract";
@@ -192,8 +194,9 @@ export function PackageBar({ contractId, plan: changesOnly, canPrepare, canResta
               A short amendment listing only {changes}, in our amendment template. The signed contract stays in force.
             </> : <>
               Our contract as we sent it, with {changes} in Special Conditions (Annexure A).
-              {" "}{precedence ? `Clause ${precedence}` : "The order-of-precedence clause"} says Annexure A wins where
-              the two differ.
+              {" "}{inFrame ? "The annexure's own precedence sentence, supplied by Legal, says how it ranks against the body." : <>
+                {precedence ? `Clause ${precedence}` : "The order-of-precedence clause"} says Annexure A wins where
+                the two differ.</>}
             </>}
           </p>
           <EntryList entries={changesOnly.entries} />

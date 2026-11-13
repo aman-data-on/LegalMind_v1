@@ -9,7 +9,7 @@ import type { Answer, ClientChange, EffectForUs, Measured } from "./changes";
 
 export interface PackageBlocker {
   code: string;
-  /** most blockers carry `message`; a template-readiness one carries `detail` */
+  /** a package blocker carries `message`; the template page passes readiness `detail` */
   message?: string;
   detail?: string;
   /** the change it is about — a link to that change */
@@ -42,7 +42,9 @@ export interface PackagePlan {
   restatement?: string[];
   blockers: PackageBlocker[];
   entries: PackageEntry[];
-  precedence: { clause_key: string; number: string | null; approved: boolean } | null;
+  /** a body clause (AM-307) — or, on Annexure 2 (S3), Legal's sentence in the annexure */
+  precedence: { clause_key: string; number: string | null; approved: boolean }
+    | { in_frame: true; supplied: boolean } | null;
   entries_sha256: string | null;
 }
 
