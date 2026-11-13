@@ -53,8 +53,33 @@ POSITIONS = ("after_execution", "before_execution")
 IN_FRAME = "frame"
 #: the blocker while the frame has no precedence sentence (`FINAL-PACKAGE-SPEC` d4)
 PRECEDENCE_NOT_SUPPLIED = (
-    "Clause 21.3 of the MSA does not say which document wins in a conflict. Legal must "
-    "supply the sentence that says Annexure 2 prevails. Final is blocked until then.")
+    "{where} does not say which document wins in a conflict. Legal must supply the "
+    "sentence that says {annexure} prevails. Final is blocked until then.")
+
+
+def _precedence_where(db: DBSession, tv: M.TemplateVersion) -> str | None:
+    """The MSA's own "… Order of Precedence" sub-clause number (21.3), read from the
+    template's pinned body — None for any other template, or where there is none.
+    ponytail: counts pins and top-level subs in order; a conditional body clause before
+    it would shift the number — resolve the model if a template ever has one."""
+    if tv.doc_type != "MSA":
+        return None
+    for n, pin in enumerate(tv.clauses, 1):
+        row = db.execute(select(M.ClauseVersion).where(
+            M.ClauseVersion.clause_key == pin["clause_key"],
+            M.ClauseVersion.version == pin["version"])).scalar_one_or_none()
+        subs = [b for b in (row.body if row else []) if b.get("kind") == "sub"]
+        for k, b in enumerate(subs, 1):
+            if "precedence" in (b.get("title") or "").lower():
+                return f"{n}.{k}"
+    return None
+
+
+def precedence_not_supplied(db: DBSession, tv: M.TemplateVersion) -> str:
+    where = _precedence_where(db, tv)
+    return PRECEDENCE_NOT_SUPPLIED.format(
+        where=f"Clause {where} of the MSA" if where else "This template",
+        annexure="Annexure 2" if where else "the annexure")
 _LEADING_NUMBER = re.compile(r"^\W*\d+(?:\.\d+)*[A-Z]?\.?\s+")
 
 
@@ -105,7 +130,7 @@ def readiness(db: DBSession, tv: M.TemplateVersion) -> dict[str, Any]:
     if cfg.get("precedence") == IN_FRAME:      # S3: Legal's sentence, in the frame
         if frame is not None and "precedence" not in roles(frame.body):
             missing.append({"code": "PRECEDENCE_NOT_SUPPLIED",
-                            "detail": PRECEDENCE_NOT_SUPPLIED})
+                            "detail": precedence_not_supplied(db, tv)})
     elif precedence is None:
         missing.append({"code": "PRECEDENCE_NOT_PINNED", "detail":
                         "no order-of-precedence clause in the body names the annexure"})

@@ -148,8 +148,9 @@ def test_readiness_without_and_with_the_precedence_role(db, api, user, seeded,
                         ).status_code == 200
     db.refresh(tv)
     missing = special_conditions.readiness(db, tv)["missing"]
-    assert missing == [{"code": "PRECEDENCE_NOT_SUPPLIED",
-                        "detail": special_conditions.PRECEDENCE_NOT_SUPPLIED}]
+    assert missing == [{"code": "PRECEDENCE_NOT_SUPPLIED", "detail": (
+        "This template does not say which document wins in a conflict. Legal must supply "
+        "the sentence that says the annexure prevails. Final is blocked until then.")}]
     # the role, in a frame Legal approved (here a test-only frame)
     frame = _test_frame()
     db.add(M.ClauseVersion(**{k: frame[k] for k in (
@@ -270,15 +271,17 @@ def test_the_msa_body_is_unchanged_and_entries_verbatim(db, api, negotiated):
     assert reason == "the frame's precedence sentence is absent or different"
 
 
-def test_a_blank_in_an_entry_blocks_the_final_contract(db, api, negotiated):
-    """AM-324 r5 closed: an entry's text with a blank left in it blocks the package."""
+@pytest.mark.parametrize("blank", ["___", "{x}", "[ ]"])
+def test_a_blank_in_an_entry_blocks_the_final_contract(db, api, negotiated, blank):
+    """AM-324 r5 closed: an entry's text with a blank left in it — underscores, a
+    bracket or a {slot}, as preflight refuses on Prepare — blocks the dry run too."""
     contract = negotiated[0]
     rows = api.get(f"{V1}/contracts/{contract.id}/changes").json()["data"]["changes"]
     five = next(c for c in rows if c["clause"]["number"] == "5")
     r = api.post(f"{V1}/contracts/{contract.id}/changes/"
                  f"{quote(five['row_key'], safe='')}/answers",
                  json={"answer": "write_wording", "expected_version": 1,
-                       "reason": "Our counter", "wording": "Clause D within ___ days."})
+                       "reason": "Our counter", "wording": f"Clause D within {blank} days."})
     assert r.status_code == 201, r.text
     dry = api.get(f"{V1}/contracts/{contract.id}/package").json()["data"]
     assert not dry["available"]
@@ -326,9 +329,12 @@ def test_precedence_blocker(db, api, unsupplied):
     PRECEDENCE_NOT_SUPPLIED in plain words, and Prepare is refused (409)."""
     url = f"{V1}/contracts/{unsupplied.id}/package"
     dry = api.get(url).json()["data"]
-    assert {"code": "PRECEDENCE_NOT_SUPPLIED",
-            "message": special_conditions.PRECEDENCE_NOT_SUPPLIED,
-            "detail": special_conditions.PRECEDENCE_NOT_SUPPLIED} in dry["blockers"]
+    said = special_conditions.readiness(db, db.get(M.TemplateVersion, db.execute(
+        select(M.ContractDraft.template_version_id)).scalars().first()))["missing"]
+    assert {"code": "PRECEDENCE_NOT_SUPPLIED", "message": said[0]["detail"]} \
+        in dry["blockers"]
+    assert said[0]["detail"].startswith("This template does not say which document "
+                                        "wins in a conflict.")
     assert dry["precedence"] == {"in_frame": True, "supplied": False}
     made = api.post(url, json={"expected_entries_sha256": dry.get("entries_sha256")
                                or "0" * 64})

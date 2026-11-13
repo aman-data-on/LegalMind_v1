@@ -9,7 +9,7 @@ import type { Answer, ClientChange, EffectForUs, Measured } from "./changes";
 
 export interface PackageBlocker {
   code: string;
-  /** most blockers carry `message`; a template-readiness one carries `detail` */
+  /** a package blocker carries `message`; the template page passes readiness `detail` */
   message?: string;
   detail?: string;
   /** the change it is about — a link to that change */

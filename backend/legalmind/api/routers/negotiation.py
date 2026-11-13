@@ -1274,7 +1274,7 @@ def _package_plan(guard: Guard, contract: M.Contract, form: str = CHANGES_ONLY) 
                     "agreed changes — "
                     "prepare our reply with tracked changes.")
     # S3: the precedence blocker keeps its spec name; every one says its words
-    out["blockers"] += [{**m, "message": m["detail"], "code": m["code"] if m["code"]
+    out["blockers"] += [{"message": m["detail"], "code": m["code"] if m["code"]
                          == "PRECEDENCE_NOT_SUPPLIED" else f"SC_{m['code']}"}
                         for m in ready["missing"]]
     if tv.published_at is None:
@@ -1315,7 +1315,8 @@ def _package_plan(guard: Guard, contract: M.Contract, form: str = CHANGES_ONLY) 
     out["blockers"] += derived["blockers"]
     entries = derived["entries"]
     for e in entries:        # AM-324 r5 closed (S3): never a final with a blank in it
-        if (m := blank_in(e.get("text") or "")) is not None:
+        text = e.get("text") or ""     # a {slot} left too, as preflight refuses on POST
+        if (m := blank_in(text) or preflight._BLANK.search(text)) is not None:
             near = e["text"][max(0, m.start() - 30):m.end() + 20].strip()
             where = (e.get("target") or {}).get("number")
             stop("BLANKS", f"Entry {e['n']} (clause {where}) still has a blank to fill "
