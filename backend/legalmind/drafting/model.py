@@ -415,15 +415,19 @@ class _Resolver:
     def delivered(self, service: str, where: str) -> dict:
         """The number of the body sub whose own words start as ``layout.delivery`` maps
         the service (5.3.1 for "VPS Services:"), or the Legal-to-supply run (rule 21)."""
-        to = self.delivery.get(service)
-        if to is None:
+        if not service:
+            self.problems.append({"field": where, "problem": "names no service for a "
+                                  "clause 5.3 cell"})
+            return {"t": ""}
+        starts = self.delivery.get("lines", {}).get(service)
+        if starts is None:
             return {"t": LEGAL_TO_SUPPLY, "ph": True, "legal": service}
-        found = [n for k, text, n in self.subs
-                 if k == to["clause"] and text.startswith(to["starts"])]
+        clause = self.delivery.get("clause")
+        found = [n for k, text, n in self.subs if k == clause and text.startswith(starts)]
         if len(found) != 1:
             self.problems.append({"field": where, "problem": f"maps {service} to "
-                                  f"“{to['starts']}”, which {len(found)} sub-clauses of "
-                                  f"{to['clause']} start with"})
+                                  f"“{starts}”, which {len(found)} sub-clauses of "
+                                  f"{clause} start with"})
             return {"t": ""}
         return {"t": found[0]}
 

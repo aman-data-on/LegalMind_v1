@@ -1752,7 +1752,8 @@ def _final_plan(guard: Guard, contract: M.Contract, storage: StorageBackend) -> 
             if gap is not None:
                 return stop("SIGNATORY_EMAIL", gap)
             for service in waiting:
-                stop("LEGAL_TO_SUPPLY", legal_gap(service))
+                out["blockers"].append({"code": "LEGAL_TO_SUPPLY",
+                                       "message": legal_gap(service), "service": service})
             if waiting:
                 return out
         if source.mime_type == PDF_MIME:

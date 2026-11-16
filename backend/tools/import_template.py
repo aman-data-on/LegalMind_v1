@@ -101,7 +101,11 @@ def check_template(template: dict[str, Any], clauses: dict[tuple[str, int], dict
             problems.append(f"{v['key']}: a rows field with no columns")
     offered = {s for v in template.get("variables", []) if v.get("multi")
                for s in v["allowed"]}
-    for service in (template.get("layout") or {}).get("delivery", {}):
+    delivery = (template.get("layout") or {}).get("delivery") or {}
+    if delivery and not (isinstance(delivery.get("clause"), str)
+                         and isinstance(delivery.get("lines"), dict)):
+        problems.append("delivery: must be {clause: <clause_key>, lines: {service: words}}")
+    for service in delivery.get("lines") or {}:
         if service not in offered:            # S4: the 5.3 map names offered services
             problems.append(f"delivery: {service} is not an option of any services field")
     whens = [v.get("when") for v in template.get("variables", [])]

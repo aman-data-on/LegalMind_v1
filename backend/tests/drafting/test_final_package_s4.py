@@ -65,8 +65,8 @@ def _with_annexure_1(placeholder) -> tuple[dict, dict]:
             {"key": "service", "label": "Service", "type": "choice",
              "allowed": CATALOGUE["services"]},
             {"key": "quantity", "label": "Quantity", "type": "int", "range": [1, 999]}]}]
-    template["layout"]["delivery"] = {s: {"clause": "TEST.DELIVERY", "starts": p}
-                                      for s, p in CATALOGUE["delivery"].items()}
+    template["layout"]["delivery"] = {"clause": "TEST.DELIVERY",
+                                      "lines": dict(CATALOGUE["delivery"])}
     template["layout"]["check_values"] = _answers(template["layout"]["check_values"])
     return template, clauses
 
@@ -158,7 +158,7 @@ def test_legal_to_supply(placeholder, answers):
 
 def test_a_delivery_line_no_sub_starts_with_is_refused(placeholder, answers):
     t, c = _with_annexure_1(placeholder)
-    t["layout"]["delivery"]["VPS"]["starts"] = "Not a line:"
+    t["layout"]["delivery"]["lines"]["VPS"] = "Not a line:"
     got = _problems(t, c, _answers(answers))
     assert any("maps VPS to “Not a line:”, which 0 sub-clauses" in p["problem"]
                for p in got)
@@ -187,7 +187,7 @@ def test_catalogue_and_import_check(placeholder):
                                           "CloudPe Instances"}
     t, c = _with_annexure_1(placeholder)
     T.check_template(t, c)
-    t["layout"]["delivery"]["Web hosting"] = {"clause": "TEST.DELIVERY", "starts": "W"}
+    t["layout"]["delivery"]["lines"]["Web hosting"] = "W"
     del t["variables"][-1]["columns"]
     with pytest.raises(T.ImportRefused) as exc:
         T.check_template(t, c)
