@@ -46,6 +46,8 @@ export interface Draft {
   template_version_id: string;
   template_status: string;
   counterparty_id: string | null;
+  /** the brand the client buys (LEAPSWITCH, CLOUDPE or CLOUDJIFFY), or null */
+  brand?: string | null;
   answers: Answers;
   problems: FieldProblem[];
   updated_at: string | null;

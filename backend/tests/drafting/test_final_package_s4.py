@@ -233,3 +233,34 @@ def test_final_copy_blocks_on_legal_to_supply(db, api, user, seeded, placeholder
         assert "Colocation" in plan["blockers"][0]["message"]
     finally:
         api.app.dependency_overrides.pop(get_storage, None)
+
+
+# ---------------------------------------------------------------- the brand on a draft
+def test_a_draft_records_the_brand_the_client_buys(db, api, user, seeded, placeholder,
+                                                   lawyer):
+    """One MSA for every brand (AM-341): the person's pick is kept on the draft and
+    becomes the contract's issuing brand; none → the template's; anything else → 422."""
+    t, c = _with_annexure_1(placeholder)
+    tv = _imported(db, user, (t, c))
+    tv.brand = "LEAPSWITCH"
+    library._rehash(db, tv)
+    db.add(M.ConfigurationSnapshot(snapshot_hash=uuid.uuid4().hex, created_by=user.id,
+                                   created_at=datetime.now(UTC) - timedelta(days=1)))
+    db.flush()
+    sign_in(api, db, lawyer)
+    for pin in library.pins(tv):
+        api.post(f"{V1}/templates/{tv.id}/clauses/{pin['clause_key']}/approve")
+    tid = api.post(f"{V1}/templates/{tv.id}/publish").json()["data"]["id"]
+    made = api.post(f"{V1}/drafts", json={"template_version_id": tid, "brand": "CLOUDPE"})
+    assert made.status_code == 201, made.text
+    draft = made.json()["data"]
+    assert draft["brand"] == "CLOUDPE"
+    assert db.get(M.DraftAnswers, uuid.UUID(draft["id"])).brand == "CLOUDPE"
+    plain = api.post(f"{V1}/drafts", json={"template_version_id": tid}).json()["data"]
+    assert plain["brand"] == "LEAPSWITCH"
+    assert api.post(f"{V1}/drafts", json={"template_version_id": tid, "brand": "ACME"}
+                    ).status_code == 422
+    moved = api.patch(f"{V1}/drafts/{plain['id']}", json={
+        "answers": {}, "expected_version": plain["version"], "brand": "CLOUDJIFFY"})
+    assert moved.status_code == 200, moved.text
+    assert moved.json()["data"]["brand"] == "CLOUDJIFFY"

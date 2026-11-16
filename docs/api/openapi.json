@@ -1337,6 +1337,22 @@
       "title": "Answers",
       "type": "object"
      },
+     "brand": {
+      "anyOf": [
+       {
+        "enum": [
+         "LEAPSWITCH",
+         "CLOUDPE",
+         "CLOUDJIFFY"
+        ],
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Brand"
+     },
      "counterparty_id": {
       "anyOf": [
        {
@@ -1397,6 +1413,22 @@
       "maxProperties": 300,
       "title": "Answers",
       "type": "object"
+     },
+     "brand": {
+      "anyOf": [
+       {
+        "enum": [
+         "LEAPSWITCH",
+         "CLOUDPE",
+         "CLOUDJIFFY"
+        ],
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Brand"
      },
      "expected_version": {
       "minimum": 0.0,
