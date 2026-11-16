@@ -12,6 +12,8 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
+### Records — AB-191 (`AM-350`–`AM-354`, CLM UX Batch 1) and AB-192 (`AM-355`–`AM-357`, final package S1–S3) — **RECORDED 2026-11-16**; build state unchanged: Batch 1 and S1–S2 DEPLOYED as `74096927` (PR #294); S3 MERGED `4a79004e` (PR #297), not deployed
+
 ### Release state — CLM programme + UX Batches 0–3 + final package S1–S2 — **DEPLOYED 2026-11-12 as `74096927`** (PR #294); migrations at `c7e2a9f4d1b6` (verified in the database); LibreOffice 24.2.7.2 on the worker (`LEGALMIND_SOFFICE=/usr/bin/soffice`); Constitution L1.17 ingested (CURRENT). Open: templates are imported and approved in the app by Legal (AM-272); one scratch final copy on production to confirm the PDF preflight; S3 (Annexure 2) lands separately.
 
 ### Release state — AB-174 (`AM-322` r1–r16, fourteen Constitution positions become standards) — **DEPLOYED 2026-11-12 as `74096927`** (PRs #293/#294); 14 standards published as ops-publish → snapshot `686c0ec1` (92 active); `chunk_standards` run; no migration of its own

@@ -10,6 +10,10 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-11-16 — Lock records for CLM Batch 1 and final package S1–S3 (AB-191: AM-350–AM-354; AB-192: AM-355–AM-357)
+
+Records only, for work already merged (PRs #294, #297): the NEGATIVE word split (amends AM-299 r1), "In our favour" as line 1 (AM-184/AM-291), prepare-final needs 0 open points and "yours" = held by me (AM-318 r8/r10), the playbook line names its source (AM-305), ingest-v11 Markdown reading; final-package PDF checks, signature page last + signatory email, and Annexure 2 with precedence as Legal's frame role (amends AM-307/AM-312/AM-316/AM-318 r3). Colleague visibility for Legal reviewers (rule 18) and the precedence sentence (Legal, L1) remain open.
+
 ### 2026-11-12 — C-19 resolved: one MSA for every brand (AB-183: AM-341)
 
 Owner ruling (2026-11-11, recorded on the owner's "yes" 2026-11-12): one MSA of LeapSwitch Networks Pvt Ltd covers every brand; only the services in MSA cl. 5 vary; the brand split is the website policies only. Supersedes `AM-287`'s "MSA LeapSwitch-only". Records only — the New contract screen still offers no CloudPe MSA and follows in a later change.

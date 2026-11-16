@@ -30339,3 +30339,119 @@ r5  NOT CHANGED. AM-287's per-contract issuing_entity/brand fields and NDA per b
     order form and agreed amendments is still owed by Legal. Code that offers no MSA for CloudPe
     (the New contract screen) follows this record in a later change; nothing is built here.
 ```
+
+## AMENDMENT BATCH AB-191 — `AM-350`–`AM-354` (2026-11-16): CLM UX Batch 1 — what a point says, and when a deal is ready for Final
+
+**Owner, 2026-11-02 ("product over locks": design the best product, list each colliding lock as a
+proposed amendment) and 2026-11-11 (full git permission for verified work).** Batch 1 was designed
+in the 2026-11-09 Batch 1 design note (slices A, B, C), verified, and merged to main in PR #294
+(74096927, 2026-11-12). These are the amendments that design note listed for the records owner.
+Nothing here is legal content (rules 7/21), authorization (rule 18) or the audit trail.
+
+IDs: collision scan 2026-11-16 over origin/main, every worktree, `/root/legalmind-clm-local` and every
+remote branch for AM-342…AM-365 and AB-182…AB-195. AM-343, AM-345, AB-185 and AB-190 appear only
+inside earlier scan sentences; every other ID in the range was free. For headroom (the final-package
+S4 session is live) this record takes AB-191 / AM-350–AM-354 and the next takes AB-192 / AM-355–AM-357.
+
+`AM-350` — The NEGATIVE word is split by what was measured (amends `AM-299` r1; routing unchanged)
+
+```text
+r1  A client change whose effect_for_us is NEGATIVE reads by its measured basis: "Worse for us"
+    (measured WORSE), "Not measured — Legal checks" (unmeasured or unclear), "Not in their paper"
+    (absent). AM-299 r1's single word "Worse for us" for every NEGATIVE row is superseded.
+r2  Routing does not change: every NEGATIVE row still goes to Legal; no new effect_for_us value is
+    added (an "UNKNOWN" value would slip past the == NEGATIVE fail-closed checks).
+r3  The playbook offer and the "Worse for us" filter apply only to measured WORSE rows.
+r4  A THEIRS reply row covering more than one clause is refused with "write it in by hand" (rule
+    15); a row with no realising clause lists the candidate clauses unranked, never "closest".
+```
+
+`AM-351` — "In our favour" is a line-1 word (amends `AM-184` / `AM-291` r1, read with `AM-239` r6)
+
+```text
+r1  Where the server records an accepted deviation as in our favour (the recorded AM-239/AM-303
+    rule outcome only, never AM-301 dominance), line 1 of the point reads "In our favour", and the
+    point carries a fifth point mark. The four reader words of AM-184/AM-291 r1 are otherwise kept.
+r2  Owner decision 7 (whether a mutual 6→3 cap is in our favour) is not decided here.
+```
+
+`AM-352` — "Prepare the final contract" needs no open points; "decide" and "yours" mean held by me
+(amends `AM-318` r8 and r10)
+
+```text
+r1  AM-318 r8's "Every change is answered. Prepare the final contract." at "Client replied with
+    nothing left" also requires points_open == 0. Fail closed; no new server stage.
+r2  To-do "decide" counts the Reviews I hold (held_by), and the queue's "Yours" filter is what
+    agrees with To-do; the team view with_legal (AM-318 r10) is unchanged.
+r3  Not decided here: whether every Legal reviewer sees a colleague's Reviews (REC-09 / AM-288 r3,
+    the AM-170 registry's pending item). It is authorization (rule 18) and waits for the owner.
+```
+
+`AM-353` — The playbook line names whose figure it opens with (amends `AM-305`)
+
+```text
+r1  The playbook line opens "Our paper says …" or "Our standard says …", naming its source. The
+    manager's figures and the rest of the line are unchanged.
+```
+
+`AM-354` — Markdown reading `legalmind-ingest-v11` (recorded as the v9 note was; no amendment)
+
+```text
+r1  New uploads read with processor version legalmind-ingest-v11, which normalises Markdown
+    uploads; the original file bytes are kept (34.12). Existing evidence is never re-parsed
+    (rules 16/17); to read an older .md upload the new way, upload it again as a new version.
+r2  AM-146 r4, AM-157, AM-284, AM-290 and AM-294 are not amended.
+```
+
+## AMENDMENT BATCH AB-192 — `AM-355`–`AM-357` (2026-11-16): the final package, S1–S3 — PDF checks, signature page last, Annexure 2
+
+**Owner, 2026-11-11 (ruling, memory "one MSA, all brands"):** one MSA (LeapSwitch Networks) for every
+brand; its body is never edited; the final document is the MSA + Annex 1 order form + Annex 2 agreed
+amendments; the precedence sentence is owed by Legal. Built per the final-package spec and the S1,
+S2 and S3 design notes; S1–S2 merged in PR #294 (74096927), S3 in PR #297 (4a79004e). IDs per the
+AB-191 scan. No legal wording is written here (rules 7/21).
+
+`AM-355` — S1: what every final PDF is checked for (extends `AM-277` / `AM-293` r2)
+
+```text
+r1  Our contract and our final copy: pdf_file + text_equal + house_layout. A final on the client's
+    paper: pdf_file + text_equal. Reply and blank: pdf_file, fail closed.
+r2  A final copy made from the client's own PDF runs pdf_file at plan time. Annotations, forms,
+    JavaScript, /Launch actions, embedded files, encryption, optional content or an oversize file
+    block it (CLIENT_PDF: "ask for a clean PDF or upload the Word file"). PDF/A and unembedded
+    fonts do not block a client PDF — we cannot convert it — and this is said, not silent.
+r3  A PDF that will not open is PDF_UNREADABLE, fail closed, never a 500.
+r4  Clarification of AM-277 / AM-293 r2: the PDF/A conformance checked on our own files is PDF/A-2b.
+```
+
+`AM-356` — S2: the signature page is last, and it names the signatories' email
+
+```text
+r1  A template may set execution.last: the execution block then starts a new section, after any
+    annexure, and must open the PDF's last page (SIGNATURE_PAGE). Initials are off by default.
+r2  The signature page needs a signatory email for each side before Final (an email field type).
+    A generated contract whose template has no email field is blocked at Final (SIGNATORY_EMAIL),
+    in plain words, never a 500. Fail closed; the e2e/production templates need a version with
+    the two email fields.
+```
+
+`AM-357` — S3: Annexure 2, Agreed Amendments; precedence is Legal's frame role
+(amends `AM-307` r3, r5, r9e; `AM-312` r2 Q-1, Q-2, Q-5; `AM-316` r7, r8; `AM-318` r3; extends `AM-324` r5)
+
+```text
+r1  PRECEDENCE. Precedence is no longer a pinned MSA body clause or a 21.3 DRAFT body version
+    (AM-307 r3, r9e). It is a Legal-approved role of the annexure frame (precedence: "frame"); the
+    MSA body is never edited. AM-312 r2 Q-1 (21.3's sentence accepted on Claude's recommendation)
+    is superseded: Legal supplies the sentence (L1). Until a frame carries it, Final is blocked
+    with PRECEDENCE_NOT_SUPPLIED; a frame not yet approved blocks with FRAME_NOT_APPROVED.
+r2  NAME. "Annexure A — Special Conditions" becomes "Annexure 2 — Agreed Amendments" (AM-312 r2
+    Q-2), in a new DRAFT frame version SC.FRAME@2 marked "For management approval", with no
+    precedence role seeded.
+r3  ORDER. MSA → (Annexure 1) → Annexure 2 → signature page last, initials off by default (AM-307
+    r5, AM-312 r2 Q-5); built in S2, awaiting Legal's confirmation (L5).
+r4  TEMPLATE. A new ORIGINAL_2025 version carries the annexure; its body clauses stay
+    byte-identical and it is published through the gate (AM-316 r7, r8).
+r5  ROUTE. For deals on that new MSA version, Final is always the package (AM-318 r3); the
+    final-copy route stays for the other routes. AM-324 r5 is closed by the entry blank check.
+r6  Not amended: rules 7, 13, 15, 18, 21; AM-251 r1; SC_TRACE; the append-only audit.
+```
