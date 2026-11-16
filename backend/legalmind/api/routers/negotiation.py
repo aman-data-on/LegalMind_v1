@@ -1270,9 +1270,13 @@ def _package_plan(guard: Guard, contract: M.Contract, form: str = CHANGES_ONLY) 
     if amendment_tv is None and special_conditions.config(tv) is None:
         # AM-316 r7: a template kept without Annexure A (the July 2025 MSA) — agreed
         # changes go back in the body, as tracked changes; no Annexure route is offered
-        return stop("NO_ANNEXURE", "This contract's template has no Annexure A — "
+        return stop("NO_ANNEXURE", "This contract's template has no annexure for "
+                    "agreed changes — "
                     "prepare our reply with tracked changes.")
-    out["blockers"] += [{**m, "code": f"SC_{m['code']}"} for m in ready["missing"]]
+    # S3: the precedence blocker keeps its spec name; every one says its words
+    out["blockers"] += [{"message": m["detail"], "code": m["code"] if m["code"]
+                         == "PRECEDENCE_NOT_SUPPLIED" else f"SC_{m['code']}"}
+                        for m in ready["missing"]]
     if tv.published_at is None:
         stop("TEMPLATE_NOT_PUBLISHED", "The template this contract was made from was "
              "never published.")
@@ -1284,7 +1288,10 @@ def _package_plan(guard: Guard, contract: M.Contract, form: str = CHANGES_ONLY) 
     if rebuilt is None or model_.model_hash(rebuilt) != draft.model_hash:
         stop("BODY_CHANGED", "Our version no longer rebuilds from its template "
              "byte for byte; a person must look at it.")
-    if cfg.get("precedence"):
+    if cfg.get("precedence") == special_conditions.IN_FRAME:   # S3: Legal's sentence
+        out["precedence"] = {"in_frame": True, "supplied": not any(
+            m["code"] == "PRECEDENCE_NOT_SUPPLIED" for m in ready["missing"])}
+    elif cfg.get("precedence"):
         row = next((r for (k, _), r in rows.items() if k == cfg["precedence"]), None)
         out["precedence"] = {"clause_key": cfg["precedence"],
                              "number": base["numbers"].get(cfg["precedence"]),
@@ -1307,6 +1314,13 @@ def _package_plan(guard: Guard, contract: M.Contract, form: str = CHANGES_ONLY) 
     derived = _derive(guard, before, after, listed, basis)
     out["blockers"] += derived["blockers"]
     entries = derived["entries"]
+    for e in entries:        # AM-324 r5 closed (S3): never a final with a blank in it
+        text = e.get("text") or ""     # a {slot} left too, as preflight refuses on POST
+        if (m := blank_in(text) or preflight._BLANK.search(text)) is not None:
+            near = e["text"][max(0, m.start() - 30):m.end() + 20].strip()
+            where = (e.get("target") or {}).get("number")
+            stop("BLANKS", f"Entry {e['n']} (clause {where}) still has a blank to fill "
+                 f"(…{_BLANK.sub('___', near)}…). Write the wording without it first.")
     shown, pins = entries, []
     if amendment_tv is not None:
         from legalmind.api.routers.amendments import _signed_amendments  # circular
@@ -1677,7 +1691,10 @@ def _unsigned(base: dict) -> str | None:
     starting again, so it says who must act."""
     if any("email" not in r for r in base["execution"]["rows"]):
         return ("This template has no signatory email field yet; Legal/ops must publish "
-                "a version with one before Final.")
+                "a version with one before Final." + (
+                    # the MSA's next version also waits for Legal's Annexure 2 (S3)
+                    " Waiting for Legal: the Annexure 2 precedence sentence and wording."
+                    if base.get("doc_type") == "MSA" else ""))
     missing = render_contract.unfilled(base["execution"])
     if not missing:
         return None
@@ -1778,8 +1795,9 @@ def _final_plan(guard: Guard, contract: M.Contract, storage: StorageBackend) -> 
         return ready(latest)
     package = _package_plan(guard, contract)
     if not {b["code"] for b in package["blockers"]} & _FINAL_COPY_ROUTES:
-        return stop("USE_PACKAGE", "This contract's final copy is made with Annexure A — "
-                    "prepare the final contract from the Changes tab.")
+        return stop("USE_PACKAGE", "This contract's final copy is made with its "
+                    "annexure of agreed changes (on our MSA, Annexure 2 — Agreed "
+                    "Amendments) — prepare the final contract from the Changes tab.")
     ours = negotiation.our_previous(versions, latest)
     try:
         listed, _, _ = _changes(guard, contract, ours.version_number if ours else None, n)

@@ -3,7 +3,7 @@ body untouched (`AM-307`, design `11-ANNEXURE-SYSTEM-DESIGN.md`).
 
 A template opts in with ``layout.special_conditions``::
 
-    {"frame": {"clause_key", "version"}, "precedence": "<body clause key>",
+    {"frame": {"clause_key", "version"}, "precedence": "<body clause key>" | "frame",
      "position": "after_execution" | "before_execution", "pages": "continue",
      "initials": bool}        # both parties sign or initial the annexure
 
@@ -13,9 +13,12 @@ body) whose ``p`` blocks carry a ``role``: ``title``, ``opening`` (one or more),
 slots are ``{sc:target}`` (a cross-reference to the varied clause), ``{sc:heading}``,
 ``{sc:new_number}``, ``{sc:agreement}``, ``{sc:date}`` and ``{sc:parties}`` beside the
 template's own ``{variables}``. The
-PRECEDENCE clause is a pinned body clause the lawyer approves. Neither is ever seeded
-APPROVED (rules 7/21): `tools.import_template --special-conditions` loads the DRAFT
-reference text labelled "For management approval".
+PRECEDENCE clause is a pinned body clause the lawyer approves — or, with ``"precedence":
+"frame"`` (`FINAL-PACKAGE-SPEC` S3: the body is never edited), the frame's own
+``precedence`` role, Legal's sentence printed right after the opening. Neither is ever
+seeded APPROVED (rules 7/21): `tools.import_template --special-conditions` loads the
+DRAFT reference text labelled "For management approval", and the reference frame for
+Sayan's MSA (``SC.FRAME@2``) has no precedence sentence at all — Legal supplies it.
 
 `derive` turns the answered changes of one round into entries — one per varied clause,
 ``op`` replace | delete | insert_after and the agreed text verbatim (the client's,
@@ -46,6 +49,37 @@ SC_SLOT = re.compile(r"\{sc:(target|heading|new_number|agreement|date|parties)\}
 NO_HEADING = re.compile(r"\s*[“\"]\{sc:heading\}[”\"]")
 FOR_APPROVAL = "For management approval"
 POSITIONS = ("after_execution", "before_execution")
+#: ``precedence`` naming the frame's own role, not a body clause (S3)
+IN_FRAME = "frame"
+#: the blocker while the frame has no precedence sentence (`FINAL-PACKAGE-SPEC` d4)
+PRECEDENCE_NOT_SUPPLIED = (
+    "{where} does not say which document wins in a conflict. Legal must supply the "
+    "sentence that says {annexure} prevails. Final is blocked until then.")
+
+
+def _precedence_where(db: DBSession, tv: M.TemplateVersion) -> str | None:
+    """The MSA's own "… Order of Precedence" sub-clause number (21.3), read from the
+    template's pinned body — None for any other template, or where there is none.
+    ponytail: counts pins and top-level subs in order; a conditional body clause before
+    it would shift the number — resolve the model if a template ever has one."""
+    if tv.doc_type != "MSA":
+        return None
+    for n, pin in enumerate(tv.clauses, 1):
+        row = db.execute(select(M.ClauseVersion).where(
+            M.ClauseVersion.clause_key == pin["clause_key"],
+            M.ClauseVersion.version == pin["version"])).scalar_one_or_none()
+        subs = [b for b in (row.body if row else []) if b.get("kind") == "sub"]
+        for k, b in enumerate(subs, 1):
+            if "precedence" in (b.get("title") or "").lower():
+                return f"{n}.{k}"
+    return None
+
+
+def precedence_not_supplied(db: DBSession, tv: M.TemplateVersion) -> str:
+    where = _precedence_where(db, tv)
+    return PRECEDENCE_NOT_SUPPLIED.format(
+        where=f"Clause {where} of the MSA" if where else "This template",
+        annexure="Annexure 2" if where else "the annexure")
 _LEADING_NUMBER = re.compile(r"^\W*\d+(?:\.\d+)*[A-Z]?\.?\s+")
 
 
@@ -72,8 +106,10 @@ def roles(frame_body: list[dict]) -> dict[str, list[str]]:
 def readiness(db: DBSession, tv: M.TemplateVersion) -> dict[str, Any]:
     """``{"ready", "missing": [{"code", "detail"}]}`` — whether this template version can
     carry a Special Conditions annexure: configured, its frame pinned, APPROVED and
-    complete, its precedence clause a pinned body clause and APPROVED (`AM-307`, R-3).
-    Whether the template is published is the package gate's own check."""
+    complete, its precedence clause a pinned body clause and APPROVED (`AM-307`, R-3) —
+    or, with ``precedence: "frame"`` (S3), a ``precedence`` role in that approved frame
+    (`PRECEDENCE_NOT_SUPPLIED` until Legal writes it). Whether the template is
+    published is the package gate's own check."""
     cfg = config(tv)
     if cfg is None:
         return {"ready": False, "missing": [{"code": "NOT_CONFIGURED", "detail":
@@ -87,10 +123,15 @@ def readiness(db: DBSession, tv: M.TemplateVersion) -> dict[str, Any]:
             M.ClauseVersion.clause_key == pin["clause_key"],
             M.ClauseVersion.version == pin["version"])).scalar_one_or_none()
 
-    missing += frame_missing(row(cfg.get("frame")))
+    frame = row(cfg.get("frame"))
+    missing += frame_missing(frame)
     pin = next((p for p in tv.clauses if p["clause_key"] == cfg.get("precedence")), None)
     precedence = row(pin)
-    if precedence is None:
+    if cfg.get("precedence") == IN_FRAME:      # S3: Legal's sentence, in the frame
+        if frame is not None and "precedence" not in roles(frame.body):
+            missing.append({"code": "PRECEDENCE_NOT_SUPPLIED",
+                            "detail": precedence_not_supplied(db, tv)})
+    elif precedence is None:
         missing.append({"code": "PRECEDENCE_NOT_PINNED", "detail":
                         "no order-of-precedence clause in the body names the annexure"})
     elif precedence.status != "APPROVED":
@@ -453,6 +494,10 @@ def section(r: Any, frame: Mapping[str, Any], cfg: Mapping[str, Any],
         "title": runs(title, agreement),
         "label": title,
         "opening": [runs(t, agreement) for t in said.get("opening", [])],
+        # S3: Legal's precedence sentence, after the opening — only where the frame has
+        # one (a frame without the role keeps its model, and its hash, as before)
+        **({"precedence_lines": [runs(t, agreement) for t in said["precedence"]]}
+           if cfg.get("precedence") == IN_FRAME and said.get("precedence") else {}),
         "entries": out_entries,
         # R-5/R-6, Q-5: both parties sign or initial the annexure (a template setting)
         **({"signature": True} if cfg.get("initials") else {}),

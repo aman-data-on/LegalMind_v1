@@ -116,7 +116,8 @@ def check_template(template: dict[str, Any], clauses: dict[tuple[str, int], dict
         frame = sc.get("frame") or {}
         if (frame.get("clause_key"), frame.get("version")) not in clauses:
             problems.append("special_conditions: the frame is no clause of this import")
-        if all(p["clause_key"] != sc.get("precedence") for p in template["clauses"]):
+        if sc.get("precedence") != "frame" and all(      # S3: the frame's own role
+                p["clause_key"] != sc.get("precedence") for p in template["clauses"]):
             problems.append("special_conditions: the precedence clause is not pinned in "
                             "the body")
     if not _source_ok(template.get("source")):
@@ -749,24 +750,29 @@ def precedence_version(db: Session, tv: M.TemplateVersion, clause_key: str, *,
 def attach_special_conditions(db: Session, tv: M.TemplateVersion, *, actor_id: Any,
                               position: str = "after_execution",
                               initials: bool = True,
-                              precedence_into: str | None = None) -> list[str]:
+                              precedence_into: str | None = None,
+                              frame_version: int = 1) -> list[str]:
     """`AM-307` B1: the DRAFT reference frame (`SPECIAL_REFERENCE`, "For management
     approval") as a DRAFT row and ``layout.special_conditions`` set, on a DRAFT template
     version only (an approved one is frozen). The precedence sentence goes into the
     body clause ``precedence_into`` as a new DRAFT version of it (its "Order of
     Precedence" sub-clause); without one — a template that has no such clause — the
     reference precedence clause is pinned last in the body. Nothing here is approved:
-    the lawyer approves both on the Template approval page (rules 7/21)."""
+    the lawyer approves both on the Template approval page (rules 7/21).
+    ``precedence_into="frame"`` (S3, Sayan's MSA): no body clause is touched or pinned —
+    the precedence is the frame's own role, which Legal supplies (``frame_version=2``,
+    "Annexure 2 — Agreed Amendments", seeds none)."""
     if tv.status != "DRAFT":
         raise ImportRefused(f"{tv.template_key}@{tv.version} is {tv.status}; attach the "
                             "Special Conditions to a draft version")
     raw = json.loads(SPECIAL_REFERENCE.read_text(encoding="utf-8"))
     clauses = {(c["clause_key"], c["version"]): check_clause(c)
                for c in raw["clause_versions"]}
-    frame, precedence = (k for k in clauses)
+    frame, precedence = ("SC.FRAME", frame_version), ("SC.PRECEDENCE", 1)
     lines = []
     for (key, version), c in clauses.items():
-        if precedence_into and key == precedence[0]:
+        if (key, version) not in (frame, precedence) or (
+                precedence_into and key == precedence[0]):
             continue
         existing = db.execute(select(M.ClauseVersion).where(
             M.ClauseVersion.clause_key == key, M.ClauseVersion.version == version)
@@ -778,7 +784,9 @@ def attach_special_conditions(db: Session, tv: M.TemplateVersion, *, actor_id: A
             lines.append(f"DRAFT clause {key}@{version}")
         elif existing.content_hash != c["content_hash"]:
             raise ImportRefused(f"{key}@{version} exists with different text")
-    if precedence_into:
+    if precedence_into == "frame":
+        key = "frame"
+    elif precedence_into:
         made = precedence_version(db, tv, precedence_into, actor_id=actor_id)
         lines.append(f"DRAFT clause {made.clause_key}@{made.version} (precedence)")
         key = precedence_into
@@ -817,7 +825,11 @@ def main() -> int:
                              "clause to the latest DRAFT version of this template")
     parser.add_argument("--precedence-into", metavar="CLAUSE_KEY",
                         help="with --special-conditions: the body clause whose “Order of "
-                             "Precedence” sub-clause takes the precedence sentence")
+                             "Precedence” sub-clause takes the precedence sentence; "
+                             "“frame”: Legal's sentence in the frame itself (S3)")
+    parser.add_argument("--frame-version", type=int, default=1,
+                        help="with --special-conditions: the reference frame (2: "
+                             "“Annexure 2 — Agreed Amendments”, S3)")
     args = parser.parse_args()
     try:
         flagged: list[str] = []
@@ -832,7 +844,8 @@ def main() -> int:
                 if actor is None or tv is None:
                     raise ImportRefused("no such user, or no DRAFT version of that key")
                 print("\n".join(attach_special_conditions(
-                    db, tv, actor_id=actor.id, precedence_into=args.precedence_into)))
+                    db, tv, actor_id=actor.id, precedence_into=args.precedence_into,
+                    frame_version=args.frame_version)))
                 db.rollback() if args.dry_run else db.commit()
             return 0
         if args.docx or args.pdf:

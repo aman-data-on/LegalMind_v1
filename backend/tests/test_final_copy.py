@@ -136,7 +136,7 @@ def test_a_final_copy_pdf_is_checked_before_it_is_stored(api, db, owner, tmp_pat
 
     def final() -> dict:
         c = _contract(db, owner)
-        _ingest(db, tmp_path, c, _docx(*OURS), "ours.docx")
+        _review(db, _ingest(db, tmp_path, c, _docx(*OURS), "ours.docx"), [])  # decided
         r = api.post(FINAL.format(c.id))
         assert r.status_code == 201, r.text
         return db.get(M.DocumentVersion, uuid.UUID(

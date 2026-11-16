@@ -1,5 +1,5 @@
 {
-  "_note": "DRAFT reference text for the Special Conditions annexure (AM-307) — For management approval. Reference text — not approved by Legal; imported DRAFT only, never APPROVED (rules 7/21). Modelled only on the sources quoted in clm-rnd/10 and 11: the replace and insert leads on the Salesforce MSA's own operation wording (“Section 8.2 “SFDC Warranties” is replaced by the following”, “a new Section 12.12.1 is added as follows”), the conflict sentence on the BHEL GeM ATC (“terms and conditions stipulated in ATC shall supersede those in GTC”) and the limited scope on Legal Constitution §31.12 (“prevails only as to the specific terms it amends; all other original terms remain unchanged”). No primary source states a deletion (research Q-3); the lead “Clause {x} “{heading}” is deleted.” parallels the replace and insert leads and is kept (owner decision 2026-11-05 on Claude's drafting recommendation). The title follows the Indian practice the research records (10 §5: “Annexure-1” after the execution block; “Special Conditions of Contract”); the opening follows its incorporation convention (the annexure forms an integral part of the Agreement dated …, between the parties). Name (Q-2, “Annexure A — Special Conditions”), opening (Q-4), position and initials (Q-5) and the 21.3 precedence wording (Q-1; the executed MSA §24.10 untouched) are accepted (owner decision 2026-11-05 on Claude's drafting recommendation, AM-312); a qualified advocate's review is recommended before first real client use.",
+  "_note": "DRAFT reference text for the Special Conditions annexure (AM-307) — For management approval. Reference text — not approved by Legal; imported DRAFT only, never APPROVED (rules 7/21). Modelled only on the sources quoted in clm-rnd/10 and 11: the replace and insert leads on the Salesforce MSA's own operation wording (“Section 8.2 “SFDC Warranties” is replaced by the following”, “a new Section 12.12.1 is added as follows”), the conflict sentence on the BHEL GeM ATC (“terms and conditions stipulated in ATC shall supersede those in GTC”) and the limited scope on Legal Constitution §31.12 (“prevails only as to the specific terms it amends; all other original terms remain unchanged”). No primary source states a deletion (research Q-3); the lead “Clause {x} “{heading}” is deleted.” parallels the replace and insert leads and is kept (owner decision 2026-11-05 on Claude's drafting recommendation). The title follows the Indian practice the research records (10 §5: “Annexure-1” after the execution block; “Special Conditions of Contract”); the opening follows its incorporation convention (the annexure forms an integral part of the Agreement dated …, between the parties). Name (Q-2, “Annexure A — Special Conditions”), opening (Q-4), position and initials (Q-5) and the 21.3 precedence wording (Q-1; the executed MSA §24.10 untouched) are accepted (owner decision 2026-11-05 on Claude's drafting recommendation, AM-312); a qualified advocate's review is recommended before first real client use. SC.FRAME@2 (FINAL-PACKAGE-SPEC S3, 2026-11-12) — For management approval, DRAFT only: the title “Annexure 2 — Agreed Amendments” (spec a/b); the opening keeps only @1's incorporation sentence with “Special Conditions” renamed, and drops @1's conflict sentence, because precedence is now Legal's own sentence (L1), a frame role “precedence” that this reference deliberately does not seed; the four leads are @1's unchanged (AM-312, 2026-11-05). Until Legal supplies the precedence role and approves the frame (L2), a template using it is blocked (PRECEDENCE_NOT_SUPPLIED, FRAME_NOT_APPROVED). SC.FRAME@1 and SC.PRECEDENCE@1 stay as they were: earlier records rebuild against them.",
   "clause_versions": [
     {
       "clause_key": "SC.FRAME",
@@ -61,6 +61,51 @@
       "source": {
         "kind": "model",
         "supplier": "LegalMind engineering (AM-307 reference text)",
+        "label": "For management approval",
+        "approval_ref": null
+      }
+    },
+    {
+      "clause_key": "SC.FRAME",
+      "version": 2,
+      "title": "Annexure 2 — Agreed Amendments",
+      "body": [
+        {
+          "kind": "p",
+          "role": "title",
+          "text": "Annexure 2 — Agreed Amendments"
+        },
+        {
+          "kind": "p",
+          "role": "opening",
+          "text": "These Agreed Amendments form an integral part of the {sc:agreement} dated {sc:date} between {sc:parties}."
+        },
+        {
+          "kind": "p",
+          "role": "op.replace",
+          "text": "Clause {sc:target} “{sc:heading}” is replaced by the following:"
+        },
+        {
+          "kind": "p",
+          "role": "op.delete",
+          "text": "Clause {sc:target} “{sc:heading}” is deleted."
+        },
+        {
+          "kind": "p",
+          "role": "op.insert_after",
+          "text": "A new Clause {sc:new_number} is added after Clause {sc:target} “{sc:heading}” as follows:"
+        },
+        {
+          "kind": "p",
+          "role": "op.add",
+          "text": "A new Clause {sc:new_number} is added as follows:"
+        }
+      ],
+      "realises": [],
+      "stance": null,
+      "source": {
+        "kind": "model",
+        "supplier": "LegalMind engineering (FINAL-PACKAGE-SPEC S3 reference text)",
         "label": "For management approval",
         "approval_ref": null
       }
