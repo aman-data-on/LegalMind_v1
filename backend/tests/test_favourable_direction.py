@@ -66,7 +66,7 @@ PAYS_IN_TEN = ["8. Payment",
 
 
 def test_a_shorter_payment_period_on_our_msa_is_acceptable_and_still_a_deviation(build, db):
-    review, _ = _review(build, db, ["PAYMENT-PERIOD-MSA-001"], PAYS_IN_TEN, kind="MSA")
+    review, _ = _review(build, db, ["PAYMENT-PERIOD-MSA-001"], PAYS_IN_TEN, kind="MSA", before_am380=("PAYMENT-PERIOD-MSA-001",))
     assert tuple(_outcome(db, review, "PAYMENT-PERIOD-MSA-001")) == (C.DEVIATION, R.ACCEPTABLE)
 
 
@@ -81,7 +81,7 @@ def test_the_same_clause_on_paper_whose_role_is_not_established_goes_to_a_person
 def test_a_favourable_window_with_a_counsel_check_is_never_accepted(build, db):
     clauses = ["8. Payment", "8.3 Invoice disputes must be raised in writing within five (5) "
                "days of the invoice date, failing which the invoice is deemed accepted."]
-    review, _ = _review(build, db, ["DISPUTE-WINDOW-MSA-001"], clauses, kind="MSA")
+    review, _ = _review(build, db, ["DISPUTE-WINDOW-MSA-001"], clauses, kind="MSA", before_am380=("DISPUTE-WINDOW-MSA-001",))
     assert tuple(_outcome(db, review, "DISPUTE-WINDOW-MSA-001")) == (C.DEVIATION,
                                                                      R.UNACCEPTABLE)
 
@@ -103,13 +103,18 @@ def test_a_figure_beside_the_word_invoice_is_never_read_as_a_period_we_accept(bu
     accepted. "invoice" alone is no payment sentence (the QA-018 rule)."""
     clauses = ["8. Payment", "8.6 The Customer shall inform Leapswitch at-least 10 days "
                "prior to the date of invoice of any modification to its GST registration."]
-    review, _ = _review(build, db, ["PAYMENT-PERIOD-MSA-001"], clauses, kind="MSA")
+    review, _ = _review(build, db, ["PAYMENT-PERIOD-MSA-001"], clauses, kind="MSA", before_am380=("PAYMENT-PERIOD-MSA-001",))
     found = _outcome(db, review, "PAYMENT-PERIOD-MSA-001")
     assert found is None or found[1] is not R.ACCEPTABLE
 
 
 # ------------------------------------- AM-303: our template may open better for us (cap)
 CAP = "LIABILITY-MSA-001"
+# The favour mechanisms (AM-239/AM-303/AM-301/AM-313) are tested on each standard's
+# Constitution configuration (`before_am380`): AM-380 moved the MSA copies to our MSA
+# (17.2 binds Leapswitch only, so no favour form; 8.3 counts working days; the payment
+# period is suspended on a declared MSA). The engine keeps the mechanisms for any standard
+# that declares them.
 
 
 def _cap(sentence: str) -> list[str]:
@@ -139,7 +144,7 @@ def _gate(db, review, code: str):
 ])
 def test_the_gate_passes_a_mutual_lower_cap_and_nothing_else(build, db, sentence, accepted,
                                                              passes):
-    review, _ = _review(build, db, [CAP], _cap(sentence), kind="MSA")
+    review, _ = _review(build, db, [CAP], _cap(sentence), kind="MSA", before_am380=(CAP,))
     cls, rule = _outcome(db, review, CAP)
     assert cls is C.DEVIATION and (rule is R.ACCEPTABLE) is accepted
     assert _gate(db, review, CAP) == (C.DEVIATION, passes)
@@ -154,7 +159,7 @@ def test_the_gate_passes_affected_services_fees_only_on_a_mutual_cap(build, db, 
         f"The total aggregate liability of {party} shall not exceed the total amount "
         "actually paid by the Customer for the specific Services giving rise to the claim "
         "during the six (6) month period immediately preceding the event giving rise to such "
-        "liability."), kind="MSA")      # our approved file's 17.2, its party aside
+        "liability."), kind="MSA", before_am380=(CAP,))  # 17.2's words, its party aside
     assert _gate(db, review, CAP) == (C.UNABLE_TO_EVALUATE, passes)
 
 
@@ -175,6 +180,6 @@ def test_payment_obligations_outside_the_cap_stay_ours_an_indemnity_does_not(
     cap in our favour; taking indemnities out of the cap is still a CONFLICT (AM-304 r2)."""
     review, _ = _review(build, db, [CAP], [*_cap(
         "The total aggregate liability of each party shall not exceed the fees paid in the six "
-        "(6) months preceding the claim."), carve], kind="MSA")
+        "(6) months preceding the claim."), carve], kind="MSA", before_am380=(CAP,))
     cls, ours = _gate(db, review, CAP)
     assert ours is passes and (cls is C.CONFLICT) is not passes

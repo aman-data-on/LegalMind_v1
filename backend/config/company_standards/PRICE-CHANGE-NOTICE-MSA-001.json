@@ -61,7 +61,10 @@
       "exceptions": []
     },
     "favourable_direction": "LOWER",
-    "_favourable_direction_note": "AM-239 (AB-139, owner 2026-10-30): Constitution §16 Unacceptable Position: 'payment/dispute terms materially less favorable to the company than the confirmed position' — so a shorter figure is in LeapSwitch's favour; LeapSwitch may change prices on less notice."
+    "_favourable_direction_note": "AM-239 (AB-139, owner 2026-10-30): Constitution §16 Unacceptable Position: 'payment/dispute terms materially less favorable to the company than the confirmed position' — so a shorter figure is in LeapSwitch's favour; LeapSwitch may change prices on less notice.",
+    "not_applicable_to": [
+      "MSA"
+    ]
   },
   "evaluation_rules": {
     "evaluator": "NUMERIC_COMPARISON",
@@ -134,5 +137,21 @@
   },
   "_terminology_history": [
     "AM-194 (2026-10-26): a real MOU said 'may be subject to change thereafter and will be communicated in advance' — no configured word found it. Added keyword groups pricing/price + 'subject to change' / 'will change' / 'communicated in advance', and 'communicated/notified/intimated in advance' as notice wording, so the clause is found and its missing notice period said. Recognition terms (35.4); the position (30 days' written notice, §16) is unchanged."
-  ]
+  ],
+  "_history": [
+    {
+      "date": "2026-11-16",
+      "record": "AM-380",
+      "configuration_before": {
+        "not_applicable_to": null
+      }
+    }
+  ],
+  "msa_alignment": {
+    "record": "AM-380",
+    "date": "2026-11-16",
+    "ruling": "owner, 2026-11-16: \"Do not change the whole Constitution. Only change the points that differ from Sayan's MSA. Sayan's MSA is the final verdict for now — point to point use Sayan's MSA.\" (rule 6 approval for these lock changes; AB-205)",
+    "kind": "SUSPENDED FOR MSA — Sayan's MSA is silent on this point",
+    "note": "Constitution §16: prices may be changed with 30 days' written notice. Sayan's MSA states no position, so point to point this standard raises nothing on a document declared MSA until the new MSA states one (not deleted; its Constitution position is unchanged for every other type, and for an untyped document it still applies by content, AM-51). No text is authored (rule 7)."
+  }
 }

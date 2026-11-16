@@ -255,7 +255,10 @@ def test_t3_an_inapplicable_standard_is_uncertain_while_a_valid_one_is_kept(buil
     found = _findings(db, review)
     assert found["TERM-NOTICE-NDA-001"]["classification"] == "UNABLE_TO_EVALUATE"
     assert found["TERM-NOTICE-NDA-001"]["actual"].get("reason") == "APPLICABILITY_UNCERTAIN"
-    assert found["LIABILITY-MSA-001"]["classification"] == "DEVIATION"
+    # kept and measured: since AM-380 the MSA cap counts fees for the affected Services
+    # (our MSA 17.2), so total fees fail closed to a person (45B.4) — still not uncertain
+    assert found["LIABILITY-MSA-001"]["classification"] == "UNABLE_TO_EVALUATE"
+    assert found["LIABILITY-MSA-001"]["actual"].get("reason") != "APPLICABILITY_UNCERTAIN"
 
 
 # ============================================================ T4 — authority and audit

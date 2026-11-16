@@ -12,6 +12,29 @@ from tests.test_analysis import build, storage  # noqa: F401 — fixtures
 from tests.test_hard_test_fixes import _ratified  # noqa: F401 — fixture
 
 INDEMNITY = "INDEMNITY-MSA-001"
+RATIFIED_AS_IS = {"test_our_msa_customer_only_indemnity_matches",
+                  "test_any_indemnity_we_or_each_party_give_is_for_a_person"}
+
+
+@pytest.fixture
+def section_10_mechanism(request, monkeypatch):
+    """`AM-380`/`AM-381` r2: our MSA's indemnity standard is customer-only (MSA 16.1). The
+    Constitution §10 mutual-framework reading (R-1, `AM-311`) still serves a standard
+    without `customer_indemnity_only`; these tests pin it on a copy without the flag."""
+    if request.node.originalname in RATIFIED_AS_IS:   # AM-381 r2 tests below
+        return
+    import tests.test_hard_test_fixes as hard
+    real = hard._standard
+
+    def without_flag(code: str) -> dict:
+        payload = real(code)
+        if code == INDEMNITY:
+            payload["configuration"].pop("customer_indemnity_only", None)
+        return payload
+    monkeypatch.setattr(hard, "_standard", without_flag)
+
+
+pytestmark = pytest.mark.usefixtures("section_10_mechanism")
 MUTUAL = ("16.1 Each Party (the “Indemnifying Party”) shall defend, indemnify and hold "
           "harmless the other Party against third-party claims arising from the "
           "Indemnifying Party's gross negligence or wilful misconduct, or an allegation "
@@ -62,3 +85,26 @@ def test_a_defence_given_to_both_sides_is_not_one_sided(build, db):
                       "of any claim against it, and the Provider shall not settle any "
                       "claim without the Customer's prior written consent.")
     assert _indemnity(build, db, MUTUAL, *HEADS, both)["classification"] == "MATCH"
+
+
+# ------------------------- AM-381 r2: the ratified MSA standard, customer-only (MSA 16.1)
+OURS_16_1 = ["16.1 The Customer shall, at its sole cost and expense, defend, indemnify, and "
+             "hold harmless Leapswitch, its affiliates, officers, directors, employees, agents, "
+             "and subcontractors from and against any and all claims arising out of or "
+             "relating to:", *ONE_WAY[1:]]
+
+
+def test_our_msa_customer_only_indemnity_matches(build, db):
+    found = _indemnity(build, db, *OURS_16_1)
+    assert found["classification"] == "MATCH", found
+
+
+@pytest.mark.parametrize("ours", [
+    MUTUAL,
+    "16.5 Leapswitch shall indemnify the Customer against third-party claims that the "
+    "Services infringe a third party's intellectual property rights.",
+])
+def test_any_indemnity_we_or_each_party_give_is_for_a_person(build, db, ours):
+    found = _indemnity(build, db, *OURS_16_1, ours)
+    assert (found["classification"], found["actual"]["presence"]) == (
+        "DEVIATION", "TOO_BROAD"), found

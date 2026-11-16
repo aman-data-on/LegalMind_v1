@@ -129,10 +129,13 @@ def _assert_content_first(cls, cov, run):
     assert cls["CONF-SURVIVAL-MSA-001"] == "MATCH"      # 3 years (§15)
     assert cls["LIAB-EXCLUSIONS-MSA-001"] == "MATCH"    # §9 exclusion present
     assert cls["LIABILITY-MSA-001"] == "CONFLICT"       # 12 vs 6 months, same scope (45C.2)
-    assert cls["PAYMENT-PERIOD-MSA-001"] == "MATCH"     # 21 days (§16) — Constitution-approved standard
+    # 21 days (§16); AM-380 r2: not measured on a document declared MSA (our MSA is silent)
+    declared_msa = "declared type MSA" in cov["CURE-PERIOD-MSA-001"]["reason"]
+    assert cls.get("PAYMENT-PERIOD-MSA-001") == (None if declared_msa else "MATCH")
     assert cls["GST-EXCLUSIVE-MSA-001"] == "MATCH"      # fees exclusive of GST (§16)
-    # One Constitution position, measured once:
-    assert "LIABILITY-TOS-001" not in cls and cov["LIABILITY-TOS-001"]["outcome"] == "SAME_POSITION"
+    # AM-380: the MSA cap is now our MSA 17.2 (6 months, affected services), no longer the
+    # TOS's 12-month position, so the two are the same TOPIC, not the same position:
+    assert "LIABILITY-TOS-001" not in cls and cov["LIABILITY-TOS-001"]["outcome"] == "SAME_TOPIC"
     govlaw = [c for c in cls if c.startswith("GOVLAW-")]
     assert len(govlaw) == 1 and cls[govlaw[0]] == "MATCH"
     # Intentionally absent but EXPECTED (governing law confirmed -> §22 dispute resolution):

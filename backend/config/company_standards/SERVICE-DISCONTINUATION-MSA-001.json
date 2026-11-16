@@ -21,7 +21,10 @@
     },
     "scope_key": "SERVICE_DISCONTINUATION",
     "applicability": "REQUIRED",
-    "expected_presence": "PRESENT"
+    "expected_presence": "PRESENT",
+    "not_applicable_to": [
+      "MSA"
+    ]
   },
   "evaluation_rules": {
     "evaluator": "PRESENCE",
@@ -100,5 +103,21 @@
   "evaluator_type": "PRESENCE",
   "_terminology": [
     "negative: confidentiality obligations, trade secret - 2026-10-16 (AM-153, Drive stress test): generic contract wording a real counterparty paper used and the reader missed or misread; terms and scoping only, never a position."
-  ]
+  ],
+  "_history": [
+    {
+      "date": "2026-11-16",
+      "record": "AM-380",
+      "configuration_before": {
+        "not_applicable_to": null
+      }
+    }
+  ],
+  "msa_alignment": {
+    "record": "AM-380",
+    "date": "2026-11-16",
+    "ruling": "owner, 2026-11-16: \"Do not change the whole Constitution. Only change the points that differ from Sayan's MSA. Sayan's MSA is the final verdict for now — point to point use Sayan's MSA.\" (rule 6 approval for these lock changes; AB-205)",
+    "kind": "SUSPENDED FOR MSA — Sayan's MSA is silent on this point",
+    "note": "Constitution §31.14 A: 30 days' advance notice or service to the end of the committed period. Sayan's MSA states no position, so point to point this standard raises nothing on a document declared MSA until the new MSA states one (not deleted; its Constitution position is unchanged for every other type, and for an untyped document it still applies by content, AM-51). No text is authored (rule 7)."
+  }
 }

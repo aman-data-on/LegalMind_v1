@@ -41,7 +41,7 @@
     "covers": [
       "L-01"
     ],
-    "description": "OUTCOME CHANGED 2026-09-08 under AB-14 / AM-43 r4: LIABILITY-MSA-001 now states the Constitution's position (12 months, FEES_PAID, §9 — entity-wide, both brands; the MSA is 'reference/template — not yet formally adopted', §8). MSA 17.2's six months of AFFECTED-SERVICE fees is measured on a basis the owner ruling of 2026-08-18 keeps incomparable to FEES_PAID, so 45B.4 fails closed: UNABLE_TO_EVALUATE -> a human decides. The organization's own template therefore no longer matches its own stated position, which is exactly what the Constitution records as 'drafting corrections in progress'. OUTCOME CHANGED 2026-08-19 under owner decision Q3=B (per-type standards); previously UNABLE_TO_EVALUATE against the global 12-month/total-fees standard. MSA 17.2's six months of affected-service fees, measured against the MSA standard ratified FROM that clause: MATCH, with rule_outcome NOT_APPLICABLE because no Legal Rule exists. This is the per-type model's defining consequence — the organization's own template no longer deviates from its own position — and it is exactly 45E.2's stated L-01 expectation (six-month aggregate cap -> MATCH / NOT_APPLICABLE), reachable for the first time. Basis incomparability with FEES_PAID is still asserted, by DOC-LIAB-06 and CP-LIAB-04.",
+    "description": "OUTCOME CHANGED 2026-11-16 under AB-205 / AM-380 (owner ruling: our MSA is the final verdict for the MSA standards, point to point; expectation change approved by that ruling): LIABILITY-MSA-001 is again drawn from this clause (our MSA 17.2), so it MATCHES. OUTCOME CHANGED 2026-09-08 under AB-14 / AM-43 r4: LIABILITY-MSA-001 now states the Constitution's position (12 months, FEES_PAID, §9 — entity-wide, both brands; the MSA is 'reference/template — not yet formally adopted', §8). MSA 17.2's six months of AFFECTED-SERVICE fees is measured on a basis the owner ruling of 2026-08-18 keeps incomparable to FEES_PAID, so 45B.4 fails closed: UNABLE_TO_EVALUATE -> a human decides. The organization's own template therefore no longer matches its own stated position, which is exactly what the Constitution records as 'drafting corrections in progress'. OUTCOME CHANGED 2026-08-19 under owner decision Q3=B (per-type standards); previously UNABLE_TO_EVALUATE against the global 12-month/total-fees standard. MSA 17.2's six months of affected-service fees, measured against the MSA standard ratified FROM that clause: MATCH, with rule_outcome NOT_APPLICABLE because no Legal Rule exists. This is the per-type model's defining consequence — the organization's own template no longer deviates from its own position — and it is exactly 45E.2's stated L-01 expectation (six-month aggregate cap -> MATCH / NOT_APPLICABLE), reachable for the first time. Basis incomparability with FEES_PAID is still asserted, by DOC-LIAB-06 and CP-LIAB-04.",
     "evaluator_type": "NUMERIC_COMPARISON",
     "requirement_code": "LIABILITY-MSA-001",
     "legal_rule": null,
@@ -55,11 +55,11 @@
         "evidence_count": 1
       }
     ],
-    "expect_finding_classification": "UNABLE_TO_EVALUATE",
+    "expect_finding_classification": "MATCH",
     "expect_evaluations": [
       {
         "scope_key": "AGGREGATE",
-        "classification": "UNABLE_TO_EVALUATE",
+        "classification": "MATCH",
         "rule_outcome": "NOT_APPLICABLE",
         "evidence_ref_count": 1
       }
@@ -74,7 +74,7 @@
     "covers": [
       "L-01"
     ],
-    "description": "AB-14 / AM-43 r4 (2026-09-08): the Constitution's 12-month, total-fees cap (§9, illustrative clause: 'shall not exceed the total fees paid or payable by Customer in the twelve (12) months'), measured against LIABILITY-MSA-001 now ratified FROM the Constitution: MATCH.",
+    "description": "OUTCOME CHANGED 2026-11-16 under AB-205 / AM-380 (owner ruling: our MSA is the final verdict for the MSA standards, point to point; expectation change approved by that ruling): the Constitution's twelve months of total fees is on an incomparable basis to the MSA standard (our MSA 17.2, affected-Services fees) and fails closed (45B.4). AB-14 / AM-43 r4 (2026-09-08): the Constitution's 12-month, total-fees cap (§9, illustrative clause: 'shall not exceed the total fees paid or payable by Customer in the twelve (12) months'), measured against LIABILITY-MSA-001 now ratified FROM the Constitution: MATCH.",
     "evaluator_type": "NUMERIC_COMPARISON",
     "requirement_code": "LIABILITY-MSA-001",
     "legal_rule": null,
@@ -88,11 +88,11 @@
         "evidence_count": 1
       }
     ],
-    "expect_finding_classification": "MATCH",
+    "expect_finding_classification": "UNABLE_TO_EVALUATE",
     "expect_evaluations": [
       {
         "scope_key": "AGGREGATE",
-        "classification": "MATCH",
+        "classification": "UNABLE_TO_EVALUATE",
         "rule_outcome": "NOT_APPLICABLE",
         "evidence_ref_count": 1
       }

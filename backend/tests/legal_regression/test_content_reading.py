@@ -9,6 +9,7 @@ import pytest
 
 from tests.legal_regression.test_legal_regression import _findings, _review
 from tests.test_analysis import build, storage  # noqa: F401 — fixtures
+from tests.test_indemnity_beside_mutual_am311 import section_10_mechanism  # noqa: F401
 
 CODE = "EARLY-TERM-RESTRICTION-MSA-001"
 TERM = ["1. Term", "1.1 The term of this Agreement shall be one (1) year.",
@@ -85,6 +86,8 @@ def test_the_contract_term_is_read_in_everyday_wordings(text, term):
 
 # ------------------------------------------ what WE promise to indemnify (§10)
 INDEMNITY = "INDEMNITY-MSA-001"
+# the §10 mechanism on a copy without `customer_indemnity_only` (AM-380/AM-381 r2)
+pytestmark = pytest.mark.usefixtures("section_10_mechanism")
 THEIRS = ("9.1 The Customer shall, at its sole cost and expense, defend, indemnify and hold "
           "harmless Leapswitch against third-party claims arising from the Customer's "
           "content, its end users' conduct, any breach of the Acceptable Use Policy, "
@@ -388,8 +391,11 @@ def test_the_lawful_floor_alone_leaves_the_cap_as_it_reads(text):
     assert not cap_carved_out(_clauses(text), FLOOR)
 
 
-CAP_17_2 = ("17.2 The total aggregate liability of either Party shall not exceed the total fees "
-            "paid in the twelve (12) months preceding the claim.")
+# our MSA 17.2, the MSA standard's position since AM-380
+CAP_17_2 = ("17.2 Monetary Cap on Liability: the total aggregate liability of Leapswitch shall "
+            "not exceed the total amount actually paid by the Customer to Leapswitch for the "
+            "specific Services giving rise to the claim during the six (6) month period "
+            "immediately preceding the event giving rise to such liability.")
 
 
 @pytest.mark.parametrize("carve, held", [(OUR_17_3, True), (TOS_13, False)])

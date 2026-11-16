@@ -12,9 +12,9 @@
     "ruling": "owner, 2026-09-18 (AM-73) and 2026-11-09 (AM-322) — this standard restates the cited position without changing it",
     "calibration": "35.10 — NOT calibrated against counterparty paper; the mapping terms are the section's own words (data residency; data-residency; residency + india) plus terms the owner approved on 2026-11-11 from our own paper, AM-322 r13 (cross-border transfers; cross-border data transfers; transferred outside + india) (rule 21)."
   },
-  "source_document": "Legal Constitution, Lawyer Review Version L1.16 — docs/02-legal-domain/LEGAL_CONSTITUTION_L1.16.md",
-  "source_clause": "§12",
-  "source_quote": "Data residency is maintained within India for all India-designated services, and sub-processors must be disclosed and bound to obligations no less protective than this policy.",
+  "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025) — MSA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR (Sayan's MSA; same text as the approved July 2025 docx, all_lock.md AM-316)",
+  "source_clause": "11.5 Cross-Border Data Transfers",
+  "source_quote": "If Personal Data is transferred outside the jurisdiction in which it was originally collected (including cross-border transfers from India or the European Economic Area), LeapSwitch shall ensure such transfers are lawful under applicable regulations, including through the use of standard contractual clauses, adequacy decisions, or other recognized mechanisms.",
   "configuration": {
     "document_type": "MSA",
     "constitution": {
@@ -26,8 +26,7 @@
     "expected_presence": "PRESENT",
     "scope_key": "DATA_RESIDENCY",
     "applicability": "REQUIRED",
-    "position_statement": "Data residency is maintained within India for all India-designated services, and sub-processors must be disclosed and bound to obligations no less protective than this policy.",
-    "unacceptable_position": "A vendor or client-facing document with no data-residency commitment for India-designated services, or no defined breach-notification timeline at all.",
+    "position_statement": "If Personal Data is transferred outside the jurisdiction in which it was originally collected (including cross-border transfers from India or the European Economic Area), LeapSwitch shall ensure such transfers are lawful under applicable regulations, including through the use of standard contractual clauses, adequacy decisions, or other recognized mechanisms.",
     "found_clause_for_a_person": true,
     "not_applicable_to": [
       "PRIVACY_POLICY",
@@ -79,5 +78,26 @@
       "favourable_outcome": "ACCEPTABLE",
       "effect_rule": "GOOD_AND_NEUTRAL_ACCEPTED_2026_11_16"
     }
+  },
+  "source_file": "MSA.pdf",
+  "_history": [
+    {
+      "date": "2026-11-16",
+      "record": "AM-380",
+      "source_document_before": "Legal Constitution, Lawyer Review Version L1.16 — docs/02-legal-domain/LEGAL_CONSTITUTION_L1.16.md",
+      "source_clause_before": "§12",
+      "source_quote_before": "Data residency is maintained within India for all India-designated services, and sub-processors must be disclosed and bound to obligations no less protective than this policy.",
+      "configuration_before": {
+        "position_statement": "Data residency is maintained within India for all India-designated services, and sub-processors must be disclosed and bound to obligations no less protective than this policy.",
+        "unacceptable_position": "A vendor or client-facing document with no data-residency commitment for India-designated services, or no defined breach-notification timeline at all."
+      }
+    }
+  ],
+  "msa_alignment": {
+    "record": "AM-380",
+    "date": "2026-11-16",
+    "ruling": "owner, 2026-11-16: \"Do not change the whole Constitution. Only change the points that differ from Sayan's MSA. Sayan's MSA is the final verdict for now — point to point use Sayan's MSA.\" (rule 6 approval for these lock changes; AB-205)",
+    "kind": "DIFFERS — the MSA standard now states Sayan's MSA",
+    "note": "No India-residency commitment: 11.5 permits a lawful transfer. A clause found is still read by a person (AM-322 r11 unchanged); the 'no data-residency commitment' Unacceptable limb is withdrawn for the MSA."
   }
 }

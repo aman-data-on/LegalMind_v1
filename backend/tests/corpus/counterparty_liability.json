@@ -127,7 +127,7 @@
   "covers": [
    "L-11"
   ],
-  "description": "OUTCOME CHANGED 2026-09-08 under AB-14 / AM-43 r4: LIABILITY-MSA-001 is now 12 months of TOTAL fees (Constitution §9), so Linode/Akamai's twelve months of total fees is measured on the SAME basis and MATCHES. (2026-08-19 to 2026-09-08 this asserted UNABLE_TO_EVALUATE against the MSA template's affected-services basis; that history stands in the standard file's _history.) OUTCOME CHANGED 2026-08-19 under owner decision Q3=B (per-type standards); previously MATCH against the global 12-month/total-fees standard. Linode/Akamai's MSA caps at twelve months of TOTAL fees paid; the MSA standard measures fees for the AFFECTED Services (MSA.pdf 17.2). Same number, different quantity: the owner ruling of 2026-08-18 keeps FEES_PAID and FEES_PAID_FOR_AFFECTED_SERVICES distinct, so 45B.4/45C.23 fail closed to UNABLE_TO_EVALUATE and a human decides, rather than reporting a match between incomparable bases. The corpus's third-party MATCH assertion consequently moves to the TOS side (CP-LIAB-01/Vultr remains the deviation specimen; a third-party TOS at twelve months of total fees would MATCH LIABILITY-TOS-001).",
+  "description": "OUTCOME CHANGED 2026-11-16 under AB-205 / AM-380 (owner ruling: our MSA is the final verdict for the MSA standards, point to point; expectation change approved by that ruling): LIABILITY-MSA-001 is now our MSA 17.2 (six months, fees for the affected Services), so twelve months of TOTAL fees is on an incomparable basis and fails closed (45B.4). OUTCOME CHANGED 2026-09-08 under AB-14 / AM-43 r4: LIABILITY-MSA-001 is now 12 months of TOTAL fees (Constitution §9), so Linode/Akamai's twelve months of total fees is measured on the SAME basis and MATCHES. (2026-08-19 to 2026-09-08 this asserted UNABLE_TO_EVALUATE against the MSA template's affected-services basis; that history stands in the standard file's _history.) OUTCOME CHANGED 2026-08-19 under owner decision Q3=B (per-type standards); previously MATCH against the global 12-month/total-fees standard. Linode/Akamai's MSA caps at twelve months of TOTAL fees paid; the MSA standard measures fees for the AFFECTED Services (MSA.pdf 17.2). Same number, different quantity: the owner ruling of 2026-08-18 keeps FEES_PAID and FEES_PAID_FOR_AFFECTED_SERVICES distinct, so 45B.4/45C.23 fail closed to UNABLE_TO_EVALUATE and a human decides, rather than reporting a match between incomparable bases. The corpus's third-party MATCH assertion consequently moves to the TOS side (CP-LIAB-01/Vultr remains the deviation specimen; a third-party TOS at twelve months of total fees would MATCH LIABILITY-TOS-001).",
   "evaluator_type": "NUMERIC_COMPARISON",
   "requirement_code": "LIABILITY-MSA-001",
   "legal_rule": null,
@@ -141,11 +141,11 @@
     "evidence_count": 1
    }
   ],
-  "expect_finding_classification": "MATCH",
+  "expect_finding_classification": "UNABLE_TO_EVALUATE",
   "expect_evaluations": [
    {
     "scope_key": "AGGREGATE",
-    "classification": "MATCH",
+    "classification": "UNABLE_TO_EVALUATE",
     "rule_outcome": "NOT_APPLICABLE",
     "evidence_ref_count": 1
    }
