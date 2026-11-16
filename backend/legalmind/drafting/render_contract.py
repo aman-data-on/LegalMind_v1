@@ -88,6 +88,26 @@ def doc_id(contract_ref: str, version_number: int, model_hash: str) -> str:
     return f"LM-{contract_ref}-v{version_number}-{model_hash[:8]}"
 
 
+#: a footer's document ID, as `doc_id` writes it
+DOC_ID = re.compile(r"LM-[A-Z0-9]+-v\d+-[0-9a-f]{8}")
+_DOC_ID = re.compile(DOC_ID.pattern.encode())
+
+
+def restamp(docx: bytes, version_number: int) -> bytes:
+    """The same file numbered as ``version_number``: every footer's document ID keeps its
+    contract and text hash and takes the new version (a final copy is its own version,
+    S6 — never its source's ID). Nothing else in the file changes."""
+    src, out = zipfile.ZipFile(io.BytesIO(docx)), io.BytesIO()
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as dst:
+        for info in src.infolist():
+            data = src.read(info.filename)
+            if re.fullmatch(r"word/footer\d*\.xml", info.filename):
+                data = _DOC_ID.sub(lambda m: re.sub(
+                    rb"-v\d+-", b"-v%d-" % version_number, m.group(0)), data)
+            dst.writestr(info, data)
+    return out.getvalue()
+
+
 #: a quoted term — double or single curly quotes — and the defining term(s) a numbered
 #: definition opens on
 _Q_OPEN, _Q_CLOSE = "\u201c\u2018", "\u201d\u2019"

@@ -11,3 +11,21 @@
   .ws .ws-replynote.lm-final { flex-wrap: wrap; }
   .ws .ws-replynote.lm-final .ws-replynote__sub { display: block; }
 }
+/* S6: the Final card's files — the PDF itself inline, two downloads, the signing note */
+.lm-final__files { flex-basis: 100%; display: grid; gap: var(--s-4); }
+.lm-final__acts { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.lm-final__preview { border: 1px solid var(--c-line); border-radius: var(--r-card); overflow: hidden; }
+.lm-pdfpages { display: grid; gap: var(--s-2); max-block-size: 640px; overflow-y: auto; padding: var(--s-2); background: var(--c-viewer); }
+.lm-pdfpages__page { display: block; inline-size: 100%; block-size: auto; background: var(--c-surface); }
+.lm-final__note { display: grid; gap: var(--s-2); justify-items: start; }
+.lm-final__notetitle { margin: 0; font-size: var(--t-subsection); line-height: var(--t-subsection-lh); font-weight: 600; }
+.lm-final__notetext {
+  margin: 0; inline-size: 100%; box-sizing: border-box; padding: var(--s-3);
+  white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--font-mono);
+  font-size: var(--t-caption); line-height: var(--t-caption-lh); color: var(--c-text);
+  background: var(--c-page); border-radius: var(--r-card);
+}
+@media (max-width: 899px) {
+  .lm-pdfpages { max-block-size: 480px; }
+  .lm-final__acts .ws-btn { min-height: 44px; }
+}

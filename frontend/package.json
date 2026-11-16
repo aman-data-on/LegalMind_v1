@@ -2,7 +2,7 @@
   "name": "legalmind-frontend",
   "private": true,
   "version": "0.1.0",
-  "description": "LegalMind V1 frontend \u2014 locked Step 52. Next.js + TypeScript (Step 39). shadcn/ui + Tailwind approved for incremental adoption (owner, 2026-09-10) \u2014 see CLAUDE.md \u00a7 UI and UX work for binding terms; no other technology without rule 19 approval.",
+  "description": "LegalMind V1 frontend — locked Step 52. Next.js + TypeScript (Step 39). shadcn/ui + Tailwind approved for incremental adoption (owner, 2026-09-10) — see CLAUDE.md § UI and UX work for binding terms; no other technology without rule 19 approval.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -27,6 +27,7 @@
     "clsx": "^2.1.1",
     "lucide-react": "^1.38.0",
     "next": "16.4.2",
+    "pdfjs-dist": "5.7.284",
     "react": "19.2.0",
     "react-diff-viewer-continued": "4.4.0",
     "react-dom": "19.2.0",

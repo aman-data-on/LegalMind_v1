@@ -706,6 +706,17 @@ class PackageRequest(Body):
     effective_date: date | None = None
 
 
+class ConvertRequest(Body):
+    """S5: convert the client's paper to ours — the person's New-contract ``draft_id``
+    (our template, the deal's answers), ``add_after`` {THEIRS row key → the clause key of
+    ours each unanchored point is added after}; the POST also names the dry run's
+    ``expected_entries_sha256`` (409 STALE_PREVIEW otherwise)."""
+    draft_id: UUID
+    add_after: dict[str, str] = Field(default_factory=dict, max_length=200)
+    expected_entries_sha256: str | None = Field(default=None, min_length=64,
+                                                max_length=64)
+
+
 class ComparisonChoices(Body):
     """Diff-Talk choices for one compared pair — AB-81 / `AM-136`. One request may
     carry many (a reader's earlier in-browser choices, brought over at once)."""

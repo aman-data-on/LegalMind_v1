@@ -21,7 +21,7 @@ import { ApiError, api, describeError } from "@/lib/api";
 import { runStep, useStep } from "@/lib/nextStep";
 import {
   blockerText, clauseName, entryAction, packageApplies,
-  type PackageBlocker, type PackageEntry, type PackagePlan, type SpecialConditions,
+  annexName, type PackageBlocker, type PackageEntry, type PackagePlan, type SpecialConditions,
 } from "@/lib/package";
 import type { Answer } from "@/lib/changes";
 import type { DocumentVersion } from "@/lib/types";
@@ -193,7 +193,7 @@ export function PackageBar({ contractId, plan: changesOnly, canPrepare, canResta
             {amendment ? <>
               A short amendment listing only {changes}, in our amendment template. The signed contract stays in force.
             </> : <>
-              Our contract as we sent it, with {changes} in Special Conditions (Annexure A).
+              Our contract as we sent it, with {changes} in {annexName(inFrame)}.
               {" "}{inFrame ? "The annexure's own precedence sentence, supplied by Legal, says how it ranks against the body." : <>
                 {precedence ? `Clause ${precedence}` : "The order-of-precedence clause"} says Annexure A wins where
                 the two differ.</>}
@@ -239,7 +239,7 @@ export function PackageBar({ contractId, plan: changesOnly, canPrepare, canResta
               {plan.entries.length === 1 ? "this change" : `these ${plan.entries.length} changes`} and the template&rsquo;s
               own clauses and signature blocks.</>
               : <>This makes version {nextVersion}: our contract{restated ? ", restated in full" : " as we sent it"}, plus
-              Special Conditions (Annexure A) with {plan.entries.length === 1 ? "this entry"
+              {annexName(inFrame)} with {plan.entries.length === 1 ? "this entry"
                 : `these ${plan.entries.length} entries`}.</>}
             {" "}It is reviewed like any upload. Nothing goes to the client until you send it.
           </p>
@@ -296,7 +296,7 @@ export function PackageCard({ version, versions, filesOpen }: {
         </h2>
         <p className="ws-replynote__sub">
           {instrument ? `An amendment listing ${n === 1 ? "1 change" : `${n} changes`} to the signed contract`
-            : `Our contract as we sent it, with ${n === 1 ? "1 Special Condition" : `${n} Special Conditions`} (Annexure A)`}
+            : `Our contract as we sent it, with ${n === 1 ? "1 agreed change" : `${n} agreed changes`} in ${annexName(pkg.annex === 2)}`}
           {theirs ? `, answering the client’s version ${theirs.version_number}` : ""}.{" "}
           {version.sent_at ? <strong>Recorded as sent on {formatDate(version.sent_at)}.</strong>
             : filesOpen ? "Legal records the decision on it next."
@@ -306,7 +306,8 @@ export function PackageCard({ version, versions, filesOpen }: {
       {filesOpen || version.sent_at ? (
         <div className="ws-replynote__acts"><ReplyDownloads version={version} pdf="pdf" /></div>
       ) : null}
-      <SpecialConditionsTrace versionId={version.id} count={n} instrument={instrument} />
+      <SpecialConditionsTrace versionId={version.id} count={n} instrument={instrument}
+                              summary={instrument ? undefined : `What is in ${annexName(pkg.annex === 2)} (${n})`} />
     </section>
   );
 }
@@ -318,7 +319,7 @@ type TraceLoad = { kind: "idle" } | { kind: "loading" } | { kind: "ready"; sc: S
 export function SpecialConditionsTrace({ versionId, count, instrument = false, summary }: {
   versionId: string; count: number; instrument?: boolean;
   /** the disclosure's own words — the Final card says "What was agreed (N)" (`AM-318`) */
-  summary?: string;
+  summary?: string | undefined;
 }) {
   const [load, setLoad] = useState<TraceLoad>({ kind: "idle" });
   function read() {

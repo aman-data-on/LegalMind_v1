@@ -311,6 +311,12 @@ IMPLEMENTATION_ADDED_ENDPOINTS: Final[dict[tuple[str, str], str]] = {
     # the change list, the package is written like the reply; its trace a read
     ("GET", f"{API_PREFIX}/contracts/{{contract_id}}/package"): P.DOCUMENT_VIEW,
     ("POST", f"{API_PREFIX}/contracts/{{contract_id}}/package"): P.CONTRACT_UPDATE,
+    # S5: client paper converted to ours (the POST also needs document.upload)
+    ("POST", f"{API_PREFIX}/contracts/{{contract_id}}/convert/preview"): P.DOCUMENT_VIEW,
+    ("POST", f"{API_PREFIX}/contracts/{{contract_id}}/convert"): P.CONTRACT_UPDATE,
+    # S6: the Final card's signing note, gated like the PDF
+    ("GET", f"{API_PREFIX}/document-versions/{{document_version_id}}/signing-note"):
+        P.DOCUMENT_DOWNLOAD,
     # AM-318: the final clean copy — its dry run a read, the copy written like the package
     ("GET", f"{API_PREFIX}/contracts/{{contract_id}}/final-copy"): P.DOCUMENT_VIEW,
     ("POST", f"{API_PREFIX}/contracts/{{contract_id}}/final-copy"): P.CONTRACT_UPDATE,

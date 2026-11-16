@@ -9,7 +9,7 @@
  */
 
 import { PageHeader } from "@/components/page/PageHeader";
-import { ACTION } from "@/lib/labels";
+import { ACTION, CONVERT_COPY } from "@/lib/labels";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -266,8 +266,10 @@ function OurCompany({ questions, local, open, onOpen, children }: {
 /** The early check's answer for one saved version of the draft. */
 type Checked = { version: number; check: DraftCheck | null };
 
-function Drafting({ draftId, step, published, setStep }: {
+function Drafting({ draftId, step, published, setStep, convertFor = null }: {
   draftId: string;
+  /** S5: the client-paper deal these answers convert; Create goes back to it */
+  convertFor?: string | null;
   step: 2 | 3;
   published: PublishedTemplate[];
   setStep: (s: Step) => void;
@@ -403,6 +405,10 @@ function Drafting({ draftId, step, published, setStep }: {
     if (conflict.current || !draft) return;
     setCreating(true); setFailure(null); setCreateProblems([]);
     try {
+      if (convertFor) {        // S5: the deal's Changes tab makes our paper from these answers
+        router.push(`/contracts/${encodeURIComponent(convertFor)}/changes?convert_draft=${encodeURIComponent(draftId)}`);
+        return;
+      }
       const made = await api.createFromDraft(draftId, version.current, name.trim() || undefined);
       router.push(`/contracts/${made.contract_id}`);
     } catch (e) {
@@ -447,7 +453,7 @@ function Drafting({ draftId, step, published, setStep }: {
             onClick={() => { void flush(); setStep(3); setView("details"); }}>Review and create</button>
   ) : (
     <button type="button" className="ws-btn ws-btn--primary" disabled={!ready || creating} onClick={() => void create()}>
-      {creating ? "Creating…" : ACTION.createContract}
+      {creating ? "Creating…" : convertFor ? CONVERT_COPY.convert : ACTION.createContract}
     </button>
   );
 
@@ -619,6 +625,8 @@ export function NewContract() {
   const router = useRouter();
   const params = useSearchParams();
   const draftId = params.get("draft");
+  const convert = params.get("convert");
+  const keep = convert ? `&convert=${encodeURIComponent(convert)}` : "";
   const step: Step = !draftId ? 1 : params.get("step") === "review" ? 3 : 2;
   const [published, setPublished] = useState<PublishedTemplate[] | null>(null);
   const [awaiting, setAwaiting] = useState<TemplateCardData[]>([]);
@@ -631,16 +639,16 @@ export function NewContract() {
 
   const setStep = useCallback((s: Step) => {
     if (!draftId) return;
-    router.push(s === 3 ? `/contracts/new?draft=${draftId}&step=review` : `/contracts/new?draft=${draftId}`);
-  }, [draftId, router]);
+    router.push(s === 3 ? `/contracts/new?draft=${draftId}&step=review${keep}` : `/contracts/new?draft=${draftId}${keep}`);
+  }, [draftId, router, keep]);
 
   async function startDraft(t: PublishedTemplate, client: Counterparty, brand: string | null) {
     const d = await api.createDraft(t.id, client.id, brand);
-    router.push(`/contracts/new?draft=${d.id}`);
+    router.push(`/contracts/new?draft=${d.id}${keep}`);
   }
 
   if (draftId && published) {
-    return <Drafting draftId={draftId} step={step as 2 | 3} published={published} setStep={setStep} />;
+    return <Drafting draftId={draftId} step={step as 2 | 3} published={published} setStep={setStep} convertFor={convert} />;
   }
   return (
     <div className="lm-page nc-start">

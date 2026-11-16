@@ -347,7 +347,9 @@ export interface DocumentVersion {
   reply?: { to_version_id: string; tracked?: number; by_hand?: string[] };
   /** `AM-307` — present only on our final contract: the client's version it answers and
    *  how many Special Conditions (Annexure A) it carries. */
-  package?: { of_version_id: string; special_conditions: number; form?: "changes_only" };
+  package?: { of_version_id: string; special_conditions: number; form?: "changes_only";
+    /** S6: the MSA's Annexure 2 (Agreed Amendments); absent on an Annexure A package */
+    annex?: 2 };
   /** `AM-318` — a final clean copy: the version it was made from, how, and the answers it
    *  carries (each change's place and answer). */
   /** an amendment's first version: the agreed text, copied for reference, never reviewed */
@@ -1529,4 +1531,16 @@ export interface FinalCopyPlan {
   mode: "copy" | "reply" | null;
   of_version?: number;
   agreed: { where: string; answer: string }[];
+}
+
+/** S6 (`FINAL-PACKAGE-SPEC` c4): what the Final card's note says — data the app holds. */
+export interface SigningNote {
+  contract_name: string | null;
+  doc_id: string | null;
+  pages: number;
+  signature_page: number | null;
+  pdf_sha256: string;
+  pdf_name: string;
+  word_name: string | null;
+  signers: { party: string; name: string; designation: string; email: string }[];
 }

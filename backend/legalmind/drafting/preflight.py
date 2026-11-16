@@ -483,6 +483,29 @@ def _pdf(docx_bytes: bytes, pdf: bytes, *, ours: bool,
     return out + (_page_numbers(docx_bytes, pages) if ours else [])
 
 
+def signing_facts(docx_bytes: bytes | None, pdf: bytes) -> tuple[int, int | None,
+                                                                   str | None]:
+    """For the Final card's note (S6): the PDF's page count, the page its execution
+    block opens on (its first words, read from the DOCX; None for paper or when not
+    found) and the document ID its first page's footer prints (None if none)."""
+    import pymupdf
+    with pymupdf.open(stream=pdf, filetype="pdf") as doc:
+        pages = [_norm(page.get_text()) for page in doc]
+    found = render_contract.DOC_ID.search(pages[0]) if pages else None
+    start = None
+    if docx_bytes is not None:
+        import docx
+        body = docx.Document(io.BytesIO(docx_bytes)).element.body
+        for sdt in body.iter(_W + "sdt"):
+            tag = sdt.find(f"{_W}sdtPr/{_W}tag")
+            if tag is not None and tag.get(_W + "val") == "lm:execution":
+                block = _norm(" ".join(_docx_text(p) for p in sdt.iter(_W + "p")))
+                start = block[:60] or None
+                break
+    at = next((i for i, page in enumerate(pages, 1) if start and start in page), None)
+    return len(pages), at, found.group(0) if found else None
+
+
 def _new_page(sdt: etree._Element, pages: list[str]) -> list[Problem]:
     """`AM-307` R-5: the Special Conditions begin on a page of their own — the page
     holding their opening holds nothing of the text just before them."""

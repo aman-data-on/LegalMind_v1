@@ -43,6 +43,7 @@ import { AnalysisPanel } from "./AnalysisPanel";
 import { AskDockLazy } from "./AskDockLazy";
 import { AskIntentProvider } from "./askIntent";
 import { ChangesPane, ReplyNotice, SendOut, useClientChanges } from "./ChangesPane";
+import { ConvertPaper } from "./ConvertPaper";
 import { PackageBar, PackageCard, usePackagePlan, usePreparedEntries } from "./Package";
 import { AmendmentsPanel, GovernedByLink } from "./Amendments";
 import { AMENDMENT_PLACE, packageLine } from "@/lib/package";
@@ -539,7 +540,11 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
       ) : version && changesFeed.enabled && view === "changes" ? (
         <ChangesPane contractId={contract.id} versions={versions} changes={changesFeed}
                      onVersionCreated={() => { setView("document"); openVersion(null); }}
-                     packageBar={pkg.plan ? (onPick: (rowKey: string) => void) => (
+                     packageBar={changeList && !changeList.from && !changeList.template && changeList.can_answer
+                       ? (onPick: (rowKey: string) => void) => (   // S5: client paper → ours
+                         <ConvertPaper contractId={contract.id} draftId={new URLSearchParams(window.location.search).get("convert_draft")} onPick={onPick}
+                                       onConverted={() => { setView("document"); openVersion(null); }} />)
+                       : pkg.plan ? (onPick: (rowKey: string) => void) => (
                        <PackageBar contractId={contract.id} plan={pkg.plan!} onReload={pkg.reload}
                                    canPrepare={!!changeList?.can_answer} onPick={onPick}
                                    canRestate={can(P.LEGAL_APPROVE_CUSTOMIZATION)}
