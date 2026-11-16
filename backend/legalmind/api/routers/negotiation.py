@@ -1302,6 +1302,8 @@ def _package_plan(guard: Guard, contract: M.Contract, form: str = CHANGES_ONLY) 
         stop("BLANKS", gap)              # verifier item 4: never a final with a blank
     if (gap := _unsigned(base)) is not None:
         stop("SIGNATORY_EMAIL", gap)
+    for service in model_.legal_to_supply(base):
+        stop("LEGAL_TO_SUPPLY", legal_gap(service), service=service)
     listed, _, _ = _changes(guard, contract, before.version_number, after.version_number)
     if listed.get("special_conditions_not_applied"):
         return stop("SPECIAL_CONDITIONS_NOT_APPLIED", "The Special Conditions of one "
@@ -1703,6 +1705,12 @@ def _unsigned(base: dict) -> str | None:
             "start the contract again with the signatory's email.")
 
 
+def legal_gap(service: str) -> str:
+    """S4 (spec d2): a service taken whose clause 5.3 delivery cell waits for Legal."""
+    return (f"Clause 5.3 has no delivery wording for {service}. Legal supplies it; "
+            "LegalMind never writes it.")
+
+
 #: why a version that could not be read cannot be the final contract (QA-037's reasons)
 _UNREADABLE = {"PASSWORD_PROTECTED": "Version {n} is a password-protected PDF, so it "
                "cannot be the final contract. Ask the client for a copy without a "
@@ -1734,13 +1742,19 @@ def _final_plan(guard: Guard, contract: M.Contract, storage: StorageBackend) -> 
                         f"{n} point{'s still need' if n != 1 else ' still needs'} "
                         "Legal's decision.")
         if (draft := _generated(db, source)) is not None:
+            waiting: list[str] = []
             try:
-                gap = _unsigned(_basis(db, draft)["base"])
+                base = _basis(db, draft)["base"]
+                gap, waiting = _unsigned(base), model_.legal_to_supply(base)
             except model_.ModelError:
                 gap = ("The signature page could not be rebuilt from the template; a "
                        "person must look at it.")
             if gap is not None:
                 return stop("SIGNATORY_EMAIL", gap)
+            for service in waiting:
+                stop("LEGAL_TO_SUPPLY", legal_gap(service))
+            if waiting:
+                return out
         if source.mime_type == PDF_MIME:
             found = {p.code for p in preflight.pdf_file(storage.get(source.storage_key))}
             for code in sorted(found & preflight.CLIENT_PDF.keys()):

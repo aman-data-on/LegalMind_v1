@@ -68,7 +68,8 @@ CLIENT_FIELDS = {"counterparty_name": ("legal_name", "name"),
                  "counterparty_authority": ("authority_reference",)}
 #: the form's groups by role, so every template asks the client first, ours last
 _ROLE_GROUPS = (("counterparty_", "Client"), ("our_", "Our company"))
-_QUESTION_KEYS = ("type", "class", "allowed", "range", "when", "locked_value")
+_QUESTION_KEYS = ("type", "class", "allowed", "range", "when", "locked_value", "multi",
+                  "columns")
 
 
 _SMALL_WORDS = frozenset({"a", "an", "and", "as", "at", "by", "for", "in", "of", "on",
@@ -299,8 +300,10 @@ def update_draft(draft_id: UUID, body: DraftUpdate,
 def _stand_in(var: dict[str, Any]) -> Any:
     """A value that passes the field's own checks, shown as missing in the preview."""
     kind = var.get("type", "text")
+    if kind == "rows":                         # S4: one line of its columns' stand-ins
+        return [{c["key"]: _stand_in(c) for c in var.get("columns", [])}]
     if var.get("allowed"):
-        return var["allowed"][0]
+        return [var["allowed"][0]] if var.get("multi") else var["allowed"][0]
     # an email stand-in on the reserved .invalid domain (RFC 2606): never deliverable
     return {"bool": False, "int": (var.get("range") or [1])[0] or 1,
             "date": "2000-01-01", "email": "signatory@example.invalid"}.get(

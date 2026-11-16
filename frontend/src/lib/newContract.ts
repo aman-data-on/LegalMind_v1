@@ -13,7 +13,11 @@ export type FieldClass = "M" | "O" | "C" | "AO";
 export interface Question {
   key: string;
   label: string;
-  type?: "text" | "date" | "int" | "bool" | "choice" | "email";
+  type?: "text" | "date" | "int" | "bool" | "choice" | "email" | "rows";
+  /** a choice of several (S4: the services the client takes) — the answer is a list */
+  multi?: boolean;
+  /** a `rows` field's columns (S4: the fee lines) — the answer is a list of objects */
+  columns?: Question[];
   group?: string;
   class?: FieldClass;
   help?: string;
@@ -169,7 +173,11 @@ export function parseDate(text: string): string | null {
 /** ISO → "10/11/2026", the way the form shows it back. */
 export const dateText = (iso: string) => (ISO.test(iso) ? iso.split("-").reverse().join("/") : iso);
 
-const empty = (v: unknown) => v === undefined || v === null || (typeof v === "string" && !v.trim());
+const empty = (v: unknown) => v === undefined || v === null || (typeof v === "string" && !v.trim())
+  || (Array.isArray(v) && v.length === 0);
+/** A whole number typed as text, as the server takes it. */
+const asInt = (q: Question, v: unknown) =>
+  q.type === "int" && typeof v === "string" && /^-?\d+$/.test(v.trim()) ? Number(v) : v;
 /** An answer the contract can use: a date only once it reads as one. */
 export const answered = (q: Question | undefined, v: unknown) =>
   !empty(v) && !(q?.type === "date" && !(typeof v === "string" && ISO.test(v)));
@@ -181,8 +189,10 @@ export function toAnswers(questions: Question[], local: Answers): Answers {
   for (const q of visibleQuestions(questions, local)) {
     const value = local[q.key];
     if (locked(q) || !answered(q, value)) continue;
-    out[q.key] = q.type === "int" && typeof value === "string" && /^-?\d+$/.test(value.trim())
-      ? Number(value) : value;
+    out[q.key] = q.type === "rows" && Array.isArray(value)
+      ? value.map((row: Record<string, unknown>) =>
+        Object.fromEntries((q.columns ?? []).map((c) => [c.key, asInt(c, row[c.key])])))
+      : asInt(q, value);
   }
   return out;
 }
@@ -237,6 +247,7 @@ export function display(q: Question | undefined, value: unknown): string {
     return `${d.getUTCDate()} ${d.toLocaleString("en-GB", { month: "long", timeZone: "UTC" })} ${d.getUTCFullYear()}`;
   }
   if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (Array.isArray(value)) return value.map((v) => display(undefined, v)).join("; ");
   return String(value);
 }
 
@@ -287,3 +298,6 @@ export function splitPoints<T extends { code: string }>(points: T[], known: { co
   const codes = new Set((known ?? []).map((k) => k.code));
   return { fromTemplate: points.filter((p) => codes.has(p.code)), fromDetails: points.filter((p) => !codes.has(p.code)) };
 }
+
+/** A `rows` field's controls (S4: the fee lines). */
+export const ROWS_COPY = { add: "Add a line", remove: "Remove line" } as const;

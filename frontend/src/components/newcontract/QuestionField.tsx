@@ -11,7 +11,7 @@
 
 import { useState, type InputHTMLAttributes } from "react";
 
-import { dateText, display, locked, outsideRange, parseDate, rangeWords, required, type Question } from "@/lib/newContract";
+import { ROWS_COPY, dateText, display, locked, outsideRange, parseDate, rangeWords, required, type Question } from "@/lib/newContract";
 
 export const questionId = (key: string) => `nc-q-${key}`;
 
@@ -77,6 +77,57 @@ export function QuestionField({ q, value, problem, profile, onChange }: {
         <p className="nc-q__fixed">{display(q, q.locked_value)}</p>
         <p className="nc-q__help">Fixed by our template</p>
       </div>
+    );
+  }
+
+  if (q.multi && q.allowed?.length) {          // S4: the services the client takes
+    const chosen = Array.isArray(value) ? value : [];
+    return (
+      <fieldset className="nc-q" id={id} tabIndex={-1} aria-describedby={describedBy}
+                {...(message ? { "aria-invalid": true } : {})}>
+        <legend className="nc-q__label">
+          {q.label}{required(q) ? null : <span className="nc-q__req">Optional</span>}
+        </legend>
+        {helpLine}
+        <div className="nc-q__choices">
+          {q.allowed.map((o) => (
+            <label key={String(o)} className="nc-choice">
+              <input type="checkbox" checked={chosen.includes(o)}
+                     onChange={(e) => onChange(q.key, e.target.checked ? [...chosen, o]
+                       : chosen.filter((x) => x !== o))} />
+              <span>{display(q, o)}</span>
+            </label>
+          ))}
+        </div>
+        {error}
+      </fieldset>
+    );
+  }
+
+  if (q.type === "rows") {                      // S4: one line per fee
+    const rows: Record<string, unknown>[] = Array.isArray(value) ? value : [];
+    const blankRow = () => Object.fromEntries((q.columns ?? []).map((c) => [c.key, ""]));
+    const set = (next: Record<string, unknown>[]) => onChange(q.key, next);
+    return (
+      <fieldset className="nc-q" id={id} tabIndex={-1} aria-describedby={describedBy}
+                {...(message ? { "aria-invalid": true } : {})}>
+        <legend className="nc-q__label">
+          {q.label}{required(q) ? null : <span className="nc-q__req">Optional</span>}
+        </legend>
+        {helpLine}
+        {rows.map((row, i) => (
+          <div key={i} className="nc-q__row">
+            {(q.columns ?? []).map((c) => (
+              <QuestionField key={c.key} q={{ ...c, key: `${q.key}-${i}-${c.key}` }} value={row[c.key]}
+                             onChange={(_, v) => set(rows.map((r, j) => (j === i ? { ...r, [c.key]: v } : r)))} />
+            ))}
+            <button type="button" className="nc-linkbtn" aria-label={`${ROWS_COPY.remove} ${i + 1}`}
+                    onClick={() => set(rows.filter((_, j) => j !== i))}>{ROWS_COPY.remove}</button>
+          </div>
+        ))}
+        <button type="button" className="nc-linkbtn" onClick={() => set([...rows, blankRow()])}>{ROWS_COPY.add}</button>
+        {error}
+      </fieldset>
     );
   }
 

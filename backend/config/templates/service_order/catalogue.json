@@ -1,0 +1,10 @@
+{
+  "_note": "S4 (FINAL-PACKAGE-SPEC d2): the services a client may take under the one MSA (owner 2026-11-11). Names only, no contract wording. Sources already in this codebase: MSA cl. 5.3.1-5.3.3 service lines (VPS Services, Dedicated Servers, CloudPe Instances) and Legal Constitution s.5.1 / New-contract BRAND_LINES (Bare Metal, Colocation, GPU Cloud, Kubernetes). Completeness pending the owner. 'delivery' maps a service to the MSA clause 5.3 sub-clause whose own words start so; every other service is 'Legal to supply' (L4). A template author copies 'services' into the multi-choice field's allowed and 'delivery' into layout.delivery, with the MSA's clause 5 clause_key.",
+  "services": ["VPS", "Dedicated Servers", "CloudPe Instances", "Bare Metal", "Colocation",
+               "GPU Cloud", "Kubernetes"],
+  "delivery": {
+    "VPS": "VPS Services:",
+    "Dedicated Servers": "Dedicated Servers:",
+    "CloudPe Instances": "CloudPe Instances:"
+  }
+}
