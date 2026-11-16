@@ -286,6 +286,11 @@ IMPLEMENTATION_ADDED_ENDPOINTS: Final[dict[tuple[str, str], str]] = {
     # owner or a collaborator (`AM-259` r2) — accepting a position stays the decision
     # endpoint's (`legal.decision`, `AM-250` r2). Mark sent is the owner's (`AM-260`).
     ("GET", f"{API_PREFIX}/contracts/{{contract_id}}/changes"): P.DOCUMENT_VIEW,
+    # R2 S9 (owner, 2026-11-16): the internal review table — preview, then the file
+    ("GET", f"{API_PREFIX}/contracts/{{contract_id}}/changes/review-table"):
+        P.DOCUMENT_VIEW,
+    ("POST", f"{API_PREFIX}/contracts/{{contract_id}}/changes/review-table/export"):
+        P.EXPORT_GENERATE,
     ("POST", f"{API_PREFIX}/contracts/{{contract_id}}/changes/{{row_key}}/answers"):
         P.CONTRACT_UPDATE,
     ("POST", f"{API_PREFIX}/contracts/{{contract_id}}/changes/formatting/keep-ours"):
