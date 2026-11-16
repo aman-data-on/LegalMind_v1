@@ -10,6 +10,13 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-11-16 — Lawyer agent S0–S4: origin labels, lettered points, notes for Legal, review table, benchmark
+
+- **Step 0**: each point on a client's paper says "The client changed this" or "Already in our MSA" (version diff against our version and its review, else the redline's tracked changes; no label when nothing can tell); client changes listed first. New display field `origin` only.
+- **S2**: every change row carries `lawyer` — lettered points (a)…, who each binds and helps, the standards it touches (findings → heading topic → "Legal decides"), mutuality. **S3**: `notes_for_legal` — same figure two ways, reference to a deleted clause, deleted definition, duplicate sentence. Notes, never findings.
+- **S9**: internal review table `GET/POST /contracts/{id}/changes/review-table[/export]` (preview, then DOCX; audited, rate-limited); undecided rows "Not decided yet".
+- **S1**: `tools/lawyer_benchmark.py` scores points against a lawyer review read only from `LEGALMIND_SOURCE_MATERIAL_DIR` (skips when absent). Nothing decides (rules 10/13); no lock touched; no model call.
+
 ### 2026-11-16 — pdfjs-dist 6.2.108; dashboard menu e2e race; convert preselects the client
 
 - `pdfjs-dist` 5.7.284 → **6.2.108** (high advisory affects >=5.6.83 <6.2.108; lowest fixed release, published 2026-07-28). Approved by `AM-278` for the page view; it now also draws the PDF on the S6 Final card (`PdfPages.tsx`, the loading task is destroyed instead of the document). `npm audit --audit-level=high` clean.

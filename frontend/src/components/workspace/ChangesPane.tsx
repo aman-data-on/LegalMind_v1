@@ -52,6 +52,7 @@ import {
   IconAlertCircle, IconArrowLeft, IconBetter, IconCheck, IconChevronRight, IconClock, IconFile, IconFileMinus, IconLock, IconSame, IconWorse, IconFallback,
 } from "./icons";
 import { OfferLine } from "./OfferPlaybook";
+import { LetteredPoints, NotesForLegal, ReviewTableButton } from "./LawyerView";
 import { formatDate } from "@/lib/dates";
 
 export const COLLEAGUE = "Changed by a colleague — reload to see their answer.";
@@ -307,9 +308,11 @@ export function ChangesPane({
         <SegmentedFilter label="For us" value={filter} onChange={setPicked}
                          segments={EFFECT_FILTERS.map((f) => ({ id: f.id, label: <ForUs effect={f.id as EffectForUs} />,
                            text: effectLabel(f.id as EffectForUs), count: counts[f.id] }))} />
+        <ReviewTableButton contractId={contractId} />
         <ReplyBar contractId={contractId} versions={versions} list={data}
                   onVersionCreated={onVersionCreated} onPick={pick} />
       </div>
+      <NotesForLegal list={data} />
       <p className="ws-visually-hidden" role="status" aria-live="polite">{said}</p>
       {packageBar?.(pick)}
       {data.special_conditions_not_applied?.length ? (
@@ -845,6 +848,7 @@ export function AnswerCard({ change, list, contractId, onAnswered, onReload, inP
           ) : null}
         </div>
       ) : null}
+      <LetteredPoints change={change} />
       {change.triage?.reasons.length ? (
         <ul className="cx-reasons">
           {change.triage.reasons.map((r, i) => <li key={i}>{r.reason}</li>)}

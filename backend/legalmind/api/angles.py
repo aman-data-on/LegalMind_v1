@@ -28,7 +28,13 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind import config
-from legalmind.analysis import change_triage, consistency, reading
+from legalmind.analysis import (
+    change_triage,
+    consistency,
+    lawyer_rows,
+    negotiation,
+    reading,
+)
 from legalmind.analysis.client_changes import client_changes
 from legalmind.analysis.negotiation import unit_names
 from legalmind.analysis.service import _review_document_type
@@ -737,6 +743,28 @@ def _proposals(db: DBSession, sections: set[str]) -> dict[str, dict[str, str]]:
 _TYPES = {t.upper() for t in DOCUMENT_TYPES}
 
 
+def _origins(db: DBSession, review: M.Review, clauses: list,
+             actionable: list[dict]) -> dict[str, str]:
+    """Step 0 (owner, 2026-11-16): finding id -> whether the client changed the point or
+    it was already in the paper we sent — by version diff against our previous version
+    (with that version's review), else the redline's own tracked changes. Display only."""
+    version = db.get(M.DocumentVersion, review.document_version_id)
+    versions = list(db.execute(select(M.DocumentVersion).where(
+        M.DocumentVersion.contract_id == review.contract_id)).scalars())
+    try:
+        before = negotiation.our_previous(versions, version) if version else None
+    except negotiation.VersionRoleUndeclared:
+        before = None
+    ours = load_clauses(db, before.id) if before is not None else None
+    changed = lawyer_rows.changed_evidence(ours, clauses)
+    ours_result = None
+    if before is not None and (our_review := negotiation._latest_review(db, before)):
+        ours_result = {r["code"]: r["classification"] for r in _rows(db, our_review)}
+    return {str(r["finding"].id): got for r in actionable
+            if (got := lawyer_rows.origin([str(e) for e in r["evidence_ids"]], r["code"],
+                                          r["classification"], changed, ours_result))}
+
+
 def review_angles(db: DBSession, review: M.Review, *, legal_position: bool) -> dict:
     rows = _rows(db, review)
     document_type = _review_document_type(db, review)
@@ -757,6 +785,11 @@ def review_angles(db: DBSession, review: M.Review, *, legal_position: bool) -> d
         return (not p["risk"], -(p["rupees"] or 0), order, p["requirement_code"])
 
     points.sort(key=rank)
+    origins = _origins(db, review, clauses, actionable) \
+        if review.document_version_id is not None else {}
+    for p in points:
+        if p["finding_id"] in origins:
+            p["origin"] = origins[p["finding_id"]]
     sections = {str((r["standard"].get("constitution") or {}).get("section"))
                 for r in actionable if (r["standard"].get("constitution") or {})
                 .get("section")}
@@ -778,6 +811,8 @@ def review_angles(db: DBSession, review: M.Review, *, legal_position: bool) -> d
                      "action": action(r, wording.get(str(r["finding"].id), {})
                                       .get("kind") == "DRAFTING_LANGUAGE"),
                      "where": _where(r), "evidence_ids": r["evidence_ids"],
+                     **({"origin": o} if (o := origins.get(str(r["finding"].id)))
+                        else {}),
                      "related": _related(r, rows, clauses, facts),
                      **_enforceability(r["code"], legal_position)} for r in actionable),
                    key=lambda item: (_action_rank(item["action"]),

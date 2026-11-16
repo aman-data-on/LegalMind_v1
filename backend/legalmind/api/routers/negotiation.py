@@ -56,6 +56,7 @@ from legalmind import notifications
 from legalmind.analysis import document_comparison, negotiation
 from legalmind.analysis.service import AnalysisNotPermitted
 from legalmind.analysis.version_comparison import ComparisonNotPossible
+from legalmind.api import ratelimit
 from legalmind.api.angles import ACCEPT_FAVOURABLE
 from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
 from legalmind.api.envelope import attachment_headers, data
@@ -65,6 +66,7 @@ from legalmind.api.errors import (
     LegalDecisionRequired,
     ReplyUndecided,
 )
+from legalmind.api.export_render import MEDIA_TYPES, Block, render_docx
 from legalmind.api.routers.decisions import _advance_if_resolved
 from legalmind.api.routers.documents import CHANGED_BY_A_COLLEAGUE, download_name
 from legalmind.api.routers.reviews import held_by, open_review, sent_to_legal
@@ -769,6 +771,91 @@ def mark_sent(document_version_id: UUID, guard: Guard = Depends(get_guard)) -> d
                  after={"sent_at": version.sent_at.isoformat(),
                         "version_number": version.version_number})
     return data(serialize_document_version(version))
+
+
+# ------------------------------------------- R2 S9: the lawyer-style review table
+NOT_DECIDED = "Not decided yet"
+_RECOMMEND = {"accept_theirs": "Accept the client's change",
+              "keep_ours": "Keep our wording — the client's change is not accepted",
+              "use_standard": "Accept with changes — our standard wording",
+              "write_wording": "Accept with changes — our wording"}
+INTERNAL_ONLY = "Internal — for LeapSwitch only. Not to be sent to the client."
+_export_limit: ratelimit.RateLimiter = ratelimit.limiter_from_env()
+TABLE_HEAD = ("Sr", "Clause", "Original", "Requested change", "Updated clause",
+              "Recommendation")
+
+
+def _requested(change: dict) -> str:
+    """The client's change: its lettered points when there are two or more, as a lawyer
+    splits it; else the client's text; "Deleted" for a removed clause."""
+    if change["after"] is None:
+        return "Deleted"
+    lettered = (change.get("lawyer") or {}).get("points") or []
+    if len(lettered) > 1:
+        return "\n".join(f"({p['letter']}) " + (p["after"] or f"Removed: {p['before']}")
+                          for p in lettered)
+    return change["after"]["text"]
+
+
+def _updated(guard: Guard, change: dict, answer: dict | None) -> str:
+    """The clause as the recorded answer leaves it; never a suggestion."""
+    if answer is None:
+        return NOT_DECIDED
+    said = answer["answer"]
+    if said == "accept_theirs":
+        return (change["after"] or {}).get("text") or "Deleted"
+    if said == "keep_ours":
+        return (change["before"] or {}).get("text") or "Removed"
+    if said == "write_wording":
+        return answer.get("wording") or ""
+    cv = guard.db.get(M.ClauseVersion, UUID(answer["clause_version_id"])) \
+        if answer.get("clause_version_id") else None
+    return (clause_text(cv) if cv else None) or "Our standard clause"
+
+
+def review_table(guard: Guard, contract: M.Contract) -> list[tuple[str, ...]]:
+    """One row per client change, the header first: Sr | Clause | Original | Requested
+    change | Updated clause | Recommendation — the recommendation is the answer a person
+    recorded, else "Not decided yet". Internal: never sent to the client as-is."""
+    listed, _, _ = _changes(guard, contract, None, None)
+    rows: list[tuple[str, ...]] = [TABLE_HEAD]
+    for n, change in enumerate(listed["changes"], start=1):
+        answer = change.get("answer")
+        said = NOT_DECIDED if answer is None else _RECOMMEND.get(
+            answer["answer"], NOT_DECIDED) + (
+            f" — {answer['reason']}" if answer.get("reason") else "")
+        rows.append((str(n), negotiation.clause_label(change["clause"]) or "",
+                     (change["before"] or {}).get("text") or "New clause",
+                     _requested(change), _updated(guard, change, answer), said))
+    return rows
+
+
+@router.get("/contracts/{contract_id}/changes/review-table")
+def review_table_preview(contract_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
+    """The table's rows before it is downloaded — the same rows the file holds."""
+    contract = guard.contract_readable(contract_id, P.DOCUMENT_VIEW)
+    head, *body = review_table(guard, contract)
+    return data({"head": list(head), "rows": [list(r) for r in body],
+                 "internal": INTERNAL_ONLY})
+
+
+@router.post("/contracts/{contract_id}/changes/review-table/export")
+def review_table_export(contract_id: UUID, guard: Guard = Depends(get_guard)) -> Response:
+    """The table as a Word file (python-docx, the report's own renderer); audited."""
+    contract = guard.contract_readable(contract_id, P.EXPORT_GENERATE)
+    _export_limit.check(f"export:{guard.user_id}", ratelimit.EXPORT)    # 49.10
+    rows = review_table(guard, contract)
+    title = f"{contract.name} — review of the client's changes"
+    content = render_docx([Block("h1", title), Block("note", INTERNAL_ONLY),
+                           Block("table", "", rows=tuple(rows))])
+    audit.record(guard.db, action=audit.REPORT_EXPORTED, entity_type="contract",
+                 entity_id=contract.id, actor_id=guard.user_id,
+                 request_id=guard.request_id,
+                 after={"format": "docx", "kind": "review_table",
+                        "rows": len(rows) - 1, "size_bytes": len(content)})
+    return Response(content=content, media_type=MEDIA_TYPES["docx"],
+                    headers=attachment_headers(f"{contract.name}-review-table.docx",
+                                               "review-table"))
 
 
 # ------------------------------------------------------------- R6: prepare our reply

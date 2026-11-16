@@ -1336,6 +1336,7 @@ export interface DocumentComparison {
  *  document's own figures; `money` absent when the document states no figure for it. */
 export interface BusinessPoint {
   finding_id: string;
+  origin?: PointOrigin;
   decided?: boolean;
   requirement_code: string;
   headline: string;
@@ -1360,8 +1361,12 @@ interface EnforceabilityNote {
 }
 
 /** One finding a person must act on, with the clauses it read (`AM-152`). */
+/** Step 0 (owner, 2026-11-16): the client's change, or already in the paper we sent. */
+export type PointOrigin = "CLIENT_CHANGED" | "ALREADY_OURS";
+
 export interface LegalItem {
   finding_id: string;
+  origin?: PointOrigin;
   /** AM-179 — the point, and whether a person has decided it (server-built). */
   group_id?: string;
   decided?: boolean;

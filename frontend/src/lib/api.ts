@@ -881,6 +881,23 @@ export const api = {
     request<{ assigned: ReviewAssignments["assigned"] }>(
       p`/reviews/${reviewId}/assignments/${userId}`, { method: "DELETE" }),
 
+  /** R2 S9: the internal review table — preview rows, then the Word file. */
+  reviewTable: (contractId: string) =>
+    request<{ head: string[]; rows: string[][]; internal: string }>(
+      p`/contracts/${contractId}/changes/review-table`),
+  reviewTableFile: async (contractId: string) => {
+    const headers: Record<string, string> = {};
+    const token = csrfToken();
+    if (token) headers[CSRF_HEADER] = token;
+    const response = await fetch(url(p`/contracts/${contractId}/changes/review-table/export`), {
+      method: "POST", headers, credentials: "same-origin",
+    });
+    if (!response.ok) {
+      throw await toApiError(response, response.headers.get("X-Request-Id") ?? "-");
+    }
+    return response.blob();
+  },
+
   /** 49.3's export row (formats per the owner's 2026-08-31 directive). Returns
    *  the rendered file; the caller hands it to the browser as a download. */
   exportReview: async (reviewId: string, format: "pdf" | "docx") => {
