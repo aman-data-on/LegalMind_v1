@@ -191,6 +191,9 @@ NEGOTIATION_ACCEPTED_BY_EFFECT = "negotiation.accepted_by_effect"
 # AM-299 r3: that acceptance carried onto our reply's own Finding — the record itself
 # (evaluation.workflow.OWNER_ACCEPTANCE_CARRIED reads it; a test pins the two equal)
 NEGOTIATION_ACCEPTANCE_CARRIED = "negotiation.acceptance_carried"
+#: Priyen's rule (owner 2026-11-16): a change better / no change for us accepted with no
+#: one's click, recorded when our reply is prepared from it — actor none, never a decision
+NEGOTIATION_AUTO_ACCEPTED = "negotiation.auto_accepted"
 # AM-292 / AM-297: the execution record saved (which fields — never a name), a signed
 # copy's differences accepted by a `legal.decision` holder, and "Mark signed"
 EXECUTION_RECORDED = "contract.execution_recorded"

@@ -50,7 +50,21 @@ FAVOURABLE_DIRECTION = "favourable_direction"
 FAVOURABLE_COUNSEL_CHECK = "favourable_counsel_check"
 APPROVED_FAVOURABLE_RULE = {**APPROVED_ZERO_TOLERANCE_RULE,
                             FAVOURABLE_OUTCOME: "ACCEPTABLE"}
-APPROVED_RULES = (APPROVED_ZERO_TOLERANCE_RULE, APPROVED_FAVOURABLE_RULE)
+#: Priyen's rule (owner "change and update", 2026-11-16, replacing the zero-tolerance
+#: ruling for client changes): what is better for us or no change for us is accepted
+#: without Legal; only what is worse goes to Legal. The Rule Outcome mapping is the
+#: favourable form's — a DEVIATION still reaches ACCEPTABLE only on the declared
+#: favourable side (`AM-239`); `effect_rule` lets a client change "Better for us" / "No
+#: change for us" be accepted automatically (`analysis.negotiation`), never a decision.
+EFFECT_RULE = "effect_rule"
+GOOD_AND_NEUTRAL_ACCEPTED = "GOOD_AND_NEUTRAL_ACCEPTED_2026_11_16"
+OWNER_EFFECT_RULE = {**APPROVED_FAVOURABLE_RULE, EFFECT_RULE: GOOD_AND_NEUTRAL_ACCEPTED}
+APPROVED_RULES = (APPROVED_ZERO_TOLERANCE_RULE, APPROVED_FAVOURABLE_RULE,
+                  OWNER_EFFECT_RULE)
+
+
+def accepts_good_and_neutral(configuration: dict | None) -> bool:
+    return (configuration or {}).get(EFFECT_RULE) == GOOD_AND_NEUTRAL_ACCEPTED
 
 
 def in_our_favour(value, unit: str | None, standard: dict,

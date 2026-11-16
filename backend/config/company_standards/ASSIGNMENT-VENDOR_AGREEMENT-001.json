@@ -64,7 +64,9 @@
     "rule_type": "THRESHOLD",
     "configuration": {
       "deviation_outcome": "UNACCEPTABLE",
-      "unlimited_outcome": "UNACCEPTABLE"
+      "unlimited_outcome": "UNACCEPTABLE",
+      "favourable_outcome": "ACCEPTABLE",
+      "effect_rule": "GOOD_AND_NEUTRAL_ACCEPTED_2026_11_16"
     }
   }
 }

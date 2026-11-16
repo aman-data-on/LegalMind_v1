@@ -586,12 +586,19 @@ def answer_change(contract_id: UUID, body: NegotiationAnswer,
     holder_answer = (body.answer == "accept_theirs"
                      and change["route"] == negotiation.HOLDER and no_finding
                      and P.LEGAL_DECISION in guard.permissions)
+    # Priyen's rule: Legal reopens an automatic acceptance by answering the row itself
+    reopen = (bool((change["answer"] or {}).get("auto"))
+              and body.answer in ("keep_ours", "use_standard")
+              and P.LEGAL_DECISION in guard.permissions)
+    holder_answer = holder_answer or reopen
     wording = body.answer == "write_wording"
     if holder_answer:
         if contract.archived_at is not None:
             raise Conflict("this contract is archived; restore it to make changes")
         if not body.reason:
             raise BusinessRuleRejected(
+                "say why you reopen an automatic acceptance — your reason is the record"
+                if reopen else
                 "say why the client's wording may stand — no standard measures it, so "
                 "your reason is the record")
     else:
@@ -1096,6 +1103,17 @@ def prepare_reply(contract_id: UUID, body: ReplyRequest | None = Body(None),
                         "our_wording": wording, "our_standard": standard,
                         "manual_rows": [{k: m[k] for k in ("row_key", "clause")}
                                         for m in manual]})
+    for change in built["listed"]["changes"]:     # Priyen's rule: the record of each
+        if (change["answer"] or {}).get("auto"):   # automatic acceptance, at the reply
+            audit.record(guard.db, action=audit.NEGOTIATION_AUTO_ACCEPTED,
+                         entity_type="contract", entity_id=contract.id, actor_id=None,
+                         request_id=guard.request_id,
+                         after={"row_key": change["row_key"],
+                                "effect": change["effect_for_us"],
+                                "reason": negotiation.AUTO_REASON,
+                                "from_version_id": str(before.id) if before else None,
+                                "to_version_id": str(after.id),
+                                "reply_version_id": str(version.id)})
     dispatch_indexing(guard.db, version.id, request_id=guard.request_id)
     dispatch_pdf(guard.db, version, "reply", request_id=guard.request_id)
     review = _review_reply(guard, version)

@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from legalmind.evaluation.rule_config import OWNER_EFFECT_RULE
 from tests.legal_regression.test_legal_regression import _findings, _review
 from tests.test_analysis import build, storage  # noqa: F401 — fixtures
 
@@ -40,8 +41,7 @@ def test_every_new_position_quotes_the_canonical_constitution_verbatim(code):
     if cfg.get("unacceptable_position"):
         assert cfg["unacceptable_position"] in text, code
     assert cfg["constitution"]["version"] == "L1.16"
-    assert payload["legal_rule"]["configuration"] == {
-        "deviation_outcome": "UNACCEPTABLE", "unlimited_outcome": "UNACCEPTABLE"}
+    assert payload["legal_rule"]["configuration"] == OWNER_EFFECT_RULE     # AM-383
 
 
 def _one(build, db, code: str, kind: str, *clauses: str) -> str | None:

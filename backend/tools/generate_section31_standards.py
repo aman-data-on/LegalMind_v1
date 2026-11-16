@@ -55,6 +55,7 @@ import sys
 from pathlib import Path
 
 from legalmind.assist.knowledge.positions import RATIFIED_STANDARDS_DIR
+from legalmind.evaluation.rule_config import OWNER_EFFECT_RULE
 
 CONSTITUTION = (Path(__file__).resolve().parents[2]
                 / "docs" / "02-legal-domain" / "LEGAL_CONSTITUTION_L1.10.md")
@@ -390,10 +391,7 @@ def _standard(*, section: str, document_type: str, heading: str, quote: str,
         ],
         "legal_rule": {
             "rule_type": "THRESHOLD",
-            "configuration": {
-                "deviation_outcome": "UNACCEPTABLE",
-                "unlimited_outcome": "UNACCEPTABLE",
-            },
+            "configuration": dict(OWNER_EFFECT_RULE),     # AM-383 (2026-11-16)
         },
     }
     return code, payload
@@ -693,10 +691,7 @@ def _position(code: str, spec: dict, text: str) -> dict:
         ],
         "legal_rule": {
             "rule_type": "THRESHOLD",
-            "configuration": {
-                "deviation_outcome": "UNACCEPTABLE",
-                "unlimited_outcome": "UNACCEPTABLE",
-            },
+            "configuration": dict(OWNER_EFFECT_RULE),     # AM-383 (2026-11-16)
         },
     }
 

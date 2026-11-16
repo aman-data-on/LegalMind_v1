@@ -57,11 +57,14 @@ touching mapping or extraction read `AM-54` (and `AM-60`, which removed its in-f
   create an SLA-typed liability standard. Pinned by `test_an_sla_is_never_measured_against_a_liability_requirement`.
 - MSA §17.2 and §17.7 govern one scope and contradict → `CONFLICT` (fixture `DOC-LIAB-04`).
 
-## The Legal Rule — zero tolerance, plus one approved favour form
+## The Legal Rule — Priyen's rule (`AM-383`–`AM-385`, owner 2026-11-16)
 
-- **Zero tolerance** (manager 2026-08-19, owner-approved and wired 2026-08-20): MATCH →
-  `ACCEPTABLE`; any DEVIATION → `UNACCEPTABLE` → a Legal Decision. Every standard carries
-  `legal_rule.configuration = {"deviation_outcome": "UNACCEPTABLE", "unlimited_outcome": "UNACCEPTABLE"}`.
+- **Priyen's rule** replaces zero tolerance for client changes: Better / No change for us is
+  accepted without a Legal Decision (automatically, audited, Legal may reopen); only Worse,
+  unsure or never-concede goes to Legal. Every standard carries
+  `legal_rule.configuration = {"deviation_outcome": "UNACCEPTABLE", "unlimited_outcome": "UNACCEPTABLE", "favourable_outcome": "ACCEPTABLE", "effect_rule": "GOOD_AND_NEUTRAL_ACCEPTED_2026_11_16"}`.
+  Rule Outcome is unchanged: MATCH → `ACCEPTABLE`; a DEVIATION → `UNACCEPTABLE` except on a
+  declared favourable side (`AM-239`). Never-concede codes: `config/never_concede.json` (Legal supplies).
   No tolerance band exists **by policy**; never ask for or infer a threshold. `AM-33` withdrew
   the band FORM: `acceptable_max`/`approval_required_above` fail closed to a human.
 - **Second approved form, `AM-239`** (2026-10-30): `favourable_outcome: ACCEPTABLE` — a deviation

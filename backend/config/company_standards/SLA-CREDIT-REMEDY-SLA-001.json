@@ -79,12 +79,10 @@
     "rule_type": "PRESENCE",
     "configuration": {
       "deviation_outcome": "UNACCEPTABLE",
-      "unlimited_outcome": "UNACCEPTABLE"
+      "unlimited_outcome": "UNACCEPTABLE",
+      "favourable_outcome": "ACCEPTABLE",
+      "effect_rule": "GOOD_AND_NEUTRAL_ACCEPTED_2026_11_16"
     }
   },
-  "_legal_rule_note": [
-    "APPROVED ZERO-TOLERANCE LEGAL RULE (manager ruling 2026-08-19; owner approval to wire,",
-    "2026-08-20). MATCH -> ACCEPTABLE; ANY deviation -> UNACCEPTABLE -> Legal Decision required.",
-    "No thresholds, no tolerance bands."
-  ]
+  "_legal_rule_note": "PRIYEN'S RULE (owner 'change and update', 2026-11-16; replaces the zero-tolerance ruling of 2026-08-19/20 for client changes). Better for us or no change for us is accepted without a Legal Decision; only what is worse goes to Legal. MATCH -> ACCEPTABLE; a deviation -> UNACCEPTABLE -> Legal, except a deviation on this standard's declared favourable side (favourable_direction, from a source; never with favourable_counsel_check) -> ACCEPTABLE, still a DEVIATION (AM-239). No tolerance bands. effect_rule lets a client change the engine proves better or unchanged for us be accepted automatically, audited, reopenable by Legal."
 }

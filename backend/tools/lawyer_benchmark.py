@@ -55,6 +55,11 @@ def parse_gold(text: str) -> list[dict[str, Any]]:
 def load_points(data: dict[str, Any]) -> list[dict[str, Any]]:
     if isinstance(data.get("points"), list):
         return data["points"]
+    if isinstance(data.get("changes"), list):           # a `negotiation.changes` listing
+        return [{"clauses": [c["clause"]["number"]] if (c.get("clause") or {}).get(
+                    "number") else [], "effect": c.get("effect_for_us"),
+                 "auto": bool((c.get("answer") or {}).get("auto"))}
+                for c in data["changes"]]
     return [{"code": code, "clauses": [c[0] for c in v.get("cited") or ()],
              **({"origin": v["origin"]} if v.get("origin") else {})}
             for code, v in data.items()
@@ -72,13 +77,18 @@ def touches(point: str, gold: str) -> bool:
 def score(gold: list[dict[str, Any]], points: list[dict[str, Any]]) -> dict[str, Any]:
     hit_rows: set[int] = set()
     noise: list[dict[str, Any]] = []
+    rejects = {g["sr"] for g in gold if g["reject"]}
+    auto_on_reject: list[dict[str, Any]] = []
     for p in points:
         rows = {g["sr"] for g in gold
                 if any(touches(c, ref) for c in p["clauses"] for ref in g["clauses"])}
         hit_rows |= rows
+        # Priyen's rule (2026-11-16): a point accepted automatically on a row the lawyer
+        # REJECTED is a false auto-accept — must be zero
+        if p.get("auto") and rows & rejects:
+            auto_on_reject.append({**p, "reject_rows": sorted(rows & rejects)})
         if not rows:
             noise.append(p)
-    rejects = {g["sr"] for g in gold if g["reject"]}
     origins: dict[str, int] = {}
     for p in noise:
         origins[p.get("origin") or "unlabelled"] = \
@@ -87,7 +97,10 @@ def score(gold: list[dict[str, Any]], points: list[dict[str, Any]]) -> dict[str,
             "reject_rows": len(rejects), "reject_rows_touched": len(hit_rows & rejects),
             "points": len(points), "points_on_a_row": len(points) - len(noise),
             "noise": len(noise), "noise_by_origin": origins,
-            "missed_reject_rows": sorted(rejects - hit_rows)}
+            "missed_reject_rows": sorted(rejects - hit_rows),
+            "auto_accepted": sum(bool(p.get("auto")) for p in points),
+            "to_legal": sum(not p.get("auto") for p in points),
+            "auto_on_reject_rows": auto_on_reject}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -113,7 +126,9 @@ def main(argv: list[str] | None = None) -> int:
               f"REJECT rows touched: {result['reject_rows_touched']}/"
               f"{result['reject_rows']}  ·  points on a row: "
               f"{result['points_on_a_row']}/{result['points']}  ·  noise: "
-              f"{result['noise']} {result['noise_by_origin']}")
+              f"{result['noise']} {result['noise_by_origin']}  ·  auto-accepted: "
+              f"{result['auto_accepted']}, to Legal: {result['to_legal']}, auto on a "
+              f"REJECT row: {len(result['auto_on_reject_rows'])}")
     return 0
 
 

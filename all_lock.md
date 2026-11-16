@@ -30519,3 +30519,63 @@ r1  Decided product scope: the Final card offers the PDF for signature, a Word c
     copy-able note. Building on feat/final-package-s5-s6.
 r2  Not amended by AB-193: rules 7, 13, 15, 18, 21; AM-251 r1; SC_TRACE; the append-only audit.
 ```
+
+---
+
+## AMENDMENT BATCH AB-206 — `AM-383`–`AM-385` (2026-11-16): Priyen's rule replaces zero tolerance for client changes
+
+Owner instruction (2026-11-16, explicit approval, rule 6): the owner said **"change and update"** to
+replacing the zero-tolerance Legal Rule with the director's rule. The director (Priyen) wrote: "there
+needs to be a column to say whether its a positive or a negative change; liability cap in MSA 6
+months from constitution 12 month is a positive thing for us; anything that is positive can be
+easily accepted; anything neutral can be accepted without approval; only negative points should
+come for review." Owner standing instruction: when a lock weakens the lawyer agent, design the
+enterprise-best option. IDs scanned AB-206–208, AM-382–387 on main, every worktree and remote branch
+(AM-382 held by feat/sayan-msa-align-20261116).
+
+Locks amended: the zero-tolerance Legal Rule (manager 2026-08-19, owner 2026-08-20; all_lock.md
+AB-6 "Explicitly reaffirmed" line) FOR CLIENT CHANGES ONLY; `AM-33` r1 (one more authorized key);
+`AM-239` r1 (its rule form now on every standard); `AM-299` r1/r2 and `AM-317` r2 (who accepts
+Better / No change). Not amended: `AM-33` r3 for Rule Outcome (a DEVIATION still reaches ACCEPTABLE
+only by `AM-239`); `AM-306` (FALLBACK stays the deal owner's choice); `AM-250`; rules 7, 13, 14,
+15, 18, 21; the five state axes; the append-only audit; SEC-01/02, ROLE-05.
+
+`AM-383` — the new Legal Rule form (amends the zero-tolerance ruling for client changes, `AM-33` r1, `AM-239` r1)
+
+```text
+r1  Old: every standard's legal_rule.configuration = {"deviation_outcome":"UNACCEPTABLE",
+    "unlimited_outcome":"UNACCEPTABLE"} (four with "favourable_outcome":"ACCEPTABLE").
+    New, on every standard file verbatim: {"deviation_outcome":"UNACCEPTABLE",
+    "unlimited_outcome":"UNACCEPTABLE","favourable_outcome":"ACCEPTABLE",
+    "effect_rule":"GOOD_AND_NEUTRAL_ACCEPTED_2026_11_16"} (rule_config.OWNER_EFFECT_RULE).
+    Importer, corpus loader and configuration API accept it; a changed file appends a new
+    version; old snapshots keep the rule they were made under (rule 16).
+r2  Rule Outcome mapping unchanged: MATCH -> ACCEPTABLE; DEVIATION -> UNACCEPTABLE, except
+    AM-239's declared favourable side (a direction from a source, no counsel check, provider
+    paper). favourable_outcome on a standard with no favourable_direction changes nothing.
+r3  Each Finding carries effect_for_us: POSITIVE (a deviation the recorded outcome accepted in
+    our favour), NEUTRAL (MATCH), NEGATIVE (anything else) — a projection, fail closed.
+```
+
+`AM-384` — Better / No change accepted automatically (amends `AM-299` r1/r2, `AM-317` r2)
+
+```text
+r1  A client change POSITIVE or NEUTRAL (AM-299/AM-317 r1 unchanged), with no person's answer,
+    whose client-version Review snapshot pins effect_rule on every Legal Rule, reads as
+    accepted "theirs" by "LegalMind — owner's rule of 2026-11-16" (answer.auto, version 0).
+    Its own recorded outcome: never a Legal Decision, Rule Outcome, Classification or Finding.
+r2  Recorded: audit negotiation.auto_accepted (actor none) per row when our reply is prepared,
+    and negotiation.acceptance_carried (actor none, automatic) onto our reply's Finding.
+r3  Visible in the change list (summary auto_accepted, each answer). A person's answer always
+    beats it. Legal reopens: a holder of legal.decision answers keep_ours / use_standard,
+    reason required, audited as negotiation.holder_answered.
+r4  FALLBACK is not automatic (AM-306 unchanged). NEGATIVE, unsure and never-concede go to Legal.
+```
+
+`AM-385` — the never-concede list (new; Legal to supply)
+
+```text
+r1  backend/config/never_concede.json requirement_codes: a change touching a listed code is a
+    holder's (NEGATIVE, NEVER_CONCEDE) whatever its effect. Starts EMPTY — Legal to supply;
+    nothing invented (rules 7/21).
+```

@@ -39,7 +39,10 @@ export interface AnswerEntry {
   answer: Answer;
   reason: string | null;
   decided_by: string;
-  decided_at: string;
+  /** null on an automatic acceptance (owner's rule of 2026-11-16): nothing written yet */
+  decided_at: string | null;
+  /** the owner's rule of 2026-11-16 accepted it — no one clicked; Legal may reopen */
+  auto?: boolean;
   /** `AM-284`: the lawyer's own wording, and the hash its Legal Decision carries */
   wording?: string | null;
   wording_sha256?: string | null;
