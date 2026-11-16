@@ -49,16 +49,50 @@ export function LetteredPoints({ change }: { change: ClientChange }) {
   );
 }
 
-/** Notes across clauses for Legal: never points, never a status. */
-export function NotesForLegal({ list }: { list: Pick<ChangeList, "notes_for_legal"> }) {
+/** Notes across clauses for Legal: never points, never a status. R3: each clause the
+ *  note names that has a change row is a link to that row (`rowFor`, the pane's own). */
+export function NotesForLegal({ list, rowFor, onPick }: {
+  list: Pick<ChangeList, "notes_for_legal">;
+  rowFor?: (clause: string) => string | null;
+  onPick?: (rowKey: string) => void;
+}) {
   const notes = list.notes_for_legal ?? [];
   if (!notes.length) return null;
   return (
     <details className="cx-banner cx-lawyer__notes">
       <summary>{LAWYER_COPY.notesTitle} ({notes.length})</summary>
       <p className="cx-lawyer__meta">{LAWYER_COPY.notesHelp}</p>
-      <ul>{notes.map((n, i) => <li key={`${n.kind}-${i}`}>{n.text}</li>)}</ul>
+      <ul>{notes.map((n, i) => (
+        <li key={`${n.kind}-${i}`}>
+          {n.text}
+          {n.clauses.map((clause) => {
+            const key = rowFor?.(clause);
+            return key && onPick ? (
+              <button key={clause} type="button" className="ws-escalate__link cx-lawyer__goto"
+                      onClick={() => onPick(key)}>{LAWYER_COPY.goTo} {clause}</button>
+            ) : null;
+          })}
+        </li>
+      ))}</ul>
     </details>
+  );
+}
+
+/** R3: what our ratified standards say on this change, for Legal — the Constitution topic's
+ *  position (sent only to a reader who may see positions, LEGAL-02) and the standards the
+ *  review measured it by. Nothing is written here that the server did not send (rule 21). */
+export function FromOurStandard({ change }: { change: ClientChange }) {
+  const topics = change.triage?.topics ?? [];
+  const s = change.lawyer?.standards;
+  const codes = s?.source === "FINDING" ? s.codes
+    : [...new Set(change.review.after.map((f) => f.requirement_code))];
+  if (!topics.length && !codes.length) return <p className="cx-std cx-std--none">{LAWYER_COPY.standardSilent}</p>;
+  return (
+    <section className="cx-std" aria-label={LAWYER_COPY.fromStandard}>
+      <h4 className="cx-label">{LAWYER_COPY.fromStandard}</h4>
+      {codes.length ? <p className="cx-lawyer__meta">{LAWYER_COPY.measuredBy}: {codes.map((code) => requirementTitle({ code })).join(", ")}.</p> : null}
+      {topics.map((t) => <p key={t.section} className="cx-std__position"><strong>{t.title}.</strong>{t.position ? ` ${t.position}` : null}</p>)}
+    </section>
   );
 }
 
