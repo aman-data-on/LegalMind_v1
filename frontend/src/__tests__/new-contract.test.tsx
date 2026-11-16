@@ -17,7 +17,7 @@ import { ConflictBanner, NoTemplate, saveOnce } from "@/components/newcontract/N
 import { QuestionField } from "@/components/newcontract/QuestionField";
 import { ApiError } from "@/lib/api";
 import {
-  clientFieldError, dateText, display, evaluate, groups, outsideRange, parseDate, profileValue, NO_CLOUDPE_MSA, problemWords, toAnswers, unanswered, unavailable,
+  clientFieldError, dateText, display, evaluate, groups, outsideRange, parseDate, profileValue, ONE_MSA, problemWords, toAnswers, unanswered, unavailable,
   visibleQuestions, type ContractModel, type Draft, type PublishedTemplate, type Question,
 } from "@/lib/newContract";
 
@@ -173,10 +173,10 @@ describe("saving", () => {
 });
 
 describe("no published template", () => {
-  it("says which template, in plain words; CloudPe MSA in the Constitution's words", () => {
+  it("says which template, in plain words; CloudPe uses the one MSA (AM-341)", () => {
     expect(unavailable("NDA", "CLOUDPE", [template()])).toBe("Our CloudPe NDA template is being approved by Legal.");
     expect(unavailable("NDA", "LEAPSWITCH", [template()])).toBeNull();
-    expect(unavailable("MSA", "CLOUDPE", [template({ doc_type: "MSA", brand: "CLOUDPE" })])).toBe(NO_CLOUDPE_MSA);
+    expect(unavailable("MSA", "CLOUDPE", [template({ doc_type: "MSA", brand: "CLOUDPE" })])).toBe(ONE_MSA);
   });
 
   it("offers the upload, and Templates only to who may approve them", () => {

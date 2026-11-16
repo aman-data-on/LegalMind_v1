@@ -575,6 +575,9 @@ test.describe("collapse behavior", () => {
     // And it opens from here, on this tab, without changing tabs.
     await expect(await openAsk(page)).toBeVisible();
     await page.keyboard.press("Escape");
+    // Closing hands focus back to the Ask control one render (or frame) later.
+    // Wait for that hand-back; focusing a tab before it lands lets it steal focus.
+    await expect(launcher).toBeFocused();
 
     // Arrow keys move between tabs — the collapsed state is keyboard-operable.
     await page.getByRole("tab", { name: "Summary", exact: true }).focus();

@@ -17,7 +17,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError, describeError } from "@/lib/api";
 import {
   BRANDS, DOC_TYPES, OURS, answered, checkWords, splitPoints, display, groups, outsideRange, problemWords, profileValue,
-  toAnswers, unanswered, unavailable,
+  toAnswers, unanswered, unavailable, ONE_MSA,
   type Answers, type Draft, type DraftCheck, type DraftPreview, type FieldProblem, type PublishedTemplate, type Question,
 } from "@/lib/newContract";
 import * as P from "@/lib/permissions";
@@ -72,17 +72,13 @@ export function Steps({ step }: { step: Step }) {
 
 /** No published template for this type and brand: say why in plain words, and what to do. */
 export function NoTemplate({ reason, approver, onUpload }: { reason: string; approver: boolean; onUpload: () => void }) {
-  const cloudpe = reason.startsWith("No CloudPe MSA");
   return (
     <div className="nc-blocked" role="status">
       <p className="nc-blocked__why">{reason}</p>
-      <p className="nc-quiet">
-        {cloudpe ? "Choose LeapSwitch for an MSA, or make a CloudPe NDA."
-          : "You can upload a contract instead, or come back once it is published."}
-      </p>
+      <p className="nc-quiet">You can upload a contract instead, or come back once it is published.</p>
       <div className="nc-actions nc-actions--start">
-        {!cloudpe ? <button type="button" className="ws-btn" onClick={onUpload}>Upload a contract</button> : null}
-        {!cloudpe && approver ? <Link className="nc-link" href="/templates">Open Templates</Link> : null}
+        <button type="button" className="ws-btn" onClick={onUpload}>Upload a contract</button>
+        {approver ? <Link className="nc-link" href="/templates">Open Templates</Link> : null}
       </div>
     </div>
   );
@@ -177,7 +173,7 @@ export function StepOne({ published, awaiting, wanted, onStart }: {
           {docType === "MSA" ? (
             <p className="nc-option nc-option--none">
               <span className="nc-item__l1">CloudPe</span>
-              <span className="nc-item__l2">Not available for an MSA. CloudPe services are governed by the published CloudPe Terms of Service.</span>
+              <span className="nc-item__l2">{ONE_MSA} Choose LeapSwitch.</span>
             </p>
           ) : null}
         </div>

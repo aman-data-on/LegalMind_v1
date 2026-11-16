@@ -19,7 +19,7 @@ import {
   templatesFor, within,
   type TemplateCheck, type TemplateSummary,
 } from "@/lib/templates";
-import { BRANDS, DOC_TYPES, unavailable } from "@/lib/newContract";
+import { BRANDS, DOC_TYPES, ONE_MSA, unavailable } from "@/lib/newContract";
 import { UploadContractDialog } from "@/components/workspace/UploadContractDialog";
 import { CardDownload, TemplateCard } from "./TemplateCard";
 import { PageHeader } from "@/components/page/PageHeader";
@@ -166,7 +166,7 @@ export function TemplateLibrary() {
                               </>} />
                             ))}
                           </div>
-                        ) : none?.startsWith("No CloudPe MSA") ? (
+                        ) : none === ONE_MSA ? (
                           <p className="tpl-quiet">{none}</p>
                         ) : (
                           <p className="tpl-lib__none">

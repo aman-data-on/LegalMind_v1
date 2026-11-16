@@ -92,13 +92,12 @@ export const DOC_TYPES = [
 ] as const;
 export const BRANDS = ["LEAPSWITCH", "CLOUDPE"] as const;
 
-/** The Constitution's own words for the one pair that never has a template (`AM-287` r2). */
-export const NO_CLOUDPE_MSA =
-  "No CloudPe MSA; CloudPe services are governed by the published CloudPe Terms of Service.";
+/** One MSA, from the one entity, for every brand (`AM-341` r1): CloudPe has no MSA of its own. */
+export const ONE_MSA = "One MSA from Leapswitch Networks Pvt. Ltd. covers every brand, CloudPe included.";
 
 /** Why a type and brand cannot be made here, in words — or null when a published template exists. */
 export function unavailable(docType: string, brand: string, published: Pick<PublishedTemplate, "doc_type" | "brand">[]): string | null {
-  if (docType === "MSA" && brand === "CLOUDPE") return NO_CLOUDPE_MSA;
+  if (docType === "MSA" && brand === "CLOUDPE") return ONE_MSA;
   if (published.some((t) => t.doc_type === docType && t.brand === brand)) return null;
   return `Our ${brandLabel(brand)} ${docType} template is being approved by Legal.`;
 }
