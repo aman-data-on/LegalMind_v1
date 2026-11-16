@@ -45,3 +45,28 @@ def test_the_other_brand_shown_counts_and_a_regression_fails_the_run():
     now = {"overall": {"recall@3": 0.9, "wrong_brand": 0.2, "cases": 50}}
     assert hb.regressions(now, base) == ["wrong_brand 0.0 -> 0.2"]
     assert hb.regressions(base, base) == []
+
+
+def test_real_question_turn_checks_grounding_only():
+    turn = {"gold": [["PUB:PUBLISHED_SLA_*"]],
+            "must_show": [r"99\.0%\s*\|\s*(15|5)%"],
+            "must_not_show": [r"10%\s*/\s*25%\s*/\s*50%"]}
+    shown = ["PUB:PUBLISHED_SLA_CLOUDPE:Issuance of Service Credits"]
+    assert hb.check_turn(turn, shown, "Less than 99.9% but ≥ 99.0% | 5%") == []
+    fails = hb.check_turn(turn, ["CONST:11"], "a schedule of 10% / 25% / 50%")
+    assert len(fails) == 3
+
+
+def test_a_failing_real_turn_regresses_unless_the_baseline_has_it_failing():
+    now = {"overall": {}, "real": {"R01.2": ["x"]}}
+    assert hb.regressions(now, {"overall": {}}) == ["real R01.2: x"]
+    assert hb.regressions(now, {"overall": {}, "real": {"R01.2": ["x"]}}) == []
+
+
+def test_real_questions_dataset_is_well_formed():
+    chats = json.loads(hb.REAL.read_text())["chats"]
+    turns = [t for c in chats for t in c["turns"]]
+    assert len({t["id"] for t in turns}) == len(turns)
+    for t in turns:
+        for p in t.get("must_show", []) + t.get("must_not_show", []):
+            re.compile(p)
