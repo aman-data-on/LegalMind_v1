@@ -54,3 +54,63 @@ describe("convert to our paper (S5)", () => {
     expect(html).toContain(CONVERT_COPY.checking);
   });
 });
+
+vi.mock("@/components/Toast", () => ({ toast: vi.fn(), toastFailure: () => () => undefined }));
+vi.mock("@/components/workspace/findingsState", () => ({ useFindingsStateOptional: () => null }));
+
+import { toast } from "@/components/Toast";
+import { ConvertBody } from "@/components/workspace/ConvertPaper";
+import { FinalCard, copyNote } from "@/components/workspace/FinalCopy";
+import type { ConvertPlan } from "@/lib/package";
+import type { DocumentVersion } from "@/lib/types";
+
+describe("the Final card (S6)", () => {
+  it("offers the PDF for signature and the Word copy, the PDF first", () => {
+    const v = { id: "v2", version_number: 2, mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      final_copy: { of_version_id: "v1", mode: "copy", agreed: [] } } as unknown as DocumentVersion;
+    const html = renderToStaticMarkup(<FinalCard version={v} versions={[v]} since="2026-11-16T10:00:00Z" />);
+    expect(html).toContain("Final contract ready for signature");
+    expect(html.indexOf("PDF for signature")).toBeLessThan(html.indexOf("Word copy (not for signing)"));
+    const pdfOnly = renderToStaticMarkup(<FinalCard version={{ ...v, mime_type: "application/pdf" } as DocumentVersion}
+                                                    versions={[v]} since="2026-11-16T10:00:00Z" />);
+    expect(pdfOnly).not.toContain("Word copy");
+  });
+  it("Copy writes the note to the clipboard and confirms it", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    expect(await copyNote("the note")).toBe(true);
+    expect(writeText).toHaveBeenCalledWith("the note");
+    expect(toast).toHaveBeenCalledWith(FINAL_CARD.copied);
+    vi.stubGlobal("navigator", { clipboard: { writeText: vi.fn().mockRejectedValue(new Error("no")) } });
+    expect(await copyNote("the note")).toBe(false);
+    vi.unstubAllGlobals();
+  });
+});
+
+describe("the conversion's dry run (S5)", () => {
+  const plan: ConvertPlan = {
+    available: false, entries: [], precedence: null, entries_sha256: "x",
+    blockers: [
+      { code: "ANCHOR_REQUIRED", row_key: "r1", message: "This point has no clause of our contract to go with — choose the clause it is added after." },
+      { code: "UNDEFINED_TERM", row_key: "r2", message: "Their text uses “Service Provider”, a term our contract does not define — Legal writes our wording instead." }],
+    choices: [{ key: "K1", number: "4.2", heading: null }, { key: "K2", number: "5", heading: "Fees" }],
+  };
+  it("lists every blocker and asks where an unanchored point goes", () => {
+    const html = renderToStaticMarkup(<ConvertBody plan={plan} addAfter={{}} busy={false} onPick={() => {}}
+                                                   setAnchor={() => {}} onConvert={() => {}} />);
+    expect(html).toContain(CONVERT_COPY.blocked);
+    expect(html).toContain("choose the clause it is added after");
+    expect(html).toContain("Service Provider");
+    expect(html).toContain(CONVERT_COPY.addAfter);
+    expect(html.match(/<select/g)).toHaveLength(1);          // only the unanchored row
+    expect(html).toContain('<option value="K2">Clause 5, Fees</option>');
+    expect(html).not.toContain(CONVERT_COPY.convert);        // not available: no button
+  });
+  it("offers the conversion once nothing blocks", () => {
+    const html = renderToStaticMarkup(<ConvertBody plan={{ ...plan, available: true, blockers: [], entries: [
+      { n: 1, op: "replace", text: "t", target: { key: "K2", number: "5", heading: "Fees" }, answer: "accept_theirs" }] }}
+      addAfter={{}} busy={false} onPick={() => {}} setAnchor={() => {}} onConvert={() => {}} />);
+    expect(html).toContain("1 point carries over:");
+    expect(html).toContain(CONVERT_COPY.convert);
+  });
+});

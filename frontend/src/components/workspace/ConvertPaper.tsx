@@ -81,7 +81,8 @@ export function ConvertPaper({ contractId, draftId, onPick, onConverted }: {
   );
 }
 
-function ConvertBody({ plan, addAfter, busy, onPick, setAnchor, onConvert }: {
+/** The dry run said in plain words — exported for the test. */
+export function ConvertBody({ plan, addAfter, busy, onPick, setAnchor, onConvert }: {
   plan: ConvertPlan; addAfter: Record<string, string>; busy: boolean;
   onPick: (rowKey: string) => void; setAnchor: (row: string, key: string) => void; onConvert: () => void;
 }) {

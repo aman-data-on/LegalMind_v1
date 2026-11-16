@@ -85,6 +85,17 @@ def test_unanchored_needs_a_pick(placeholder, answers):
                                                                 "4.2A")
 
 
+def test_an_anchor_wins_over_a_pick(placeholder, answers):
+    got = _derive(placeholder, answers, [_row("accept_theirs", add_after="CLAUSE_C_2")])
+    assert [(e["op"], e["target"]["number"]) for e in got["entries"]] == [("replace", "5")]
+
+
+def test_an_accepted_point_with_no_text_blocks(placeholder, answers):
+    got = _derive(placeholder, answers, [_row("accept_theirs", "14.2 ")])
+    assert [b["code"] for b in got["blockers"]] == ["CANNOT_EXPRESS"]
+    assert got["entries"] == []
+
+
 def test_anchor_scoped_to_the_template(placeholder, answers):
     got = _derive(placeholder, answers, [_row("accept_theirs", anchor="OTHER.TEMPLATE")])
     assert [b["code"] for b in got["blockers"]] == ["ANCHOR_REQUIRED"]

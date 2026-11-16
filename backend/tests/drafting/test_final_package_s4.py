@@ -184,8 +184,11 @@ def test_adding_annexure_1_leaves_the_body_unchanged(placeholder, answers):
 
 
 def test_catalogue_and_import_check(placeholder):
-    assert CATALOGUE["services"][:3] == ["VPS", "Dedicated Servers", "CloudPe Instances"]
-    assert len(set(CATALOGUE["services"])) == len(CATALOGUE["services"]) == 13
+    assert CATALOGUE["services"] == [
+        "VPS", "Dedicated Servers", "CloudPe Instances", "Dedicated GPU Servers",
+        "GPU Cloud", "Kubernetes", "Object Storage", "Networking", "Colocation",
+        "Managed Services", "Backup & Disaster Recovery", "Migration Services",
+        "Consultation"]
     assert "Bare Metal" not in CATALOGUE["services"]  # = Dedicated Servers (site wording)
     assert set(CATALOGUE["delivery"]) == {"VPS", "Dedicated Servers",
                                           "CloudPe Instances"}

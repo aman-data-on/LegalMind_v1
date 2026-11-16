@@ -335,6 +335,8 @@ def derive(changes: list[dict], old: list[dict], new: list[dict],
                       "would not read exactly — choose a clause to add it after.")
                 continue
             if not (text or "").strip():
+                block(change, "CANNOT_EXPRESS", "This accepted point has no text to "
+                      "carry over — a person must look at it.")
                 continue
             entries.append({
                 "row_key": change["row_key"], "answer": answer,
@@ -434,16 +436,16 @@ _XREF = re.compile(r"\b(?:clause|section|article|paragraph|schedule|annexure|"
 
 def _theirs_target(change: Mapping[str, Any], by_key: Mapping[str, dict]
                    ) -> tuple[dict | None, bool]:
-    """A THEIRS row's place in OUR contract (S5): the person's pick ("add after", a
-    target key) first, else its anchor — the clause realising its requirement — only
-    when that clause is in this contract (scoped to the template).
+    """A THEIRS row's place in OUR contract (S5): its anchor — the clause realising its
+    requirement — when that clause is in this contract (scoped to the template); else
+    the person's pick ("add after", a target key).
     ``(target, picked)``."""
-    picked = by_key.get(change.get("add_after") or "")
-    if picked is not None:
-        return picked, True
     left = ((change.get("anchor") or {}).get("left_key") or "")
     key = left.split(":", 1)[1] if left.startswith("clause:") else None
-    return by_key.get(key or ""), False
+    if (anchored := by_key.get(key or "")) is not None:
+        return anchored, False            # the anchor wins: a pick is for the unanchored
+    picked = by_key.get(change.get("add_after") or "")
+    return picked, picked is not None
 
 
 def _terms(model: Mapping[str, Any]) -> set[str]:

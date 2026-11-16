@@ -25,6 +25,7 @@
  */
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { chainAnalysis } from "@/lib/analysisChain";
@@ -110,6 +111,7 @@ function initialView(): "document" | "changes" {
 }
 
 export function WorkspacePage({ contractId }: { contractId: string }) {
+  const params = useSearchParams();            // S5: ?convert_draft= back from New contract
   const { can, identity } = useSession();
   const [state, setState] = useState<Load>({ kind: "loading" });
   const [view, setView] = useState(initialView);
@@ -542,7 +544,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
                      onVersionCreated={() => { setView("document"); openVersion(null); }}
                      packageBar={changeList && !changeList.from && !changeList.template && changeList.can_answer
                        ? (onPick: (rowKey: string) => void) => (   // S5: client paper → ours
-                         <ConvertPaper contractId={contract.id} draftId={new URLSearchParams(window.location.search).get("convert_draft")} onPick={onPick}
+                         <ConvertPaper contractId={contract.id} draftId={params.get("convert_draft")} onPick={onPick}
                                        onConverted={() => { setView("document"); openVersion(null); }} />)
                        : pkg.plan ? (onPick: (rowKey: string) => void) => (
                        <PackageBar contractId={contract.id} plan={pkg.plan!} onReload={pkg.reload}

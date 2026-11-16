@@ -210,6 +210,17 @@ function FinalFiles({ version }: { version: Pick<DocumentVersion, "id" | "mime_t
   );
 }
 
+/** Writes the note to the clipboard and says so; false when the browser refuses. */
+export async function copyNote(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    toast(FINAL_CARD.copied);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 type NoteLoad = { kind: "loading" } | { kind: "ready"; text: string } | { kind: "error"; error: unknown };
 
 /** The copy-able note — read once the PDF is made, so its facts are that PDF's. */
@@ -226,12 +237,7 @@ export function SigningNoteBox({ versionId }: { versionId: string }) {
   }, [versionId, attempt]);
   async function copy(text: string) {
     setCopyError(false);
-    try {
-      await navigator.clipboard.writeText(text);
-      toast(FINAL_CARD.copied);
-    } catch {
-      setCopyError(true);
-    }
+    if (!(await copyNote(text))) setCopyError(true);
   }
   return (
     <section className="lm-final__note" aria-labelledby="lm-final-note">
