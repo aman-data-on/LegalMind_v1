@@ -25,6 +25,7 @@
  */
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { chainAnalysis } from "@/lib/analysisChain";
@@ -43,6 +44,7 @@ import { AnalysisPanel } from "./AnalysisPanel";
 import { AskDockLazy } from "./AskDockLazy";
 import { AskIntentProvider } from "./askIntent";
 import { ChangesPane, ReplyNotice, SendOut, useClientChanges } from "./ChangesPane";
+import { ConvertPaper } from "./ConvertPaper";
 import { PackageBar, PackageCard, usePackagePlan, usePreparedEntries } from "./Package";
 import { AmendmentsPanel, GovernedByLink } from "./Amendments";
 import { AMENDMENT_PLACE, packageLine } from "@/lib/package";
@@ -109,6 +111,7 @@ function initialView(): "document" | "changes" {
 }
 
 export function WorkspacePage({ contractId }: { contractId: string }) {
+  const params = useSearchParams();            // S5: ?convert_draft= back from New contract
   const { can, identity } = useSession();
   const [state, setState] = useState<Load>({ kind: "loading" });
   const [view, setView] = useState(initialView);
@@ -539,7 +542,11 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
       ) : version && changesFeed.enabled && view === "changes" ? (
         <ChangesPane contractId={contract.id} versions={versions} changes={changesFeed}
                      onVersionCreated={() => { setView("document"); openVersion(null); }}
-                     packageBar={pkg.plan ? (onPick: (rowKey: string) => void) => (
+                     packageBar={changeList && !changeList.from && !changeList.template && changeList.can_answer
+                       ? (onPick: (rowKey: string) => void) => (   // S5: client paper → ours
+                         <ConvertPaper contractId={contract.id} draftId={params.get("convert_draft")} onPick={onPick}
+                                       onConverted={() => { setView("document"); openVersion(null); }} />)
+                       : pkg.plan ? (onPick: (rowKey: string) => void) => (
                        <PackageBar contractId={contract.id} plan={pkg.plan!} onReload={pkg.reload}
                                    canPrepare={!!changeList?.can_answer} onPick={onPick}
                                    canRestate={can(P.LEGAL_APPROVE_CUSTOMIZATION)}

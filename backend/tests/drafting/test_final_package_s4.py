@@ -23,7 +23,11 @@ from legalmind.drafting import model as model_
 from legalmind.drafting import render_contract as R
 from legalmind.ingestion.parsing import parse_docx
 from tests.conftest import sign_in
-from tests.drafting.test_special_conditions import _imported, lawyer  # noqa: F401
+from tests.drafting.test_special_conditions import (  # noqa: F401 — fixtures
+    _imported,
+    lawyer,
+    negotiated,
+)
 from tools import import_template as T
 
 V1 = "/api/v1"
@@ -180,9 +184,12 @@ def test_adding_annexure_1_leaves_the_body_unchanged(placeholder, answers):
 
 
 def test_catalogue_and_import_check(placeholder):
-    assert CATALOGUE["services"] == ["VPS", "Dedicated Servers", "CloudPe Instances",
-                                     "Bare Metal", "Colocation", "GPU Cloud",
-                                     "Kubernetes"]
+    assert CATALOGUE["services"] == [
+        "VPS", "Dedicated Servers", "CloudPe Instances", "Dedicated GPU Servers",
+        "GPU Cloud", "Kubernetes", "Object Storage", "Networking", "Colocation",
+        "Managed Services", "Backup & Disaster Recovery", "Migration Services",
+        "Consultation"]
+    assert "Bare Metal" not in CATALOGUE["services"]  # = Dedicated Servers (site wording)
     assert set(CATALOGUE["delivery"]) == {"VPS", "Dedicated Servers",
                                           "CloudPe Instances"}
     t, c = _with_annexure_1(placeholder)
@@ -264,3 +271,67 @@ def test_a_draft_records_the_brand_the_client_buys(db, api, user, seeded, placeh
         "answers": {}, "expected_version": plain["version"], "brand": "CLOUDJIFFY"})
     assert moved.status_code == 200, moved.text
     assert moved.json()["data"]["brand"] == "CLOUDJIFFY"
+
+
+@pytest.mark.parametrize(("brand", "issuing"), [("CLOUDPE", "CLOUDPE"),
+                                                 ("CLOUDJIFFY", None)])
+def test_create_sets_the_issuing_brand_from_the_draft(db, api, user, seeded, placeholder,
+                                                      lawyer, monkeypatch, tmp_path,
+                                                      brand, issuing):
+    """S4 addendum (c): Create carries the draft's brand to the contract's issuing
+    entity where the contracts CHECK allows it (LEAPSWITCH / CLOUDPE), else null."""
+    from legalmind.api.storage import get_storage
+    from legalmind.ingestion.storage import LocalFilesystemStorage
+    monkeypatch.delenv("LEGALMIND_SOFFICE", raising=False)
+    t, c = _with_annexure_1(placeholder)
+    tv = _imported(db, user, (t, c))
+    tv.brand = "LEAPSWITCH"
+    library._rehash(db, tv)
+    db.add(M.ConfigurationSnapshot(snapshot_hash=uuid.uuid4().hex, created_by=user.id,
+                                   created_at=datetime.now(UTC) - timedelta(days=1)))
+    db.flush()
+    sign_in(api, db, lawyer)
+    for pin in library.pins(tv):
+        api.post(f"{V1}/templates/{tv.id}/clauses/{pin['clause_key']}/approve")
+    tid = api.post(f"{V1}/templates/{tv.id}/publish").json()["data"]["id"]
+    storage = LocalFilesystemStorage(tmp_path / "objects")
+    api.app.dependency_overrides[get_storage] = lambda: storage
+    try:
+        draft = api.post(f"{V1}/drafts", json={
+            "template_version_id": tid, "brand": brand,
+            "answers": dict(t["layout"]["check_values"])}).json()["data"]
+        made = api.post(f"{V1}/drafts/{draft['id']}/create", json={"expected_version": 0})
+        assert made.status_code == 201, made.text
+        contract = db.get(M.Contract, uuid.UUID(made.json()["data"]["contract_id"]))
+        assert contract.issuing_entity == issuing
+    finally:
+        api.app.dependency_overrides.pop(get_storage, None)
+
+
+# ------------------------------------------- the package path stops on LEGAL_TO_SUPPLY
+@pytest.fixture
+def sc_template(db, api, user, seeded, placeholder, lawyer, monkeypatch):
+    """Annexure 2's shape (S3, a test-only approved frame) plus the TEST-ONLY Annexure 1,
+    the contract taking VPS and Colocation (no 5.3 wording)."""
+    from tests.drafting.test_final_package_s3 import _publish, _test_frame
+    monkeypatch.delenv("LEGALMIND_SOFFICE", raising=False)
+    t, c = _with_annexure_1(placeholder)
+    t["layout"]["check_values"] = _answers(t["layout"]["check_values"],
+                                           ("VPS", "Colocation"))
+    return _publish(db, api, user, (t, c), lawyer, _test_frame())
+
+
+def test_the_package_stops_on_legal_to_supply(db, api, negotiated):
+    """g5 on the package path (API): the dry run names the service; POST is 409."""
+    contract, _, _, _ = negotiated
+    url = f"{V1}/contracts/{contract.id}/package"
+    dry = api.get(url).json()["data"]
+    stops = [b for b in dry["blockers"] if b["code"] == "LEGAL_TO_SUPPLY"]
+    assert dry["available"] is False
+    assert [b["service"] for b in stops] == ["Colocation"], dry["blockers"]
+    assert stops[0]["message"] == ("Clause 5.3 has no delivery wording for Colocation. "
+                                   "Legal supplies it; LegalMind never writes it.")
+    refused = api.post(url, json={"expected_entries_sha256": dry["entries_sha256"]})
+    assert refused.status_code == 409
+    assert refused.json()["error"]["code"] == "PACKAGE_NOT_READY"
+    assert "LEGAL_TO_SUPPLY" in {b["code"] for b in refused.json()["error"]["blockers"]}

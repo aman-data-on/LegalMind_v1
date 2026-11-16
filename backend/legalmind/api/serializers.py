@@ -429,6 +429,9 @@ def serialize_document_version(dv: M.DocumentVersion) -> dict[str, Any]:
                         # AM-310: a changes-only amendment instrument says so
                         **({"form": "changes_only"}
                            if (dv.doc_metadata or {}).get("amendment") else {}),
+                        # S6: Annexure 2 (Agreed Amendments) — absent on Annexure A
+                        **({"annex": 2} if ((dv.doc_metadata or {}).get(
+                            "special_conditions") or {}).get("annex") == 2 else {}),
                         # AM-308: the earlier final contract this one replaces
                         **({"supersedes": (dv.doc_metadata or {})["supersedes"]}
                            if (dv.doc_metadata or {}).get("supersedes") else {})}}

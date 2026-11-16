@@ -14,7 +14,7 @@
  */
 
 import type { AcceptableEffect, Answer, ChangeList, ClientChange, ManualRow, PreparedReply, ReplyGate } from "./changes";
-import type { PackageBlocker, PackageForm, PackagePlan, PreparedPackage, SpecialConditions } from "./package";
+import type { ConvertPlan, PackageBlocker, PackageForm, PackagePlan, PreparedPackage, SpecialConditions } from "./package";
 import type { Playbook } from "./playbook";
 import type { ClauseVersionRow, OutlineLine, TemplateCheck, TemplateDetail, TemplateSummary } from "./templates";
 import type { Answers, Created, Draft, DraftCheck, DraftPreview, FieldProblem, PublishedTemplate } from "./newContract";
@@ -72,7 +72,7 @@ import type { FinalCopyPlan,
 /** AB-12 r3 — which deals a list is about. */
 export type ContractScope = "own" | "department" | "legal";
 
-import type { EvidenceRow } from "./types";
+import type { EvidenceRow, SigningNote } from "./types";
 import type { ExecutionFields, ExecutionState } from "./execution";
 
 export const API_BASE = "/api/v1";
@@ -770,6 +770,18 @@ export const api = {
     request<Contract & { starts_empty?: string }>(p`/contracts/${contractId}/amendments`, { method: "POST" }),
   /** `AM-309`: the text in force — 409 before signing, the byte-identical 404 when unreadable */
   effectiveText: (contractId: string) => request<EffectiveText>(p`/contracts/${contractId}/effective`),
+  /** S6: the Final card's copy-able note; 202 while the PDF is being made */
+  signingNote: (versionId: string) =>
+    request<SigningNote>(p`/document-versions/${versionId}/signing-note`),
+  /** S5: client paper → our paper. The dry run writes nothing; the POST names it. */
+  convertPreview: (contractId: string, draftId: string, addAfter: Record<string, string>) =>
+    request<ConvertPlan>(p`/contracts/${contractId}/convert/preview`, {
+      method: "POST", body: { draft_id: draftId, add_after: addAfter } }),
+  convert: (contractId: string, draftId: string, addAfter: Record<string, string>,
+            entriesSha256: string) =>
+    request<PreparedPackage>(p`/contracts/${contractId}/convert`, {
+      method: "POST", body: { draft_id: draftId, add_after: addAfter,
+                              expected_entries_sha256: entriesSha256 } }),
   specialConditions: (versionId: string) =>
     request<SpecialConditions>(p`/document-versions/${versionId}/special-conditions`),
   markSent: (versionId: string) =>

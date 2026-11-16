@@ -15,9 +15,11 @@ import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 
 export function LegalOnly({ children }: { children: React.ReactNode }) {
-  const { can } = useSession();
+  const { can, loading } = useSession();
   const router = useRouter();
   const allowed = can(P.LEGAL_REVIEW);
-  useEffect(() => { if (!allowed) router.replace("/contracts"); }, [allowed, router]);
+  // until the session has loaded nobody holds anything; sending them away then bounced
+  // Legal too (CI 2026-11-16, legacy-redirects)
+  useEffect(() => { if (!loading && !allowed) router.replace("/contracts"); }, [loading, allowed, router]);
   return allowed ? <>{children}</> : <LoadingState label="Opening Contracts…" />;
 }

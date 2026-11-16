@@ -273,6 +273,10 @@ def derive(changes: list[dict], old: list[dict], new: list[dict],
             return t, p
         return None, None
 
+    from legalmind.drafting.model import defined_terms
+    by_key = {t["key"]: t for t in by_number.values()}
+    ours_terms, their_terms = _terms(model), {
+        t for u in new for line in u["texts"] for t in defined_terms(line)}
     ours_eid = {u["evidence_ids"][0]: i for i, u in enumerate(old) if u["evidence_ids"]}
     theirs_eid = {u["evidence_ids"][0]: j for j, u in enumerate(new) if u["evidence_ids"]}
     anchor_of: dict[int, int | None] = {}
@@ -306,10 +310,46 @@ def derive(changes: list[dict], old: list[dict], new: list[dict],
             else (None, None)
         if kind == "ADDED":
             was = None                           # an addition is new, whatever its anchor
+        if kind == "THEIRS":                     # S5: client paper converted to ours
+            target, picked = _theirs_target(change, by_key)
+            about[change["row_key"]] = (target, None)
+            if answer in (None, "keep_ours", "use_standard"):
+                continue     # our standard IS the template's clause: nothing to list
+            if target is None:
+                block(change, "ANCHOR_REQUIRED", "This point has no clause of our "
+                      "contract to go with — choose the clause it is added after.")
+                continue
+            if answer == "accept_theirs":
+                said = (change.get("after") or {}).get("text", "")
+                text: str | None = _strip_number(
+                    said.split("\n"), (change.get("clause") or {}).get("number"))
+                foreign = _foreign(text or "", ours_terms, their_terms)
+                if foreign is not None:
+                    block(change, *foreign)
+                    continue
+            else:
+                text = change["answer"].get("wording") or ""
+            if not picked and (target["nested"] or not target["plain"]):
+                block(change, "CANNOT_EXPRESS", f"Clause {target['number']} has "
+                      "sub-clauses, a list or a table; replacing it in the annexure "
+                      "would not read exactly — choose a clause to add it after.")
+                continue
+            if not (text or "").strip():
+                block(change, "CANNOT_EXPRESS", "This accepted point has no text to "
+                      "carry over — a person must look at it.")
+                continue
+            entries.append({
+                "row_key": change["row_key"], "answer": answer,
+                "effect": change.get("effect_for_us"), "text": text,
+                "target": _public(target), "op": "replace",
+                **({"measured": change["measured"]} if change.get("measured") else {}),
+                **({"op": "insert_after", "new_number": _insert_number(
+                    target["number"], inserted)} if picked else {})})
+            continue
         about[change["row_key"]] = (target, was)
         if answer is None or answer == "keep_ours":
             continue                     # unanswered: the reply gate names it
-        if kind in ("MOVED", "NEW_ANNEXURE", "THEIRS"):
+        if kind in ("MOVED", "NEW_ANNEXURE"):
             block(change, "CANNOT_EXPRESS", "A moved clause or a new annexure cannot be "
                   "written as a Special Condition — keep ours, or reply with tracked "
                   "changes.")
@@ -385,6 +425,65 @@ def derive(changes: list[dict], old: list[dict], new: list[dict],
         e["n"] = n
     return {"entries": entries, "blockers": blockers,
             "rows": _rows(changes, about, entries, blockers)}
+
+
+#: their numbering, said in their text: "Clause 14", "Section 3.2", "Annexure-1",
+#: "Schedule II" — never ours to keep (S5 FOREIGN_XREF)
+_XREF = re.compile(r"\b(?:clause|section|article|paragraph|schedule|annexure|"
+                   r"annex|appendix|exhibit)s?\s*[-\u2013]?\s*"
+                   r"(?:\d+|(?-i:[IVX]+|[A-Z])\b)", re.I)
+
+
+def _theirs_target(change: Mapping[str, Any], by_key: Mapping[str, dict]
+                   ) -> tuple[dict | None, bool]:
+    """A THEIRS row's place in OUR contract (S5): its anchor — the clause realising its
+    requirement — when that clause is in this contract (scoped to the template); else
+    the person's pick ("add after", a target key).
+    ``(target, picked)``."""
+    left = ((change.get("anchor") or {}).get("left_key") or "")
+    key = left.split(":", 1)[1] if left.startswith("clause:") else None
+    if (anchored := by_key.get(key or "")) is not None:
+        return anchored, False            # the anchor wins: a pick is for the unanchored
+    picked = by_key.get(change.get("add_after") or "")
+    return picked, picked is not None
+
+
+def _terms(model: Mapping[str, Any]) -> set[str]:
+    """Every term our contract defines: the parties' roles, definition blocks and the
+    drafting forms `model.defined_terms` reads, anywhere in the model's text."""
+    from legalmind.drafting.model import defined_terms, text_of
+    found = {p["role"] for p in model.get("parties", [])}
+
+    def walk(x: Any) -> None:
+        if isinstance(x, dict):
+            if x.get("kind") == "definition" and isinstance(x.get("term"), str):
+                found.add(x["term"])
+            for k, v in x.items():
+                if k in ("runs", "text") and isinstance(v, list):
+                    found.update(defined_terms(text_of(v)))
+                else:
+                    walk(v)
+        elif isinstance(x, list):
+            for v in x:
+                walk(v)
+    walk(model)
+    return found
+
+
+def _foreign(text: str, ours: set[str], theirs: set[str]) -> tuple[str, str] | None:
+    """Why the client's own words cannot stand in our paper as they are (S5, d3): their
+    numbering, or a term our contract does not define. Legal writes ours (L6)."""
+    if (m := _XREF.search(text)) is not None:
+        return ("FOREIGN_XREF", f"Their text refers to “{m.group(0)}” in their own "
+                "numbering, which our contract does not have — Legal writes our "
+                "wording instead.")
+    quoted = {m.group(1) for m in re.finditer(r"[“\"]([^”\"]{1,80})[”\"]", text)}
+    used = quoted | {t for t in theirs if re.search(rf"\b{re.escape(t)}\b", text)}
+    missing = sorted(used - ours)
+    if missing:
+        return ("UNDEFINED_TERM", f"Their text uses “{missing[0]}”, a term our contract "
+                "does not define — Legal writes our wording instead.")
+    return None
 
 
 def _rows(changes: list[dict], about: Mapping[str, tuple[dict | None, dict | None]],

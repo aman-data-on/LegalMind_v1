@@ -42,8 +42,10 @@ Three routes, each through `Guard` before anything is read (rule 18):
 
 from __future__ import annotations
 
+import hashlib
 import re
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from uuid import UUID
 
 from fastapi import APIRouter, Body, Depends, Path, Query, Response
@@ -68,6 +70,7 @@ from legalmind.api.routers.documents import CHANGED_BY_A_COLLEAGUE, download_nam
 from legalmind.api.routers.reviews import held_by, open_review, sent_to_legal
 from legalmind.api.schemas import (
     AcceptByEffect,
+    ConvertRequest,
     FormattingKeepOurs,
     NegotiationAnswer,
     PackageRequest,
@@ -1057,6 +1060,18 @@ def download_pdf(document_version_id: UUID, guard: Guard = Depends(get_guard),
         return Response(content=storage.get(version.storage_key),
                         media_type="application/pdf",
                         headers=attachment_headers(name, "final.pdf"))
+    made = _made_pdf(guard, storage, version, kind)
+    if isinstance(made, Response):
+        return made
+    return Response(content=made, media_type="application/pdf",
+                    headers=attachment_headers(download_name(guard.db, version, "pdf"),
+                                               f"{kind}.pdf"))
+
+
+def _made_pdf(guard: Guard, storage: StorageBackend, version: M.DocumentVersion,
+              kind: str) -> bytes | Response:
+    """The worker's stored PDF of ``version``, or 202 ``rendering`` (a lost or failed
+    render older than `pdf.STALE_S` dispatched again); 503 PDF_NOT_MADE."""
     if pdf.stale(pdf.record(version)):
         dispatch_pdf(guard.db, version, kind, request_id=guard.request_id)
     rec = must_exist(pdf.record(version), "the PDF record")
@@ -1066,10 +1081,53 @@ def download_pdf(document_version_id: UUID, guard: Guard = Depends(get_guard),
     if rec["status"] == pdf.RENDERING:
         return JSONResponse(status_code=202, content=data({"status": "rendering"}),
                             headers={"Retry-After": "3"})
-    return Response(content=storage.get(rec["storage_key"]),
-                    media_type="application/pdf",
-                    headers=attachment_headers(download_name(guard.db, version, "pdf"),
-                                               f"{kind}.pdf"))
+    return storage.get(rec["storage_key"])
+
+
+@router.get("/document-versions/{document_version_id}/signing-note",
+            responses={202: {"description": "the worker is still making the PDF"}})
+def signing_note(document_version_id: UUID, guard: Guard = Depends(get_guard),
+                 storage: StorageBackend = Depends(get_storage)) -> Response:
+    """The Final card's note for whoever sends the contract to a signing tool
+    (`FINAL-PACKAGE-SPEC` c4, S6) — only what the app already holds: the contract's
+    name, the PDF's document ID, page count and signature page, each party's signer
+    (our generated contracts; ``[]`` for paper), the file names and the PDF's SHA-256.
+    Gated like the PDF; a version that is not a final contract is 404."""
+    version = guard.document_version_readable(document_version_id, P.DOCUMENT_DOWNLOAD)
+    meta = version.doc_metadata or {}
+    if not (meta.get("final_copy_of") or meta.get("package_of")) \
+            or not storage.exists(version.storage_key):
+        raise NotVisible("document content not available")
+    _require_decided(guard, version)
+    client_pdf = version.mime_type == PDF_MIME
+    draft = guard.db.execute(select(M.ContractDraft).where(
+        M.ContractDraft.document_version_id == version.id)).scalar_one_or_none()
+    source = storage.get(version.storage_key)
+    made = source if client_pdf else _made_pdf(
+        guard, storage, version, "contract" if draft is not None else "final")
+    if isinstance(made, Response):
+        return made
+    pages, signature, doc_id = preflight.signing_facts(
+        None if client_pdf else source, made)
+    signers = []
+    if draft is not None:
+        try:
+            rows = _basis(guard.db, draft)["base"]["execution"]["rows"]
+        except model_.ModelError:
+            rows = []
+        signers = [{"party": render_contract.text_of(r.get("party")),
+                    "name": render_contract.text_of(r.get("signatory")),
+                    "designation": render_contract.text_of(r.get("designation")),
+                    "email": render_contract.text_of(r.get("email"))} for r in rows]
+    contract = guard.db.get(M.Contract, version.contract_id)
+    return JSONResponse(data({
+        "contract_name": contract.name if contract else None,
+        "doc_id": doc_id,
+        "pages": pages, "signature_page": signature,
+        "pdf_sha256": hashlib.sha256(made).hexdigest(),
+        "pdf_name": download_name(guard.db, version, "pdf"),
+        "word_name": None if client_pdf else download_name(guard.db, version),
+        "signers": signers}))
 
 
 # ------------------------------------------------- AM-307: the final contract package
@@ -1316,13 +1374,7 @@ def _package_plan(guard: Guard, contract: M.Contract, form: str = CHANGES_ONLY) 
     derived = _derive(guard, before, after, listed, basis)
     out["blockers"] += derived["blockers"]
     entries = derived["entries"]
-    for e in entries:        # AM-324 r5 closed (S3): never a final with a blank in it
-        text = e.get("text") or ""     # a {slot} left too, as preflight refuses on POST
-        if (m := blank_in(text) or preflight._BLANK.search(text)) is not None:
-            near = e["text"][max(0, m.start() - 30):m.end() + 20].strip()
-            where = (e.get("target") or {}).get("number")
-            stop("BLANKS", f"Entry {e['n']} (clause {where}) still has a blank to fill "
-                 f"(…{_BLANK.sub('___', near)}…). Write the wording without it first.")
+    out["blockers"] += _entry_blanks(entries)
     shown, pins = entries, []
     if amendment_tv is not None:
         from legalmind.api.routers.amendments import _signed_amendments  # circular
@@ -1358,6 +1410,156 @@ def _package_plan(guard: Guard, contract: M.Contract, form: str = CHANGES_ONLY) 
                         "instrument": amendment_tv if instrument_form else None,
                         "supersedes": str(before.id) if prior else None}
     return out
+
+
+def _entry_blanks(entries: list[dict]) -> list[dict]:
+    """AM-324 r5 closed (S3): never a final with a blank in an entry — a {slot} left
+    too, as preflight refuses on POST."""
+    out = []
+    for e in entries:
+        text = e.get("text") or ""
+        if (m := blank_in(text) or preflight._BLANK.search(text)) is not None:
+            near = text[max(0, m.start() - 30):m.end() + 20].strip()
+            where = (e.get("target") or {}).get("number")
+            out.append({"code": "BLANKS", "message": f"Entry {e['n']} (clause {where}) "
+                        f"still has a blank to fill (…{_BLANK.sub('___', near)}…). "
+                        "Write the wording without it first."})
+    return out
+
+
+def _convert_plan(guard: Guard, contract: M.Contract, body: ConvertRequest) -> dict:
+    """S5 (spec d3): the dry run of converting the client's paper to ours — our template
+    with the person's New-contract answers (``body.draft_id``: Annexure 1 filled), and
+    each point of theirs the person ACCEPTED (or wrote our wording for) as one entry of
+    Annexure 2. Nothing else of their paper carries over. Every reason it cannot be
+    made yet is a blocker; ``choices`` are our clauses an unanchored point may be added
+    after (``ANCHOR_REQUIRED``). Nothing written."""
+    from legalmind.api.routers.drafts import _clauses, _own, _template  # circular
+    db = guard.db
+    out: dict = {"available": False, "blockers": [], "entries": [], "precedence": None,
+                 "entries_sha256": None, "choices": []}
+
+    def stop(code: str, message: str, **extra) -> dict:
+        out["blockers"].append({"code": code, "message": message, **extra})
+        return out
+
+    versions = list(db.execute(
+        select(M.DocumentVersion).where(M.DocumentVersion.contract_id == contract.id)
+        .order_by(M.DocumentVersion.version_number)).scalars())
+    after = versions[-1] if versions else None
+    try:
+        ours = after is not None and negotiation.our_previous(versions, after)
+    except negotiation.VersionRoleUndeclared as exc:
+        return stop(exc.code, str(exc))
+    if after is None or ours or negotiation.is_ours(after) \
+            or contract.governed_by_contract_id or _generated(db, after) is not None:
+        return stop("NOT_CLIENT_PAPER", "Only a deal on the client's own paper converts "
+                    "to ours.")
+    if _replied_in(db, after) is not None:
+        return stop("ROUND_CLOSED", "Our answer to this version is already prepared.")
+    try:
+        listed, _, _ = _changes(guard, contract, None, after.version_number)
+    except BusinessRuleRejected as exc:
+        return stop("NOT_READ", str(exc))
+    if any(c["kind"] != negotiation.THEIRS_KIND for c in listed["changes"]):
+        return stop("NOT_CLIENT_PAPER", "This paper was made from our blank template — "
+                    "answer its changes instead.")
+    row = _own(guard, body.draft_id)
+    tv = _template(guard, row)
+    if tv.status != "PUBLISHED":
+        return stop("TEMPLATE_NOT_PUBLISHED", "The template of these answers is not "
+                    "published any more; start again from the published one.")
+    clauses = _clauses(guard, tv)
+    try:
+        base = model_.resolve(publish.template_dict(tv), clauses, row.answers)
+    except model_.ModelError as exc:
+        return stop("DRAFT_INVALID", "Finish the contract's answers first: "
+                    + "; ".join(f"{p['field']}: {p['problem']}" for p in exc.problems))
+    cfg = special_conditions.config(tv)
+    if cfg is None:
+        return stop("NO_ANNEXURE", "This template has no Annexure 2 for agreed "
+                    "changes, so their accepted points have nowhere to go.")
+    ready = special_conditions.readiness(db, tv)
+    out["blockers"] += [{"message": m["detail"], "code": m["code"] if m["code"]
+                         == "PRECEDENCE_NOT_SUPPLIED" else f"SC_{m['code']}"}
+                        for m in ready["missing"]]
+    if cfg.get("precedence") == special_conditions.IN_FRAME:
+        out["precedence"] = {"in_frame": True, "supplied": not any(
+            m["code"] == "PRECEDENCE_NOT_SUPPLIED" for m in ready["missing"])}
+    if (gap := _unsigned(base)) is not None:
+        stop("SIGNATORY_EMAIL", gap)
+    for service in model_.legal_to_supply(base):
+        stop("LEGAL_TO_SUPPLY", legal_gap(service), service=service)
+    blocked = _reply_blockers(listed["changes"])
+    if blocked:
+        stop("PACKAGE_NOT_READY", f"It cannot be converted yet: {blocked}")
+    for change in listed["changes"]:
+        if change["row_key"] in body.add_after:
+            change["add_after"] = body.add_after[change["row_key"]]
+    units = negotiation._units(load_clauses(db, after.id))
+
+    def standard(cv_id: str | None) -> str | None:
+        return None                        # a THEIRS row's standard is the template's
+    derived = special_conditions.derive(listed["changes"], [], units, [], base, standard)
+    out["blockers"] += derived["blockers"]
+    entries = derived["entries"]
+    out["blockers"] += _entry_blanks(entries)
+    out["choices"] = [{k: t[k] for k in ("key", "number", "heading")}
+                      for t in special_conditions.targets(base).values()]
+    if not entries and not out["blockers"]:
+        stop("NO_ENTRIES", "You accepted none of their points — make a New contract "
+             "from our template instead.")
+    out["entries"] = [{k: e[k] for k in ("n", "op", "target", "text", "row_key",
+                                         "answer", "effect", "measured") if k in e}
+                      | ({"new_number": e["new_number"]} if "new_number" in e else {})
+                      for e in entries]
+    frame = cfg.get("frame") or {}
+    out["entries_sha256"] = special_conditions.entries_sha256(entries, [
+        f"{frame.get('clause_key')}@{frame.get('version')}", f"draft:{row.id}",
+        f"{row.version}"])
+    out["available"] = not out["blockers"]
+    out["_internal"] = {"before": None, "after": after, "tv": tv, "clauses": clauses,
+                        "cfg": cfg, "changes": listed["changes"], "entries": entries,
+                        "frame": frame, "shown": entries, "instrument": None,
+                        "supersedes": None, "row": row,
+                        "draft": SimpleNamespace(values=base["values"], id=None)}
+    return out
+
+
+@router.post("/contracts/{contract_id}/convert/preview")
+def convert_preview(contract_id: UUID, body: ConvertRequest,
+                    guard: Guard = Depends(get_guard)) -> dict:
+    """S5: the dry run of "Convert to our paper" — ``available``, ``blockers``, the
+    ``entries`` Annexure 2 would list, the ``choices`` for an unanchored point and
+    ``entries_sha256``. Nothing is written."""
+    contract = guard.contract_readable(contract_id, P.DOCUMENT_VIEW)
+    return data(_public_plan(_convert_plan(guard, contract, body)))
+
+
+@router.post("/contracts/{contract_id}/convert", status_code=201)
+def convert_to_our_paper(contract_id: UUID, body: ConvertRequest,
+                         guard: Guard = Depends(get_guard),
+                         storage: StorageBackend = Depends(get_storage)) -> dict:
+    """S5: make our paper — our template with the deal's answers and, in Annexure 2,
+    only the points of theirs that were accepted — as the deal's next version
+    (``package_of`` the client's paper, ``converted_from`` it), reviewed like any
+    upload. 409 PACKAGE_NOT_READY with ``blockers``; 409 STALE_PREVIEW."""
+    contract = guard.contract_negotiable(contract_id, P.CONTRACT_UPDATE)
+    guard.permission(P.DOCUMENT_UPLOAD)
+    _lock(guard, contract)
+    plan = _convert_plan(guard, contract, body)
+    trace: list[dict] = []
+    if not plan["blockers"]:
+        trace = _trace(guard, plan)
+        plan["blockers"] += _trace_blockers(trace, plan["_internal"]["entries"])
+    if plan["blockers"]:
+        raise PackageNotReady("It cannot be converted yet.", plan["blockers"])
+    if plan["entries_sha256"] != body.expected_entries_sha256:
+        raise StalePreview("The answers changed since you looked — review the list "
+                           "again.")
+    return _make_package(guard, storage, contract, plan, trace,
+                         PackageRequest(expected_entries_sha256=plan["entries_sha256"]),
+                         converted=plan["_internal"]["row"])
 
 
 def _filled(guard: Guard, contract: M.Contract, body: PackageRequest) -> dict:
@@ -1521,6 +1723,16 @@ def prepare_package(contract_id: UUID, body: PackageRequest,
     if plan["entries_sha256"] != body.expected_entries_sha256:
         raise StalePreview("The answers changed since you looked — review the list "
                            "again.")
+    return _make_package(guard, storage, contract, plan, trace, body)
+
+
+def _make_package(guard: Guard, storage: StorageBackend, contract: M.Contract,
+                  plan: dict, trace: list[dict], body: PackageRequest,
+                  converted: M.DraftAnswers | None = None) -> dict:
+    """Render, check, ingest and record a final contract from a ready plan — the
+    package (`AM-307`) and the client paper converted to ours (S5, ``converted`` the
+    person's draft, consumed as Create consumes it)."""
+    amendment, form = contract.governed_by_contract_id is not None, body.form
     i = plan["_internal"]
     tv, draft, after = i["tv"], i["draft"], i["after"]
     built, values = tv, draft.values             # the template the file is made from
@@ -1564,7 +1776,11 @@ def prepare_package(contract_id: UUID, body: PackageRequest,
             for e in entries]
 
     record = {"entries": public(i["entries"]), "trace": trace,
-              "frame": {k: i["frame"][k] for k in ("clause_key", "version")}}
+              "frame": {k: i["frame"][k] for k in ("clause_key", "version")},
+              # S3/S6: the MSA's Annexure 2 (precedence in the frame); older AM-307
+              # packages are Annexure A and carry nothing here
+              **({"annex": 2} if (i.get("cfg") or {}).get("precedence") == "frame"
+                 else {})}
     if built is not tv:
         # AM-310: the instrument's own changes and their record; the whole contract as
         # amended (``basis``) is what the next amendment starts from — never signed
@@ -1582,11 +1798,15 @@ def prepare_package(contract_id: UUID, body: PackageRequest,
         written = {"special_conditions": record}
     version.doc_metadata = {
         **(version.doc_metadata or {}),
-        **{k: v for k, v in (i["before"].doc_metadata or {}).items()
-           if k in ("source", "counterparty", "effective_date")},
+        **({k: v for k, v in (i["before"].doc_metadata or {}).items()
+            if k in ("source", "counterparty", "effective_date")}
+           if i["before"] is not None else {"source": "ORGANIZATION", **{
+               k: v for k, v in (after.doc_metadata or {}).items()
+               if k in ("counterparty", "effective_date")}}),
         "version_role": "COMPANY_DRAFT", "package_of": str(after.id),
         # AM-308: the final contract it replaces, when this is a later round
-        **({"supersedes": i["supersedes"]} if i["supersedes"] else {}), **written}
+        **({"supersedes": i["supersedes"]} if i["supersedes"] else {}), **written,
+        **({"converted_from": str(after.id)} if converted is not None else {})}
     guard.db.add(M.ContractDraft(
         contract_id=contract.id, document_version_id=version.id,
         template_version_id=built.id, values=values, model_hash=digest,
@@ -1600,11 +1820,14 @@ def prepare_package(contract_id: UUID, body: PackageRequest,
                         "version_number": version.version_number,
                         "package_of": str(after.id), "supersedes": i["supersedes"],
                         "model_hash": digest,
-                        **({"form": body.form} if amendment else {}),
+                        **({"converted": True} if converted is not None else {}),
+                        **({"form": form} if amendment else {}),
                         "renderer_version": render_contract.RENDERER_VERSION,
                         "entries": [[t["n"], t["target_key"], t["op"], t["choice_id"],
                                      t["text_sha256"]] for t in trace]})
-    if amendment and body.form == RESTATED:
+    if converted is not None:
+        guard.db.delete(converted)                # AM-265 d4, as Create does
+    if amendment and form == RESTATED:
         audit.record(guard.db, action=audit.CONTRACT_AMENDMENT_RESTATED,
                      entity_type="contract", entity_id=contract.id,
                      actor_id=guard.user_id, request_id=guard.request_id,
@@ -1862,7 +2085,9 @@ def prepare_final_copy(contract_id: UUID, guard: Guard = Depends(get_guard),
     source: M.DocumentVersion = plan["_source"]
     raw = storage.get(source.storage_key)
     docx = source.mime_type == DOCX_MIME
-    made = clean.clean(raw) if docx else raw
+    # the copy is its own version: its footer names it, not its source (S6)
+    made = render_contract.restamp(clean.clean(raw), source.version_number + 1) \
+        if docx else raw
     stem = (source.original_filename or "contract").rsplit(".", 1)[0]
     version = ingest_document(guard.db, storage, contract_id=contract.id,
                               uploaded_by=guard.user_id, data=made,

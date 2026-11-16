@@ -16,14 +16,20 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { Dialog } from "@/components/Dialog";
+import { ErrorState, LoadingState } from "@/components/Feedback";
+import { PdfPages } from "@/components/PdfPages";
+import { usePdf } from "@/components/PreviewPanel";
+import { toast } from "@/components/Toast";
 import { ApiError, api, describeError } from "@/lib/api";
 import { ANSWER_LABEL, type Answer } from "@/lib/changes";
 import { formatDate } from "@/lib/dates";
-import { ACTION, contractOutcomeLabel } from "@/lib/labels";
+import { ACTION, FEEDBACK_COPY, FINAL_CARD, contractOutcomeLabel, signingNoteText } from "@/lib/labels";
+import { annexName } from "@/lib/package";
+import { saveBlob } from "@/lib/pdfDownload";
 import { useStep } from "@/lib/nextStep";
-import type { ContractOutcomeState, DocumentVersion, FinalCopyPlan } from "@/lib/types";
+import type { ContractOutcomeState, DocumentVersion, FinalCopyPlan, SigningNote } from "@/lib/types";
 
-import { ReplyDownloads } from "./ChangesPane";
+import { IconDownload } from "./icons";
 import { useFindingsStateOptional } from "./findingsState";
 import { SpecialConditionsTrace } from "./Package";
 import "./final.css";
@@ -133,13 +139,13 @@ export function FinalCard({ version, versions, since }: {
         </p>
         <p className="ws-replynote__sub">{NEXT}</p>
       </div>
-      <div className="ws-replynote__acts">
-        <ReplyDownloads version={version} pdf="pdf" word={version.mime_type !== "application/pdf"} />
-      </div>
+      <FinalFiles version={version} />
       {version.package ? (
         <SpecialConditionsTrace versionId={version.id} count={version.package.special_conditions}
                                 instrument={version.package.form === "changes_only"}
-                                summary={`What was agreed (${version.package.special_conditions})`} />
+                                summary={`What was agreed (${version.package.special_conditions}), in ${
+                                  version.package.form === "changes_only" ? "the amendment"
+                                    : annexName(version.package.annex === 2)}`} />
       ) : agreed.length ? (
         <details className="lm-pkgtrace">
           <summary>What was agreed ({agreed.length})</summary>
@@ -154,6 +160,100 @@ export function FinalCard({ version, versions, since }: {
         <p className="ws-replynote__sub">What was agreed (0): the client accepted
           {from ? ` version ${from.version_number}` : " our version"} as it was.</p>
       )}
+    </section>
+  );
+}
+
+/** S6 (`FINAL-PACKAGE-SPEC` c4): the PDF itself, shown inline — the very bytes "PDF for
+ *  signature" saves — the Word copy for records, and the note for whoever sends it. */
+function FinalFiles({ version }: { version: Pick<DocumentVersion, "id" | "mime_type"> }) {
+  const { shown, retry } = usePdf(`/document-versions/${encodeURIComponent(version.id)}/pdf`);
+  const [wordBusy, setWordBusy] = useState(false);
+  const [wordError, setWordError] = useState<string | null>(null);
+  async function word() {
+    setWordBusy(true);
+    setWordError(null);
+    try {
+      const { blob, name } = await api.replyFile(version.id, "content");
+      saveBlob(blob, name);
+    } catch (cause) {
+      setWordError(describeError(cause));
+    } finally {
+      setWordBusy(false);
+    }
+  }
+  return (
+    <div className="lm-final__files">
+      <div className="lm-final__acts">
+        <button type="button" className="ws-btn ws-btn--primary" disabled={shown.kind !== "ready"}
+                onClick={() => { if (shown.kind === "ready") saveBlob(shown.blob, shown.name); }}>
+          <IconDownload size={16} /> {FINAL_CARD.pdfForSignature}
+        </button>
+        {version.mime_type !== "application/pdf" ? (
+          <button type="button" className="ws-btn" disabled={wordBusy} aria-busy={wordBusy || undefined}
+                  onClick={() => void word()}>
+            <IconDownload size={16} /> {FINAL_CARD.wordCopy}
+          </button>
+        ) : null}
+      </div>
+      {wordError ? <p className="cx-error" role="alert">{wordError}</p> : null}
+      <div className="lm-final__preview">
+        {shown.kind === "loading" ? <LoadingState label={FEEDBACK_COPY.preparingPreview} /> : null}
+        {shown.kind === "ready" ? (
+          <PdfPages blob={shown.blob} label={FINAL_CARD.preview} />
+        ) : null}
+        {shown.kind === "not-made" ? <ErrorState title={FEEDBACK_COPY.previewFailed} fix={shown.message} onRetry={retry} /> : null}
+        {shown.kind === "error" ? <ErrorState title={FEEDBACK_COPY.previewFailed} error={shown.error} onRetry={retry} /> : null}
+      </div>
+      {shown.kind === "ready" ? <SigningNoteBox versionId={version.id} /> : null}
+    </div>
+  );
+}
+
+/** Writes the note to the clipboard and says so; false when the browser refuses. */
+export async function copyNote(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    toast(FINAL_CARD.copied);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+type NoteLoad = { kind: "loading" } | { kind: "ready"; text: string } | { kind: "error"; error: unknown };
+
+/** The copy-able note — read once the PDF is made, so its facts are that PDF's. */
+export function SigningNoteBox({ versionId }: { versionId: string }) {
+  const [load, setLoad] = useState<NoteLoad>({ kind: "loading" });
+  const [attempt, setAttempt] = useState(0);
+  const [copyError, setCopyError] = useState(false);
+  useEffect(() => {
+    let live = true;
+    api.signingNote(versionId).then(
+      (note: SigningNote) => { if (live) setLoad({ kind: "ready", text: signingNoteText(note) }); },
+      (error: unknown) => { if (live) setLoad({ kind: "error", error }); });
+    return () => { live = false; };
+  }, [versionId, attempt]);
+  async function copy(text: string) {
+    setCopyError(false);
+    if (!(await copyNote(text))) setCopyError(true);
+  }
+  return (
+    <section className="lm-final__note" aria-labelledby="lm-final-note">
+      <h3 id="lm-final-note" className="lm-final__notetitle">{FINAL_CARD.noteTitle}</h3>
+      {load.kind === "loading" ? <LoadingState label={FINAL_CARD.noteLoading} /> : null}
+      {load.kind === "error" ? (
+        <ErrorState title={FINAL_CARD.noteFailed} error={load.error}
+                    onRetry={() => { setLoad({ kind: "loading" }); setAttempt((n) => n + 1); }} />
+      ) : null}
+      {load.kind === "ready" ? (
+        <>
+          <pre className="lm-final__notetext" tabIndex={0}>{load.text}</pre>
+          <button type="button" className="ws-btn ws-btn--sm" onClick={() => void copy(load.text)}>{FINAL_CARD.copy}</button>
+          {copyError ? <p className="cx-error" role="alert">{FINAL_CARD.copyFailed}</p> : null}
+        </>
+      ) : null}
     </section>
   );
 }

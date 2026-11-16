@@ -554,6 +554,43 @@
     "title": "ConversationUpdate",
     "type": "object"
    },
+   "ConvertRequest": {
+    "additionalProperties": false,
+    "description": "S5: convert the client's paper to ours \u2014 the person's New-contract ``draft_id``\n(our template, the deal's answers), ``add_after`` {THEIRS row key \u2192 the clause key of\nours each unanchored point is added after}; the POST also names the dry run's\n``expected_entries_sha256`` (409 STALE_PREVIEW otherwise).",
+    "properties": {
+     "add_after": {
+      "additionalProperties": {
+       "type": "string"
+      },
+      "maxProperties": 200,
+      "title": "Add After",
+      "type": "object"
+     },
+     "draft_id": {
+      "format": "uuid",
+      "title": "Draft Id",
+      "type": "string"
+     },
+     "expected_entries_sha256": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "minLength": 64,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Expected Entries Sha256"
+     }
+    },
+    "required": [
+     "draft_id"
+    ],
+    "title": "ConvertRequest",
+    "type": "object"
+   },
    "CounterpartyCreate": {
     "additionalProperties": false,
     "description": "AB-13 r1's profile, widened by the owner's Client Profiles instruction\n(2026-09-10).\n\nOnly `name` is required \u2014 it is the identity, and the owner's instruction\nsays so directly (\"Company Name should be the primary identifying field\").\nEverything else is optional and stays empty unless a human types it: rule\n21 forbids inventing company information, and \"not known yet\" is the normal\nstate of a client, not a gap for the system to fill.",
@@ -4353,6 +4390,118 @@
     ]
    }
   },
+  "/api/v1/contracts/{contract_id}/convert": {
+   "post": {
+    "description": "S5: make our paper \u2014 our template with the deal's answers and, in Annexure 2,\nonly the points of theirs that were accepted \u2014 as the deal's next version\n(``package_of`` the client's paper, ``converted_from`` it), reviewed like any\nupload. 409 PACKAGE_NOT_READY with ``blockers``; 409 STALE_PREVIEW.",
+    "operationId": "convert_to_our_paper_api_v1_contracts__contract_id__convert_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ConvertRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Convert To Our Paper Api V1 Contracts  Contract Id  Convert Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Convert To Our Paper",
+    "tags": [
+     "negotiation"
+    ]
+   }
+  },
+  "/api/v1/contracts/{contract_id}/convert/preview": {
+   "post": {
+    "description": "S5: the dry run of \"Convert to our paper\" \u2014 ``available``, ``blockers``, the\n``entries`` Annexure 2 would list, the ``choices`` for an unanchored point and\n``entries_sha256``. Nothing is written.",
+    "operationId": "convert_preview_api_v1_contracts__contract_id__convert_preview_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ConvertRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Convert Preview Api V1 Contracts  Contract Id  Convert Preview Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Convert Preview",
+    "tags": [
+     "negotiation"
+    ]
+   }
+  },
   "/api/v1/contracts/{contract_id}/document-versions": {
    "post": {
     "description": "Ingest one document version \u2014 locked Step 34, 42.4.\n\n**The body is the file itself**, with the declared type in ``Content-Type``\nand the original name in ``X-Filename``. Endpoint shape is outside the locked\nboundary (38.24), and this shape avoids adding a multipart parser to the path\nthat handles untrusted input \u2014 locked 34.16 and Step 39's upload-validation\nitem both argue for the smaller surface. The declared type is treated as a\n*claim*: ``validate_upload`` sniffs the magic bytes and rejects a mismatch.\n\nA duplicate is **reported, never silently suppressed** (34.5): whether a\nre-upload is a new contractual version is a business decision (Step 33.9).\n\n**Async only to read the body; every database call runs in the threadpool**\n(2026-10-13). Each request updates its session row (`last_seen_at`), and a\nsynchronous request commits on the event loop. A blocking query here, waiting\non that row's lock, stopped the very loop the lock holder needed to commit:\nthe whole API froze, permanently, whenever the Dashboard loaded during an\nupload. Pinned by `test_upload_does_not_block_the_event_loop.py`.",
@@ -6911,6 +7060,51 @@
     "summary": "Reprocess Document Version",
     "tags": [
      "documents"
+    ]
+   }
+  },
+  "/api/v1/document-versions/{document_version_id}/signing-note": {
+   "get": {
+    "description": "The Final card's note for whoever sends the contract to a signing tool\n(`FINAL-PACKAGE-SPEC` c4, S6) \u2014 only what the app already holds: the contract's\nname, the PDF's document ID, page count and signature page, each party's signer\n(our generated contracts; ``[]`` for paper), the file names and the PDF's SHA-256.\nGated like the PDF; a version that is not a final contract is 404.",
+    "operationId": "signing_note_api_v1_document_versions__document_version_id__signing_note_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "document_version_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Document Version Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "202": {
+      "description": "the worker is still making the PDF"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Signing Note",
+    "tags": [
+     "negotiation"
     ]
    }
   },

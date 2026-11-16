@@ -18,24 +18,15 @@ import { downloadWord, fetchPdf, saveBlob } from "@/lib/pdfDownload";
 import { toastFailure } from "@/components/Toast";
 import { IconDownload, IconFile, IconX } from "@/components/workspace/icons";
 
-type Shown =
+export type Shown =
   | { kind: "loading"; waiting: boolean }
   | { kind: "ready"; blob: Blob; url: string; name: string | undefined }
   | { kind: "not-made"; message: string }
   | { kind: "error"; error: unknown };
 
-export function PreviewPanel({ title, pdfPath, onWord, wordBusy = false, onClose, renderError, returnFocus }: {
-  title: string;
-  /** the API path of the PDF (`/document-versions/{id}/reply-pdf`) */
-  pdfPath: string;
-  /** downloads the Word file; absent when there is none (a client's own PDF) */
-  onWord?: (() => void) | undefined;
-  wordBusy?: boolean;
-  onClose: () => void;
-  /** a refusal the caller explains better (the reply's open points, `AM-293`) */
-  renderError?: ((error: unknown) => React.ReactNode) | undefined;
-  returnFocus?: () => HTMLElement | null | undefined;
-}) {
+/** The exact PDF at ``pdfPath`` as a Blob and an object URL (revoked on change), through
+ *  the one PDF helper — shared by the preview panel and the Final card's inline preview. */
+export function usePdf(pdfPath: string) {
   const [shown, setShown] = useState<Shown>({ kind: "loading", waiting: false });
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
@@ -54,6 +45,22 @@ export function PreviewPanel({ title, pdfPath, onWord, wordBusy = false, onClose
   }, [pdfPath, attempt]);
 
   const retry = () => { setShown({ kind: "loading", waiting: false }); setAttempt((n) => n + 1); };
+  return { shown, retry };
+}
+
+export function PreviewPanel({ title, pdfPath, onWord, wordBusy = false, onClose, renderError, returnFocus }: {
+  title: string;
+  /** the API path of the PDF (`/document-versions/{id}/reply-pdf`) */
+  pdfPath: string;
+  /** downloads the Word file; absent when there is none (a client's own PDF) */
+  onWord?: (() => void) | undefined;
+  wordBusy?: boolean;
+  onClose: () => void;
+  /** a refusal the caller explains better (the reply's open points, `AM-293`) */
+  renderError?: ((error: unknown) => React.ReactNode) | undefined;
+  returnFocus?: () => HTMLElement | null | undefined;
+}) {
+  const { shown, retry } = usePdf(pdfPath);
   const titleId = "lm-preview-title";
   return (
     <Dialog onClose={onClose} titleId={titleId} overlayClassName="lm-preview" {...(returnFocus ? { returnFocus } : {})}>

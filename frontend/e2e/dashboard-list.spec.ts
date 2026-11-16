@@ -1,8 +1,17 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 import { createAnalysedReview, storageStatePath } from "./support";
 
 test.use({ storageState: storageStatePath("owner") });
+
+/** The dashboard with every late section in place. "Your turn" (and each task's contract),
+ *  the stage chips (from the summary) and the client names load after the table and each
+ *  pushes the rows down; a menu measured before they land is pushed off its toggle or out
+ *  of view (CI 2026-11-16). Waits for the page's requests to finish, not a fixed time. */
+async function openSettledDashboard(page: Page) {
+  await page.goto("/dashboard");
+  await page.waitForLoadState("networkidle");
+}
 
 /**
  * Dashboard list view — the row action menu (⋯).
@@ -67,7 +76,7 @@ test("the menu keeps its design tokens and fully covers the row it floats over",
 }) => {
   await createAnalysedReview(page);
   await createAnalysedReview(page);
-  await page.goto("/dashboard");
+  await openSettledDashboard(page);
 
   // The dashboard's default sort is "Recently Added", so the two contracts
   // just created (via createAnalysedReview) are rows 1 and 2 regardless of
@@ -122,7 +131,7 @@ test("the open menu stays with its button when the page moves under it", async (
   // A section above the table that loads late shifts the rows; the browser keeps its
   // place with a scroll. The menu must follow its toggle, not close (CI 2026-11-12).
   await createAnalysedReview(page);
-  await page.goto("/dashboard");
+  await openSettledDashboard(page);
   // the "Your turn" queue above the table loads on its own; with the suite's data it is
   // tall enough to push every row out of view (CI 2026-11-12), so open the menu after it
   await expect(page.getByRole("heading", { name: /Your turn/ })).toBeVisible();

@@ -108,13 +108,20 @@ describe("the final contract (PackageCard)", () => {
   it("says what it is and holds the files while a point is open", () => {
     const held = renderToStaticMarkup(<PackageCard version={version()} versions={versions} filesOpen={false} />);
     expect(held).toContain("Version 3 is the final contract");
-    expect(held).toContain("3 Special Conditions (Annexure A), answering the client’s version 2");
+    expect(held).toContain("3 agreed changes in Special Conditions (Annexure A), answering the client’s version 2");
     expect(held).toContain("the files are held");
     expect(held).not.toContain("Download");
     const open = renderToStaticMarkup(<PackageCard version={version()} versions={versions} filesOpen />);
     expect(open).toContain("Legal records the decision on it next.");
     expect(open).toMatch(/<\/svg> Preview<\/button>/);   // the files, previewed first (UX Batch 2)
-    expect(open).toContain("What is in Annexure A (3)");
+    expect(open).toContain("What is in Special Conditions (Annexure A) (3)");
+  });
+  it("names Annexure 2 on our MSA's package (S6)", () => {
+    const two = renderToStaticMarkup(<PackageCard version={version({
+      package: { of_version_id: "v2", special_conditions: 1, annex: 2 } })} versions={versions} filesOpen />);
+    expect(two).toContain("1 agreed change in Agreed Amendments (Annexure 2)");
+    expect(two).toContain("What is in Agreed Amendments (Annexure 2) (1)");
+    expect(two).not.toContain("Annexure A");
   });
   it("says when it went out", () => {
     const sent = renderToStaticMarkup(<PackageCard version={version({ sent_at: "2026-11-04T10:00:00Z" })}

@@ -384,3 +384,8 @@ button.cx-bar__open[aria-expanded="true"] svg { transform: rotate(-90deg); }
 /* B3 p1: one left rule per clause — a whole client clause already carries the client rule, so
    its selection is the paper background and the index row, not a second (blue) rule */
 .cx-passage[aria-current="true"]:has(.cx-whole) { border-left-color: transparent; }
+/* S5: converting the client's paper to ours */
+.lm-convert__entries { margin: 0; padding-inline-start: var(--s-5); display: grid; gap: var(--s-1); max-width: 44rem; }
+.lm-convert__anchor { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); margin-block-start: var(--s-1); }
+.lm-convert__anchor select { min-height: 36px; max-inline-size: 100%; border: 1px solid var(--c-line-strong); border-radius: var(--r-control); }
+@media (max-width: 899px) { .lm-convert__anchor select { min-height: 44px; } }

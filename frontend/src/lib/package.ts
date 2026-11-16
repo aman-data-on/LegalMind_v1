@@ -48,6 +48,18 @@ export interface PackagePlan {
   entries_sha256: string | null;
 }
 
+/** S5: the dry run of converting the client's paper to ours — the package plan plus the
+ *  clauses of ours an unanchored point may be added after. */
+export interface ConvertPlan extends PackagePlan {
+  choices: PackageTarget[];
+}
+
+/** S6: the annexure the agreed changes sit in — Annexure 2 on our MSA (S3), Annexure A on
+ *  older final contracts, as their file says. */
+export function annexName(two: boolean): string {
+  return two ? "Agreed Amendments (Annexure 2)" : "Special Conditions (Annexure A)";
+}
+
 export interface PreparedPackage {
   document_version: { id: string; version_number: number };
   review_id: string | null;

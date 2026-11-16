@@ -456,3 +456,53 @@ export const READER_OUTDATED = {
   title: "This file was read before a formatting fix",
   body: "Marks such as ** or ## may show in the text. Upload the same file again as a new version to read it cleanly. Nothing in your review changes.",
 };
+
+/** S6 (`FINAL-PACKAGE-SPEC` c4): the Final card — the one file a signing tool gets, the
+ *  Word copy for records, and a note for whoever sends it. Labels, never contract text. */
+export const FINAL_CARD = {
+  pdfForSignature: "PDF for signature",
+  wordCopy: "Word copy (not for signing)",
+  noteTitle: "Note for whoever sends it to sign",
+  copy: "Copy note",
+  copied: "Note copied",
+  copyFailed: "The note could not be copied. Select it and copy it by hand.",
+  noteLoading: "Reading the PDF for the note…",
+  noteFailed: "The note could not be made",
+  preview: "The final contract, as the signing tool will get it",
+} as const;
+
+/** The note's text, from the server's facts only (S6). Exported for the test. */
+export function signingNoteText(n: {
+  contract_name: string | null; doc_id: string | null; pages: number;
+  signature_page: number | null; pdf_sha256: string;
+  signers: { party: string; name: string; designation: string; email: string }[];
+}): string {
+  const where = n.signature_page ? `page ${n.signature_page} of ${n.pages}` : "the signature page";
+  return [
+    `Contract: ${n.contract_name ?? "this contract"}`,
+    ...(n.doc_id ? [`Document ID: ${n.doc_id}`] : []),
+    `Pages: ${n.pages}. Signatures go on ${where}.`,
+    ...(n.signers.length ? ["Signers:", ...n.signers.map(
+      (s) => `- ${s.party}: ${[s.name, s.designation, s.email].filter(Boolean).join(", ")}`)] : []),
+    "Sign the PDF, not the Word file.",
+    `Leegality: place the signatures on ${where}, not the default bottom-left of every page. That spot holds the document ID.`,
+    `PDF SHA-256: ${n.pdf_sha256}`,
+  ].join("\n");
+}
+
+/** S5 (`FINAL-PACKAGE-SPEC` d3): converting the client's paper to ours. Labels only. */
+export const CONVERT_COPY = {
+  title: "Convert to our paper",
+  carryOver: "Only the points you accepted carry over; the rest of their paper does not.",
+  lead: "Fill in our contract for this client. The points you accepted go into Annexure 2 word for word.",
+  start: "Fill in our contract",
+  checking: "Checking what carries over…",
+  failed: "The conversion could not be checked",
+  blocked: "It can be converted once these are sorted:",
+  carried: (n: number) => `${n === 1 ? "1 point carries" : `${n} points carry`} over:`,
+  addAfter: "Add it after clause",
+  choose: "Choose a clause",
+  convert: "Convert to our paper",
+  converting: "Converting…",
+  done: "Our paper is ready as a new version",
+} as const;
