@@ -8,6 +8,7 @@
 import { USER_STATUS_LABELS, readerWord as pointWord, requirementTitle, type UserStatus } from "@/components/workspace/findingLanguage";
 import { clauseName } from "@/lib/documentTypes";
 import { formatDate } from "@/lib/dates";
+import { SALES_LINE, VERDICT_LABELS } from "@/lib/labels";
 
 /** THEIRS: the client's paper came first (`AM-290`) — one row per point the review
  *  found, with no wording of ours before it. */
@@ -371,6 +372,45 @@ export function whoLine(change: ClientChange, list: Reader): string {
   // a Legal reader may answer a deal owner's row, but it is not theirs to answer
   return list.can_answer && !list.can_decide ? "Yours to answer" : ROUTE_LABEL.owner;
 }
+
+/** R3 step 10: Legal's verdict on a change — presentation over the answers that exist:
+ *  Accept = accept theirs; Accept with changes = write our wording; Reject = keep ours or
+ *  our standard wording (Legal's choice); Ask the client = the existing decision
+ *  "Ask the client to clarify" on each measured point. Only what the server offers. */
+export type Verdict = keyof typeof VERDICT_LABELS;
+export function verdictsFor(actions: Answer[], askable: boolean): Verdict[] {
+  const out: Verdict[] = [];
+  if (actions.includes("accept_theirs")) out.push("accept");
+  if (actions.includes("write_wording")) out.push("accept_changes");
+  if (actions.includes("keep_ours") || actions.includes("use_standard")) out.push("reject");
+  if (askable) out.push("ask_client");
+  return out;
+}
+/** The answer a verdict records; Reject waits for the wording choice unless only one exists. */
+export function answerFor(verdict: Verdict | null, actions: Answer[], rejectWith: Answer | null): Answer | null {
+  if (verdict === "accept") return "accept_theirs";
+  if (verdict === "accept_changes") return "write_wording";
+  if (verdict !== "reject") return null;
+  const wordings = actions.filter((a) => a === "keep_ours" || a === "use_standard");
+  return rejectWith && wordings.includes(rejectWith as typeof wordings[number]) ? rejectWith : wordings.length === 1 ? wordings[0]! : null;
+}
+
+/** R3: who has a change, in the deal owner's words (never Legal's view). */
+export function salesLine(change: ClientChange): string {
+  const legalFirst = change.route === "holder" && !change.holder_accepted;
+  if (change.answer) return change.route === "holder" ? SALES_LINE.legalAnswered : whoLine(change, { can_answer: true, can_decide: false });
+  if (legalFirst) return SALES_LINE.withLegal;
+  return change.holder_accepted ? `${SALES_LINE.legalAnswered}. ${SALES_LINE.yourTurn}` : SALES_LINE.yourTurn;
+}
+/** R3: the deal owner's one status line for the whole list. */
+export function salesStatus(changes: ClientChange[]): string {
+  const b = replyBlockers(changes);
+  if (!b.open.length && !b.approval.length && !b.legal.length) return SALES_LINE.ready;
+  if (b.withOwner.length) return `${SALES_LINE.yourTurn}: ${b.withOwner.length} ${b.withOwner.length === 1 ? "change" : "changes"} to answer.`;
+  return SALES_LINE.waitingLegal;
+}
+/** R3: the plain topic a deal owner groups by — the server's topic, else none. */
+export const topicOf = (change: ClientChange): string | null => change.triage?.topics[0]?.title ?? null;
 
 /** What still stops our reply, from the list (the server refuses the same, `REPLY_NOT_READY`). */
 export function replyBlockers(changes: ClientChange[]) {

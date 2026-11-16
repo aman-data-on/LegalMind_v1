@@ -24,7 +24,7 @@ import {
 } from "@/components/workspace/ChangesPane";
 import { ApiError } from "@/lib/api";
 import {
-  EFFECT_LABEL, acceptable, actionsFor, historyLine, matches, redline, replyBlockers, whoLine, wordDiff,
+  EFFECT_LABEL, acceptable, actionsFor, answerFor, salesLine, salesStatus, verdictsFor, historyLine, matches, redline, replyBlockers, whoLine, wordDiff,
   type Answer, type ChangeList, type ClientChange,
 } from "@/lib/changes";
 import type { DocumentVersion } from "@/lib/types";
@@ -73,7 +73,7 @@ describe("who may answer (AM-250)", () => {
   it("puts the holder's decision in place, and nothing to ask", () => {
     const html = card(change(), list({ can_decide: true }));
     expect(html).toContain('role="radiogroup"');
-    expect(html).toContain("Accept their wording");
+    expect(html).toContain("<span>Accept</span>");
     expect(html).not.toContain("Ask Legal");
     const panel = compose(change(), list({ can_decide: true }), "accept_theirs");
     expect(panel).toContain("Record your Legal Decision on each point below");
@@ -216,13 +216,35 @@ describe("the actions each person has (S2, AM-291 r2)", () => {
     expect(html).not.toContain('role="radiogroup"');
   });
 
-  it("gives the lawyer all four, as one choice", () => {
+  it("gives the lawyer four verdicts, as one choice (R3 step 10)", () => {
     expect(actionsFor(change(), list(LAWYER)))
       .toEqual(["keep_ours", "accept_theirs", "use_standard", "write_wording"]);
     const html = card(change(), list(LAWYER));
-    for (const label of ["Keep our wording", "Accept their wording", "Use our standard wording", "Write new wording"]) {
+    for (const label of ["Accept", "Accept with changes", "Reject", "Ask the client"]) {
       expect(html).toContain(`<span>${label}</span>`);
     }
+    // Reject: keep ours or our standard wording — Legal's choice, nothing preselected
+    const reject = compose(change(), list(LAWYER), "keep_ours");
+    expect(reject).toContain("Send back");
+    expect(reject).toContain("<span>Keep our wording</span>");
+    expect(reject).toContain("<span>Use our standard wording</span>");
+  });
+
+  it("maps each verdict onto an answer that exists", () => {
+    const all: Answer[] = ["keep_ours", "accept_theirs", "use_standard", "write_wording"];
+    expect(verdictsFor(all, true)).toEqual(["accept", "accept_changes", "reject", "ask_client"]);
+    expect(verdictsFor(["accept_theirs", "write_wording"], false)).toEqual(["accept", "accept_changes"]);
+    expect(answerFor("accept", all, null)).toBe("accept_theirs");
+    expect(answerFor("accept_changes", all, null)).toBe("write_wording");
+    expect(answerFor("reject", all, null)).toBeNull();                    // Legal picks the wording
+    expect(answerFor("reject", all, "use_standard")).toBe("use_standard");
+    expect(answerFor("reject", ["keep_ours", "accept_theirs"], null)).toBe("keep_ours");
+    expect(answerFor("ask_client", all, null)).toBeNull();                // a decision, not an answer
+  });
+
+  it("offers Ask the client only on a point a standard measures", () => {
+    const unmeasured = change({ review: { before: [], after: [] }, unmeasured: true });
+    expect(card(unmeasured, list(LAWYER))).not.toContain("Ask the client");
   });
 
   it("on the client's paper: no Keep ours, and our standard only where one is published (AM-294)", () => {
@@ -248,8 +270,9 @@ describe("Write our wording (AM-284) and the notes (AM-285)", () => {
     expect(html).toContain("a comment on this change in our reply");
     expect(html).toContain("Only Legal sees this");
     expect(html).toContain("never sent");
-    expect(html).toContain("(required)");                         // the reason
-    expect(html).toContain("Never sent to the client.");          // who reads the reason
+    expect(html).toContain("(required)");                         // the condition
+    expect(html).toContain("Only Legal sees it, unless you share it.");   // owner default (R3 Q2)
+    expect(html).toContain("Share the condition with sales");
     expect(html).toContain("Record our wording");
   });
 
@@ -419,5 +442,25 @@ describe("P1 — a version nobody declared (owner, 2026-11-09)", () => {
     expect(declareConfirmLine(2, "CLIENT_MODIFIED"))
       .toBe("Declare version 2 the client\u2019s? This can\u2019t be changed later.");
     expect(declareConfirmLine(3, "COMPANY_DRAFT")).toContain("version 3 ours?");
+  });
+});
+
+describe("the deal owner's words (R3 step 10)", () => {
+  const done = (over: Partial<ClientChange> = {}) => change({ answer: answered("keep_ours"), ...over });
+  it("says who has each change", () => {
+    expect(salesLine(change())).toBe("With Legal: nothing for you");
+    expect(salesLine(done())).toBe("Legal answered");
+    expect(salesLine(change({ route: "owner" }))).toBe("Your turn");
+    expect(salesLine(change({ holder_accepted: true }))).toBe("Legal answered. Your turn");
+  });
+  it("gives one status line for the deal", () => {
+    expect(salesStatus([change()])).toContain("With Legal: nothing for you right now");
+    expect(salesStatus([change(), change({ route: "owner", row_key: "r2" })])).toBe("Your turn: 1 change to answer.");
+    expect(salesStatus([done({ route: "owner" })])).toBe("Ready to send the reply");
+  });
+  it("shows a deal owner the status line and no Legal-only box", () => {
+    const html = card(change(), list());
+    expect(html).not.toContain("From our standard");
+    expect(html).not.toContain("Our standard says nothing");
   });
 });

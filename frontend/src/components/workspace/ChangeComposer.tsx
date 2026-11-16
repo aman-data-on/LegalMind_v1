@@ -16,7 +16,8 @@ import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 import { ApiError, api, describeError } from "@/lib/api";
-import { ACTION_LABEL, isHeading, redline, where, type Answer, type ChangeList, type ClientChange, type Mark } from "@/lib/changes";
+import { ACTION_LABEL, answerFor, isHeading, redline, verdictsFor, where, type Answer, type ChangeList, type ClientChange, type Mark, type Verdict } from "@/lib/changes";
+import { VERDICT_COPY, VERDICT_LABELS } from "@/lib/labels";
 import { useSeesLegalPosition } from "@/lib/session";
 import type { Evaluation, Finding } from "@/lib/types";
 
@@ -119,7 +120,12 @@ export function AnswerComposer({ change, list, actions, contractId, details, onA
   const id = useId();
   const seesInternal = useSeesLegalPosition();
   const theirs = change.after?.text ?? "";
-  const [choice, setChoice] = useState<Answer | null>(initial);
+  // R3 step 10: Legal picks a verdict; Reject then picks the wording sent back
+  const [verdict, setVerdict] = useState<Verdict | null>(
+    initial === "accept_theirs" ? "accept" : initial === "write_wording" ? "accept_changes" : initial ? "reject" : null);
+  const [rejectWith, setRejectWith] = useState<Answer | null>(initial);
+  const choice = answerFor(verdict, actions, rejectWith);
+  const [share, setShare] = useState(false);
   // a second answer starts from the wording already recorded, never back at theirs
   const recorded = change.answer?.wording ?? null;
   const [wording, setWording] = useState(recorded ?? theirs);
@@ -140,6 +146,13 @@ export function AnswerComposer({ change, list, actions, contractId, details, onA
 
   const several = change.review.after.filter((f) => f.user_status !== "ACCEPTABLE").length > 1;
   const measured = !change.unmeasured && change.review.after.some((f) => f.evaluation_ids.length);
+  // "Ask the client" is the existing decision on a measured point — Legal's only
+  const askable = list.can_decide && measured && change.review.after.some((f) => f.user_status !== "ACCEPTABLE");
+  const verdicts = verdictsFor(actions, askable);
+  const wordings = actions.filter((a) => a === "keep_ours" || a === "use_standard");
+  // the condition stays Legal's (the internal note, omitted for other readers) unless
+  // shared; a reader who cannot keep an internal note shares it (rule 18: never hidden in the UI only)
+  const shared = share || !seesInternal;
   // accepting a point Legal decides is the decision itself until one accepts it (AM-250 r2)
   const decides = choice === "accept_theirs" && change.route === "holder" && !change.holder_accepted
     && !change.unmeasured;
@@ -152,7 +165,9 @@ export function AnswerComposer({ change, list, actions, contractId, details, onA
     if (!choice || !ready) return;
     setBusy(true);
     setError(null);
-    const [why, note, inside] = [reason.trim(), clientNote.trim(), internalNote.trim()];
+    const condition = choice === "write_wording" && !shared ? reason.trim() : "";
+    const why = condition ? VERDICT_COPY.conditionKept : reason.trim();
+    const [note, inside] = [clientNote.trim(), [condition, internalNote.trim()].filter(Boolean).join("\n\n")];
     const standard = choice === "use_standard" ? change.anchor?.clause_version_id : null;
     try {
       onAnswered(await api.answerChange(contractId, change.row_key, list.to.version_number, {
@@ -163,7 +178,7 @@ export function AnswerComposer({ change, list, actions, contractId, details, onA
         ...(note ? { client_note: note } : {}),
         ...(seesInternal && inside ? { internal_note: inside } : {}),
       }));
-      setChoice(null);
+      setVerdict(null);
     } catch (cause) {
       setError(composerError(cause));
     } finally {
@@ -218,9 +233,9 @@ export function AnswerComposer({ change, list, actions, contractId, details, onA
   const editor = (
     <form className="cx-editor" aria-labelledby={`${id}-ed`} data-testid="wording-editor"
           onSubmit={(event) => { event.preventDefault(); void submit(); }}
-          onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); setChoice(null); } }}>
+          onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); setVerdict(null); } }}>
       <header className="cx-editor__head">
-        <button type="button" className="ws-btn ws-btn--sm cx-editor__back" onClick={() => setChoice(null)}>
+        <button type="button" className="ws-btn ws-btn--sm cx-editor__back" onClick={() => setVerdict(null)}>
           <IconArrowLeft size={14} /> Back to the choices
         </button>
         <h3 id={`${id}-ed`}>Write our wording <span>{where(change)}</span></h3>
@@ -264,7 +279,15 @@ export function AnswerComposer({ change, list, actions, contractId, details, onA
           reply waits for it to take effect.</p> : null}
       </div>
       <footer className="cx-editor__foot">
-        <Reason required value={reason} onChange={setReason} />
+        <div className="cx-condition">
+          <Reason required value={reason} onChange={setReason} condition shared={shared} />
+          {seesInternal ? (
+            <label className="cx-share">
+              <input type="checkbox" checked={share} onChange={(event) => setShare(event.target.checked)} />
+              {VERDICT_COPY.share}
+            </label>
+          ) : null}
+        </div>
         <div className="cx-editor__submit">
           {errorLine}
           <button type="submit" className="ws-btn ws-btn--primary" disabled={busy || !ready || error?.conflict}>
@@ -279,14 +302,28 @@ export function AnswerComposer({ change, list, actions, contractId, details, onA
     <section className="cx-section cx-compose" aria-labelledby={`${id}-title`}>
       <h4 id={`${id}-title`} className="cx-label">{change.answer ? "Change your answer" : "Your answer"}</h4>
       <div className="cx-choices" role="radiogroup" aria-labelledby={`${id}-title`}>
-        {actions.map((a) => (
-          <label key={a} className="cx-choice" data-on={choice === a || undefined}>
-            <input type="radio" name={`${id}-choice`} value={a} checked={choice === a}
-                   onChange={() => { setChoice(a); setError(null); }} />
-            <span>{ACTION_LABEL[a]}</span>
+        {verdicts.map((v) => (
+          <label key={v} className="cx-choice" data-on={verdict === v || undefined}>
+            <input type="radio" name={`${id}-choice`} value={v} checked={verdict === v}
+                   onChange={() => { setVerdict(v); setError(null); }} />
+            <span>{VERDICT_LABELS[v]}</span>
           </label>
         ))}
       </div>
+      {verdict === "reject" && wordings.length > 1 ? (
+        <fieldset className="cx-rejectwith">
+          <legend>{VERDICT_COPY.rejectWith}</legend>
+          <div className="cx-choices" role="radiogroup">
+            {wordings.map((a) => (
+              <label key={a} className="cx-choice" data-on={rejectWith === a || undefined}>
+                <input type="radio" name={`${id}-reject`} value={a} checked={rejectWith === a}
+                       onChange={() => { setRejectWith(a); setError(null); }} />
+                <span>{ACTION_LABEL[a]}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      ) : null}
       {change.kind === "THEIRS" && !change.anchor?.clause_version_id ? (
         <p className="ws-pane__note">{NO_STANDARD}</p>
       ) : null}
@@ -296,7 +333,26 @@ export function AnswerComposer({ change, list, actions, contractId, details, onA
         <p className="ws-pane__note">{BY_HAND}</p>
       ) : null}
 
-      {choice === "write_wording" ? (
+      {verdict === "ask_client" ? (
+        // the existing decision forms, "Ask the client to clarify" prepared, never recorded for Legal
+        <div className="cx-panel">
+          <p className="cx-panel__what">{VERDICT_COPY.askHelp}</p>
+          {details === null ? <p role="status" className="ws-pane__note">Loading the points…</p> : null}
+          {details?.map(({ finding, evaluations }) => {
+            const read = change.review.after.find((f) => f.finding_id === finding.id);
+            if (!read || read.user_status === "ACCEPTABLE") return null;
+            return (
+              <div key={finding.id} className="cx-decide__point">
+                {several ? <p className="cx-decide__name">{requirementTitle({ code: read.requirement_code })}</p> : null}
+                {evaluations.map((evaluation) => (
+                  <DecisionControl key={evaluation.id} evaluation={evaluation} onRecorded={onReload}
+                                   prepared={{ decisionType: "REQUEST_CLARIFICATION", seq: 1 }} />
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      ) : choice === "write_wording" ? (
         <>
           {panel.write_wording}
           {slot ? createPortal(editor, slot) : editor}
@@ -324,14 +380,18 @@ export function AnswerComposer({ change, list, actions, contractId, details, onA
   );
 }
 
-function Reason({ required, value, onChange }: { required: boolean; value: string; onChange: (v: string) => void }) {
+function Reason({ required, value, onChange, condition = false, shared = true }: {
+  required: boolean; value: string; onChange: (v: string) => void;
+  /** R3 "Accept with changes": the field is Legal's condition, Legal's own unless shared */
+  condition?: boolean; shared?: boolean;
+}) {
   const id = useId();
   return (
     <label className="cx-reason">
-      <span>Reason <span className="cx-reason__opt">{required ? "(required)" : "(optional, one line)"}</span></span>
+      <span>{condition ? VERDICT_COPY.condition : "Reason"} <span className="cx-reason__opt">{required ? "(required)" : "(optional, one line)"}</span></span>
       <input type="text" maxLength={200} required={required} value={value} aria-describedby={`${id}-who`}
              onChange={(event) => onChange(event.target.value)} />
-      <span id={`${id}-who`} className="cx-reason__who">{REASON_READERS}</span>
+      <span id={`${id}-who`} className="cx-reason__who">{condition && !shared ? VERDICT_COPY.conditionHelp : REASON_READERS}</span>
     </label>
   );
 }

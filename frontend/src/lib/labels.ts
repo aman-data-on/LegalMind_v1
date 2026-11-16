@@ -527,6 +527,37 @@ export const LAWYER_COPY = {
   download: "Download Word file",
   tableFailed: "The review table could not be loaded",
   downloadFailed: "The Word file could not be made",
+  fromStandard: "From our standard",
+  standardSilent: "Our standard says nothing on this. Decide from the clause.",
+  measuredBy: "Measured against",
+  goTo: "Go to",
+} as const;
+
+/** R3 step 10 (owner, 2026-11-16): Legal's four verdicts on a client change, each made
+ *  with the answers and decision forms that already exist (`verdictsFor`). */
+export const VERDICT_LABELS = {
+  accept: "Accept",
+  accept_changes: "Accept with changes",
+  reject: "Reject",
+  ask_client: "Ask the client",
+} as const;
+export const VERDICT_COPY = {
+  rejectWith: "Send back",
+  condition: "Condition",
+  conditionHelp: "Only Legal sees it, unless you share it.",
+  share: "Share the condition with sales",
+  conditionKept: "Accepted with changes. The condition is with Legal.",
+  askHelp: "Record “Ask the client to clarify” on each point below. The point stays open until the client answers.",
+} as const;
+
+/** R3: the deal owner's words for who has each change, and the deal's one status line. */
+export const SALES_LINE = {
+  withLegal: "With Legal: nothing for you",
+  legalAnswered: "Legal answered",
+  yourTurn: "Your turn",
+  ready: "Ready to send the reply",
+  waitingLegal: "With Legal: nothing for you right now. We will show you when it is your turn.",
+  otherTopic: "Other changes",
 } as const;
 export const POINT_KIND_LABELS: Record<string, string> = {
   CHANGED: "Changed", ADDED: "Added", REMOVED: "Removed",

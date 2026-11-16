@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { LetteredPoints, NotesForLegal } from "@/components/workspace/LawyerView";
+import { FromOurStandard, LetteredPoints, NotesForLegal } from "@/components/workspace/LawyerView";
 import type { ClientChange } from "@/lib/changes";
 
 describe("R2 lawyer view (display only)", () => {
@@ -23,5 +23,28 @@ describe("R2 lawyer view (display only)", () => {
     expect(renderToStaticMarkup(<NotesForLegal list={{ notes_for_legal: [] }} />)).toBe("");
     const html = renderToStaticMarkup(<NotesForLegal list={{ notes_for_legal: [{ kind: "DUPLICATE", clauses: ["1", "2"], text: "Clause 1 repeats what clause 2 already says." }] }} />).replaceAll("<!-- -->", "");
     expect(html).toContain("Notes for Legal (1)");
+  });
+
+  it("links a note's clause to its change row, only where a row exists (R3)", () => {
+    const list = { notes_for_legal: [{ kind: "CROSS_REF", clauses: ["8.3", "9"], text: "8.9 points to 8.3." }] };
+    const html = renderToStaticMarkup(<NotesForLegal list={list} onPick={() => {}}
+      rowFor={(n) => (n === "8.3" ? "row-83" : null)} />).replaceAll("<!-- -->", "");
+    expect(html).toContain(">Go to 8.3</button>");
+    expect(html).not.toContain("Go to 9");
+  });
+
+  it("says what our standard says, only from what the server sent (R3, rule 21)", () => {
+    const silent = { triage: null, lawyer: { standards: { source: "LEGAL_DECIDES" } }, review: { after: [] } } as unknown as ClientChange;
+    expect(renderToStaticMarkup(<FromOurStandard change={silent} />)).toContain("Our standard says nothing on this.");
+    const said = { triage: { topics: [{ section: "13", title: "Termination", position: "Thirty days' notice." }] },
+                   lawyer: { standards: { source: "HEADING_TOPIC", topics: [] } }, review: { after: [] } } as unknown as ClientChange;
+    const html = renderToStaticMarkup(<FromOurStandard change={said} />).replaceAll("<!-- -->", "");
+    expect(html).toContain("From our standard");
+    expect(html).toContain("Thirty days&#x27; notice.");
+    // a reader sent no position (LEGAL-02) sees the topic and no position text
+    const hidden = { ...said, triage: { topics: [{ section: "13", title: "Termination" }] } } as unknown as ClientChange;
+    const bare = renderToStaticMarkup(<FromOurStandard change={hidden} />);
+    expect(bare).toContain("Termination.");
+    expect(bare).not.toContain("Thirty days");
   });
 });

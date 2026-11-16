@@ -39,7 +39,7 @@ import {
   clauseName, effectLabel, effectSentence, type Measured,
   type AcceptableEffect,
   answersAsLegal, explanation, formattingOnly, changeBucket, historyLine, matches, readerFavour, readerStatus, readerWord, replyBlockers,
-  oursLabel, whoLine, where,
+  oursLabel, salesLine, salesStatus, topicOf, whoLine, where,
   type Answer, type ChangeList, type ClientChange, type EffectForUs, type Filter, type ManualRow, type ReplyGate,
 } from "@/lib/changes";
 import type { DocumentVersion, Evaluation, Finding } from "@/lib/types";
@@ -52,7 +52,8 @@ import {
   IconAlertCircle, IconArrowLeft, IconBetter, IconCheck, IconChevronRight, IconClock, IconFile, IconFileMinus, IconLock, IconSame, IconWorse, IconFallback,
 } from "./icons";
 import { OfferLine } from "./OfferPlaybook";
-import { LetteredPoints, NotesForLegal, ReviewTableButton } from "./LawyerView";
+import { FromOurStandard, LetteredPoints, NotesForLegal, ReviewTableButton } from "./LawyerView";
+import { SALES_LINE } from "@/lib/labels";
 import { formatDate } from "@/lib/dates";
 
 export const COLLEAGUE = "Changed by a colleague — reload to see their answer.";
@@ -312,7 +313,10 @@ export function ChangesPane({
         <ReplyBar contractId={contractId} versions={versions} list={data}
                   onVersionCreated={onVersionCreated} onPick={pick} />
       </div>
-      <NotesForLegal list={data} />
+      {data.can_decide ? <NotesForLegal list={data} onPick={pick} rowFor={(n) => (data.changes.find((c) => c.clause.number === n)
+        ?? data.changes.find((c) => c.clause.number?.startsWith(`${n}.`)))?.row_key ?? null} /> : null}
+      {/* R3: the deal owner's one line — who has the changes now, never Legal's view */}
+      {!data.can_decide && data.changes.length ? <p className="cx-banner cx-sales-status" data-testid="sales-status">{salesStatus(data.changes)}</p> : null}
       <p className="ws-visually-hidden" role="status" aria-live="polite">{said}</p>
       {packageBar?.(pick)}
       {data.special_conditions_not_applied?.length ? (
@@ -534,6 +538,8 @@ export function AcceptTogether({ effect, rows, list, contractId, onClose, onDone
  *  An open change reads in full ink, an answered one quieter, so the list scans as
  *  "what is left" without a colour or a counter shouting. */
 function RowWho({ change, reader }: { change: ClientChange; reader: ChangeList }) {
+  // R3: a deal owner reads who has it in their own words, on every row
+  if (!reader.can_decide) return <span className={change.answer ? "cx-row__done" : "cx-row__tag"}>{salesLine(change)}</span>;
   const who = whoLine(change, reader);
   if (change.answer) {
     return (
@@ -569,20 +575,26 @@ function ChangeIndex({ rows, current, onPick, allUntracked, reader, formatting, 
   const fmtRows = rows.filter(formattingOnly);
   if (fmtRows.length) groups.push({ key: `${FMT}-fmt`, head: FMT, title: null, rows: fmtRows, fmt: true });
   // grouped by top-level clause: "9", "9.1", "9.2" sit under 9 (the document's own number)
-  for (const c of rows) {
+  // R3: a deal owner's list is grouped by plain topic, in the order topics first appear;
+  // Legal's stays by clause number
+  const byTopic = !reader.can_decide;
+  const order = byTopic ? [...new Set(rows.map((c) => topicOf(c) ?? SALES_LINE.otherTopic))] : [];
+  const ordered = byTopic ? [...rows].sort((a, b) =>
+    order.indexOf(topicOf(a) ?? SALES_LINE.otherTopic) - order.indexOf(topicOf(b) ?? SALES_LINE.otherTopic)) : rows;
+  for (const c of ordered) {
     if (formattingOnly(c)) continue;
     const top = c.clause.number?.split(".")[0];
-    const head = groupHead(c);
+    const head = byTopic ? topicOf(c) ?? SALES_LINE.otherTopic : groupHead(c);
     // a number the paper uses twice is two clauses: each row sits in its own parent
     // unit (the server's `group`), told apart by that unit's own words
-    const unit = c.clause.group?.key ?? null;
+    const unit = byTopic ? null : c.clause.group?.key ?? null;
     const last = groups.at(-1);
     if (last?.head !== head || (last?.unit ?? null) !== unit || last?.fmt) {
-      groups.push({ key: `${head}-${groups.length}`, head, title: null, name: c.clause.group?.name ?? null, unit, rows: [] });
+      groups.push({ key: `${head}-${groups.length}`, head, title: null, name: byTopic ? null : c.clause.group?.name ?? null, unit, rows: [] });
     }
     const g = groups.at(-1)!;
     g.rows.push(c);
-    if (!g.title && c.clause.number === top && c.clause.heading) g.title = c.clause.heading;
+    if (!byTopic && !g.title && c.clause.number === top && c.clause.heading) g.title = c.clause.heading;
   }
   const toggle = (key: string) => setClosed((was) => {
     const next = new Set(was);
@@ -849,6 +861,7 @@ export function AnswerCard({ change, list, contractId, onAnswered, onReload, inP
         </div>
       ) : null}
       <LetteredPoints change={change} />
+      {legal && actions.length ? <FromOurStandard change={change} /> : null}
       {change.triage?.reasons.length ? (
         <ul className="cx-reasons">
           {change.triage.reasons.map((r, i) => <li key={i}>{r.reason}</li>)}

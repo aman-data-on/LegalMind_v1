@@ -32,7 +32,7 @@
 .cx-compose { display: grid; gap: var(--ws-s2); }
 .cx-compose > .cx-label, .cx-compose > .ws-pane__note { margin: 0; }
 .cx-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.cx-choice { position: relative; display: flex; align-items: center; justify-content: center; min-height: 34px; padding: 0 12px;
+.cx-choice { position: relative; display: flex; align-items: center; justify-content: center; min-height: 34px; padding: 6px 12px; text-align: center; line-height: 1.25;
   font-size: var(--ws-text-sm); font-weight: 500; color: var(--ws-ink-700); cursor: pointer;
   background: var(--ws-surface); border: 1px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm);
   transition: background var(--ws-t), border-color var(--ws-t), color var(--ws-t); }
@@ -221,7 +221,7 @@ button.cx-bar__open[aria-expanded="true"] svg { transform: rotate(-90deg); }
   .cx-bar__end { min-width: 0; max-width: 100%; }
   .cx-blocked__list li { min-width: 0; }
   .cx-editor__foot { flex-direction: column; align-items: stretch; }
-  .cx-editor__foot .cx-reason { flex: none; }
+  .cx-editor__foot .cx-reason, .cx-editor__foot .cx-condition { flex: none; }
   .cx-editor__submit { margin-left: 0; justify-content: flex-end; }
   .cx-editor__head { flex-wrap: wrap; }
 }
@@ -400,3 +400,15 @@ button.cx-bar__open[aria-expanded="true"] svg { transform: rotate(-90deg); }
 .cx-lawyer__table table { border-collapse: collapse; font-size: var(--t-dense); min-inline-size: 48rem; }
 .cx-lawyer__table th, .cx-lawyer__table td { border: 1px solid var(--c-line); padding: var(--ws-s2); vertical-align: top; text-align: left; white-space: pre-wrap; min-inline-size: 8rem; }
 .cx-lawyer__table th { font-size: var(--t-label); font-weight: 500; color: var(--c-text-3); }
+
+/* R3 step 10 — "From our standard" (Legal), verdicts, the deal owner's status line */
+.cx-std { display: grid; gap: var(--ws-s2); padding: var(--ws-s3); border: 1px solid var(--ws-ink-100); border-inline-start: 3px solid var(--ws-ink-300); border-radius: var(--ws-radius-sm); background: var(--ws-paper); }
+.cx-std__position { margin: 0; font-family: var(--ws-serif); font-size: var(--ws-text-sm); color: var(--ws-ink-900); line-height: 1.55; }
+.cx-std--none { margin: 0; font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+.cx-lawyer__goto { margin-inline-start: var(--ws-s2); }
+.cx-rejectwith { display: grid; gap: var(--ws-s2); margin: 0; padding: 0; border: 0; }
+.cx-rejectwith legend { font-size: var(--t-caption); color: var(--ws-ink-700); margin-bottom: var(--ws-s2); }
+.cx-condition { display: grid; gap: var(--ws-s2); flex: 1 1 22rem; min-width: 0; }
+.cx-share { justify-content: flex-start; display: flex; gap: var(--ws-s2); align-items: center; font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+.cx-sales-status { font-weight: 500; color: var(--ws-ink-900); }
+.cx-share input { inline-size: auto; flex: none; margin: 0; }
