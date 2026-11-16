@@ -20,7 +20,8 @@ export function PdfPages({ blob, label }: { blob: Blob; label: string }) {
     (async () => {
       const pdfjs = await import("pdfjs-dist");
       pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
-      const doc = await pdfjs.getDocument({ data: new Uint8Array(await blob.arrayBuffer()) }).promise;
+      const task = pdfjs.getDocument({ data: new Uint8Array(await blob.arrayBuffer()) });
+      const doc = await task.promise;
       const width = host?.clientWidth || 800;
       const ratio = window.devicePixelRatio || 1;
       for (let n = 1; n <= doc.numPages && live && host; n += 1) {
@@ -35,7 +36,7 @@ export function PdfPages({ blob, label }: { blob: Blob; label: string }) {
         host.appendChild(canvas);
         await page.render({ canvas, viewport }).promise;
       }
-      await doc.destroy();
+      await task.destroy();
     })().catch((cause: unknown) => { if (live) setError(cause); });
     return () => { live = false; host?.replaceChildren(); };
   }, [blob]);
