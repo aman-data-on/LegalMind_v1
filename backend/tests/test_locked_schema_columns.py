@@ -120,7 +120,7 @@ LOCKED_SCHEMA: dict[str, tuple[str, ...]] = {
     # CLM flow 5 (2026-11-03, migration e6b3d9a1c7f5): AM-279's `executions` with AM-292's
     # fields and AM-297's (AB-156).
     "executions": ('comparison', 'contract_id', 'created_at', 'differences_accepted_by', 'differences_reason', 'duty_paid', 'id', 'not_stamped_ack_by', 'origin', 'recorded_by', 'seal_used', 'signatories', 'signed_at', 'signed_document_version_id', 'stamp_method', 'stamp_reference', 'stamp_state', 'stamped_on', 'version_number', 'witnesses'),
-    "draft_answers": ('answers', 'counterparty_id', 'created_at', 'created_by', 'expires_at', 'id', 'owner_id', 'template_version_id', 'updated_at', 'version'),
+    "draft_answers": ('answers', 'counterparty_id', 'created_at', 'created_by', 'expires_at', 'id', 'owner_id', 'template_version_id', 'brand', 'updated_at', 'version'),
 }
 
 # Alembic's bookkeeping table, present in the database and absent from the domain model.
@@ -218,9 +218,10 @@ def test_the_total_locked_column_count_is_unchanged(db):
     flow 5 (e6b3d9a1c7f5): the 19-column `executions` table (AM-279 / AM-292 / AM-297).
     355 with `executions.origin` (AM-298, a8d4c2e6f1b9): filed as signed outside LegalMind.
     356 with `contracts.governed_by_contract_id` (AM-267 / AM-309, b4f8e2a6d9c1).
+    357 with `draft_answers.brand` (one MSA for every brand, AM-341; f3b8c1d6e2a7).
     """
     live = _live_columns(db)
-    assert sum(len(c) for c in live.values()) == 356
+    assert sum(len(c) for c in live.values()) == 357
 
 
 # --------------------------------------------------------------------------
