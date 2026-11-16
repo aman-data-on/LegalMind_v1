@@ -45,7 +45,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_column("draft_answers", "version")
-    op.drop_constraint("ck_contracts_issuing_entity", "contracts", type_="check")
+    op.drop_constraint("issuing_entity", "contracts", type_="check")
     op.drop_column("contracts", "issuing_entity")
     for name in COUNTERPARTY_LEGAL:
         op.drop_column("counterparties", name)
