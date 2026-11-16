@@ -95,6 +95,19 @@ def check_template(template: dict[str, Any], clauses: dict[tuple[str, int], dict
             problems.append(f"{v['key']}: unknown class {v.get('class')}")
         if v.get("class") == "AO" and not v.get("allowed"):
             problems.append(f"{v['key']}: approved-options field with no options")
+        if v.get("multi") and not v.get("allowed"):
+            problems.append(f"{v['key']}: a choose-several field with no options")
+        if v.get("type") == "rows" and not v.get("columns"):
+            problems.append(f"{v['key']}: a rows field with no columns")
+    offered = {s for v in template.get("variables", []) if v.get("multi")
+               for s in v["allowed"]}
+    delivery = (template.get("layout") or {}).get("delivery") or {}
+    if delivery and not (isinstance(delivery.get("clause"), str)
+                         and isinstance(delivery.get("lines"), dict)):
+        problems.append("delivery: must be {clause: <clause_key>, lines: {service: words}}")
+    for service in delivery.get("lines") or {}:
+        if service not in offered:            # S4: the 5.3 map names offered services
+            problems.append(f"delivery: {service} is not an option of any services field")
     whens = [v.get("when") for v in template.get("variables", [])]
     whens += [p.get("when") for a in [template, *template.get("annexures", [])]
               for p in a.get("clauses", [])]
@@ -700,6 +713,9 @@ def import_rows(db: Session, template: dict[str, Any], clauses: dict[tuple[str, 
     return lines
 
 
+#: S4: the services a client may take, and the 5.3 lines three of them map to
+SERVICE_CATALOGUE = (Path(__file__).resolve().parents[1] / "config" / "templates"
+                     / "service_order" / "catalogue.json")
 SPECIAL_REFERENCE = (Path(__file__).resolve().parents[1] / "config" / "templates"
                      / "special_conditions" / "reference.json")
 

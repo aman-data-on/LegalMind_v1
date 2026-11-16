@@ -57,7 +57,11 @@ MAX_LEVEL = 5
 #: the optional front-matter texts (see the layout above)
 FRONT = ("connector", "parties_close", "recitals_label", "operative")
 CLASSES = {"M", "O", "C", "AO"}
-TYPES = {"text", "date", "int", "bool", "choice", "email"}
+TYPES = {"text", "date", "int", "bool", "choice", "email", "rows"}
+#: a ``rows`` answer's ceiling (S4: one fee line per service taken)
+MAX_ROWS = 50
+#: an unmapped service's 5.3 cell (S4, rule 21): Legal writes it, never LegalMind
+LEGAL_TO_SUPPLY = "[Legal to supply]"
 #: an email address as a signing tool needs one (S2): local part, @, a dotted domain
 EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 #: ``{name}`` · ``{xref:CLAUSE.KEY}`` · ``{term:Defined Term}``
@@ -170,6 +174,33 @@ def clause_hash(clause: Mapping[str, Any]) -> str:
 # ---------------------------------------------------------------- answers
 def _coerce(var: Mapping[str, Any], raw: Any) -> Any:
     kind = var.get("type", "text")
+    if kind == "choice" and var.get("multi"):          # S4: services taken
+        if not isinstance(raw, list) or not raw:
+            raise ValueError("must be one or more of the approved options")
+        if len(set(map(str, raw))) != len(raw):
+            raise ValueError("names an option twice")
+        if any(x not in var.get("allowed", []) for x in raw):
+            raise ValueError("is not one of the approved options")
+        return list(raw)
+    if kind == "rows":                                  # S4: the fee table
+        cols = {c["key"]: c for c in var.get("columns", [])}
+        if not isinstance(raw, list) or not raw or len(raw) > MAX_ROWS:
+            raise ValueError(f"must have 1 to {MAX_ROWS} rows")
+        out = []
+        for i, row in enumerate(raw, 1):
+            if not isinstance(row, dict) or set(row) != set(cols):
+                raise ValueError(f"row {i} must give exactly: {', '.join(cols)}")
+            cells = {}
+            for k, c in cols.items():
+                try:
+                    cells[k] = _coerce(c, row[k])
+                except ValueError as exc:
+                    raise ValueError(f"row {i}, {c.get('label', k)}, {exc}") from None
+                if "allowed" in c and cells[k] not in c["allowed"]:
+                    raise ValueError(f"row {i}, {c.get('label', k)}, is not one of the "
+                                     "approved options")
+            out.append(cells)
+        return out
     if kind == "bool":
         if not isinstance(raw, bool):
             raise ValueError("must be yes or no")
@@ -225,7 +256,8 @@ def validate(variables: list[Mapping[str, Any]],
         except ValueError as exc:
             problems.append({"field": key, "problem": str(exc)})
             continue
-        if "allowed" in var and value not in var["allowed"]:
+        if "allowed" in var and not isinstance(value, list) \
+                and value not in var["allowed"]:
             problems.append({"field": key,
                              "problem": "is not one of the approved options"})
             continue
@@ -241,6 +273,8 @@ def _display(var: Mapping[str, Any] | None, value: Any) -> str:
         return f"{d.day} {d:%B %Y}"
     if isinstance(value, bool):
         return "Yes" if value else "No"
+    if isinstance(value, list):
+        return "; ".join(_display(None, x) for x in value)
     return str(value)
 
 
@@ -257,6 +291,9 @@ class _Resolver:
         self.defined: set[str] = set()
         self.terms_used: list[tuple[str, str]] = []
         self.xrefs: list[tuple[str, str]] = []
+        #: (clause_key, the sub's own words, its number): what `{delivery}` points at
+        self.subs: list[tuple[str, str, str]] = []
+        self.delivery = template.get("layout", {}).get("delivery", {})
 
     def runs(self, text: str, where: str, *, optional: bool = False) -> list[dict] | None:
         """Text → runs: ``{"t"}`` plain, ``{"ref", "num"}`` a cross-reference (number
@@ -307,6 +344,8 @@ class _Resolver:
                 self.defined |= defined_terms(block.get("text", ""))
                 if block.get("key"):
                     self._number(block["key"], number, where)
+                self.subs.append((where.split("@")[0],
+                                  block.get("title", "") + block.get("text", ""), number))
                 out.append({"kind": "sub", "key": block.get("key"), "level": level + 1,
                             "number": number,
                             **{k: block[k] for k in ("title", "title_style")
@@ -324,6 +363,10 @@ class _Resolver:
             elif kind == "list":
                 out.append({"kind": kind, "items": [self.runs(t, where)
                                                     for t in block["items"]]})
+            elif kind == "table" and block.get("rows_from"):
+                out.append({"kind": kind, "widths": block.get("widths"),
+                            "rows": [[self.runs(c, where) for c in block["header"]],
+                                     *self.filled(block, where)]})
             elif kind == "table":
                 rows = [block["header"], *block.get("rows", [])]
                 if len({len(r) for r in rows}) != 1:
@@ -340,6 +383,53 @@ class _Resolver:
                 self.problems.append({"field": where,
                                       "problem": f"has a block of unknown kind {kind!r}"})
         return out
+
+    def filled(self, block: Mapping[str, Any], where: str) -> list[list[list[dict]]]:
+        """S4: one row per item of the field ``rows_from`` names; a cell is ``{item}``,
+        ``{item.<column>}``, ``{delivery}`` (the item's clause 5.3 number) or slot text.
+        The blank template: one row of the headers in brackets."""
+        var = self.vars.get(block["rows_from"])
+        if var is None:
+            self.problems.append({"field": where, "problem": f"fills a table from "
+                                  f"{block['rows_from']}, which is not a field"})
+            return []
+        if self.blank and var["key"] not in self.values:
+            return [[[{"t": f"[{h}]", "ph": True}]
+                     for h in block["header"]]]
+        rows = []
+        for item in self.values.get(var["key"], []):
+            row = []
+            for cell in block["cells"]:
+                if cell == "{item}":
+                    row.append([{"t": _display(None, item)}])
+                elif cell.startswith("{item.") and cell.endswith("}"):
+                    row.append([{"t": _display(None, item.get(cell[6:-1], ""))}])
+                elif cell == "{delivery}":
+                    row.append([self.delivered(item if isinstance(item, str)
+                                               else item.get("service", ""), where)])
+                else:
+                    row.append(self.runs(cell, where) or [])
+            rows.append(row)
+        return rows
+
+    def delivered(self, service: str, where: str) -> dict:
+        """The number of the body sub whose own words start as ``layout.delivery`` maps
+        the service (5.3.1 for "VPS Services:"), or the Legal-to-supply run (rule 21)."""
+        if not service:
+            self.problems.append({"field": where, "problem": "names no service for a "
+                                  "clause 5.3 cell"})
+            return {"t": ""}
+        starts = self.delivery.get("lines", {}).get(service)
+        if starts is None:
+            return {"t": LEGAL_TO_SUPPLY, "ph": True, "legal": service}
+        clause = self.delivery.get("clause")
+        found = [n for k, text, n in self.subs if k == clause and text.startswith(starts)]
+        if len(found) != 1:
+            self.problems.append({"field": where, "problem": f"maps {service} to "
+                                  f"“{starts}”, which {len(found)} sub-clauses of "
+                                  f"{clause} start with"})
+            return {"t": ""}
+        return {"t": found[0]}
 
     def _number(self, key: str, number: str, where: str) -> None:
         if key in self.numbers:
@@ -552,6 +642,11 @@ def _walk(node: Any):
         for x in node.values():
             if isinstance(x, list | dict):
                 yield from _walk(x)
+
+
+def legal_to_supply(model: Mapping[str, Any]) -> list[str]:
+    """S4 (spec g5): the services whose clause 5.3 cell waits for Legal, in order."""
+    return list(dict.fromkeys(n["legal"] for n in _walk(model) if "legal" in n))
 
 
 def model_hash(model: Mapping[str, Any]) -> str:

@@ -711,9 +711,10 @@ export const api = {
     request<TemplateSummary>(p`/templates/${id}/recommend`, { method: "POST", body: { recommended } }),
   // New contract (S5, `AM-282` r4 / `AM-295`) — a published template, a person's answers
   publishedTemplates: () => request<PublishedTemplate[]>("/templates/published"),
-  createDraft: (templateVersionId: string, counterpartyId: string | null) =>
+  /** `brand`: which brand the client buys under the one MSA (AM-341), recorded on the draft */
+  createDraft: (templateVersionId: string, counterpartyId: string | null, brand: string | null = null) =>
     request<Draft>("/drafts", { method: "POST", body: {
-      template_version_id: templateVersionId, answers: {},
+      template_version_id: templateVersionId, answers: {}, ...(brand ? { brand } : {}),
       ...(counterpartyId ? { counterparty_id: counterpartyId } : {}) } }),
   draft: (id: string) => request<Draft>(p`/drafts/${id}`),
   /** a stale `expectedVersion` is a 409: the answers were saved elsewhere */

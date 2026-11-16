@@ -1117,8 +1117,13 @@ class DraftAnswers(Base):
     expires_at = mapped_column(TS, nullable=False)
     #: the `expected_version` a PATCH must name (N-1 Option C)
     version = mapped_column(Integer, nullable=False, server_default=text("0"))
+    #: the brand the client buys under the one MSA (AM-341): the person's pick, else the
+    #: template's
+    brand = mapped_column(String(16), nullable=True)
 
-    __table_args__ = (Index("ix_draft_answers_owner_id", "owner_id"),)
+    __table_args__ = (Index("ix_draft_answers_owner_id", "owner_id"),
+                      CheckConstraint("brand IN ('LEAPSWITCH', 'CLOUDPE', 'CLOUDJIFFY')",
+                                      name="brand"))
 
 
 class Execution(Base):

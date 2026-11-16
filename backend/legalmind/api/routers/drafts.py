@@ -21,7 +21,7 @@ from __future__ import annotations
 import os
 import re
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, Literal, get_args
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
@@ -68,7 +68,8 @@ CLIENT_FIELDS = {"counterparty_name": ("legal_name", "name"),
                  "counterparty_authority": ("authority_reference",)}
 #: the form's groups by role, so every template asks the client first, ours last
 _ROLE_GROUPS = (("counterparty_", "Client"), ("our_", "Our company"))
-_QUESTION_KEYS = ("type", "class", "allowed", "range", "when", "locked_value")
+_QUESTION_KEYS = ("type", "class", "allowed", "range", "when", "locked_value", "multi",
+                  "columns")
 
 
 _SMALL_WORDS = frozenset({"a", "an", "and", "as", "at", "by", "for", "in", "of", "on",
@@ -99,14 +100,21 @@ class DraftInvalid(BusinessRuleRejected):
         self.extra = {"problems": problems}
 
 
+#: the brands one MSA covers (AM-341); a draft records which one the client buys
+Brand = Literal["LEAPSWITCH", "CLOUDPE", "CLOUDJIFFY"]
+DRAFT_BRANDS = get_args(Brand)
+
+
 class DraftCreate(Body):
     template_version_id: UUID
     counterparty_id: UUID | None = None
+    brand: Brand | None = None
     answers: dict[str, Any] = Field(default_factory=dict, max_length=300)
 
 
 class DraftUpdate(Body):
     answers: dict[str, Any] = Field(max_length=300)
+    brand: Brand | None = None
     expected_version: int = Field(ge=0)
 
 
@@ -220,6 +228,7 @@ def _serialize(d: M.DraftAnswers, tv: M.TemplateVersion) -> dict[str, Any]:
     return {"id": str(d.id), "version": d.version, "template_version_id": str(tv.id),
             "template_status": tv.status,
             "counterparty_id": str(d.counterparty_id) if d.counterparty_id else None,
+            "brand": d.brand,
             "answers": d.answers, "problems": problems(tv, d.answers),
             "updated_at": d.updated_at.isoformat() if d.updated_at else None,
             "expires_at": d.expires_at.isoformat()}
@@ -256,6 +265,8 @@ def create_draft(body: DraftCreate, guard: Guard = Depends(get_guard)) -> dict:
     now = datetime.now(UTC)
     row = M.DraftAnswers(template_version_id=tv.id, counterparty_id=body.counterparty_id,
                          answers=answers, owner_id=guard.user_id,
+                         brand=body.brand or (tv.brand if tv.brand in DRAFT_BRANDS
+                                              else None),
                          created_by=guard.user_id,
                          expires_at=now + timedelta(days=TTL_DAYS))
     guard.db.add(row)
@@ -291,6 +302,8 @@ def update_draft(draft_id: UUID, body: DraftUpdate,
         raise Conflict("these answers were changed elsewhere; reload them")
     now = datetime.now(UTC)
     row.answers, row.version = body.answers, row.version + 1
+    if body.brand:
+        row.brand = body.brand
     row.updated_at, row.expires_at = now, now + timedelta(days=TTL_DAYS)
     guard.db.flush()
     return data(_serialize(row, _template(guard, row)))
@@ -299,8 +312,10 @@ def update_draft(draft_id: UUID, body: DraftUpdate,
 def _stand_in(var: dict[str, Any]) -> Any:
     """A value that passes the field's own checks, shown as missing in the preview."""
     kind = var.get("type", "text")
+    if kind == "rows":                         # S4: one line of its columns' stand-ins
+        return [{c["key"]: _stand_in(c) for c in var.get("columns", [])}]
     if var.get("allowed"):
-        return var["allowed"][0]
+        return [var["allowed"][0]] if var.get("multi") else var["allowed"][0]
     # an email stand-in on the reserved .invalid domain (RFC 2606): never deliverable
     return {"bool": False, "int": (var.get("range") or [1])[0] or 1,
             "date": "2000-01-01", "email": "signatory@example.invalid"}.get(
@@ -386,7 +401,7 @@ def create_from_draft(draft_id: UUID, body: DraftCreateContract,
     made = create_contract(ContractCreate(
         name=body.name or (f"{named} — {counterparty.name}" if counterparty else named),
         contract_type=tv.doc_type, counterparty_id=row.counterparty_id,
-        issuing_entity=publish.issuing_entity(tv.brand)),  # type: ignore[arg-type]
+        issuing_entity=publish.issuing_entity(row.brand or tv.brand)),  # type: ignore[arg-type]
         guard)["data"]
     contract = must_exist(guard.db.get(M.Contract, UUID(made["id"])), "contracts row")
     docx = render_contract.render(model, tv.assets,

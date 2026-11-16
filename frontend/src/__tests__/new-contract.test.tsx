@@ -17,7 +17,7 @@ import { ConflictBanner, NoTemplate, saveOnce } from "@/components/newcontract/N
 import { QuestionField } from "@/components/newcontract/QuestionField";
 import { ApiError } from "@/lib/api";
 import {
-  clientFieldError, dateText, display, evaluate, groups, outsideRange, parseDate, profileValue, ONE_MSA, problemWords, toAnswers, unanswered, unavailable,
+  answered, clientFieldError, dateText, display, evaluate, groups, outsideRange, parseDate, profileValue, ONE_MSA, problemWords, toAnswers, unanswered, unavailable,
   visibleQuestions, type ContractModel, type Draft, type PublishedTemplate, type Question,
 } from "@/lib/newContract";
 
@@ -191,5 +191,32 @@ describe("no published template", () => {
   it("the page is absent for a reader who may not create a contract", () => {
     session.can = () => false;
     expect(renderToStaticMarkup(<NewContractPage />)).toContain("Page not found");
+  });
+});
+
+describe("S4: services taken and fee lines", () => {
+  const services: Question = { key: "services", label: "Services taken", type: "choice", multi: true,
+    allowed: ["VPS", "Colocation"] };
+  const fees: Question = { key: "fees", label: "Fee lines", type: "rows", columns: [
+    { key: "service", label: "Service", type: "choice", allowed: ["VPS", "Colocation"] },
+    { key: "quantity", label: "Quantity", type: "int" }] };
+
+  it("asks several services as checkboxes, never one radio", () => {
+    const html = renderToStaticMarkup(<QuestionField q={services} value={["VPS"]} onChange={() => {}} />);
+    expect(html.match(/type="checkbox"/g)).toHaveLength(2);
+    expect(html).not.toContain('type="radio"');
+  });
+
+  it("an empty list is not an answer; fee lines go to the server with numbers", () => {
+    expect(answered(services, [])).toBe(false);
+    expect(toAnswers([services, fees], { services: ["VPS"], fees: [{ service: "VPS", quantity: "3" }] }))
+      .toEqual({ services: ["VPS"], fees: [{ service: "VPS", quantity: 3 }] });
+    expect(display(services, ["VPS", "Colocation"])).toBe("VPS; Colocation");
+  });
+
+  it("shows one line per fee with a way to add and remove", () => {
+    const html = renderToStaticMarkup(<QuestionField q={fees} value={[{ service: "VPS", quantity: 1 }]} onChange={() => {}} />);
+    expect(html).toContain("Add a line");
+    expect(html).toContain("Remove line");
   });
 });

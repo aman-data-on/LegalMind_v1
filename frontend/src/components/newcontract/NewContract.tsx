@@ -105,7 +105,7 @@ export function StepOne({ published, awaiting, wanted, onStart }: {
   awaiting: TemplateCardData[];
   /** `?template=<key>` — the deep link from the Templates page */
   wanted: string | null;
-  onStart: (t: PublishedTemplate, client: Counterparty) => Promise<void>;
+  onStart: (t: PublishedTemplate, client: Counterparty, brand: string | null) => Promise<void>;
 }) {
   const { can } = useSession();
   // the deep link (`?template=<key>`) chooses type, company and template until a person does
@@ -139,7 +139,7 @@ export function StepOne({ published, awaiting, wanted, onStart }: {
   async function start() {
     if (!template || !client) return;
     setBusy(true); setFailure(null);
-    try { await onStart(template, client); } catch (e) { setFailure(describeError(e)); setBusy(false); }
+    try { await onStart(template, client, effectiveBrand); } catch (e) { setFailure(describeError(e)); setBusy(false); }
   }
 
   return (
@@ -634,8 +634,8 @@ export function NewContract() {
     router.push(s === 3 ? `/contracts/new?draft=${draftId}&step=review` : `/contracts/new?draft=${draftId}`);
   }, [draftId, router]);
 
-  async function startDraft(t: PublishedTemplate, client: Counterparty) {
-    const d = await api.createDraft(t.id, client.id);
+  async function startDraft(t: PublishedTemplate, client: Counterparty, brand: string | null) {
+    const d = await api.createDraft(t.id, client.id, brand);
     router.push(`/contracts/new?draft=${d.id}`);
   }
 
