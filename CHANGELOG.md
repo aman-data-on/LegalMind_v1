@@ -10,6 +10,12 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+### 2026-11-16 — pdfjs-dist 6.2.108; dashboard menu e2e race; convert preselects the client
+
+- `pdfjs-dist` 5.7.284 → **6.2.108** (high advisory affects >=5.6.83 <6.2.108; lowest fixed release, published 2026-07-28). Approved by `AM-278` for the page view; it now also draws the PDF on the S6 Final card (`PdfPages.tsx`, the loading task is destroyed instead of the document). `npm audit --audit-level=high` clean.
+- `e2e/dashboard-list.spec.ts`: the two menu tests measured the row before the late sections above the table (Your turn and its contracts, stage chips from the summary, client names) had landed, so the rows moved after the scroll — the menu flipped above row 1 or closed with its toggle out of view. Both now open the dashboard and wait for its requests to finish first. Test-only.
+- New contract opened from "Convert to our paper" (`?convert=`) preselects the deal's client.
+
 ### 2026-11-16 — Lock records for final package S4, the service catalogue, the draft brand; S5–S6 reserved (AB-193: AM-358–AM-362)
 
 Records only. S4 Annexure 1 engine merged in PR #299 (amends AM-312 r2 Q-7/r4); the 13-name service catalogue decided (code on `feat/final-package-s5-s6`); `draft_answers.brand` sets `contracts.issuing_entity` for LeapSwitch/CloudPe; S5 (client paper converts to our paper, amends AM-307 r8 / AM-318 r3) and S6 (Final card) reserved as decided scope. Annexure 1 text (L3) and unmapped 5.3 text (L4) remain Legal's.

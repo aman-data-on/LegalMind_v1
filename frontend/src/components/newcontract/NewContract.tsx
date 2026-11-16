@@ -99,13 +99,15 @@ const SAVE_WORDS: Record<SaveState, string> = {
 };
 
 // ---------------------------------------------------------------- step 1
-export function StepOne({ published, awaiting, wanted, onStart }: {
+export function StepOne({ published, awaiting, wanted, onStart, convertFor = null }: {
   published: PublishedTemplate[] | null;
   /** templates everyone can see but nobody can use yet (`AM-316` r5) */
   awaiting: TemplateCardData[];
   /** `?template=<key>` — the deep link from the Templates page */
   wanted: string | null;
   onStart: (t: PublishedTemplate, client: Counterparty, brand: string | null) => Promise<void>;
+  /** `?convert=<contract>` — "Convert to our paper": the deal's client is chosen already */
+  convertFor?: string | null;
 }) {
   const { can } = useSession();
   // the deep link (`?template=<key>`) chooses type, company and template until a person does
@@ -122,6 +124,15 @@ export function StepOne({ published, awaiting, wanted, onStart }: {
   const [failure, setFailure] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const linkId = link?.id;
+  useEffect(() => {
+    if (!convertFor) return;
+    let live = true;
+    api.contract(convertFor)
+      .then((c) => (c.counterparty_id ? api.counterparty(c.counterparty_id) : null))
+      .then((c) => { if (live && c) setClient((now) => now ?? c); })
+      .catch(toastFailure("The deal’s client could not be loaded"));
+    return () => { live = false; };
+  }, [convertFor]);
   // ...and the client search takes focus
   useEffect(() => {
     if (!linkId) return;
@@ -657,7 +668,7 @@ export function NewContract() {
       <div className="nc nc--one">
       <Steps step={1} />
       {failure ? <p className="nc-error" role="alert">{failure}</p> : null}
-      {draftId ? <p className="nc-quiet">Loading…</p> : <StepOne published={published} awaiting={awaiting} wanted={params.get("template")} onStart={startDraft} />}
+      {draftId ? <p className="nc-quiet">Loading…</p> : <StepOne published={published} awaiting={awaiting} wanted={params.get("template")} onStart={startDraft} convertFor={convert} />}
       </div>
     </div>
   );
