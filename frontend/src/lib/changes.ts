@@ -62,7 +62,29 @@ export interface ClauseName {
 /** Why a NEGATIVE row goes to Legal — only on NEGATIVE rows (proposed AM-299 r1 split). */
 export type Measured = "WORSE" | "ABSENT" | "REVIEW" | "NOT_MEASURED";
 
+/** R2 (owner, 2026-11-16): one lettered point of a changed clause — display only. */
+export interface LetteredPoint {
+  letter: string;
+  kind: "CHANGED" | "ADDED" | "REMOVED";
+  before: string | null;
+  after: string | null;
+  bound: Party | null;
+  benefits: Party | null;
+}
+export type Party = "LEAPSWITCH" | "CLIENT" | "BOTH";
+export interface LawyerView {
+  points: LetteredPoint[];
+  standards: { source: "FINDING"; codes: string[] }
+    | { source: "HEADING_TOPIC"; topics: { section: string; title: string }[] }
+    | { source: "LEGAL_DECIDES" };
+  mutuality: "MADE_MUTUAL" | "ONE_SIDED_ONTO_LEAPSWITCH" | "ONE_SIDED_ONTO_CLIENT" | "MIXED" | null;
+}
+/** R2 D4/D5: a note across clauses for Legal — never a point. */
+export interface NoteForLegal { kind: string; clauses: string[]; text: string }
+
 export interface ClientChange {
+  /** R2: lettered points, standards touched, who is bound (absent on client paper first) */
+  lawyer?: LawyerView;
   row_key: string;
   kind: ChangeKind;
   moved: boolean;
@@ -141,6 +163,8 @@ export interface ChangeList {
   /** May record our version as sent — outlives the round, unlike `can_answer`. */
   can_send?: boolean;
   can_decide: boolean;
+  /** R2 D4/D5: notes across clauses for Legal (absent on client paper first) */
+  notes_for_legal?: NoteForLegal[];
   /** holds `legal.approve_customization` and may answer: "Write our wording" (`AM-284` r1) */
   can_write_wording?: boolean;
 }

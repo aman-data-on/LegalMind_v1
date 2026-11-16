@@ -4133,6 +4133,94 @@
     ]
    }
   },
+  "/api/v1/contracts/{contract_id}/changes/review-table": {
+   "get": {
+    "description": "The table's rows before it is downloaded \u2014 the same rows the file holds.",
+    "operationId": "review_table_preview_api_v1_contracts__contract_id__changes_review_table_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Review Table Preview Api V1 Contracts  Contract Id  Changes Review Table Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Review Table Preview",
+    "tags": [
+     "negotiation"
+    ]
+   }
+  },
+  "/api/v1/contracts/{contract_id}/changes/review-table/export": {
+   "post": {
+    "description": "The table as a Word file (python-docx, the report's own renderer); audited.",
+    "operationId": "review_table_export_api_v1_contracts__contract_id__changes_review_table_export_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Review Table Export",
+    "tags": [
+     "negotiation"
+    ]
+   }
+  },
   "/api/v1/contracts/{contract_id}/changes/{row_key}/answers": {
    "post": {
     "description": "Keep ours, accept theirs, use our standard or write our wording (`AM-253`,\n`AM-284`). A new answer is a new row; a stale `expected_version` is 409, and an\nanswer replacing a colleague's tells them (`ANSWER_CHANGED_BY_COLLEAGUE`).\n\n* accept theirs, with an Evaluation on the client's clause \u2014 403\n  LEGAL_DECISION_REQUIRED until an effective Legal Decision accepts every one\n  (`AM-250` r2, `AM-281` r3); with none \u2014 unmeasured, or a measured clause of ours\n  the client deleted \u2014 a `legal.decision` holder who can read the contract records\n  it as an answer, reason required, audited (`AM-281` r1/r2), never a Legal\n  Decision;\n* write our wording \u2014 holders of `legal.approve_customization` only (403), reason\n  required; with an Evaluation on the client's clause: an APPROVE_CUSTOMIZATION\n  carrying the wording's SHA-256 is recorded on it in this request (`AM-284` r2 \u2014\n  \"Waiting for approval\" until effective); with none (the deleted clause too): no\n  Evaluation to decide on, so the holder's answer with its reason is the record,\n  audited \u2014 the `AM-281` path `AM-284` r2 names;\n* use our standard \u2014 the published clause realising the point (409\n  NO_STANDARD_CLAUSE otherwise);\n* keep ours on the client's own paper \u2014 our standard clause where a published one\n  anchors the row (recorded as \"use our standard\"); with none, 409 NOTHING_OF_OURS\n  (`AM-290`, as ruled for AB-152).\n\n``internal_note`` is stored and shown only to holders of `legal_position.view`\n(`AM-285` r3) \u2014 never in the audit trail, a notification or the reply.",

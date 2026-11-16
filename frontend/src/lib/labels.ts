@@ -506,3 +506,37 @@ export const CONVERT_COPY = {
   converting: "Converting…",
   done: "Our paper is ready as a new version",
 } as const;
+
+/** Step 0 (owner, 2026-11-16): where a point came from — the client's change first. */
+export const ORIGIN_LABELS: Record<string, string> = {
+  CLIENT_CHANGED: "The client changed this",
+  ALREADY_OURS: "Already in our MSA",
+};
+export const ORIGIN_RANK: Record<string, number> = { CLIENT_CHANGED: 0, ALREADY_OURS: 2 };
+
+/** R2: a changed clause as a lawyer reads it. */
+export const LAWYER_COPY = {
+  pointsTitle: "What the client changed, point by point",
+  standardsFrom: "Our standards it touches",
+  topicFrom: "Topic from the heading",
+  legalDecides: "No standard covers this. Legal decides.",
+  notesTitle: "Notes for Legal",
+  notesHelp: "Things to check across clauses. They are not points.",
+  tableButton: "Review table",
+  tableTitle: "Review table of the client's changes",
+  download: "Download Word file",
+  tableFailed: "The review table could not be loaded",
+  downloadFailed: "The Word file could not be made",
+} as const;
+export const POINT_KIND_LABELS: Record<string, string> = {
+  CHANGED: "Changed", ADDED: "Added", REMOVED: "Removed",
+};
+export const PARTY_LABELS: Record<string, string> = {
+  LEAPSWITCH: "LeapSwitch", CLIENT: "the client", BOTH: "both sides",
+};
+export const MUTUALITY_LABELS: Record<string, string> = {
+  MADE_MUTUAL: "Now applies to both sides",
+  ONE_SIDED_ONTO_LEAPSWITCH: "One-sided: binds LeapSwitch",
+  ONE_SIDED_ONTO_CLIENT: "One-sided: binds the client",
+  MIXED: "Binds each side in different points",
+};

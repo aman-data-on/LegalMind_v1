@@ -389,3 +389,14 @@ button.cx-bar__open[aria-expanded="true"] svg { transform: rotate(-90deg); }
 .lm-convert__anchor { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); margin-block-start: var(--s-1); }
 .lm-convert__anchor select { min-height: 36px; max-inline-size: 100%; border: 1px solid var(--c-line-strong); border-radius: var(--r-control); }
 @media (max-width: 899px) { .lm-convert__anchor select { min-height: 44px; } }
+
+/* R2 (2026-11-16): a change as lettered points, notes for Legal, the review table */
+.cx-lawyer { display: grid; gap: var(--ws-s2); }
+.cx-lawyer__list { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--ws-s2); font-size: var(--t-dense); }
+.cx-lawyer__meta { margin: 0; color: var(--c-text-3); font-size: var(--t-caption); }
+.cx-lawyer__notes summary { cursor: pointer; font-weight: 500; }
+.cx-lawyer__notes ul { margin: var(--ws-s2) 0 0; padding-inline-start: var(--ws-s5); }
+.cx-lawyer__table { max-height: 60vh; overflow: auto; margin: var(--ws-s3) 0; }
+.cx-lawyer__table table { border-collapse: collapse; font-size: var(--t-dense); min-inline-size: 48rem; }
+.cx-lawyer__table th, .cx-lawyer__table td { border: 1px solid var(--c-line); padding: var(--ws-s2); vertical-align: top; text-align: left; white-space: pre-wrap; min-inline-size: 8rem; }
+.cx-lawyer__table th { font-size: var(--t-label); font-weight: 500; color: var(--c-text-3); }

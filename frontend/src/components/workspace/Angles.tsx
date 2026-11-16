@@ -11,7 +11,7 @@
 import { useEffect, useState } from "react";
 
 import { api } from "@/lib/api";
-import { withoutSectionRefs } from "@/lib/labels";
+import { ORIGIN_LABELS, ORIGIN_RANK, withoutSectionRefs } from "@/lib/labels";
 import { requirementTitle } from "./findingLanguage";
 import type {
   BusinessPoint, CounterProposal, LegalItem, Observation, ReviewAngles,
@@ -137,7 +137,11 @@ function OpenPoint({ item, onOpen, words }: {
           : words ? <span className="ws-open__word">{words.reader}</span> : null}
       </span>
       {/* B3 p1: the place is the name's metadata line, under it, never pushed off to the right */}
-      {item.where ? <span className="ws-open__where">{item.where}</span> : null}
+      {item.where || item.origin ? (
+        <span className="ws-open__where">
+          {[item.origin ? ORIGIN_LABELS[item.origin] : null, item.where].filter(Boolean).join(". ")}
+        </span>
+      ) : null}
       {words?.answer ? <span className="ws-open__who">{words.answer}</span> : null}
     </>
   );
@@ -197,7 +201,11 @@ export function LegalAngleView({ angles, onOpen, decided, words, withRecommendat
   decided?: ReadonlySet<string> | undefined;
 }) {
   if (!angles) return null;
-  const items = (angles.legal.items ?? []).filter((i) => !decided?.has(i.finding_id));
+  // step 0: the client's changes first, then points we cannot place, then our own text
+  const items = (angles.legal.items ?? []).filter((i) => !decided?.has(i.finding_id))
+    .map((item, at) => ({ item, at }))
+    .sort((a, b) => (ORIGIN_RANK[a.item.origin ?? ""] ?? 1) - (ORIGIN_RANK[b.item.origin ?? ""] ?? 1) || a.at - b.at)
+    .map(({ item }) => item);
   const structural = angles.observations?.structural ?? [];
   const additional = angles.observations?.additional ?? [];
   const reading = angles.reading;

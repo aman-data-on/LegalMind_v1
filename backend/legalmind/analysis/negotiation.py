@@ -65,7 +65,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DBSession
 
-from legalmind.analysis import change_triage, reading
+from legalmind.analysis import change_triage, lawyer_rows, reading
 from legalmind.analysis import document_comparison as dc
 from legalmind.analysis.version_comparison import ComparisonNotPossible
 from legalmind.analysis.version_comparison import _normalize as _spacing
@@ -858,6 +858,9 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
                 "clause_version_id": None}} if template else {}),
             **answers(key),          # the answer here, and every round's before it
         })
+        # what a lawyer reads off the change: lettered points, standards, mutuality —
+        # display only, never a decision (owner 2026-11-16, R2 D1/D2/D6)
+        out[-1]["lawyer"] = lawyer_rows.lawyer_view(out[-1], vendor, aliases)
     return {
         "contract_id": str(contract.id),
         "from": {"document_version_id": str(before.id),
@@ -872,6 +875,8 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
                        for r in (OWNER, HOLDER, FAVOUR)},
                     **_effects(out)},
         "changes": out,
+        # R2 D4/D5: notes across clauses for Legal — never findings
+        "notes_for_legal": lawyer_rows.notes_for_legal(ours, theirs),
     }
 
 

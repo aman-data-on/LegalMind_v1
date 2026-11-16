@@ -677,3 +677,73 @@ def test_a_recitals_joining_word_is_never_a_change_of_its_own():
     units = _units(rows)
     assert [u["number"] for u in units] == [None, "1"]
     assert "AND" in units[0]["text"] and "WHEREAS" in units[0]["text"]
+
+
+# ------------------------------------------- R2 S2/S3/S9 (owner, 2026-11-16)
+def test_each_change_carries_its_lettered_points_and_the_review_table(api, db, owner):
+    """The lawyer's view rides on each change (display only) and the internal review
+    table lists every change, undecided ones as "Not decided yet", decided ones with
+    the clause as the answer leaves it; the Word file is audited."""
+    c = _contract(db, owner)
+    _pair(db, c, "9. Liability is capped at 12 months. The Customer shall pay on time.",
+           "9. Liability is capped at 6 months. The Customer shall pay on time. "
+           "LeapSwitch shall indemnify the Customer.")
+    listed = _changes(api, c)
+    assert listed["notes_for_legal"] == []
+    change = listed["changes"][0]
+    lettered = change["lawyer"]["points"]
+    assert [(p["letter"], p["kind"]) for p in lettered] == [("a", "CHANGED"), ("b", "ADDED")]
+    assert lettered[1]["bound"] == "LEAPSWITCH"
+    assert change["lawyer"]["standards"]["source"] in ("HEADING_TOPIC", "LEGAL_DECIDES")
+
+    table = api.get(f"{_url(c)}/review-table")
+    assert table.status_code == 200, table.text
+    got = table.json()["data"]
+    assert got["head"] == ["Sr", "Clause", "Original", "Requested change",
+                           "Updated clause", "Recommendation"]
+    assert got["rows"][0][4:] == ["Not decided yet", "Not decided yet"]
+    assert got["rows"][0][3].startswith("(a) ")
+    assert api.post(_url(c, change["row_key"]), json=_first("keep_ours")).status_code \
+        == 201
+    row = api.get(f"{_url(c)}/review-table").json()["data"]["rows"][0]
+    assert row[4] == row[2] and row[5].startswith("Keep our wording")
+
+    r = api.post(f"{_url(c)}/review-table/export")
+    assert r.status_code == 200 and r.content[:2] == b"PK"
+    assert db.scalar(select(func.count()).select_from(M.AuditEvent).where(
+        M.AuditEvent.action == audit.REPORT_EXPORTED,
+        M.AuditEvent.entity_id == c.id)) == 1
+    stranger = _contract(db, make_user(db))
+    _pair(db, stranger, "9. A.", "9. B.")
+    assert api.get(f"{_url(stranger)}/review-table").status_code == 404
+    assert api.post(f"{_url(stranger)}/review-table/export").status_code == 404
+
+
+def test_a_point_on_our_own_unchanged_text_is_labelled_already_ours(db, owner):
+    """Step 0: a point that fires on text we sent unchanged is "already in our MSA";
+    a point on a clause the client changed is the client's (display only)."""
+    from legalmind.api import angles
+    from legalmind.mapping.service import load_clauses
+    c = _contract(db, owner)
+    rows = [("8", "Payment", "8. The Customer shall pay within 5 days."),
+            (*LIAB, "9. Liability is capped at 12 months.")]
+    ours = _version(db, c, 1, rows)
+    theirs = _version(db, c, 2, [rows[0], (*LIAB, "9. Liability is uncapped.")])
+    ours.doc_metadata = {"version_role": "COMPANY_DRAFT"}
+    theirs.doc_metadata = {"version_role": "CLIENT_MODIFIED"}
+    review = _review(db, theirs, [(0, E.FindingClassification.DEVIATION,
+                                   E.RuleOutcome.UNACCEPTABLE),
+                                  (1, E.FindingClassification.DEVIATION,
+                                   E.RuleOutcome.UNACCEPTABLE)])
+    for ev in db.scalars(select(M.EvaluationEvidence).join(
+            M.Evaluation, M.Evaluation.id == M.EvaluationEvidence.evaluation_id)
+            .join(M.Finding, M.Finding.id == M.Evaluation.finding_id)
+            .where(M.Finding.review_id == review.id)):      # the roll-up, as evaluated
+        db.add(M.FindingEvidence(finding_id=db.get(M.Evaluation, ev.evaluation_id)
+                                 .finding_id, evidence_id=ev.evidence_id,
+                                 relationship_type=ev.relationship_type))
+    db.flush()
+    got = angles._origins(db, review, load_clauses(db, theirs.id), angles._rows(db, review))
+    by_clause = {r["sections"][0]: got[str(r["finding"].id)]
+                 for r in angles._rows(db, review)}
+    assert by_clause == {"8": "ALREADY_OURS", "9": "CLIENT_CHANGED"}
