@@ -1,0 +1,65 @@
+{
+ "_about": "Real questions people asked Ask (owner 2026-11-16: every real question becomes a permanent test, run nightly by tools.hard_benchmark). Each chat runs in order; a turn's brand is decided from its own words and the earlier user turns, as the live turn does. Checks are on GROUNDING only (rule 21: no legal conclusion is asserted): `gold` slots the seed search must show (any ref of a slot meets it), `must_show` patterns that the shown text must contain (figures as published today), `must_not_show` patterns no shown text may contain (superseded figures). How to add one: ops/README.md, 'Real-question regression'.",
+ "chats": [
+  {
+   "id": "R01",
+   "source": "Sales head, Ask chat 2026-10-08 (one chat, three turns)",
+   "turns": [
+    {
+     "id": "R01.1",
+     "q": "if the client has made an annual contract and gives a termination notice after 4 months and there is no issue with service, is this allowed as per MSA",
+     "gold": [
+      [
+       "CONST:14",
+       "CONST:31.2",
+       "POS:EARLY-TERM-*"
+      ]
+     ],
+     "note": "Our MSA's term / early-termination position as ratified (Constitution 14 / 31.2, the early-termination standard)."
+    },
+    {
+     "id": "R01.2",
+     "q": "if the customer serice is down for 6 hours. has the SLA been breached for this month. calculate the damages as per the SLA policy",
+     "gold": [
+      [
+       "PUB:PUBLISHED_SLA_LEAPSWITCH:*",
+       "PUB:PUBLISHED_SLA_CLOUDPE:*"
+      ]
+     ],
+     "must_show": [
+      "99\\.0%\\s*\\|\\s*(15|5)%",
+      "95\\.0%\\s*\\|\\s*(40|10)%",
+      "Less than 95\\.0%\\s*\\|\\s*(100|20)%"
+     ],
+     "must_not_show": [
+      "10%\\s*/\\s*25%\\s*/\\s*50%",
+      "within 30 days of the incident"
+     ],
+     "note": "No brand named: the published SLA credit table (Leapswitch 15/40/100 %, CloudPe 5/10/20 %), never the retired 10/25/50 % or 30 days. The credit table may come inside the SLA page's own record, so the figures, not the section ref, are the check."
+    },
+    {
+     "id": "R01.3",
+     "q": "the customer billing is 14500 per month. now calculate the credit due to customer",
+     "gold": [
+      [
+       "PUB:PUBLISHED_SLA_LEAPSWITCH:Issuance of Service Credits",
+       "PUB:PUBLISHED_SLA_CLOUDPE:Issuance of Service Credits"
+      ],
+      [
+       "PUB:PUBLISHED_SLA_LEAPSWITCH:How to Request a Service Credit",
+       "PUB:PUBLISHED_SLA_CLOUDPE:How to Request a Service Credit"
+      ]
+     ],
+     "must_show": [
+      "(?i)\\b(60|sixty)\\b\\W*(\\(60\\)\\s*)?(calendar\\s+)?days"
+     ],
+     "must_not_show": [
+      "10%\\s*/\\s*25%\\s*/\\s*50%",
+      "within 30 days of the incident"
+     ],
+     "note": "The credit on the published scale and the 60-day claim window."
+    }
+   ]
+  }
+ ]
+}

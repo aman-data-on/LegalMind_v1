@@ -1,5 +1,5 @@
 # The hard Ask retrieval benchmark (tools/hard_benchmark.py): the live agent's seed search
-# over the 50 owner-approved hard questions, READ ONLY, zero Gemini. Runs after the daily
+# over the 50 owner-approved hard questions and the real questions (real_questions.json), READ ONLY, zero Gemini. Runs after the daily
 # published-policies refresh, which can change what Ask finds; a fall below the baseline
 # fails this unit (exit 1).
 #
@@ -20,6 +20,9 @@ Nice=10
 TimeoutStartSec=1200
 WorkingDirectory=/root/Legalmind.v1/backend
 EnvironmentFile=/root/.legalmind.env
+# the lawyer-review report (ops/README.md, "Real-question regression"); SKIPPED if absent
+Environment=LEGALMIND_SOURCE_MATERIAL_DIR=/root/Legalmind.v1/legal-docs
+Environment=LEGALMIND_LAWYER_POINTS=/root/Legalmind.v1/legal-docs/lawyer-reviews/points.json
 ExecStart=/usr/bin/python3 -m tools.hard_benchmark --db ${LEGALMIND_DATABASE_URL}
 StandardOutput=journal
 StandardError=journal

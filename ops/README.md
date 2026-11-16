@@ -256,6 +256,30 @@ where the source model was ingested BEFORE this migration, delete the L1.10 sour
 (`DELETE FROM <assist>.knowledge_sources WHERE version = 'L1.10'`, cascading to its items)
 and re-run the tool. Nothing cites a knowledge item yet, so nothing is lost.
 
+## Real-question regression (nightly, owner 2026-11-16)
+
+Every real question someone asks Ask, and every real lawyer review, becomes a permanent
+test. Both run in the nightly `legalmind-hard-benchmark` unit (daily 05:00 IST,
+`ops/production/legalmind-hard-benchmark.{service,timer}`), zero Gemini, READ ONLY.
+
+- **A real Ask question.** Add it to `backend/tests/assist_eval/real_questions.json`: a
+  chat keeps its turns in the order asked (a turn's brand reads the earlier ones). Per turn
+  write `gold` (refs the search must show), `must_show` (figures as published today) and
+  `must_not_show` (superseded figures). Check grounding only; never write a legal
+  conclusion into the file (rule 21), and never a client's or person's name. Run
+  `python3 -m pytest tests/test_hard_benchmark.py -q`, then the benchmark against a scratch
+  DB with the website policies ingested (`tools.refresh_published_policies --from
+  legal-docs/published/<date>`). A turn that fails is a regression unless the baseline
+  (`--write-baseline`, on production, owner OK) records it failing.
+- **A real lawyer review.** Save it as `legal-docs/lawyer-reviews/<name>.md` (gitignored;
+  format in `tools/lawyer_benchmark.py`). Run the engine on the reviewed markup and save
+  its points JSON as `legal-docs/lawyer-reviews/points.json` (the unit's
+  `LEGALMIND_LAWYER_POINTS`); with more than one review, set `LEGALMIND_LAWYER_GOLD=<name>.md` in the unit. The
+  nightly line `lawyer review:` reports rows touched, REJECT rows touched and noise; it
+  is reported, not gated, and says SKIPPED when either file is missing.
+- After changing the unit file, re-install it:
+  `sudo cp ops/production/legalmind-hard-benchmark.service /etc/systemd/system/ && sudo systemctl daemon-reload`.
+
 ## 1 · Database (rows: `database`, `migrations`, `database_roles`, `invariant_triggers`, `pgvector`, `assist_role`)
 
 ```sql

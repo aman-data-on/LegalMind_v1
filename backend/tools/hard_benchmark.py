@@ -19,7 +19,10 @@ import collections
 import dataclasses
 import fnmatch
 import json
+import os
 import pathlib
+import re
+import subprocess
 import sys
 import time
 import uuid
@@ -32,6 +35,8 @@ from tools.rag_benchmark import PERMISSIONS
 
 DATASET = pathlib.Path(__file__).resolve().parents[1] / "tests/assist_eval/hard_retrieval.json"
 BASELINE = DATASET.with_name("hard_retrieval_baseline.json")
+#: Real questions people asked (owner 2026-11-16), run as chats; see ops/README.md.
+REAL = DATASET.with_name("real_questions.json")
 
 
 def matches(gold: str, ref: str) -> bool:
@@ -82,19 +87,70 @@ def aggregate(rows: list[dict]) -> dict:
             "missing_shown_avg": frac([len(r["shown"]) for r in rows if not r["ranks"]])}
 
 
+def _search(ctx, question: str, window: list[tuple[str, str]]):
+    """The live turn's seed search: brand decided in code first (`agent.run_turn`)."""
+    from legalmind.assist.agent import agent, tools
+    ctx = dataclasses.replace(ctx, brand=agent.turn_brand(ctx, question, window),
+                              brand_decided=True)
+    return tools.run(ctx, "search_knowledge",
+                     {"query": question[:tools.MAX_QUERY_CHARS]}, rescue=True)
+
+
 def seed_search(db, question: str) -> tuple[list[str], int]:
     """(shown refs, rescue-judge calls) — the turn's seed search (`agent.run_turn`).
     A published policy is named as `ask_turn_trace.stable_ref` names it, so this set and
     the C26 scorer read the same gold refs."""
-    from legalmind.assist.agent import agent, tools
+    from legalmind.assist.agent import tools
     from tools.ask_turn_trace import stable_ref
     ctx = tools.ToolContext(db, uuid.UUID(int=0), PERMISSIONS, uuid.UUID(int=0), None)
-    ctx = dataclasses.replace(ctx, brand=agent.turn_brand(ctx, question, []),
-                              brand_decided=True)
-    found = tools.run(ctx, "search_knowledge",
-                      {"query": question[:tools.MAX_QUERY_CHARS]}, rescue=True)
+    found = _search(ctx, question, [])
     calls = sum(q.rescue_called for q in (found.by_source or {}).values())
     return [stable_ref(r.ref, r.location) for r in found.records], calls
+
+
+def check_turn(turn: dict, shown: list[str], text: str) -> list[str]:
+    """Pure: the grounding checks a real-question turn fails (empty = pass)."""
+    fails = [f"gold {slot} not shown" for slot in turn.get("gold", ())
+             if _rank(slot, shown) is None]
+    fails += [f"shown text lacks /{p}/" for p in turn.get("must_show", ())
+              if not re.search(p, text)]
+    fails += [f"shown text has /{p}/" for p in turn.get("must_not_show", ())
+              if re.search(p, text)]
+    return fails
+
+
+def run_real(db) -> tuple[dict, int]:
+    """Each real chat in order: a turn's brand reads the earlier user turns (AM-201).
+    Returns (failed checks per turn, rescue-judge calls)."""
+    from legalmind.assist.agent import tools
+    from tools.ask_turn_trace import stable_ref
+    out, calls = {}, 0
+    for chat in json.loads(REAL.read_text())["chats"]:
+        window: list[tuple[str, str]] = []
+        for turn in chat["turns"]:
+            ctx = tools.ToolContext(db, uuid.UUID(int=0), PERMISSIONS, uuid.UUID(int=0),
+                                    None)
+            records = _search(ctx, turn["q"], window)
+            calls += sum(q.rescue_called for q in (records.by_source or {}).values())
+            shown = [stable_ref(r.ref, r.location) for r in records.records]
+            out[turn["id"]] = check_turn(turn, shown,
+                                         "\n".join(r.text for r in records.records))
+            window.append(("USER", turn["q"]))
+    return out, calls
+
+
+def lawyer_report() -> str:
+    """The lawyer-review benchmark on the points file named by LEGALMIND_LAWYER_POINTS
+    (an engine run on the reviewed markup; see ops/README.md). Report only, never gates:
+    it says SKIPPED without the file or the review."""
+    points = os.environ.get("LEGALMIND_LAWYER_POINTS")
+    if not points or not pathlib.Path(points).is_file():
+        return "SKIPPED: LEGALMIND_LAWYER_POINTS is not set to a points file"
+    gold = os.environ.get("LEGALMIND_LAWYER_GOLD")   # needed with more than one review
+    done = subprocess.run([sys.executable, "-m", "tools.lawyer_benchmark", "--points", points,
+                           *(["--gold", gold] if gold else [])], capture_output=True,
+                          text=True, cwd=pathlib.Path(__file__).resolve().parents[1])
+    return done.stdout.strip() or f"FAILED (exit {done.returncode}): {done.stderr.strip()[-300:]}"
 
 
 def run(db) -> dict:
@@ -105,6 +161,8 @@ def run(db) -> dict:
         ms.append((time.monotonic() - t0) * 1000)
         calls += n
         rows.append(score(case, shown))
+    real, n = run_real(db)
+    calls += n
     by_cat = collections.defaultdict(list)
     for r in rows:
         by_cat[r["cat"]].append(r)
@@ -115,7 +173,7 @@ def run(db) -> dict:
             "latency_ms": {"p50": round(ms[len(ms) // 2]),
                            "p95": round(ms[int(len(ms) * 0.95) - 1])},
             "by_category": {k: aggregate(v) for k, v in sorted(by_cat.items())},
-            "cases": rows}
+            "cases": rows, "real": real}
 
 
 def regressions(now: dict, base: dict) -> list[str]:
@@ -127,6 +185,10 @@ def regressions(now: dict, base: dict) -> list[str]:
             continue
         if (v > b) if k == "wrong_brand" else (v < b):
             out.append(f"{k} {b} -> {v}")
+    # a real-question turn must pass, unless the baseline already records it failing
+    for tid, fails in now.get("real", {}).items():
+        if fails and not base.get("real", {}).get(tid):
+            out.append(f"real {tid}: " + "; ".join(fails))
     return out
 
 
@@ -143,6 +205,9 @@ def main() -> int:
           "latency_ms", json.dumps(out["latency_ms"]))
     for cat, m in out["by_category"].items():
         print(f"  {cat}: {json.dumps(m)}")
+    for tid, fails in out["real"].items():
+        print(f"real {tid}: " + ("; ".join(fails) if fails else "pass"))
+    print("lawyer review:", lawyer_report())
     if args.json:
         pathlib.Path(args.json).write_text(json.dumps(out, indent=1))
     if args.write_baseline:
