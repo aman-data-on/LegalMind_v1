@@ -16,8 +16,8 @@ from sqlalchemy import func, select
 from legalmind.db import models as M
 from legalmind.domain import enums as E
 from legalmind.evaluation.rule_config import (
-    APPROVED_FAVOURABLE_RULE,
     APPROVED_ZERO_TOLERANCE_RULE,
+    OWNER_EFFECT_RULE,
 )
 from legalmind.security import permissions as P
 from tests.conftest import (
@@ -922,7 +922,7 @@ def test_import_tool_writes_ratified_standards_idempotently(db, seeded):
         select(M.LegalRuleVersion)
         .where(M.LegalRuleVersion.requirement_version_id == versions[0].id)
     ).scalars().one()
-    assert lr.configuration == APPROVED_FAVOURABLE_RULE
+    assert lr.configuration == OWNER_EFFECT_RULE        # AM-383 (2026-11-16)
 
 
 def test_every_ratified_standard_publishes_through_the_gated_endpoint(api, db, seeded):

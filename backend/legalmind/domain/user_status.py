@@ -65,6 +65,16 @@ def in_our_favour(classification: C, word: str) -> bool:
     return classification is C.DEVIATION and word == ACCEPTABLE
 
 
+def point_effect(classification: C, word: str) -> str:
+    """Priyen's rule (owner, 2026-11-16) — what a point does for us, per Finding:
+    POSITIVE "Good for us" (a deviation the recorded rule outcome accepted in our favour),
+    NEUTRAL (a MATCH), NEGATIVE for anything else — fail closed (rule 15). A projection of
+    the classification and the recorded rule outcome; never a decision."""
+    if in_our_favour(classification, word):
+        return "POSITIVE"
+    return "NEUTRAL" if classification is C.MATCH else "NEGATIVE"
+
+
 def worst(statuses: list[str], fallback: str) -> str:
     """A Finding's status is its worst Evaluation's; with none, the fallback."""
     return max(statuses, key=_RANK.__getitem__) if statuses else fallback

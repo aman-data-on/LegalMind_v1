@@ -208,20 +208,12 @@
     "rule_type": "THRESHOLD",
     "configuration": {
       "deviation_outcome": "UNACCEPTABLE",
-      "unlimited_outcome": "UNACCEPTABLE"
+      "unlimited_outcome": "UNACCEPTABLE",
+      "favourable_outcome": "ACCEPTABLE",
+      "effect_rule": "GOOD_AND_NEUTRAL_ACCEPTED_2026_11_16"
     }
   },
-  "_legal_rule_note": [
-    "APPROVED ZERO-TOLERANCE LEGAL RULE (manager ruling 2026-08-19; owner",
-    "approval to wire, 2026-08-20). MATCH -> ACCEPTABLE (no decision needed);",
-    "ANY deviation -- unlimited included -> UNACCEPTABLE -> Legal Decision",
-    "required; nothing that differs is ever auto-approved. There are",
-    "deliberately NO thresholds and NO tolerance bands: do not add",
-    "acceptable_max or approval_required_above, and do not ask for them --",
-    "the policy is that none exists. Wired as deviation_outcome +",
-    "unlimited_outcome, both read by the evaluators; an unrecognised value",
-    "fails closed to NOT_APPLICABLE and a human (ENG-09, Step 20 r4)."
-  ],
+  "_legal_rule_note": "PRIYEN'S RULE (owner 'change and update', 2026-11-16; replaces the zero-tolerance ruling of 2026-08-19/20 for client changes). Better for us or no change for us is accepted without a Legal Decision; only what is worse goes to Legal. MATCH -> ACCEPTABLE; a deviation -> UNACCEPTABLE -> Legal, except a deviation on this standard's declared favourable side (favourable_direction, from a source; never with favourable_counsel_check) -> ACCEPTABLE, still a DEVIATION (AM-239). No tolerance bands. effect_rule lets a client change the engine proves better or unchanged for us be accepted automatically, audited, reopenable by Legal.",
   "_terminology_history": [
     "AM-198 (2026-10-26): a real NDA said its obligations 'shall expire one (1) year from the date of disclosure' and an everyday 'shall continue for three (3) years after the termination' was not found either — both read MISSING. Added 'shall expire' / 'shall continue for' / 'remain in force for' as wording and 'after (the) termination/expiry' as this basis. 'From the date of disclosure' is deliberately NOT this basis (45B.4): such a period is found and fails closed to a person, never compared and never missing. The position (3 years after termination, §15) is unchanged. A sentence naming a trade secret states §15's separate trade-secret position (TRADE-SECRET-CARVEOUT-NDA-001) and is never read as this period (extraction.other_positions).",
     "AM-209 (2026-10-26): a real NDA said 'during the Term, and for two (2) years after the expiration of the Term' — unread, so the MSA copy measured the agreement's own term instead. 'during the term(,) and for' as wording, 'after (the) expiration' as this basis. Position unchanged."

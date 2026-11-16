@@ -45,3 +45,17 @@ def test_without_the_review_it_says_skipped(tmp_path, monkeypatch, capsys):
     points.write_text(json.dumps({"points": []}))
     assert B.main(["--points", str(points)]) == 0
     assert capsys.readouterr().out.startswith("SKIPPED")
+
+
+def test_a_change_listing_counts_auto_accepts_and_flags_one_on_a_reject_row():
+    """Priyen's rule (2026-11-16): an automatic acceptance on a row the lawyer
+    REJECTED is a false auto-accept, listed."""
+    listing = {"changes": [
+        {"clause": {"number": "4.4.1"}, "effect_for_us": "POSITIVE",
+         "answer": {"auto": True}},                                   # row 1: REJECT row
+        {"clause": {"number": "8.3"}, "effect_for_us": "NEUTRAL",
+         "answer": {"auto": True}},                                   # row 2: no REJECT
+        {"clause": {"number": "17.6"}, "effect_for_us": "NEGATIVE", "answer": None}]}
+    got = B.score(B.parse_gold(GOLD), B.load_points(listing))
+    assert (got["auto_accepted"], got["to_legal"]) == (2, 1)
+    assert [p["reject_rows"] for p in got["auto_on_reject_rows"]] == [[1]]

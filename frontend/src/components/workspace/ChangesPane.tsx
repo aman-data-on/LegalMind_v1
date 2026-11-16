@@ -923,7 +923,7 @@ function GivenAnswer({ change, waiting }: { change: ClientChange; waiting: boole
         {waiting ? <IconClock size={14} /> : <IconCheck size={14} />}
         <span>
           <strong>{capital(ANSWER_LABEL[given.answer])}</strong>
-          {" "}— {[given.decided_by, formatDate(given.decided_at)].join(", ")}
+          {" "}— {[given.decided_by, formatDate(given.decided_at)].filter(Boolean).join(", ")}
           {given.reason ? <span className="cx-given__why">&ldquo;{given.reason}&rdquo;</span> : null}
         </span>
       </p>

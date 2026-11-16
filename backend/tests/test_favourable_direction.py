@@ -40,8 +40,10 @@ def test_working_days_count_only_where_the_answer_cannot_depend_on_conversion():
 
 
 def test_the_favourable_rule_is_the_zero_tolerance_rule_plus_one_key():
-    zero, favourable = APPROVED_RULES
+    zero, favourable, owner = APPROVED_RULES
     assert favourable == APPROVED_FAVOURABLE_RULE == {**zero, "favourable_outcome": "ACCEPTABLE"}
+    # Priyen's rule (owner 2026-11-16): the favourable form plus the effect key only
+    assert owner == {**favourable, "effect_rule": "GOOD_AND_NEUTRAL_ACCEPTED_2026_11_16"}
 
 
 def test_the_reader_word_follows_an_accepted_deviation_and_nothing_else():

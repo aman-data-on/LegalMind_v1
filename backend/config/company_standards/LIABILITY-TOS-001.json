@@ -209,20 +209,12 @@
     "rule_type": "THRESHOLD",
     "configuration": {
       "deviation_outcome": "UNACCEPTABLE",
-      "unlimited_outcome": "UNACCEPTABLE"
+      "unlimited_outcome": "UNACCEPTABLE",
+      "favourable_outcome": "ACCEPTABLE",
+      "effect_rule": "GOOD_AND_NEUTRAL_ACCEPTED_2026_11_16"
     }
   },
-  "_legal_rule_note": [
-    "APPROVED ZERO-TOLERANCE LEGAL RULE (manager ruling 2026-08-19; owner",
-    "approval to wire, 2026-08-20). MATCH -> ACCEPTABLE (no decision needed);",
-    "ANY deviation -- unlimited included -> UNACCEPTABLE -> Legal Decision",
-    "required; nothing that differs is ever auto-approved. There are",
-    "deliberately NO thresholds and NO tolerance bands: do not add",
-    "acceptable_max or approval_required_above, and do not ask for them --",
-    "the policy is that none exists. Wired as deviation_outcome +",
-    "unlimited_outcome, both read by the evaluators; an unrecognised value",
-    "fails closed to NOT_APPLICABLE and a human (ENG-09, Step 20 r4)."
-  ],
+  "_legal_rule_note": "PRIYEN'S RULE (owner 'change and update', 2026-11-16; replaces the zero-tolerance ruling of 2026-08-19/20 for client changes). Better for us or no change for us is accepted without a Legal Decision; only what is worse goes to Legal. MATCH -> ACCEPTABLE; a deviation -> UNACCEPTABLE -> Legal, except a deviation on this standard's declared favourable side (favourable_direction, from a source; never with favourable_counsel_check) -> ACCEPTABLE, still a DEVIATION (AM-239). No tolerance bands. effect_rule lets a client change the engine proves better or unchanged for us be accepted automatically, audited, reopenable by Legal.",
   "_calibration": [
     "CALIBRATION 2026-08-20 (locked 35.10 direction, owner-approved pass):",
     "counterparty drafting variants added after probing the 8 public",

@@ -10,6 +10,12 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+- Priyen's rule (AB-206, `AM-383`–`AM-385`, owner "change and update" 2026-11-16): every standard
+  carries the new Legal Rule form; each Finding says `effect_for_us`; a client change Better / No
+  change for us is accepted automatically under the rule (audited at reply, carried, Legal reopens);
+  Worse / unsure / never-concede go to Legal; `config/never_concede.json` empty — Legal to supply.
+  Benchmark tool counts automatic acceptances on rows the lawyer rejected.
+
 ### 2026-11-16 — Lawyer agent S0–S4: origin labels, lettered points, notes for Legal, review table, benchmark
 
 - **Step 0**: each point on a client's paper says "The client changed this" or "Already in our MSA" (version diff against our version and its review, else the redline's tracked changes; no label when nothing can tell); client changes listed first. New display field `origin` only.

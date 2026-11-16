@@ -55,10 +55,12 @@ accepted together (`accept_by_effect`, r2).
 """
 from __future__ import annotations
 
+import json
 import re
 import unicodedata
 from collections import Counter
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 from uuid import UUID
 
@@ -80,6 +82,7 @@ from legalmind.domain.enums import (
 )
 from legalmind.domain.user_status import in_our_favour
 from legalmind.evaluation.constitution_boundaries import constitution_prohibition_for
+from legalmind.evaluation.rule_config import accepts_good_and_neutral
 from legalmind.evaluation.user_status import ACCEPTABLE, by_finding
 from legalmind.evaluation.workflow import derive_finding_status
 from legalmind.extraction.parties import PROVIDER_TYPES
@@ -108,6 +111,17 @@ POSITIVE, NEUTRAL, NEGATIVE = "POSITIVE", "NEUTRAL", "NEGATIVE"
 #: own paper's figure — a concession the deal owner may make without Legal
 FALLBACK = "FALLBACK"
 EFFECTS = (POSITIVE, NEUTRAL, FALLBACK, NEGATIVE)
+#: Priyen's rule (owner "change and update", 2026-11-16): a change better for us or no
+#: change for us is accepted without anyone's click — its own recorded outcome, never a
+#: Legal Decision; FALLBACK (a step back from our own paper) stays the deal owner's choice
+AUTO_EFFECTS = frozenset({POSITIVE, NEUTRAL})
+AUTO_BY = "LegalMind — owner's rule of 2026-11-16"
+AUTO_REASON = "Accepted automatically under the owner's rule of 2026-11-16"
+#: a change on a requirement Legal never concedes goes to Legal whatever its effect
+NEVER_CONCEDE = "NEVER_CONCEDE"
+NEVER_CONCEDE_CODES = frozenset(json.loads(
+    (Path(__file__).resolve().parents[2] / "config" / "never_concede.json").read_text())
+    ["requirement_codes"])
 _EFFECT = {FAVOUR: POSITIVE, OWNER: NEUTRAL}
 #: `AM-299` r3 (manager request 2026-11-04): a LOWER aggregate cap on liability than the
 #: standard is better for us — declared from that request for these two standards, never
@@ -568,6 +582,31 @@ def _directions(db: DBSession, review: M.Review | None) -> dict[str, str | None]
                == review.configuration_snapshot_id))}
 
 
+def auto_rule(db: DBSession, review: M.Review | None) -> bool:
+    """Priyen's rule applies to this Review: every Legal Rule its snapshot pins carries
+    `effect_rule` (an older snapshot keeps the rule it was made under — rule 16), and
+    there is at least one. No Review: no (fail closed)."""
+    if review is None:
+        return False
+    rules = list(db.execute(
+        select(M.LegalRuleVersion.configuration)
+        .select_from(M.ConfigurationSnapshotItem)
+        .join(M.LegalRuleVersion, M.LegalRuleVersion.id
+              == M.ConfigurationSnapshotItem.legal_rule_version_id)
+        .where(M.ConfigurationSnapshotItem.snapshot_id
+               == review.configuration_snapshot_id)).scalars())
+    return bool(rules) and all(map(accepts_good_and_neutral, rules))
+
+
+def auto_answer(answer: dict | None, effect: str, auto: bool) -> dict | None:
+    """A person's answer always stands; else, under the rule, POSITIVE/NEUTRAL reads as
+    accepted by the rule (version 0: no row written, a person may still answer)."""
+    if answer is not None or not auto or effect not in AUTO_EFFECTS:
+        return answer
+    return {"answer": "accept_theirs", "version_number": 0, "reason": AUTO_REASON,
+            "decided_by": AUTO_BY, "decided_at": None, "auto": True, "effect": effect}
+
+
 def _public(findings: list[dict]) -> list[dict]:
     return [{k: v for k, v in f.items() if k != "figure"} for f in findings]
 
@@ -799,6 +838,7 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
     found_after = _findings(db, after_review,
                             provider=contract.contract_type in PROVIDER_TYPES)
     directions = _directions(db, after_review)
+    auto = auto_rule(db, after_review)
     deleted = dc._norm(" ".join(c.get("deleted") or ""
                                 for u in new for c in u["changes"]))
     vendor = contract.contract_type == "VENDOR_AGREEMENT"
@@ -838,7 +878,10 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
                 and not (o and n and same_words(o["text"], n["text"], o["number"],
                                                 n["number"])):
             route, why, effect = HOLDER, MEASURED, NEGATIVE    # AM-317 r1: words changed
+        if NEVER_CONCEDE_CODES & {f["requirement_code"] for f in f_before + f_after}:
+            route, why, effect = HOLDER, NEVER_CONCEDE, NEGATIVE
         key = _row_key(kind, o, n)
+        said = answers(key)
         out.append({
             "row_key": key, "kind": kind,
             # a clause both moved and reworded is MODIFIED, and says it moved
@@ -856,7 +899,8 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
             **({"anchor": {
                 "left_key": f"{TEMPLATE_ANCHOR}{template['template_version'].id}",
                 "clause_version_id": None}} if template else {}),
-            **answers(key),          # the answer here, and every round's before it
+            **said,                  # the answer here, and every round's before it
+            "answer": auto_answer(said["answer"], effect, auto),
         })
         # what a lawyer reads off the change: lettered points, standards, mutuality —
         # display only, never a decision (owner 2026-11-16, R2 D1/D2/D6)
@@ -873,7 +917,9 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
                     **{k.lower(): sum(c["kind"] == k for c in out) for k in KINDS},
                     **{r: sum(c["route"] == r for c in out)
                        for r in (OWNER, HOLDER, FAVOUR)},
-                    **_effects(out)},
+                    **_effects(out),
+                    "auto_accepted": sum(bool((c["answer"] or {}).get("auto"))
+                                         for c in out)},
         "changes": out,
         # R2 D4/D5: notes across clauses for Legal — never findings
         "notes_for_legal": lawyer_rows.notes_for_legal(ours, theirs),
@@ -1171,7 +1217,7 @@ def carry_acceptances(db: DBSession, review: M.Review, *,
     if theirs is None or before is None or contract is None:
         return 0
     C = M.ComparisonChoice
-    accepted: dict[str, list[tuple[dict, M.ComparisonChoice]]] = {}   # reply text -> rows
+    accepted: dict[str, list[tuple[dict, M.ComparisonChoice | None]]] = {}
     for change in changes(db, contract, before, theirs, legal_position=False,
                           clause_loader=clause_loader)["changes"]:
         if change["effect_for_us"] == NEGATIVE or change["after"] is None:
@@ -1180,7 +1226,8 @@ def carry_acceptances(db: DBSession, review: M.Review, *,
             C.left_version_id == before.id, C.right_version_id == theirs.id,
             C.row_key == change["row_key"]).order_by(C.version_number.desc())
             .limit(1)).scalars().first()
-        if choice is not None and choice.choice == ANSWERS["accept_theirs"]:
+        if (choice is not None and choice.choice == ANSWERS["accept_theirs"]) or (
+                choice is None and (change["answer"] or {}).get("auto")):
             accepted.setdefault(dc._norm(change["after"]["text"]), []).append(
                 (change, choice))
     carried = 0
@@ -1198,11 +1245,13 @@ def carry_acceptances(db: DBSession, review: M.Review, *,
                 continue
             audit.record(db, action=audit.NEGOTIATION_ACCEPTANCE_CARRIED,
                          entity_type="finding", entity_id=finding.id,
-                         actor_id=choice.decided_by, request_id=request_id,
+                         actor_id=choice.decided_by if choice else None,
+                         request_id=request_id,
                          after={"effect": change["effect_for_us"],
-                                "reason": choice.reason,
+                                "reason": choice.reason if choice else AUTO_REASON,
                                 "row_key": change["row_key"],
-                                "answer_version": choice.version_number,
+                                "automatic": choice is None,
+                                "answer_version": choice.version_number if choice else 0,
                                 "from_version_id": str(theirs.id),
                                 "review_id": str(review.id),
                                 "requirement_code": f["requirement_code"]})

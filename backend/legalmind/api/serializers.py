@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session as DBSession
 
 from legalmind.db import models as M
 from legalmind.domain.enums import ConfigStatus, FindingStatus, ProcessingStatus
-from legalmind.domain.user_status import in_our_favour
+from legalmind.domain.user_status import in_our_favour, point_effect
 from legalmind.evaluation.constitution_boundaries import constitution_prohibition_for
 from legalmind.evaluation.user_status import user_status, worst
 from legalmind.evaluation.workflow import (
@@ -220,6 +220,8 @@ def serialize_finding(db: DBSession, finding: M.Finding, *,
         # Batch 1 (d): the evaluator's recorded rule outcome accepted this deviation
         # (AM-239 r1, AM-303) — the folded word above, never AM-301 dominance
         "in_our_favour": in_our_favour(finding.classification, status),
+        # Priyen's rule (2026-11-16): the point's "Effect for us" column
+        "effect_for_us": point_effect(finding.classification, status),
         "evaluations": serialized,
         "evidence": finding_evidence(db, finding.id, names),
         # AM-317 r7: an earlier version's Legal Decision stands for this point —

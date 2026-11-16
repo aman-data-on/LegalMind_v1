@@ -12,6 +12,8 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
+### Priyen's rule — AB-206 (`AM-383`–`AM-385`) — **BUILT on `feat/priyen-rule-20261116`, NOT DEPLOYED** (2026-11-16). Deploy owes standards import + publish (new Legal Rule versions); Reviews made before keep the old rule. Legal to supply: never-concede list.
+
 ### Release state — final package S3–S6 + follow-ups — **DEPLOYED 2026-11-16 as `b909e71e`** (PRs #296–#302); migration at `f3b8c1d6e2a7` (`draft_answers.brand`, verified in the database); `pdfjs-dist` 6.2.108 installed in the deploy tree (`npm install`, the deploy pre-check asked for it). Live: Annexure 2 Agreed Amendments (S3, AM-357), Annexure 1 Service Order Form + 13-service catalogue + draft brand (S4, AM-358–360), Convert to our paper (S5, AM-361), Final card with PDF, Word copy and signing note (S6, AM-362), Legal-only screens wait for the session. Open, Legal to supply (rule 21): precedence sentence (L1), Annexure 1 clause text (L3), 5.3 wording for 10 services (L4), our wording for client-term points (L6) — until then those spots read "[Legal to supply]" and block Final.
 
 ### Records — AB-191 (`AM-350`–`AM-354`, CLM UX Batch 1) and AB-192 (`AM-355`–`AM-357`, final package S1–S3) — **RECORDED 2026-11-16**; build state unchanged: Batch 1 and S1–S2 DEPLOYED as `74096927` (PR #294); S3 MERGED `4a79004e` (PR #297), not deployed
