@@ -464,3 +464,14 @@ describe("the deal owner's words (R3 step 10)", () => {
     expect(html).not.toContain("Our standard says nothing");
   });
 });
+
+describe("owner's rule of 2026-11-16: an automatic acceptance", () => {
+  const auto = answered("accept_theirs", { version_number: 0, decided_by: "LegalMind — owner's rule of 2026-11-16",
+                                           decided_at: null, auto: true });
+  it("offers Legal a Reopen, never Sales", () => {
+    const c = change({ route: "owner", effect_for_us: "NEUTRAL", answer: auto as never });
+    expect(card(c, list(LAWYER))).toContain("Reopen and keep our wording");
+    expect(card(c, list())).not.toContain("Reopen and keep our wording");
+    expect(card(c, list({ ...LAWYER, replied_in: 3 }))).not.toContain("Reopen and keep our wording");
+  });
+});

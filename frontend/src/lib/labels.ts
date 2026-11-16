@@ -571,3 +571,10 @@ export const MUTUALITY_LABELS: Record<string, string> = {
   ONE_SIDED_ONTO_CLIENT: "One-sided: binds the client",
   MIXED: "Binds each side in different points",
 };
+
+/** Owner's rule of 2026-11-16: Legal reopens a change accepted automatically. */
+export const REOPEN_COPY = {
+  title: "Accepted automatically — better or no change for us",
+  reason: "Why you reopen it",
+  button: "Reopen and keep our wording",
+} as const;

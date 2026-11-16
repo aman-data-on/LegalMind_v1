@@ -167,6 +167,8 @@ export interface ChangeList {
   /** May record our version as sent — outlives the round, unlike `can_answer`. */
   can_send?: boolean;
   can_decide: boolean;
+  /** our reply to this version, once prepared — answering is closed then */
+  replied_in?: number | null;
   /** R2 D4/D5: notes across clauses for Legal (absent on client paper first) */
   notes_for_legal?: NoteForLegal[];
   /** holds `legal.approve_customization` and may answer: "Write our wording" (`AM-284` r1) */

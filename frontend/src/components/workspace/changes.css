@@ -412,3 +412,6 @@ button.cx-bar__open[aria-expanded="true"] svg { transform: rotate(-90deg); }
 .cx-share { justify-content: flex-start; display: flex; gap: var(--ws-s2); align-items: center; font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
 .cx-sales-status { font-weight: 500; color: var(--ws-ink-900); }
 .cx-share input { inline-size: auto; flex: none; margin: 0; }
+
+/* Legal reopens a change accepted automatically under the owner's rule of 2026-11-16 */
+.cx-reopen { display: grid; gap: var(--s-2); margin-block-start: var(--s-3); }
