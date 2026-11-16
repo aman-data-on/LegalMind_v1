@@ -30455,3 +30455,67 @@ r5  ROUTE. For deals on that new MSA version, Final is always the package (AM-31
     final-copy route stays for the other routes. AM-324 r5 is closed by the entry blank check.
 r6  Not amended: rules 7, 13, 15, 18, 21; AM-251 r1; SC_TRACE; the append-only audit.
 ```
+
+## AMENDMENT BATCH AB-193 — `AM-358`–`AM-362` (2026-11-16): the final package, S4 — Annexure 1, the service catalogue, the draft brand; S5–S6 reserved
+
+**Owner, 2026-11-11 (ruling, memory "one MSA, all brands")** and **owner, 2026-11-16 ("research and
+take the decision" on the service names).** S4 merged in PR #299 (03ab2ae6) per the final-package
+spec (f) and `FINAL-S4-DESIGN.md`; the catalogue decision per `FINAL-CATALOGUE-DECISION.md`.
+IDs scanned free on origin/main, every worktree under /root/legalmind-worktrees, the CLM ledger and
+every remote branch for AM-356…AM-369, AB-192…AB-199, C-30…C-39 (AM-365 and AB-195 appear only as
+the bounds of AB-191's own scan sentence). No legal wording is written here (rules 7/21).
+
+`AM-358` — S4: Annexure 1, the Service Order Form engine (amends `AM-312` r2 Q-7 and r4)
+
+```text
+r1  AM-312 r2 Q-7 / r4 (commercials in the purchase order; no Order Form unless business asks) is
+    amended: business asked. Annexure 1 carries client details, services, fees and term.
+r2  Template variables gain a multi-choice type and a rows type (one table row per entry);
+    a table may take its rows from a rows variable (rows_from).
+r3  The 5.3 delivery map ties a chosen service to the MSA 5.3 line that already names it. A chosen
+    service with no mapped line blocks the package and Final plans with LEGAL_TO_SUPPLY, naming
+    the service, fail closed, never a 500.
+r4  The service catalogue lives in backend/config/templates/service_order/catalogue.json and is
+    checked at import (delivery-map shape; a no-service cell refused).
+r5  Still Legal's (rule 21): the Annexure 1 clause text (L3) and the 5.3 text for every unmapped
+    service (L4). Nothing here writes either.
+```
+
+`AM-359` — the service catalogue names (2026-11-16; product decision, names only; C-19 / AM-341 follow-up)
+
+```text
+r1  Bare Metal = Dedicated Servers (the company's dedicated-servers page says so in terms); no
+    separate Bare Metal entry. Virtual Machines = CloudPe Instances (the MSA's term).
+r2  Thirteen names: VPS, Dedicated Servers, CloudPe Instances, Dedicated GPU Servers, GPU Cloud,
+    Kubernetes, Object Storage, Networking, Colocation, Managed Services, Backup & Disaster
+    Recovery, Migration Services, Consultation. Delivery map unchanged (VPS, Dedicated Servers,
+    CloudPe Instances); the other ten are LEGAL_TO_SUPPLY until Legal supplies L4.
+r3  CloudJiffy PaaS excluded (a separate entity).
+r4  Decided; the code change lands on branch feat/final-package-s5-s6.
+```
+
+`AM-360` — the draft records the brand the client buys (extends `AM-341`, `AM-287`)
+
+```text
+r1  draft_answers.brand (nullable; LEAPSWITCH | CLOUDPE | CLOUDJIFFY), migration f3b8c1d6e2a7,
+    additive. POST /drafts takes an optional brand (absent: the template's brand when one of the
+    three, else null); PATCH may change it; the draft JSON returns it.
+r2  Create sets contracts.issuing_entity from the draft brand when it is LEAPSWITCH or CLOUDPE;
+    CLOUDJIFFY leaves it null (the template's rule). No contract wording changes.
+```
+
+`AM-361` — S5 reserved: client paper converts to our paper (amends `AM-307` r8, `AM-318` r3; spec d3)
+
+```text
+r1  Decided product scope: a deal on the client's paper may convert to our MSA package; the
+    final-copy route stays for paper we cannot convert. Building on feat/final-package-s5-s6.
+r2  The record of the built behaviour follows when it merges.
+```
+
+`AM-362` — S6 reserved: the Final card (spec c4)
+
+```text
+r1  Decided product scope: the Final card offers the PDF for signature, a Word copy and a
+    copy-able note. Building on feat/final-package-s5-s6.
+r2  Not amended by AB-193: rules 7, 13, 15, 18, 21; AM-251 r1; SC_TRACE; the append-only audit.
+```
