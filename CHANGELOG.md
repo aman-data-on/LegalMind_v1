@@ -10,6 +10,10 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+- Legal can reopen a change accepted automatically under the owner's rule of 2026-11-16 ("Reopen
+  and keep our wording", reason required). Benchmark on the client markup vs the lawyer's 55 rows:
+  140 changes, 0 accepted automatically, 140 to Legal, 0 on rows the lawyer rejected.
+
 - Priyen's rule (AB-206, `AM-383`–`AM-385`, owner "change and update" 2026-11-16): every standard
   carries the new Legal Rule form; each Finding says `effect_for_us`; a client change Better / No
   change for us is accepted automatically under the rule (audited at reply, carried, Legal reopens);

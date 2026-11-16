@@ -53,7 +53,7 @@ import {
 } from "./icons";
 import { OfferLine } from "./OfferPlaybook";
 import { FromOurStandard, LetteredPoints, NotesForLegal, ReviewTableButton } from "./LawyerView";
-import { SALES_LINE } from "@/lib/labels";
+import { REOPEN_COPY, SALES_LINE } from "@/lib/labels";
 import { formatDate } from "@/lib/dates";
 
 export const COLLEAGUE = "Changed by a colleague — reload to see their answer.";
@@ -831,6 +831,19 @@ export function AnswerCard({ change, list, contractId, onAnswered, onReload, inP
       <div className="cx-answer__passage" tabIndex={0} role="region" aria-label="The changed passage"><Marked change={change} list={list} /></div>
 
       {given ? <GivenAnswer change={change} waiting={waiting} /> : null}
+      {given?.auto && list.can_decide && list.replied_in == null ? (
+        <section className="cx-reopen" aria-label={REOPEN_COPY.title}>
+          <label className="cx-reason">
+            <span>{REOPEN_COPY.reason}</span>
+            <input type="text" maxLength={200} value={reason} onChange={(event) => setReason(event.target.value)} />
+          </label>
+          <div className="cx-acts">
+            <button type="button" className="ws-btn ws-btn--sm" disabled={busy || !reason.trim()}
+                    onClick={() => void answer("keep_ours")}>{REOPEN_COPY.button}</button>
+          </div>
+          {error ? <p className="cx-error" role="alert">{error.message}</p> : null}
+        </section>
+      ) : null}
       {inPackage ? <p className="cx-inpkg"><strong>{amendment ? "In the amendment:" : "In the final contract:"}</strong> {inPackage}</p> : null}
 
       {change.review.after.length > 1 || change.review_delta.length ? (
