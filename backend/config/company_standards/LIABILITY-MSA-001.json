@@ -202,7 +202,10 @@
         "to_unit": "MONTHS"
       }
     ],
-    "commercial_pillar": true
+    "commercial_pillar": true,
+    "duplicate_cap_wording": [
+      "LeapSwitch’s total aggregate liability, whether in contract, tort, or otherwise, shall not exceed the total fees paid by Customer in the __________ months preceding the claim"
+    ]
   },
   "_semantics": [
     "unit MONTHS with preferred 6 encodes the LOOKBACK WINDOW the clause states",
@@ -304,6 +307,6 @@
     "date": "2026-11-16",
     "ruling": "owner, 2026-11-16: \"Do not change the whole Constitution. Only change the points that differ from Sayan's MSA. Sayan's MSA is the final verdict for now — point to point use Sayan's MSA.\" (rule 6 approval for these lock changes; AB-205)",
     "kind": "DIFFERS — the MSA standard now states Sayan's MSA",
-    "note": "17.2 is the operative clause (owner, 2026-08-19, and again 2026-11-16). 17.7 ('total fees paid by Customer in the __________ months preceding the claim') leaves its period blank: an OPEN ITEM for Legal; the document read as a whole still CONFLICTs (fixture DOC-LIAB-04). 17.2 limits Leapswitch's liability only, so the cap is no longer declared mutual; the AM-303 favour form is withdrawn here because AM-239 r2 never favours a one-party cap. Reverses AM-43 r4 for the MSA only; LIABILITY-TOS-001 is unchanged."
+    "note": "17.2 is the operative clause (owner, 2026-08-19, and again 2026-11-16). 17.7 ('total fees paid by Customer in the __________ months preceding the claim') leaves its period blank: an OPEN ITEM for Legal; the document read as a whole still CONFLICTs (fixture DOC-LIAB-04). 17.2 limits Leapswitch's liability only, so the cap is no longer declared mutual; the AM-303 favour form is withdrawn here because AM-239 r2 never favours a one-party cap. Reverses AM-43 r4 for the MSA only; LIABILITY-TOS-001 is unchanged. AM-387 (owner, 2026-11-17: \"go with prasad point\"; Prasad's review row 42: 17.7 \"duplicates Clause 17.2. It should be dealt with under Clause 17.2\"): 17.7 in this wording with its months blank is a duplicate of 17.2 and the 17.2 figure governs — no CONFLICT for it; a 17.7 stating any figure still CONFLICTs for a person. Legal should still delete 17.7 from the template."
   }
 }

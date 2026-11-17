@@ -10,6 +10,12 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+- Our own MSA wording is recognised (AB-207, `AM-386`–`AM-387`, owner 2026-11-17): data residency
+  and sub-processors are MATCH when the clause is our MSA's 11.5/11.4 word for word (any changed,
+  added or removed word still goes to a person), and a 17.7 with its months blank no longer
+  conflicts with 17.2 (Prasad row 42; a filled 17.7 still does). Our MSA: needs a person 3 → 1
+  (left: LIABILITY 17.2 vs 17.3's customer carve-out read as unlimited). Client markup unchanged.
+
 - Legal can reopen a change accepted automatically under the owner's rule of 2026-11-16 ("Reopen
   and keep our wording", reason required). Benchmark on the client markup vs the lawyer's 55 rows:
   140 changes, 0 accepted automatically, 140 to Legal, 0 on rows the lawyer rejected.

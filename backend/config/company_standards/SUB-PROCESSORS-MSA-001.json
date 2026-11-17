@@ -32,7 +32,9 @@
       "PRIVACY_POLICY",
       "AUP",
       "DPA"
-    ]
+    ],
+    "own_wording_match": "LeapSwitch may disclose Personal Data to its affiliates, group companies, subcontractors, and service providers strictly for the purpose of delivering, customizing, or improving the Services. Any such sharing shall be subject to confidentiality obligations and data protection safeguards that are no less stringent than those imposed under Applicable Law. The Customer is deemed to have consented to such disclosures by availing the Services. LeapSwitch may also share Personal Data with its business partners to perform data analysis, service optimization, or customer communications, provided such partners follow equivalent standards of data protection.",
+    "own_wording_label": "Sharing with Affiliates, Business Partners and Third-Party Processors"
   },
   "evaluator_type": "PRESENCE",
   "evaluation_rules": {
@@ -88,6 +90,6 @@
     "date": "2026-11-16",
     "ruling": "owner, 2026-11-16: \"Do not change the whole Constitution. Only change the points that differ from Sayan's MSA. Sayan's MSA is the final verdict for now — point to point use Sayan's MSA.\" (rule 6 approval for these lock changes; AB-205)",
     "kind": "DIFFERS — the MSA standard now states Sayan's MSA",
-    "note": "No disclosure list; deemed consent. A clause found is still read by a person (AM-322 r11 unchanged)."
+    "note": "No disclosure list; deemed consent. A clause found is still read by a person (AM-322 r11) unless it is 11.4 word for word (AM-386)."
   }
 }

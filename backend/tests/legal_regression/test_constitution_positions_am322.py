@@ -629,12 +629,62 @@ def _real(build, db, name: str, codes: list[str]) -> dict:
 
 @pytest.mark.skipif(not (_SRC / "MSA.pdf").is_file(),
                     reason="source material is gitignored (54.6); present on the server only")
-def test_our_msa_cross_border_and_third_party_processors_go_to_a_person(build, db):
+def test_our_msa_cross_border_and_third_party_processors_are_our_own_wording(build, db):
+    # AM-386 (owner, 2026-11-17): our MSA's 11.5 / 11.4 word for word is MATCH
     found = _real(build, db, "MSA.pdf", [DR, SP])
-    assert found[DR]["classification"] == "UNABLE_TO_EVALUATE"
-    assert "11.5" in {s for s, _ in found[DR]["cited"]}
-    assert found[SP]["classification"] == "UNABLE_TO_EVALUATE"
-    assert "11.4" in {s for s, _ in found[SP]["cited"]}
+    assert found[DR]["classification"] == "MATCH"
+    assert {s for s, _ in found[DR]["cited"]} == {"11.5"}
+    assert found[SP]["classification"] == "MATCH"
+    assert {s for s, _ in found[SP]["cited"]} == {"11.4"}
+
+
+def _quote(code: str) -> str:
+    return json.loads((STANDARDS / f"{code}.json").read_text())["configuration"][
+        "own_wording_match"]
+
+
+_DR_HEAD, _SP_HEAD = ("11.5 Cross-Border Data Transfers: ",
+                      "11.4 Sharing with Affiliates, Business Partners and Third-Party "
+                      "Processors: ")
+
+
+@pytest.mark.parametrize("code,head", [(DR, _DR_HEAD), (SP, _SP_HEAD)])
+def test_our_own_wording_word_for_word_is_a_match(build, db, code, head):
+    # case, punctuation and line breaks are not wording (AM-386)
+    text = _quote(code).upper().replace(",", "").replace(" ", "\n", 3)
+    assert _one(build, db, code, "MSA", "11. Data Protection", head + text) == "MATCH"
+
+
+@pytest.mark.parametrize("code,head,edit", [
+    (DR, _DR_HEAD, lambda q: q.replace("shall ensure", "shall endeavour to ensure")),
+    (DR, _DR_HEAD, lambda q: q.replace("lawful", "permitted")),
+    (DR, _DR_HEAD, lambda q: q.replace(" or the European Economic Area", "")),
+    (DR, _DR_HEAD, lambda q: "Notwithstanding anything else: " + q),
+    (DR, "11.5 Not Applicable: ", lambda q: q),
+    (DR, "11.5 Deleted: ", lambda q: q),
+    (SP, _SP_HEAD.replace("11.4 ", "11.4 (x) "), lambda q: q),
+    (SP, _SP_HEAD, lambda q: q.replace("strictly ", "")),
+    (SP, _SP_HEAD, lambda q: q.replace("no less stringent", "less stringent")),
+    (SP, _SP_HEAD, lambda q: q + " LeapSwitch may also sell such data."),
+])
+def test_any_word_added_removed_or_changed_goes_to_a_person(build, db, code, head, edit):
+    assert _one(build, db, code, "MSA", "11. Data Protection",
+                head + edit(_quote(code))) == "UNABLE_TO_EVALUATE"
+
+
+@pytest.mark.parametrize("code,head", [(DR, _DR_HEAD), (SP, _SP_HEAD)])
+@pytest.mark.parametrize("sub", ["", ".1", "heading"])
+def test_an_added_paragraph_or_sub_clause_after_our_wording_goes_to_a_person(build, db,
+                                                                         code, head, sub):
+    extra = ("Exceptions" if sub == "heading" else
+             (head.split()[0] + sub + " " if sub else "") + "The Customer waives any objection.")
+    assert _one(build, db, code, "MSA", "11. Data Protection", head + _quote(code),
+                extra) == "UNABLE_TO_EVALUATE"
+
+
+def test_only_the_msa_copies_accept_their_own_wording():
+    assert {p.stem for p in STANDARDS.glob("*.json")
+            if "own_wording_match" in json.loads(p.read_text())["configuration"]} == {DR, SP}
 
 
 @pytest.mark.skipif(not (_SRC / "MSA-GRP-2026-07-30.pdf").is_file(),
@@ -703,3 +753,25 @@ def test_the_take_back_is_cited_and_the_signature_block_is_not(build, db):
 def test_only_a_signature_block_ends_a_cited_section(row, ends):
     from legalmind.analysis.service import _ends_section
     assert _ends_section(row) is ends
+
+
+# AM-387 (owner, 2026-11-17, Prasad's row 42): our MSA's 17.7 with its months blank
+# duplicates 17.2 — the 17.2 figure governs; a 17.7 stating a figure is still a CONFLICT
+_CAP_172 = ("17.2 Notwithstanding anything to the contrary contained in this Agreement, the "
+            "total aggregate liability of Leapswitch and its affiliates, whether in contract, "
+            "tort (including negligence), strict liability, or otherwise, shall not exceed the "
+            "total amount actually paid by the Customer to Leapswitch for the specific Services "
+            "giving rise to the claim during the six (6) month period immediately preceding "
+            "the event giving rise to such liability.")
+_CAP_177 = ("17.7 LeapSwitch\N{RIGHT SINGLE QUOTATION MARK}s total aggregate liability, whether in contract, tort, or "
+            "otherwise, shall not exceed the total fees paid by Customer in the {} months "
+            "preceding the claim")
+
+
+@pytest.mark.parametrize("months,expected", [("__________", "MATCH"),
+                                             ("twelve (12)", "CONFLICT"),
+                                             ("6", "CONFLICT")])
+def test_a_blank_17_7_duplicates_17_2_and_a_filled_one_conflicts(build, db, months,
+                                                                 expected):
+    assert _one(build, db, "LIABILITY-MSA-001", "MSA", "17. Limitation of Liability",
+                _CAP_172, _CAP_177.format(months)) == expected

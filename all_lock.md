@@ -30676,3 +30676,53 @@ r2  `customer_indemnity_only` on an indemnity standard: the §10 mutual-framewor
 r3  Deploy-time publish (ops-publish account): import_ratified_standards → publish_payload →
     POST /configuration/publish → chunk_standards (ops/README §standards). Not run by this record.
 ```
+
+## AMENDMENT BATCH AB-207 — `AM-386`–`AM-387` (2026-11-17): our own MSA wording is recognised — 11.5/11.4 word for word, and the blank 17.7
+
+Owner, 2026-11-17: "yes add the check for residency and sub-processors". Owner, 2026-11-17:
+"go with prasad point" — Prasad's review row 42: MSA 17.7 "duplicates Clause 17.2. It should be
+dealt with under Clause 17.2". Standing owner rule (2026-11-16): a lock that weakens the lawyer
+agent → design the best option, amend, proceed. Collision scan 2026-11-17 (origin/main, every
+worktree, every remote branch): AM-384/AM-385 taken (AB-206); AM-386–AM-389 and AB-207–AB-208
+free.
+
+`AM-386` — own-wording match on a presence-only standard (amends `AM-322` r11 for
+DATA-RESIDENCY-MSA-001 and SUB-PROCESSORS-MSA-001 only)
+
+```text
+r1  A standard may declare `own_wording_match`: the verbatim text of OUR paper it accepts. Today
+    only DATA-RESIDENCY-MSA-001 (MSA.pdf 11.5) and SUB-PROCESSORS-MSA-001 (MSA.pdf 11.4) declare
+    it (generated from AM-380's quote). Every other found_clause_for_a_person standard is
+    unchanged: a clause found is read by a person (AM-322 r11).
+r2  Deterministic test: a mapped clause's whole text — the row, its own sub-clauses (11.5 ->
+    11.5.x) and every unnumbered row after it, a heading too, up to the next number or a
+    signature block — minus its leading number, equals the quote (or the template's own heading label
+    and the quote, `own_wording_label`; any other label is wording) after
+    folding case, punctuation, whitespace and the fi/fl ligatures. No fuzzy, semantic or model
+    match.
+r3  Equal -> mapping CONFIRMED on that clause, PRESENCE MATCH (Acceptable/Neutral under AM-383).
+    Any word added, removed or changed, or an added paragraph or sub-clause -> unchanged:
+    UNABLE_TO_EVALUATE for a person (rule 15).
+r4  Known ceiling: the test proves the quoted clause is ours word for word; it does not read a
+    separate on-topic clause elsewhere in the paper.
+r5  Amends AM-322 r11 and AM-380 r1 (D13/D14 "r11 unchanged") for these two MSA standards only.
+```
+
+`AM-387` — a blank 17.7 duplicates 17.2 (amends `AM-380` r4 and the DOC-LIAB-04 consequence for
+LIABILITY-MSA-001 only)
+
+```text
+r1  LIABILITY-MSA-001 declares `duplicate_cap_wording`: MSA.pdf 17.7 verbatim ("LeapSwitch's
+    total aggregate liability, whether in contract, tort, or otherwise, shall not exceed the
+    total fees paid by Customer in the __________ months preceding the claim").
+r2  An unread (UNKNOWN) cap stated only by clauses whose whole text equals that wording (same
+    folding as AM-386 r2) is a duplicate of the stated cap beside it and is dropped, while a
+    FINITE cap of the same kind and scope remains. The 17.2 figure governs (6 months, AM-380).
+r3  A 17.7 stating any figure (12, 6, …) is other words: kept, CONFLICT for a person (fail
+    closed). With no stated cap beside it, the blank stays UNKNOWN for a person.
+r4  Fixture DOC-LIAB-04 (evaluator level, LIABILITY-001, no configured duplicate wording) is
+    unchanged. Legal should still delete 17.7 from the template text (OPEN ITEM, AM-380 r4).
+r5  Deploy-time publish: import_ratified_standards -> publish_payload -> POST
+    /configuration/publish -> chunk_standards (ops/README §standards); a NEW snapshot, no
+    existing Review changes (rule 16).
+```
