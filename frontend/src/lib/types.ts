@@ -469,6 +469,8 @@ export interface ContractOutcomeState {
   read_only?: string | null;
   /** `AM-318`: the Review is of a final contract — never "Sign after our changes" */
   final?: boolean;
+  /** `AM-396`: false while this round sends changes back — Sign as is is refused */
+  sign_as_is_allowed?: boolean;
   /** oldest first; the last is current */
   history: ContractOutcomeVersion[];
   review_status?: string;

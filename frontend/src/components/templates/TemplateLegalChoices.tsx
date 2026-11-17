@@ -127,6 +127,7 @@ function BlankRow({ templateId, where, blank, onDone }: {
   const [open, setOpen] = useState(false);
   const [label, setLabel] = useState("");
   const [required, setRequired] = useState(true);
+  const [fallback, setFallback] = useState("");
   const { busy, error, send } = useSend(onDone);
   const id = `tpl-blank-${where}-${blank.n}`;
   return (
@@ -134,7 +135,9 @@ function BlankRow({ templateId, where, blank, onDone }: {
       <span className="tpl-pubrow__what">&hellip;{blank.before} <mark className="tpl-blank">blank {blank.n}</mark> {blank.after}&hellip;</span>
       {blank.field ? (
         <span className="tpl-pubrow__said">Sales fills &ldquo;{blank.field.label}&rdquo; on each deal.
-          {blank.field.required ? " Required to create the contract." : " Can stay empty for now, but the final contract is blocked until it is filled."}</span>
+          {blank.field.required ? " Required to create the contract."
+            : blank.field.default ? ` If sales leaves it empty: “${blank.field.default}”.`
+              : " Can stay empty for now, but the final contract is blocked until it is filled."}</span>
       ) : !open ? (
         <span className="tpl-pubrow__where">
           <span>Not a field yet. Left as is, this blank stops the final contract.</span>
@@ -142,7 +145,10 @@ function BlankRow({ templateId, where, blank, onDone }: {
       ) : (
         <form className="tpl-form" onSubmit={(e) => {
           e.preventDefault();
-          if (label.trim()) void send(() => api.makeBlankField(templateId, { where, n: blank.n, label: label.trim(), required }));
+          if (label.trim() && (required || fallback.trim())) {
+            void send(() => api.makeBlankField(templateId, { where, n: blank.n, label: label.trim(), required,
+                                                             ...(required ? {} : { default: fallback.trim() }) }));
+          }
         }}>
           <label htmlFor={id} className="tpl-label">What sales is asked</label>
           <input id={id} className="tpl-reason" type="text" maxLength={120} required value={label}
@@ -150,10 +156,16 @@ function BlankRow({ templateId, where, blank, onDone }: {
           <p id={`${id}-help`} className="tpl-help">For example &ldquo;City where banks are open&rdquo;. The approved words do not change.</p>
           <label className="tpl-check"><input type="checkbox" checked={required} onChange={(e) => setRequired(e.target.checked)} />
             Required to create the contract</label>
+          {required ? null : (<>
+            <label htmlFor={`${id}-default`} className="tpl-label">Value if sales leaves it empty</label>
+            <input id={`${id}-default`} className="tpl-reason" type="text" maxLength={300} required value={fallback}
+                   aria-describedby={`${id}-default-help`} onChange={(e) => setFallback(e.target.value)} />
+            <p id={`${id}-default-help`} className="tpl-help">Type the words exactly as the contract should read. A blank never goes to the client as underscores.</p>
+          </>)}
           {error ? <p className="tpl-error" role="alert">{error}</p> : null}
           <div className="tpl-actions__row">
             <button type="button" className="ws-btn" onClick={() => setOpen(false)}>Cancel</button>
-            <button type="submit" className="ws-btn" disabled={busy || !label.trim()}>{busy ? "Saving…" : "Make field"}</button>
+            <button type="submit" className="ws-btn" disabled={busy || !label.trim() || (!required && !fallback.trim())}>{busy ? "Saving…" : "Make field"}</button>
           </div>
         </form>
       )}

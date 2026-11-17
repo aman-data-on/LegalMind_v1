@@ -192,7 +192,8 @@ def _blanks(tv: M.TemplateVersion, where: str, node: Any) -> list[dict[str, Any]
     return [{"n": n, **near,
              "field": None if n not in fields else {
                  "key": fields[n]["key"], "label": fields[n]["label"],
-                 "required": fields[n].get("class") == "M"}}
+                 "required": fields[n].get("class") == "M",
+                 "default": fields[n].get("default")}}
             for n, near in enumerate(model_.blank_runs(node or []), 1)]
 
 
@@ -414,6 +415,9 @@ class BlankField(Body):
     #: true: sales must fill it to create the contract; false: may stay empty until
     #: Final, which is refused while it is
     required: bool = True
+    #: AM-394: the value an optional blank takes when sales leaves it empty — words Legal
+    #: (or the owner) supplies; required for an optional field
+    default: str | None = Field(None, min_length=1, max_length=300)
 
 
 @router.post("/templates/{template_id}/blank-fields")
@@ -433,6 +437,9 @@ def make_blank_field(template_id: UUID, body: BlankField,
         raise NotVisible("clause not found")
     if body.n > len(model_.blank_runs(source)):
         raise Conflict("there is no such blank in that text")
+    if not body.required and not body.default:
+        raise Conflict("an optional blank needs the value it takes when sales leaves it "
+                       "empty")
     if any(v.get("blank") == {"in": body.where, "n": body.n} for v in tv.variables):
         raise Conflict("this blank is already a fill-in field")
     taken = {v["key"] for v in tv.variables}
@@ -440,7 +447,8 @@ def make_blank_field(template_id: UUID, body: BlankField,
                if f"blank_{i}" not in taken)
     var = {"key": key, "label": " ".join(body.label.split()), "type": "text",
            "group": "Deal", "class": "M" if body.required else "O", "prefill": False,
-           "blank": {"in": body.where, "n": body.n}}
+           "blank": {"in": body.where, "n": body.n},
+           **({"default": " ".join(body.default.split())} if body.default else {})}
     if body.required:          # the publish check renders with a value, like every field
         checks = layout.get("check_values") or {}
         layout["check_values"] = {**checks, key: "Check value"}

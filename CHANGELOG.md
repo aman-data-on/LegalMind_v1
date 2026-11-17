@@ -10,6 +10,14 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+- Production E2E fixes, part 1 (AB-210: `AM-393`, `AM-394`, `AM-396`, `AM-398`): "Sign after our changes"
+  now waits at Ready to send until sales downloads our reply and marks it sent; the contract-decision
+  suggestion reads the whole round (a Reject suggests Sign after our changes) and Sign as is is refused
+  while changes go back; Legal no longer gets sales buttons; sales sees "With Legal" only after Send to
+  Legal; an optional fill-in field needs a default (MSA 17.7 → "six (6)", owner) and the deal owner can
+  change fill-in fields on our unsent version; filled blanks keep their spacing; the template header
+  Publish asks for confirmation and publishes; no 403/409 console noise.
+
 - Template page fixes from the 2026-11-17 production run (AB-209, `AM-390`–`AM-392`): Legal can keep a
   finding about the approved words as written (a quoted term never defined) with a reason, so our MSA
   publishes unedited; Legal sets who signs for us on the template; a blank in approved words becomes a

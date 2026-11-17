@@ -200,7 +200,10 @@ def outcome_payload(db: DBSession, review: M.Review) -> dict[str, Any]:
         read_only = str(exc)
     return {
         # the code's suggestion from the point decisions now; a person chooses
-        "suggested": CO.suggest(CO.current_types(db, review.id)).value,
+        "suggested": CO.suggest(db, review).value,
+        # AM-396: Sign as is is refused while the round sends changes back
+        "sign_as_is_allowed": (CO.is_final_copy(db, review)
+                               or not CO.changes_go_back(db, review)),
         "ready": read_only is None
                  and review.status in {E.ReviewStatus.RESOLVED, E.ReviewStatus.CLOSED},
         "read_only": read_only,

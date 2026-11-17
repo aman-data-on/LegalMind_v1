@@ -49,7 +49,8 @@ export function nextStep(f: StepFacts): Step | null {
   const c = f.counts ?? {};
   const step = (kind: StepKind, label: string = ACTION[kind] as string): Step => ({ kind, label });
   if (f.viewer === "legal" && c.points_for_me) return step("decide", ACTION.decide(c.points_for_me));
-  if (!f.canAnswer) return null;
+  // UX L1/S4: Legal's only primary is deciding — sending, preparing and signing are sales acts
+  if (!f.canAnswer || f.viewer === "legal") return null;
   switch (f.stage) {
     case "FINAL":
       return step("downloadFinal");                              // AM-318: the end
@@ -58,7 +59,8 @@ export function nextStep(f: StepFacts): Step | null {
       return f.finalLatest ? null : step("prepareFinal");
     case "READY_TO_SEND":
       // our reply, or our own draft once Legal decided every point of it
-      return f.replyReady ? step("sendReply") : f.draftUnsent ? step("sendToClient") : null;
+      // AM-393: "Sign after our changes" decided on the client's version — reply next
+      return f.replyReady ? step("sendReply") : f.draftUnsent ? step("sendToClient") : step("prepareReply");
     case "CLIENT_RETURNED":
       if (c.changes_left_for_me && f.answersChanges !== false) return step("answerChanges");
       if (c.changes_total === undefined || c.changes_left) return null;

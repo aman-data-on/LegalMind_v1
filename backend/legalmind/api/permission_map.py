@@ -217,6 +217,9 @@ ASSIST_ENDPOINTS: Final[dict[tuple[str, str], str]] = {
         P.LEGAL_APPROVE_CUSTOMIZATION,
     ("POST", f"{API_PREFIX}/templates/{{template_id}}/blank-fields"):
         P.LEGAL_APPROVE_CUSTOMIZATION,
+    # AM-394: a contract's fill-in fields, read; changed by the deal owner
+    ("GET", f"{API_PREFIX}/contracts/{{contract_id}}/blank-values"): P.DOCUMENT_VIEW,
+    ("POST", f"{API_PREFIX}/contracts/{{contract_id}}/blank-values"): P.CONTRACT_UPDATE,
     # a clause's recorded versions: who approved each, how, and why
     ("GET", f"{API_PREFIX}/templates/{{template_id}}/clauses/{{clause_key}}/versions"):
         P.LEGAL_APPROVE_CUSTOMIZATION,

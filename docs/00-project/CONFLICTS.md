@@ -44,6 +44,7 @@ Project rule: when two authoritative statements conflict, the conflict is report
 | C-28 | Constitution §13 Company Position: termination for cause needs a 30-day cure "except for non-payment, security threats, or illegal use, which permit immediate suspension"; §16 Unacceptable Position: "Suspension for non-payment with no prior written notice or cure opportunity". Found 2026-10-17 while building the non-payment observation (`AM-159` r6) | ⏳ **OPEN — recommended reading recorded, for the owner to ratify:** read together, §13 gives the right to suspend for non-payment and §16 fixes how (prior written notice and a cure opportunity); immediate suspension with no notice is the risky reading. Until ratified, a document with no non-payment remedy reads "Legal decides (§23.4)" — the observation asserts only that a remedy exists, never anything about notice (`AM-159` r6; owner-delegated, AB-95) |
 | C-29 | Constitution L1.14 §11 (from the website, `AM-129`) gives the Leapswitch SLA's minimum uptime as **99.95%** for Power (Dual Power Servers) and Private Network; the Leapswitch site moved to `www.leapswitch.com` on 2026-10-31 and its live SLA now states **99.9%** for every category, the 99.95% footnote gone. Found 2026-11-02 when the daily refresh (`AM-130`) failed on the redirect | ✅ **RESOLVED 2026-11-02 by the owner (`AM-243`):** "whatever is on the live website, take it from there" — the live 99.9% governs; Constitution L1.15 §11 states it, L1.14 stays as history |
 | C-31 | Constitution §12.2: DPA-type provisions are "evaluated directly against" the DPDP Act and "the Data Protection & Privacy position above … wherever it appears". `AM-73` r1 lists DPA among the types the Constitution states no position for (refused), and `AM-244` says a DPA attachment is never measured | ⏳ Open (LOW) — registered 2026-11-09 (`AM-322`). Until ruled, the new §12 standards list `DPA` under `not_applicable_to` (today's behaviour: a standalone DPA is not measured); a DPA-type clause inside an MSA or TOS is measured by content, as before |
+| C-32 | Owner 2026-11-17: the MSA 17.7 blank defaults to "six (6)" (`AM-394` r2). `AM-380` r4 / `AM-387`: a blank 17.7 duplicates 17.2, but a FILLED 17.7 still CONFLICTs with 17.2 on LIABILITY-MSA-001 — so the template's publish check refuses a version whose 17.7 is filled | ⏳ Open (HIGH, blocks the 17.7 default on production) — registered 2026-11-17 (AB-210). Owner/Legal decision; not picked by us (rule 5) |
 | C-30 | `AM-25` (all_lock.md:15737) calls the V1 exclusion list ("Automatic legal clause rewriting · Automatic modified DOCX/PDF generation · Automatic redlining · AI negotiation · AI legal advice") **Step 38**; the list is in **Step 37** / `PROD-07` (all_lock.md:5159-5171). Found while drafting AB-150 (`AM-251` notes it). | ⏳ Open (LOW) — **blocks nothing**: AB-150 amends the list by its Step 37 location; no record is edited (rule 22) |
 
 
@@ -910,3 +911,23 @@ measured). A DPA-type clause inside an MSA or TOS is measured, as §12.2 asks.
 `not_applicable_to` and amend `AM-73` r1/`AM-244` for review (Ask attachments unchanged or not);
 (b) `AM-73`/`AM-244` govern — record that §12.2 applies to DPA-type clauses in other papers only.
 
+## C-32 — the 17.7 default "six (6)" (`AM-394` r2) vs a filled 17.7 CONFLICTs with 17.2 (`AM-380` r4 / `AM-387`)
+
+**Registered 2026-11-17 (AB-210). Open (HIGH). Owner/Legal decision.**
+
+| Source | Says |
+|---|---|
+| **Owner, 2026-11-17** | The MSA §17.7 blank defaults to "six (6)" (the words of §17.2). |
+| **`AM-380` r4 as amended by `AM-387`** | A blank 17.7 duplicates 17.2 (no CONFLICT); a filled 17.7 still conflicts. |
+
+**Found:** on a local stack (MSA.pdf imported, every clause approved, 17.7 made an optional field with
+default "six (6)"), the template's publish check renders 17.7 filled and LIABILITY-MSA-001 reads
+"says it twice, differently" — one problem stops publishing. So the new template version that would
+carry the default cannot be published as things stand.
+
+**Options (none picked):** (a) Legal deletes 17.7 on paper (AM-387's note) — new MSA.pdf, no default
+needed; (b) amend AM-380 r4 so a 17.7 that repeats 17.2's period on 17.7's basis is a duplicate, not a
+conflict (legal-engine content: needs the owner/Legal); (c) keep the published v1 (17.7 optional, no
+default) and fill 17.7 per deal through "Fill-in fields" before our version is sent (AM-394 r3) — a NEW
+version cannot take this, because AM-394 r1 refuses an optional field without a default; a new version
+would make 17.7 required instead. Until ruled, production keeps template v1 (17.7 optional, filled per deal).

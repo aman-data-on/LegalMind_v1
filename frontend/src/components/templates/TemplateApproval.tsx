@@ -38,6 +38,7 @@ import { BlanksGroup, KeepAsWritten, KeptGroup, OurSignatory, SpecialConditionsS
 export { SpecialConditionsSetup };
 import { CheckStatus } from "./TemplateList";
 import { PreviewButton } from "@/components/PreviewPanel";
+import { Dialog } from "@/components/Dialog";
 import "./templates.css";
 import { formatDate } from "@/lib/dates";
 
@@ -60,8 +61,12 @@ function useTemplate(id: string) {
       .catch(() => { if (mine === seq.current) setFailed(true); })
       .finally(() => { if (mine === seq.current) setChecking(false); });
   }, [id]);
-  const reload = useCallback(() => api.template(id).then(setDetail).catch(setError), [id]);
-  useEffect(() => { void reload(); void fetchCheck(); }, [reload, fetchCheck]);
+  const reload = useCallback(() => api.template(id).then((d) => { setDetail(d); return d; })
+    .catch((e) => { setError(e); return null; }), [id]);
+  // E2E 6i: the check is draft-only — a published version is never checked (409)
+  useEffect(() => {
+    void reload().then((d) => { if (d?.status === "DRAFT") void fetchCheck(); else setChecking(false); });
+  }, [reload, fetchCheck]);
   /** after a clause action, or "Run again": the gate's check reads the new text */
   const runCheck = useCallback(() => { setChecking(true); setFailed(false); void fetchCheck(); }, [fetchCheck]);
   return { detail, check, checking, failed, error, reload, runCheck };
@@ -93,6 +98,7 @@ export function TemplateApproval({ id }: { id: string }) {
   const [mode, setMode] = useState<Mode>("none");
   const [text, setText] = useState("");
   const [baseText, setBaseText] = useState<string | null>(null);
+  const [askPublish, setAskPublish] = useState(0);
   const positions = can(P.LEGAL_POSITION_VIEW);
 
   const groups = useMemo(() => detail ? groupClauses(detail.clauses, check) : [], [detail, check]);
@@ -188,7 +194,8 @@ export function TemplateApproval({ id }: { id: string }) {
           ) : null}
         </>}
         primary={draft && canPublish(detail, check) ? (
-          <button type="button" className="ws-btn ws-btn--sm ws-btn--primary" onClick={() => select({ kind: "publish" })}>
+          <button type="button" className="ws-btn ws-btn--sm ws-btn--primary"
+                  onClick={() => { select({ kind: "publish" }); setAskPublish((n) => n + 1); }}>
             Publish
           </button>
         ) : null} />
@@ -248,7 +255,7 @@ export function TemplateApproval({ id }: { id: string }) {
               <ChangesView detail={detail} changed={changed} numbers={numbers}
                            onSelect={(key) => select({ kind: "clause", key })} />
             ) : view.kind !== "clause" || !clause ? (
-              <PublishView detail={detail} check={check} checking={checking} positions={positions} onRetry={runCheck}
+              <PublishView ask={askPublish} detail={detail} check={check} checking={checking} positions={positions} onRetry={runCheck}
                            onSelect={(key) => select({ kind: "clause", key })} onReplace={openReplace}
                            onPublished={async () => { await reload(); setSaid("Published."); }}
                            onChanged={async () => { await reload(); runCheck(); }} />
@@ -580,7 +587,9 @@ function ChangesView({ detail, changed, numbers, onSelect }: {
   );
 }
 
-function PublishView({ detail, check, checking, positions, onRetry, onSelect, onReplace, onPublished, onChanged }: {
+function PublishView({ ask, detail, check, checking, positions, onRetry, onSelect, onReplace, onPublished, onChanged }: {
+  /** E2E 6a: the header's Publish asks for the same confirmation as the button below */
+  ask: number;
   detail: TemplateDetail; check: TemplateCheck | null; checking: boolean; positions: boolean; onRetry: () => void;
   onSelect: (key: string) => void; onReplace: (key: string) => void; onPublished: () => Promise<void>;
   onChanged: () => Promise<void>;
@@ -589,6 +598,7 @@ function PublishView({ detail, check, checking, positions, onRetry, onSelect, on
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [reference, setReference] = useState("");
+  const [confirming, setConfirming] = useState(false);
   const title = (key: string) => displayTitle(detail.clauses.find((c) => c.clause_key === key)?.title ?? key);
   const standards = check?.standards ?? [];
   const inClauses = standards.filter((s) => placed(s) && !unchecked(s));
@@ -599,6 +609,7 @@ function PublishView({ detail, check, checking, positions, onRetry, onSelect, on
   const unapproved = detail.clauses.filter((c) => !approved(c));
   const ready = canPublish(detail, check);
   const stops = stopCount(check);
+  useEffect(() => { if (ask && ready) setConfirming(true); }, [ask, ready]);
 
   if (detail.status !== "DRAFT") {
     return (
@@ -614,6 +625,7 @@ function PublishView({ detail, check, checking, positions, onRetry, onSelect, on
   }
 
   async function publish() {
+    setConfirming(false);
     setBusy(true); setRefused(null); setError(null);
     try { await api.publishTemplate(detail.id, reference.trim()); await onPublished(); }
     catch (e) {
@@ -704,8 +716,18 @@ function PublishView({ detail, check, checking, positions, onRetry, onSelect, on
               <p id="tpl-approval-ref-help" className="tpl-help">Who approved this text outside LegalMind, for example &ldquo;Management approval, email of 5 Nov 2026&rdquo;. It is kept with the publish record.</p>
             </div>
           ) : null}
-          {ready ? <button type="button" className="ws-btn ws-btn--primary" disabled={busy} onClick={() => void publish()}>
+          {ready ? <button type="button" className="ws-btn ws-btn--primary" disabled={busy} onClick={() => setConfirming(true)}>
             {busy ? "Publishing…" : "Publish"}</button> : null}
+          {confirming ? (
+            <Dialog onClose={() => setConfirming(false)} titleId="tpl-publish-confirm">
+              <h2 id="tpl-publish-confirm">Publish version {detail.version}?</h2>
+              <p className="tpl-help">New contracts use it from now. Contracts already made keep their version.</p>
+              <div className="cx-dialog__foot">
+                <button type="button" className="ws-btn" onClick={() => setConfirming(false)}>Cancel</button>
+                <button type="button" className="ws-btn ws-btn--primary" onClick={() => void publish()}>Publish</button>
+              </div>
+            </Dialog>
+          ) : null}
           {refused ? (
             <div className="tpl-refused" role="alert">
               <p><strong>Not published.</strong> The server refused it for {refused.length === 1 ? "this reason" : `these ${refused.length} reasons`}:</p>

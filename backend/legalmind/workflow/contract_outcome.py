@@ -5,8 +5,8 @@ is RESOLVED). Sign as is / Sign after our changes / Do not sign close the Review
 (Step 30 r11: CLOSED is formal completion after resolution); On hold keeps it RESOLVED.
 Append-only, like Legal Decisions: a change of mind is a new version.
 
-The code SUGGESTS an outcome from the point decisions and records the suggestion beside
-the choice. It never records an outcome itself (rule 13).
+The code SUGGESTS an outcome from the round's decisions and answers (AM-396) and
+records the suggestion beside the choice. It never records an outcome itself (rule 13).
 """
 
 from __future__ import annotations
@@ -35,13 +35,37 @@ from legalmind.workflow.review_lifecycle import (
 _CHANGED = "the decision on this contract was changed meanwhile"
 
 
-def suggest(decision_types: set[DecisionType]) -> ContractOutcome:
-    """Any Reject → Do not sign; any wording to send back → Sign after our changes."""
-    if DecisionType.REJECT in decision_types:
-        return ContractOutcome.DO_NOT_SIGN
-    if DecisionType.REQUIRE_COMPANY_STANDARD in decision_types:
-        return ContractOutcome.SIGN_WITH_CHANGES
-    return ContractOutcome.SIGN_AS_IS
+_CHANGES_BACK = {DecisionType.REJECT, DecisionType.REQUIRE_COMPANY_STANDARD,
+                 DecisionType.APPROVE_CUSTOMIZATION}
+
+
+def suggest(db: DBSession, review: M.Review) -> ContractOutcome:
+    """AM-396: read the round — this Review's decisions, those of the client version our
+    reply answers, and the answers to that version's changes. Anything sending wording
+    back (a Reject — "this clause must change" — a required standard, our wording, or an
+    answer other than accepting theirs) → Sign after our changes; else Sign as is. Do not
+    sign stays a person's choice."""
+    return (ContractOutcome.SIGN_WITH_CHANGES if changes_go_back(db, review)
+            else ContractOutcome.SIGN_AS_IS)
+
+
+def changes_go_back(db: DBSession, review: M.Review) -> bool:
+    if current_types(db, review.id) & _CHANGES_BACK:
+        return True
+    version = db.get(M.DocumentVersion, review.document_version_id)
+    replied = (version.doc_metadata or {}).get("reply_to") if version else None
+    target = UUID(replied) if replied else review.document_version_id
+    if replied:
+        theirs = db.execute(select(M.Review.id)
+                            .where(M.Review.document_version_id == target)
+                            .order_by(M.Review.created_at.desc()).limit(1)).scalar()
+        if theirs is not None and current_types(db, theirs) & _CHANGES_BACK:
+            return True
+    C = M.ComparisonChoice
+    current = db.execute(select(C.choice).where(C.right_version_id == target)
+                         .distinct(C.row_key).order_by(C.row_key, C.version_number.desc())
+                         ).scalars()
+    return any(c != "theirs" for c in current)
 
 
 def is_final_copy(db: DBSession, review: M.Review) -> bool:
@@ -90,13 +114,18 @@ def record(db: DBSession, review: M.Review, *, actor_id: UUID,
                                 "for more changes, upload the client's version")
     if review.status is ReviewStatus.CLOSED and outcome is ContractOutcome.ON_HOLD:
         raise InvalidTransition("a closed review cannot be put on hold")
+    if (outcome is ContractOutcome.SIGN_AS_IS and not is_final_copy(db, review)
+            and changes_go_back(db, review)):
+        # AM-396: an integrity guard on the person's own answers, never a decision
+        raise InvalidTransition("points in this round send changes back — choose Sign "
+                                "after our changes, Do not sign or On hold")
     chain = history(db, review.id)
     next_version = len(chain) + 1
     if expected_version is not None and expected_version + 1 != next_version:
         raise VersionConflict(_CHANGED)
     row = M.ContractOutcomeRecord(
         review_id=review.id, outcome=outcome,
-        suggested=suggest(current_types(db, review.id)),
+        suggested=suggest(db, review),
         justification=justification, decided_by=actor_id, version_number=next_version,
         created_at=datetime.now(UTC))     # ordered against `reopened_at` (AM-175)
     try:

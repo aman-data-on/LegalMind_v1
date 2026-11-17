@@ -146,6 +146,19 @@
    "BlankField": {
     "additionalProperties": false,
     "properties": {
+     "default": {
+      "anyOf": [
+       {
+        "maxLength": 300,
+        "minLength": 1,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Default"
+     },
      "label": {
       "maxLength": 120,
       "minLength": 1,
@@ -176,6 +189,31 @@
      "label"
     ],
     "title": "BlankField",
+    "type": "object"
+   },
+   "BlankValues": {
+    "additionalProperties": false,
+    "properties": {
+     "expected_version": {
+      "minimum": 1.0,
+      "title": "Expected Version",
+      "type": "integer"
+     },
+     "values": {
+      "additionalProperties": {
+       "type": "string"
+      },
+      "maxProperties": 50,
+      "minProperties": 1,
+      "title": "Values",
+      "type": "object"
+     }
+    },
+    "required": [
+     "values",
+     "expected_version"
+    ],
+    "title": "BlankValues",
     "type": "object"
    },
    "CollaboratorAdd": {
@@ -3953,6 +3991,106 @@
     "summary": "Archive Contract",
     "tags": [
      "contracts"
+    ]
+   }
+  },
+  "/api/v1/contracts/{contract_id}/blank-values": {
+   "get": {
+    "description": "`AM-394`: the fill-in fields of the contract's latest generated version of ours,\nwith their values, and whether this reader may change them now.",
+    "operationId": "list_blank_values_api_v1_contracts__contract_id__blank_values_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Blank Values Api V1 Contracts  Contract Id  Blank Values Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Blank Values",
+    "tags": [
+     "drafts"
+    ]
+   },
+   "post": {
+    "description": "`AM-394`: the deal owner fills or changes a fill-in field after the contract was\nmade \u2014 only on our generated version not yet sent: a new version of ours is rendered\nfrom the same template version with the new values, audited before/after. Any other\nanswer changes the deal and needs a new contract (409).",
+    "operationId": "fill_blank_values_api_v1_contracts__contract_id__blank_values_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/BlankValues"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Fill Blank Values Api V1 Contracts  Contract Id  Blank Values Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Fill Blank Values",
+    "tags": [
+     "drafts"
     ]
    }
   },

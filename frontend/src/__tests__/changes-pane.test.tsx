@@ -449,6 +449,7 @@ describe("the deal owner's words (R3 step 10)", () => {
   const done = (over: Partial<ClientChange> = {}) => change({ answer: answered("keep_ours"), ...over });
   it("says who has each change", () => {
     expect(salesLine(change())).toBe("With Legal: nothing for you");
+    expect(salesLine(change(), false)).toBe("Legal answers this");
     expect(salesLine(done())).toBe("Legal answered");
     expect(salesLine(change({ route: "owner" }))).toBe("Your turn");
     expect(salesLine(change({ holder_accepted: true }))).toBe("Legal answered. Your turn");

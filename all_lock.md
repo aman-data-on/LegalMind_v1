@@ -30806,3 +30806,68 @@ r2  Required (default): sales must fill it to create the contract. Optional: it 
     the choice for a figure our MSA leaves open (17.7, AM-387).
 r3  A blank never reaches a final contract as underscores (unchanged final blocker).
 ```
+
+## AMENDMENT BATCH AB-210 — `AM-393`, `AM-394`, `AM-396`, `AM-398` (2026-11-17): the production E2E fix batch, part 1 (deal flow, fill-in fields)
+
+Owner, 2026-11-17: fix the production E2E findings; sales and Legal must never be confused (one
+stage shown to both, only the person whose turn it is gets the main button); the MSA 17.7 blank
+defaults to "six (6)" (the words of our MSA's 17.2); never write legal text. Standing rule
+(2026-11-16): a lock that weakens the lawyer agent → design the enterprise-best option, record
+the amendment, proceed. Collision scan 2026-11-17 (origin/main, every worktree, every remote
+branch, the CLM ledger): AB-210/AB-211 and AM-393–AM-401 free. AM-395, AM-397 and AM-399 are
+reserved for part 2 of this batch (the wording to send back, Annexure 1, Ask the client).
+
+`AM-393` — "Sign after our changes" waits for our reply to reach the client (amends `AM-260`
+r2/r3 stage order)
+
+```text
+r1  Sign as is on the latest version → Ready to sign (unchanged).
+r2  Sign after our changes on our prepared reply not yet sent, or on the client's own version
+    → Ready to send (sales prepares / downloads our reply and marks it sent). Once our reply is
+    marked sent → With the client. Only on a version of ours that is the agreed text → Ready
+    to sign. The stage is derived; nothing is migrated.
+r3  Legal is never given a sales act as the main button (send, prepare, sign): Legal's only
+    header action is deciding its points.
+```
+
+`AM-394` — fill-in fields: a default value, and changed after the contract is made (extends
+`AM-392`; closes `AM-380` r4 / `AM-387`'s 17.7 open item for the template)
+
+```text
+r1  A fill-in field may carry a default — words Legal (or the owner) supplies — used when sales
+    leaves it empty. An optional field must have one (409 otherwise): no field is optional at
+    creation and blocking at the final contract.
+r2  The MSA template's 17.7 field takes "six (6)" — the owner's decision of 2026-11-17, quoting
+    our MSA's 17.2. A new template version is needed (a published version is frozen, rule 16).
+    The duplicate-cap note of AM-387 remains until Legal deletes 17.7 on paper.
+r3  The deal owner (contract.update, never Legal's negotiation basis) may change fill-in fields
+    on our latest generated version while it is not sent: a new version of ours is rendered from
+    the same template version, audited contract.blank_filled (before/after). Any other answer
+    changes the deal (a new contract). Once our version has gone to the client the fields are
+    read-only here.
+r4  A filled value reads as a sentence: a space is added when the source glues the blank to the
+    next word, and a lone space before punctuation is dropped. Only the rendered copy; the
+    approved words and their hash never change.
+```
+
+`AM-396` — the contract-decision suggestion reads the round (amends `AM-174`)
+
+```text
+r1  The suggestion reads this Review's Legal Decisions, those of the client version our reply
+    answers, and the answers to that version's changes.
+r2  Any Reject ("this clause must change"), Require our standard, Approve our wording, or an
+    answer other than accepting theirs → Sign after our changes; else Sign as is. Do not sign
+    stays a person's choice (it is no longer suggested by a Reject).
+r3  Sign as is is refused (and not offered) while the round sends changes back — an integrity
+    guard on the person's own answers, never an engine decision (rule 13). A final copy
+    (AM-318) is unaffected.
+```
+
+`AM-398` — "With Legal" only once sent to Legal (amends `AM-260` r3 presentation)
+
+```text
+r1  The changes list carries sent_to_legal (the client version's Review has an active
+    assignment). Until then sales reads "Your turn: send the client's changes to Legal." and a
+    Legal row reads "Legal answers this", never "With Legal".
+r2  A lawyer still gets the byte-identical 404 on a contract not yet sent to them (SEC-07).
+```

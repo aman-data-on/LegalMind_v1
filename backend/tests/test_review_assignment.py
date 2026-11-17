@@ -331,9 +331,29 @@ def test_the_owner_never_decides_the_contract(api, db, owner, case):
     assert _outcome(api, review, "SIGN_AS_IS").status_code == 403
 
 
-def test_the_suggestion_follows_the_strongest_point_decision():
-    from legalmind.workflow.contract_outcome import suggest
-    T, C = E.DecisionType, E.ContractOutcome
-    assert suggest({T.ACCEPT_DEVIATION, T.NOT_APPLICABLE_TO_CONTRACT}) is C.SIGN_AS_IS
-    assert suggest({T.ACCEPT_DEVIATION, T.REQUIRE_COMPANY_STANDARD}) is C.SIGN_WITH_CHANGES
-    assert suggest({T.REQUIRE_COMPANY_STANDARD, T.REJECT}) is C.DO_NOT_SIGN
+def test_a_reject_suggests_sign_after_our_changes_and_refuses_sign_as_is(
+        api, db, owner, case):
+    """AM-396: a Reject reads "this clause must change" — the suggestion is Sign after
+    our changes, and Sign as is is refused while the round sends changes back."""
+    review, evaluation = case
+    reviewer = _reviewer(db)
+    sign_in(api, db, owner)
+    _send(api, review, reviewer)
+    sign_in(api, db, reviewer)
+    _decide(api, evaluation, "REJECT")
+    seen = api.get(f"{V1}/reviews/{review.id}/outcome").json()["data"]
+    assert (seen["suggested"], seen["sign_as_is_allowed"]) == ("SIGN_WITH_CHANGES", False)
+    assert _outcome(api, review, "SIGN_AS_IS").status_code == 422
+    assert _outcome(api, review, "SIGN_WITH_CHANGES", "send ours back").status_code == 201
+
+
+def test_an_answer_sending_our_wording_back_counts_in_the_round(db, case):
+    """AM-396: the reply's answers on the client version are part of the round."""
+    from legalmind.workflow.contract_outcome import changes_go_back
+    review, _ = case
+    assert changes_go_back(db, review) is False
+    db.add(M.ComparisonChoice(left_version_id=None, right_version_id=review.document_version_id,
+                              row_key="N|THEIRS|r1", choice="ours", decided_by=review.created_by,
+                              version_number=1))
+    db.flush()
+    assert changes_go_back(db, review) is True

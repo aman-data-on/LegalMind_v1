@@ -462,7 +462,11 @@ def list_changes(contract_id: UUID, from_version: int | None = _FROM,
     # can_send: this reader may record our version as sent (`mark_sent`'s own check),
     # which outlives the round — answering closes once the reply is prepared.
     # can_write_wording: `AM-284` r1 — presentation only, the write checks again
-    return data({**listed, "replied_in": replied_in,
+    # AM-398: "With Legal" only once the client's version was sent to Legal
+    review = negotiation._latest_review(guard.db, after)
+    sent = review is not None and guard.db.execute(select(M.Review.id).where(
+        M.Review.id == review.id, sent_to_legal())).first() is not None
+    return data({**listed, "replied_in": replied_in, "sent_to_legal": sent,
                  "can_answer": writer and replied_in is None, "can_send": writer,
                  "can_decide": P.LEGAL_DECISION in guard.permissions,
                  "can_write_wording": writer and replied_in is None
@@ -2010,7 +2014,7 @@ def blanks(db, version: M.DocumentVersion) -> str | None:
         return None
     return (f"{len(places)} blank{'s are' if len(places) != 1 else ' is'} still to fill: "
             + "; ".join(places[:8]) + ("; …" if len(places) > 8 else "")
-            + ". Fill them in the contract first.")
+            + ". Fill them under “Fill-in fields” on the Document tab.")
 
 
 def _unsigned(base: dict) -> str | None:

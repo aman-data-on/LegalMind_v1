@@ -103,11 +103,25 @@ def test_only_the_latest_versions_sent_mark_counts():
     assert derive_stage(_at(0), [_v(1, sent=1), _v(2)])[0] is S.DRAFTING
 
 
-def test_sign_as_is_or_after_our_changes_is_ready_to_sign():
-    for outcome in ("SIGN_AS_IS", "SIGN_WITH_CHANGES"):
-        review = ReviewFacts(outcome=outcome, outcome_at=_at(5))
-        assert derive_stage(_at(0), [_v(1, "CLIENT_MODIFIED")], review) == (
-            S.READY_TO_SIGN, _at(5))
+def test_sign_as_is_is_ready_to_sign():
+    review = ReviewFacts(outcome="SIGN_AS_IS", outcome_at=_at(5))
+    assert derive_stage(_at(0), [_v(1, "CLIENT_MODIFIED")], review) == (
+        S.READY_TO_SIGN, _at(5))
+
+
+def test_sign_after_our_changes_waits_for_our_reply_to_reach_the_client():
+    """AM-393: an unsent reply is Ready to send, a sent one With the client; only a
+    version of ours that is the agreed text is Ready to sign."""
+    review = ReviewFacts(outcome="SIGN_WITH_CHANGES", outcome_at=_at(5), reply_cleared=True)
+    base = [_v(1, "COMPANY_DRAFT", sent=1), _v(2, "CLIENT_MODIFIED")]
+    reply = VersionFacts(3, _at(3), "COMPANY_DRAFT", reply_to=True)
+    assert derive_stage(_at(0), [*base, reply], review) == (S.READY_TO_SEND, _at(5))
+    sent = VersionFacts(3, _at(3), "COMPANY_DRAFT", sent_at=_at(6), reply_to=True)
+    assert derive_stage(_at(0), [*base, sent], review) == (S.WITH_CLIENT, _at(6))
+    assert derive_stage(_at(0), base, review)[0] is S.READY_TO_SEND
+    assert derive_stage(_at(0), [_v(1)], review)[0] is S.READY_TO_SIGN
+    as_is = ReviewFacts(outcome="SIGN_AS_IS", outcome_at=_at(5))
+    assert derive_stage(_at(0), [*base, reply], as_is)[0] is S.READY_TO_SIGN
 
 
 def test_on_hold_is_its_own_stage_and_do_not_sign_falls_through():

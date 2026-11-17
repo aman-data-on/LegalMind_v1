@@ -167,6 +167,8 @@ export interface ChangeList {
   /** May record our version as sent — outlives the round, unlike `can_answer`. */
   can_send?: boolean;
   can_decide: boolean;
+  /** AM-398: the client's version was sent to Legal — "With Legal" only then */
+  sent_to_legal?: boolean;
   /** our reply to this version, once prepared — answering is closed then */
   replied_in?: number | null;
   /** R2 D4/D5: notes across clauses for Legal (absent on client paper first) */
@@ -401,16 +403,17 @@ export function answerFor(verdict: Verdict | null, actions: Answer[], rejectWith
 }
 
 /** R3: who has a change, in the deal owner's words (never Legal's view). */
-export function salesLine(change: ClientChange): string {
+export function salesLine(change: ClientChange, sentToLegal = true): string {
   const legalFirst = change.route === "holder" && !change.holder_accepted;
   if (change.answer) return change.route === "holder" ? SALES_LINE.legalAnswered : whoLine(change, { can_answer: true, can_decide: false });
-  if (legalFirst) return SALES_LINE.withLegal;
+  if (legalFirst) return sentToLegal ? SALES_LINE.withLegal : SALES_LINE.forLegal;
   return change.holder_accepted ? `${SALES_LINE.legalAnswered}. ${SALES_LINE.yourTurn}` : SALES_LINE.yourTurn;
 }
 /** R3: the deal owner's one status line for the whole list. */
-export function salesStatus(changes: ClientChange[]): string {
+export function salesStatus(changes: ClientChange[], sentToLegal = true): string {
   const b = replyBlockers(changes);
   if (!b.open.length && !b.approval.length && !b.legal.length) return SALES_LINE.ready;
+  if (!sentToLegal && (b.withLegal.length || b.legal.length)) return SALES_LINE.sendToLegal;
   if (b.withOwner.length) return `${SALES_LINE.yourTurn}: ${b.withOwner.length} ${b.withOwner.length === 1 ? "change" : "changes"} to answer.`;
   return SALES_LINE.waitingLegal;
 }
