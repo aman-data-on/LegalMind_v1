@@ -34,7 +34,7 @@ import { shortDate } from "@/components/workspace/model";
 import { PageHeader } from "@/components/page/PageHeader";
 
 import { ClauseSheet, Runs } from "./TemplateClause";
-import { BlanksGroup, KeepAsWritten, KeptGroup, OurSignatory, SpecialConditionsSetup } from "./TemplateLegalChoices";
+import { BlanksGroup, KeepAsWritten, KeptGroup, OrderForm, OurSignatory, SpecialConditionsSetup } from "./TemplateLegalChoices";
 export { SpecialConditionsSetup };
 import { CheckStatus } from "./TemplateList";
 import { PreviewButton } from "@/components/PreviewPanel";
@@ -65,7 +65,7 @@ function useTemplate(id: string) {
     .catch((e) => { setError(e); return null; }), [id]);
   // E2E 6i: the check is draft-only — a published version is never checked (409)
   useEffect(() => {
-    void reload().then((d) => { if (d?.status === "DRAFT") void fetchCheck(); else setChecking(false); });
+    void reload().then((d) => { if (checksOnLoad(d)) void fetchCheck(); else setChecking(false); });
   }, [reload, fetchCheck]);
   /** after a clause action, or "Run again": the gate's check reads the new text */
   const runCheck = useCallback(() => { setChecking(true); setFailed(false); void fetchCheck(); }, [fetchCheck]);
@@ -587,6 +587,26 @@ function ChangesView({ detail, changed, numbers, onSelect }: {
   );
 }
 
+/** E2E 6i: the check is draft-only — a published version is never checked (409). */
+export const checksOnLoad = (detail: Pick<TemplateDetail, "status"> | null): boolean =>
+  detail?.status === "DRAFT";
+
+/** E2E 6a: the one confirmation both Publish buttons open; its Publish is the one call. */
+export function PublishConfirm({ version, onCancel, onConfirm }: {
+  version: number | string; onCancel: () => void; onConfirm: () => void;
+}) {
+  return (
+    <Dialog onClose={onCancel} titleId="tpl-publish-confirm">
+      <h2 id="tpl-publish-confirm">Publish version {version}?</h2>
+      <p className="tpl-help">New contracts use it from now. Contracts already made keep their version.</p>
+      <div className="cx-dialog__foot">
+        <button type="button" className="ws-btn" onClick={onCancel}>Cancel</button>
+        <button type="button" className="ws-btn ws-btn--primary" onClick={onConfirm}>Publish</button>
+      </div>
+    </Dialog>
+  );
+}
+
 function PublishView({ ask, detail, check, checking, positions, onRetry, onSelect, onReplace, onPublished, onChanged }: {
   /** E2E 6a: the header's Publish asks for the same confirmation as the button below */
   ask: number;
@@ -699,6 +719,7 @@ function PublishView({ ask, detail, check, checking, positions, onRetry, onSelec
       <KeptGroup kept={detail.kept} />
       <OurSignatory detail={detail} onDone={onChanged} />
       <BlanksGroup detail={detail} onDone={onChanged} />
+      <OrderForm detail={detail} onDone={onChanged} />
       <SpecialConditionsSetup readiness={detail.special_conditions} />
       {detail.flags?.length ? (
         <div className="tpl-pubgroup"><h3>Notes from the import <span>{detail.flags.length}</span></h3>
@@ -719,14 +740,8 @@ function PublishView({ ask, detail, check, checking, positions, onRetry, onSelec
           {ready ? <button type="button" className="ws-btn ws-btn--primary" disabled={busy} onClick={() => setConfirming(true)}>
             {busy ? "Publishing…" : "Publish"}</button> : null}
           {confirming ? (
-            <Dialog onClose={() => setConfirming(false)} titleId="tpl-publish-confirm">
-              <h2 id="tpl-publish-confirm">Publish version {detail.version}?</h2>
-              <p className="tpl-help">New contracts use it from now. Contracts already made keep their version.</p>
-              <div className="cx-dialog__foot">
-                <button type="button" className="ws-btn" onClick={() => setConfirming(false)}>Cancel</button>
-                <button type="button" className="ws-btn ws-btn--primary" onClick={() => void publish()}>Publish</button>
-              </div>
-            </Dialog>
+            <PublishConfirm version={detail.version} onCancel={() => setConfirming(false)}
+                            onConfirm={() => void publish()} />
           ) : null}
           {refused ? (
             <div className="tpl-refused" role="alert">

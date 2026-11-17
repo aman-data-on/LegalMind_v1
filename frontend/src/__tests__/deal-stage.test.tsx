@@ -39,11 +39,11 @@ describe("StageBadge", () => {
     expect(renderToStaticMarkup(<StageBadge stage={undefined} />)).toContain("—");
   });
 
-  it("words the same stage for whoever reads it (S1): the owner's With Legal is the lawyer's review", () => {
+  it("words the same stage for whoever reads it (S1, AM-398 r2): one chip for both", () => {
     const stage = { stage: "INTERNAL_REVIEW" as const, since: "2026-11-02T00:00:00Z", days: 1 };
     expect(renderToStaticMarkup(<StageBadge stage={stage} />)).toContain("With Legal");
-    expect(renderToStaticMarkup(<StageBadge stage={stage} viewer="legal" />)).toContain("Your review");
-    // only Internal review differs by reader
+    expect(renderToStaticMarkup(<StageBadge stage={stage} viewer="legal" />)).toContain("With Legal");
+    expect(renderToStaticMarkup(<StageBadge stage={stage} viewer="legal" />)).not.toContain("Your review");
     expect(renderToStaticMarkup(<StageBadge stage={{ ...stage, stage: "CLIENT_RETURNED" }} viewer="legal" />))
       .toContain("Client replied");
   });

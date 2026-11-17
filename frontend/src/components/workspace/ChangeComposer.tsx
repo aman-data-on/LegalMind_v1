@@ -122,7 +122,8 @@ export function AnswerComposer({ change, list, actions, contractId, details, onA
   const theirs = change.after?.text ?? "";
   // R3 step 10: Legal picks a verdict; Reject then picks the wording sent back
   const [verdict, setVerdict] = useState<Verdict | null>(
-    initial === "accept_theirs" ? "accept" : initial === "write_wording" ? "accept_changes" : initial ? "reject" : null);
+    initial === "accept_theirs" ? "accept" : initial === "write_wording" ? "accept_changes"
+      : initial === "ask_client" ? "ask_client" : initial ? "reject" : null);
   const [rejectWith, setRejectWith] = useState<Answer | null>(initial);
   const choice = answerFor(verdict, actions, rejectWith);
   const [share, setShare] = useState(false);
@@ -146,9 +147,7 @@ export function AnswerComposer({ change, list, actions, contractId, details, onA
 
   const several = change.review.after.filter((f) => f.user_status !== "ACCEPTABLE").length > 1;
   const measured = !change.unmeasured && change.review.after.some((f) => f.evaluation_ids.length);
-  // "Ask the client" is the existing decision on a measured point — Legal's only
-  const askable = list.can_decide && measured && change.review.after.some((f) => f.user_status !== "ACCEPTABLE");
-  const verdicts = verdictsFor(actions, askable);
+  const verdicts = verdictsFor(actions);
   const wordings = actions.filter((a) => a === "keep_ours" || a === "use_standard");
   // the condition stays Legal's (the internal note, omitted for other readers) unless
   // shared; a reader who cannot keep an internal note shares it (rule 18: never hidden in the UI only)
@@ -159,6 +158,7 @@ export function AnswerComposer({ change, list, actions, contractId, details, onA
   const reasonRequired = choice === "write_wording"
     || (choice === "accept_theirs" && change.route === "holder" && !!change.unmeasured);
   const ready = !!choice && !decides && (!reasonRequired || !!reason.trim())
+    && (choice !== "ask_client" || !!clientNote.trim())
     && (choice !== "write_wording" || (!!wording.trim() && wording.trim() !== theirs.trim()));
 
   async function submit() {
@@ -188,6 +188,18 @@ export function AnswerComposer({ change, list, actions, contractId, details, onA
 
   const ours = change.before?.text ?? "";
   const panel: Record<Answer, ReactNode> = {
+    ask_client: (
+      <>
+        <p className="cx-panel__what">{VERDICT_COPY.askHelp}</p>
+        <label className="cx-note cx-note--client">
+          <span>{VERDICT_COPY.askLabel}</span>
+          <textarea maxLength={500} rows={3} required value={clientNote}
+                    onChange={(event) => setClientNote(event.target.value)} />
+        </label>
+        {measured ? <p className="ws-pane__note">Each point on this clause is recorded as waiting for the
+          client&apos;s answer.</p> : null}
+      </>
+    ),
     keep_ours: <p className="cx-panel__what">Our wording from version {list.from?.version_number} stays. The reply restores it
       as a tracked change.</p>,
     accept_theirs: decides ? (
@@ -333,26 +345,7 @@ export function AnswerComposer({ change, list, actions, contractId, details, onA
         <p className="ws-pane__note">{BY_HAND}</p>
       ) : null}
 
-      {verdict === "ask_client" ? (
-        // the existing decision forms, "Ask the client to clarify" prepared, never recorded for Legal
-        <div className="cx-panel">
-          <p className="cx-panel__what">{VERDICT_COPY.askHelp}</p>
-          {details === null ? <p role="status" className="ws-pane__note">Loading the points…</p> : null}
-          {details?.map(({ finding, evaluations }) => {
-            const read = change.review.after.find((f) => f.finding_id === finding.id);
-            if (!read || read.user_status === "ACCEPTABLE") return null;
-            return (
-              <div key={finding.id} className="cx-decide__point">
-                {several ? <p className="cx-decide__name">{requirementTitle({ code: read.requirement_code })}</p> : null}
-                {evaluations.map((evaluation) => (
-                  <DecisionControl key={evaluation.id} evaluation={evaluation} onRecorded={onReload}
-                                   prepared={{ decisionType: "REQUEST_CLARIFICATION", seq: 1 }} />
-                ))}
-              </div>
-            );
-          })}
-        </div>
-      ) : choice === "write_wording" ? (
+      {choice === "write_wording" ? (
         <>
           {panel.write_wording}
           {slot ? createPortal(editor, slot) : editor}
@@ -365,8 +358,9 @@ export function AnswerComposer({ change, list, actions, contractId, details, onA
         <form className="cx-panel" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
           {panel[choice]}
           <Reason required={reasonRequired} value={reason} onChange={setReason} />
-          <Notes clientNote={clientNote} setClientNote={setClientNote} internalNote={internalNote}
-                 setInternalNote={setInternalNote} seesInternal={seesInternal} />
+          {choice === "ask_client" ? null : (
+            <Notes clientNote={clientNote} setClientNote={setClientNote} internalNote={internalNote}
+                   setInternalNote={setInternalNote} seesInternal={seesInternal} />)}
           <div className="cx-panel__foot">
             <button type="submit" className="ws-btn ws-btn--sm ws-btn--primary"
                     disabled={busy || !ready || error?.conflict}>

@@ -1431,11 +1431,12 @@ export interface ReviewAssignments {
   eligible: ReviewerPerson[];
 }
 
-/** `AM-152` — the Constitution's own drafting language (or its company position where it
- *  has none) for a deviating finding's section, quoted verbatim, labelled as it is. */
+/** `AM-152`/`AM-395` — the wording to send back on a deviating finding, quoted verbatim
+ *  and labelled with its source: our own clause as we sent it, our MSA's words, else the
+ *  Constitution's drafting language (or its company position where it has none). */
 export interface CounterProposal {
   section: string;
-  kind: "DRAFTING_LANGUAGE" | "COMPANY_POSITION";
+  kind: "OUR_CLAUSE" | "MSA_QUOTE" | "DRAFTING_LANGUAGE" | "COMPANY_POSITION";
   label: string;
   text: string;
 }
@@ -1550,4 +1551,6 @@ export interface SigningNote {
   pdf_name: string;
   word_name: string | null;
   signers: { party: string; name: string; designation: string; email: string }[];
+  /** B5: fill-in fields filled after the client last saw our version */
+  filled_since_client_saw?: { key: string; label: string; value: string }[];
 }

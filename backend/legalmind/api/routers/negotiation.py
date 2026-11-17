@@ -43,7 +43,9 @@ Three routes, each through `Guard` before anything is read (rule 18):
 from __future__ import annotations
 
 import hashlib
+import io
 import re
+import zipfile
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from uuid import UUID
@@ -268,7 +270,8 @@ def _no_finding(change: dict) -> bool:
 
 
 #: what a person may answer (presentation only — `answer_change` checks again)
-_ALL_ANSWERS = ("keep_ours", "accept_theirs", "use_standard", "write_wording")
+_ALL_ANSWERS = ("keep_ours", "accept_theirs", "use_standard", "write_wording",
+                "ask_client")
 
 
 def _offers(change: dict) -> list[str]:
@@ -278,8 +281,8 @@ def _offers(change: dict) -> list[str]:
     if change["kind"] != negotiation.THEIRS_KIND:
         return list(_ALL_ANSWERS)
     if (change.get("anchor") or {}).get("clause_version_id"):
-        return ["keep_ours", "accept_theirs", "write_wording"]
-    return ["accept_theirs", "write_wording"]
+        return ["keep_ours", "accept_theirs", "write_wording", "ask_client"]
+    return ["accept_theirs", "write_wording", "ask_client"]
 
 
 def _left(before: M.DocumentVersion | None,
@@ -533,6 +536,44 @@ def _decide_wording(guard: Guard, contract: M.Contract, change: dict, digest: st
         _advance_if_resolved(guard, review)
 
 
+#: AM-395 r3: a holder's answer on a measured change IS their decision on its points —
+#: recorded once, never asked again in a second vocabulary (accept theirs already needs
+#: one; write our wording records its APPROVE_CUSTOMIZATION in `_decide_wording`)
+_ANSWER_DECIDES = {"keep_ours": DecisionType.REQUIRE_COMPANY_STANDARD,
+                   "use_standard": DecisionType.REQUIRE_COMPANY_STANDARD,
+                   "ask_client": DecisionType.REQUEST_CLARIFICATION}
+
+
+def _decide_by_answer(guard: Guard, change: dict, kind: DecisionType,
+                      reason: str | None) -> None:
+    """The holder's Legal Decision on each Evaluation of the client's clause in this
+    change (the same clause, `_to_decide` — never another clause's point, rule 15),
+    through `record_decision` with its own checks; one already of this type is not
+    recorded twice. A refused decision (a second person needed, …) leaves the point for
+    the Points tab — the answer stands either way."""
+    db = guard.db
+    why = reason or ("Answered on the change: ask the client."
+                     if kind is DecisionType.REQUEST_CLARIFICATION
+                     else "Answered on the change: keep our wording.")
+    reviews: dict[UUID, M.Review] = {}
+    for ev in _their_evaluations(db, change):
+        cur = current_decision(db, ev.id)
+        if cur is not None and cur.decision_type is kind:
+            continue
+        try:
+            with db.begin_nested():
+                record_decision(db, actor_id=guard.user_id, evaluation_id=ev.id,
+                                decision_type=kind, justification=why,
+                                request_id=guard.request_id)
+        except SecurityError:
+            continue
+        finding = db.get(M.Finding, ev.finding_id)
+        if finding is not None and (review := db.get(M.Review, finding.review_id)):
+            reviews[review.id] = review
+    for review in reviews.values():
+        _advance_if_resolved(guard, review)
+
+
 @router.post("/contracts/{contract_id}/changes/{row_key}/answers", status_code=201)
 def answer_change(contract_id: UUID, body: NegotiationAnswer,
                   row_key: str = Path(..., max_length=200),
@@ -577,6 +618,8 @@ def answer_change(contract_id: UUID, body: NegotiationAnswer,
     if any(not negotiation.is_ours(v) for v in later):
         raise Conflict("This is not the client's latest version — answer the changes in "
                        "their latest version.")
+    if body.answer == "ask_client":           # AM-399: Legal asks the client (rule 18)
+        guard.permission(P.LEGAL_DECISION)
     if body.answer == "keep_ours" and change["kind"] == negotiation.THEIRS_KIND:
         if "keep_ours" not in change["offers"]:
             raise NothingOfOurs("We have no standard clause for this point, so there is "
@@ -637,6 +680,9 @@ def answer_change(contract_id: UUID, body: NegotiationAnswer,
     if wording and not no_finding:
         assert digest is not None and body.reason is not None
         _decide_wording(guard, contract, change, digest, body.reason)
+    elif body.answer in _ANSWER_DECIDES and not no_finding \
+            and P.LEGAL_DECISION in guard.permissions:
+        _decide_by_answer(guard, change, _ANSWER_DECIDES[body.answer], body.reason)
     written = _current_choice(guard, before, after, row_key)
     if (replaced is not None and written is not None and written.id != replaced.id
             and replaced.decided_by != guard.user_id):
@@ -789,11 +835,30 @@ NOT_DECIDED = "Not decided yet"
 _RECOMMEND = {"accept_theirs": "Accept the client's change",
               "keep_ours": "Keep our wording — the client's change is not accepted",
               "use_standard": "Accept with changes — our standard wording",
-              "write_wording": "Accept with changes — our wording"}
+              "write_wording": "Accept with changes — our wording",
+              "ask_client": "Ask the client"}
 INTERNAL_ONLY = "Internal — for LeapSwitch only. Not to be sent to the client."
 _export_limit: ratelimit.RateLimiter = ratelimit.limiter_from_env()
-TABLE_HEAD = ("Sr", "Clause", "Original", "Requested change", "Updated clause",
-              "Recommendation")
+TABLE_HEAD = ("Sr", "Clause", "Original", "Requested change", "Effect for us", "Source",
+              "Updated clause", "Recommendation")
+#: 6d (`AM-383` r3, display only): the change's own `effect_for_us`, in the UX words —
+#: never "Bad" for what no standard measured (rule 15)
+_EFFECT_WORDS = {negotiation.POSITIVE: "Good for us", negotiation.NEUTRAL: "Neutral",
+                 negotiation.FALLBACK: "Fallback"}
+_MEASURED_WORDS = {"WORSE": "Bad for us", "ABSENT": "Not in their paper"}
+
+
+def effect_words(change: dict) -> str:
+    if change["effect_for_us"] in _EFFECT_WORDS:
+        return _EFFECT_WORDS[change["effect_for_us"]]
+    return _MEASURED_WORDS.get(change.get("measured", ""), "Legal checks")
+
+
+def source_words(change: dict) -> str:
+    """Where the row's text stands: every row is the client's change; one they did not
+    mark as a tracked change says so."""
+    return ("The client changed this without marking it" if change.get("untracked")
+            else "The client changed this")
 
 
 def _requested(change: dict) -> str:
@@ -819,6 +884,10 @@ def _updated(guard: Guard, change: dict, answer: dict | None) -> str:
         return (change["before"] or {}).get("text") or "Removed"
     if said == "write_wording":
         return answer.get("wording") or ""
+    if said == "ask_client":       # AM-399: their text stays; our question goes with it
+        asked = answer.get("client_note")
+        return ((change["after"] or {}).get("text") or "Deleted") + (
+            f"\n\nOur question: {asked}" if asked else "")
     cv = guard.db.get(M.ClauseVersion, UUID(answer["clause_version_id"])) \
         if answer.get("clause_version_id") else None
     return (clause_text(cv) if cv else None) or "Our standard clause"
@@ -826,7 +895,8 @@ def _updated(guard: Guard, change: dict, answer: dict | None) -> str:
 
 def review_table(guard: Guard, contract: M.Contract) -> list[tuple[str, ...]]:
     """One row per client change, the header first: Sr | Clause | Original | Requested
-    change | Updated clause | Recommendation — the recommendation is the answer a person
+    change | Effect for us | Source | Updated clause | Recommendation — the recommendation
+    is the answer a person
     recorded, else "Not decided yet". Internal: never sent to the client as-is."""
     listed, _, _ = _changes(guard, contract, None, None)
     rows: list[tuple[str, ...]] = [TABLE_HEAD]
@@ -837,7 +907,8 @@ def review_table(guard: Guard, contract: M.Contract) -> list[tuple[str, ...]]:
             f" — {answer['reason']}" if answer.get("reason") else "")
         rows.append((str(n), negotiation.clause_label(change["clause"]) or "",
                      (change["before"] or {}).get("text") or "New clause",
-                     _requested(change), _updated(guard, change, answer), said))
+                     _requested(change), effect_words(change), source_words(change),
+                     _updated(guard, change, answer), said))
     return rows
 
 
@@ -1236,7 +1307,9 @@ def signing_note(document_version_id: UUID, guard: Guard = Depends(get_guard),
         "pdf_sha256": hashlib.sha256(made).hexdigest(),
         "pdf_name": download_name(guard.db, version, "pdf"),
         "word_name": None if client_pdf else download_name(guard.db, version),
-        "signers": signers}))
+        "signers": signers,
+        # B5: fields filled after the client saw them — checked before signature
+        "filled_since_client_saw": meta.get("filled_since_sent", [])}))
 
 
 # ------------------------------------------------- AM-307: the final contract package
@@ -1324,14 +1397,31 @@ def _prior(db, version: M.DocumentVersion) -> list[dict]:
     return out
 
 
+def filled_since_sent(db, draft: M.ContractDraft) -> dict[str, str]:
+    """B5 (`AM-394`): fill-in fields the deal owner filled after our version left — kept
+    on that version (the generation record is append-only), applied by the final."""
+    vid = getattr(draft, "document_version_id", None)   # S5's converted draft has none
+    version = db.get(M.DocumentVersion, vid) if vid else None
+    meta = (version.doc_metadata or {}) if version else {}
+    return {f["key"]: f["value"] for f in meta.get("filled_since_sent", [])}
+
+
+def filled_values(db, draft: M.ContractDraft) -> dict:
+    return {**draft.values, **filled_since_sent(db, draft)}
+
+
 def _basis(db, draft: M.ContractDraft) -> dict:
-    """Our version's template, its pinned rows and its base model (body = template)."""
+    """Our version's template, its pinned rows and its base model (body = template) —
+    with any field filled since it was sent; ``plain`` is the model as generated (what
+    BODY_CHANGED compares)."""
     tv = must_exist(db.get(M.TemplateVersion, draft.template_version_id),
                     "template_versions row")
     rows = publish.pinned_clauses(db, tv)
     clauses = {k: publish.clause_dict(c) for k, c in rows.items()}
-    return {"tv": tv, "rows": rows, "clauses": clauses,
-            "base": model_.resolve(publish.template_dict(tv), clauses, draft.values)}
+    base = model_.resolve(publish.template_dict(tv), clauses, filled_values(db, draft))
+    return {"tv": tv, "rows": rows, "clauses": clauses, "base": base,
+            "plain": model_.resolve(publish.template_dict(tv), clauses, draft.values)
+            if filled_since_sent(db, draft) else base}
 
 
 def _derive(guard: Guard, before: M.DocumentVersion, after: M.DocumentVersion,
@@ -1450,7 +1540,7 @@ def _package_plan(guard: Guard, contract: M.Contract, form: str = CHANGES_ONLY) 
     cfg = special_conditions.config(tv) or {}
     prior = _prior(db, before)
     # our version rebuilds byte for byte — a final contract with the entries it holds
-    rebuilt = base if not prior else _resolve_special(
+    rebuilt = basis["plain"] if not prior else _resolve_special(
         db, tv, clauses, draft, cfg, _frame_pin(cfg, before), prior)
     if rebuilt is None or model_.model_hash(rebuilt) != draft.model_hash:
         stop("BODY_CHANGED", "Our version no longer rebuilds from its template "
@@ -1465,7 +1555,8 @@ def _package_plan(guard: Guard, contract: M.Contract, form: str = CHANGES_ONLY) 
                              "approved": bool(row and row.status == "APPROVED")}
     if _replied_in(db, after) is not None:
         return stop("ROUND_CLOSED", "Our answer to this version is already prepared.")
-    if (gap := blanks(db, before)) is not None:
+    if (gap := (model_blanks(base) if filled_since_sent(db, draft)
+                else blanks(db, before))) is not None:
         stop("BLANKS", gap)              # verifier item 4: never a final with a blank
     if (gap := _unsigned(base)) is not None:
         stop("SIGNATORY_EMAIL", gap)
@@ -1844,7 +1935,8 @@ def _make_package(guard: Guard, storage: StorageBackend, contract: M.Contract,
     amendment, form = contract.governed_by_contract_id is not None, body.form
     i = plan["_internal"]
     tv, draft, after = i["tv"], i["draft"], i["after"]
-    built, values = tv, draft.values             # the template the file is made from
+    # the template the file is made from, with any field filled since sent (B5)
+    built, values = tv, filled_values(guard.db, draft)
     try:
         if i["instrument"] is not None:          # AM-310: the changes-only instrument
             built = i["instrument"]
@@ -1854,7 +1946,7 @@ def _make_package(guard: Guard, storage: StorageBackend, contract: M.Contract,
         else:
             frame = special_conditions.frame_row(guard.db, tv, i["frame"])
             assert frame is not None
-            model = model_.resolve(publish.template_dict(tv), i["clauses"], draft.values,
+            model = model_.resolve(publish.template_dict(tv), i["clauses"], values,
                                    special={"frame": publish.clause_dict(frame),
                                             "config": i["cfg"], "entries": i["entries"]})
     except model_.ModelError as exc:
@@ -1913,6 +2005,10 @@ def _make_package(guard: Guard, storage: StorageBackend, contract: M.Contract,
                k: v for k, v in (after.doc_metadata or {}).items()
                if k in ("counterparty", "effective_date")}}),
         "version_role": "COMPANY_DRAFT", "package_of": str(after.id),
+        # B5: fields filled since the client last saw our version — the signing note's
+        **({"filled_since_sent": (i["before"].doc_metadata or {})["filled_since_sent"]}
+           if i["before"] is not None
+           and (i["before"].doc_metadata or {}).get("filled_since_sent") else {}),
         # AM-308: the final contract it replaces, when this is a later round
         **({"supersedes": i["supersedes"]} if i["supersedes"] else {}), **written,
         **({"converted_from": str(after.id)} if converted is not None else {})}
@@ -1998,6 +2094,47 @@ def blank_in(text: str) -> re.Match | None:
                 None) or _PLACEHOLDER.search(text)
 
 
+def contract_fills(db, contract_id: UUID) -> list[dict]:
+    """B5 (`AM-400` r1): the fill-in fields filled after the client saw our generated
+    version — on the latest version of ours that carries them, else []."""
+    for v in db.execute(select(M.DocumentVersion).where(
+            M.DocumentVersion.contract_id == contract_id)
+            .order_by(M.DocumentVersion.version_number.desc())).scalars():
+        if (v.doc_metadata or {}).get("filled_since_sent"):
+            return list(v.doc_metadata["filled_since_sent"])
+    return []
+
+
+def _filled_copy(db, storage: StorageBackend, version: M.DocumentVersion) -> bytes:
+    """The final copy's bytes: the clean copy with every later fill written in."""
+    made = clean.clean(storage.get(version.storage_key))
+    fills = contract_fills(db, version.contract_id)
+    return clean.fill_blanks(made, fills)[0] if fills else made
+
+
+def _copy_blanks(db, storage: StorageBackend, version: M.DocumentVersion) -> str | None:
+    """`blanks`, after the fills a final copy writes in (B5): only a blank no fill
+    covers still blocks."""
+    gap = blanks(db, version)
+    if gap is None or version.mime_type != DOCX_MIME \
+            or not contract_fills(db, version.contract_id):
+        return gap
+    with zipfile.ZipFile(io.BytesIO(_filled_copy(db, storage, version))) as z:
+        text = re.sub(r"<[^>]+>", "", z.read("word/document.xml").decode())
+    return gap if _BLANK.search(text) else None
+
+
+def model_blanks(model: dict) -> str | None:
+    """B5: the blanks a final built from ``model`` would still carry — its text only."""
+    runs = model_.blank_runs([model.get(k) for k in ("preamble", "recitals", "body",
+                                                      "schedules")])
+    if not runs:
+        return None
+    return (f"{len(runs)} blank{'s are' if len(runs) != 1 else ' is'} still to fill: "
+            + "; ".join(f"…{r['before'][-30:]} ___ {r['after'][:20]}…" for r in runs[:8])
+            + ". Fill them under “Fill-in fields” on the Document tab.")
+
+
 def blanks(db, version: M.DocumentVersion) -> str | None:
     """Every place ``version`` still has a blank to fill, in plain words ("clause 1.4
     (banks at ___ are open)", …) — or None. A final contract never keeps one: it is a
@@ -2038,7 +2175,11 @@ def _unsigned(base: dict) -> str | None:
 
 
 def legal_gap(service: str) -> str:
-    """S4 (spec d2): a service taken whose clause 5.3 delivery cell waits for Legal."""
+    """S4 (spec d2): a service taken whose clause 5.3 delivery cell waits for Legal;
+    AM-397: or the Annexure 1 wording itself."""
+    if service == model_.ANNEXURE_TEXT:
+        return ("Annexure 1 has no wording yet. Legal supplies it; LegalMind never "
+                "writes it.")
     return (f"Clause 5.3 has no delivery wording for {service}. Legal supplies it; "
             "LegalMind never writes it.")
 
@@ -2125,7 +2266,7 @@ def _final_plan(guard: Guard, contract: M.Contract, storage: StorageBackend) -> 
         return stop(exc.code, str(exc))
     if role == "COMPANY_DRAFT" or (role is None and alone
                                    and negotiation.is_ours(latest)):
-        if (gap := blanks(db, latest)) is not None:
+        if (gap := _copy_blanks(db, storage, latest)) is not None:
             return stop("BLANKS", gap)
         theirs = next((v for v in versions
                        if str(v.id) == (latest.doc_metadata or {}).get("reply_to")), None)
@@ -2160,7 +2301,7 @@ def _final_plan(guard: Guard, contract: M.Contract, storage: StorageBackend) -> 
         return stop("REPLY_FIRST", "Some answers keep or propose our wording — "
                     "prepare our reply and send it to the client first. Prepare the "
                     "final contract once they accept it.")
-    if (gap := blanks(db, latest)) is not None:
+    if (gap := _copy_blanks(db, storage, latest)) is not None:
         return stop("BLANKS", gap)
     out["agreed"] = [{"where": _where(c), "answer": c["answer"]["answer"]}
                      for c in changes]
@@ -2195,8 +2336,9 @@ def prepare_final_copy(contract_id: UUID, guard: Guard = Depends(get_guard),
     raw = storage.get(source.storage_key)
     docx = source.mime_type == DOCX_MIME
     # the copy is its own version: its footer names it, not its source (S6)
-    made = render_contract.restamp(clean.clean(raw), source.version_number + 1) \
-        if docx else raw
+    made = render_contract.restamp(_filled_copy(guard.db, storage, source),
+                                   source.version_number + 1) if docx else raw
+    fills = contract_fills(guard.db, contract.id) if docx else []
     stem = (source.original_filename or "contract").rsplit(".", 1)[0]
     version = ingest_document(guard.db, storage, contract_id=contract.id,
                               uploaded_by=guard.user_id, data=made,
@@ -2208,7 +2350,9 @@ def prepare_final_copy(contract_id: UUID, guard: Guard = Depends(get_guard),
         **{k: v for k, v in (source.doc_metadata or {}).items()
            if k in ("source", "counterparty", "effective_date")},
         "version_role": "COMPANY_DRAFT", "final_copy_of": str(source.id),
-        "final_mode": plan["mode"], "agreed": plan["agreed"]}
+        "final_mode": plan["mode"], "agreed": plan["agreed"],
+        # B5: what the client has not seen filled in — the signing note lists it
+        **({"filled_since_sent": fills} if fills else {})}
     draft = _generated(guard.db, source)
     if draft is not None:        # our template contract, accepted as it was: still ours
         guard.db.add(M.ContractDraft(

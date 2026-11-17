@@ -294,9 +294,9 @@ export const ASK_LEGAL_COPY = {
   withdraw: "Withdraw",
 } as const;
 
-/** Where a deal stands (`AM-260`), worded for the person reading it. The stage is the
- *  server's; only the words differ by viewer — the deal owner reads "With Legal" where
- *  the lawyer holding it reads "Your review". Its own vocabulary: never a legal axis. */
+/** Where a deal stands (`AM-260`). The stage is the server's, and so are its words —
+ *  one chip for every reader (AM-398 r2); whose turn it is is said beside the chip.
+ *  Its own vocabulary: never a legal axis. */
 export type StageViewer = "owner" | "legal";
 const STAGE_WORDS: Record<string, string> = {
   DRAFTING: "Drafting",
@@ -311,8 +311,8 @@ const STAGE_WORDS: Record<string, string> = {
   FINAL: "Final",
   ON_HOLD: "On hold",
 };
-export function stageWords(code: string, viewer: StageViewer = "owner"): string {
-  if (code === "INTERNAL_REVIEW" && viewer === "legal") return "Your review";
+export function stageWords(code: string, _viewer: StageViewer = "owner"): string {
+  // AM-398 r2 (UX §1 S1): one chip for every reader — whose turn is said beside it
   return STAGE_WORDS[code] ?? code;
 }
 
@@ -400,18 +400,13 @@ export function waitingWords(n: number | undefined): string | null {
 export function stageLine(code: string, c: DealCounts | undefined, viewer: StageViewer = "owner",
                           final = false): string {
   const points = c?.points_open ?? 0;
-  if (code === "INTERNAL_REVIEW" && points) {
-    return viewer === "legal" ? `Legal deciding ${plural(points, "point")}` : `With Legal, ${plural(points, "point")}`;
-  }
+  if (code === "INTERNAL_REVIEW" && points) return `With Legal, ${plural(points, "point")}`;
   if (code === "CLIENT_RETURNED" && c?.changes_total !== undefined && !c.changes_left) {
     // N16: the primary's own words; the final contract waits on open points too
-    if (c.changes_ours) return "Changes answered, reply next";
+    if (c.changes_ours) return "Client replied";   // UX L12: a stage, never a sentence
     if (finalReady(c)) return "Ready for the final contract";
   }
-  if (code === "INTERNAL_REVIEW" && final) {
-    // AM-318: the final copy waits on Legal's decision on the contract
-    return viewer === "legal" ? "Record the decision" : "Final contract, with Legal";
-  }
+  if (code === "INTERNAL_REVIEW" && final) return "Final contract, with Legal";   // AM-318
   return stageWords(code, viewer);
 }
 
@@ -476,14 +471,18 @@ export function signingNoteText(n: {
   contract_name: string | null; doc_id: string | null; pages: number;
   signature_page: number | null; pdf_sha256: string;
   signers: { party: string; name: string; designation: string; email: string }[];
+  filled_since_client_saw?: { label: string; value: string }[];
 }): string {
   const where = n.signature_page ? `page ${n.signature_page} of ${n.pages}` : "the signature page";
+  const filled = n.filled_since_client_saw ?? [];
   return [
     `Contract: ${n.contract_name ?? "this contract"}`,
     ...(n.doc_id ? [`Document ID: ${n.doc_id}`] : []),
     `Pages: ${n.pages}. Signatures go on ${where}.`,
     ...(n.signers.length ? ["Signers:", ...n.signers.map(
       (s) => `- ${s.party}: ${[s.name, s.designation, s.email].filter(Boolean).join(", ")}`)] : []),
+    // B5: what the client has not seen filled in — checked with them before signing
+    ...(filled.length ? ["Filled since the client last saw it:", ...filled.map((f) => `- ${f.label}: ${f.value}`)] : []),
     "Sign the PDF, not the Word file.",
     `Leegality: place the signatures on ${where}, not the default bottom-left of every page. That spot holds the document ID.`,
     `PDF SHA-256: ${n.pdf_sha256}`,
@@ -547,7 +546,8 @@ export const VERDICT_COPY = {
   conditionHelp: "Only Legal sees it, unless you share it.",
   share: "Share the condition with sales",
   conditionKept: "Accepted with changes. The condition is with Legal.",
-  askHelp: "Record “Ask the client to clarify” on each point below. The point stays open until the client answers.",
+  askHelp: "Our reply keeps their wording and asks your question as a comment on this change.",
+  askLabel: "Question to the client",
 } as const;
 
 /** R3: the deal owner's words for who has each change, and the deal's one status line. */

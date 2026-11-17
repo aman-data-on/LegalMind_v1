@@ -62,6 +62,8 @@ TYPES = {"text", "date", "int", "bool", "choice", "email", "rows"}
 MAX_ROWS = 50
 #: an unmapped service's 5.3 cell (S4, rule 21): Legal writes it, never LegalMind
 LEGAL_TO_SUPPLY = "[Legal to supply]"
+#: AM-397: what `legal_to_supply` names for an annexure whose words Legal owes
+ANNEXURE_TEXT = "the Annexure 1 wording"
 #: an email address as a signing tool needs one (S2): local part, @, a dotted domain
 EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 #: ``{name}`` · ``{xref:CLAUSE.KEY}`` · ``{term:Defined Term}``
@@ -355,6 +357,11 @@ class _Resolver:
                             "runs": self.runs(block.get("text", ""), where),
                             "body": self.blocks(block.get("body", []), where,
                                                 [*prefix, sub], level + 1)})
+            elif kind == "p" and block["text"] == LEGAL_TO_SUPPLY:
+                # AM-397: an annexure whose words Legal has not supplied yet (L3) —
+                # a stand-in that blocks Final (`legal_to_supply`), never our text
+                out.append({"kind": kind, "runs": [{"t": LEGAL_TO_SUPPLY, "ph": True,
+                                                    "legal": ANNEXURE_TEXT}]})
             elif kind in ("p", "heading"):
                 self.defined |= defined_terms(block["text"])
                 out.append({"kind": kind, "runs": self.runs(block["text"], where)})

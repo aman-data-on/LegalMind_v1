@@ -71,6 +71,8 @@ export function nextStep(f: StepFacts): Step | null {
       // (every change accepted) — the client's version is agreed: its final copy
       return c.changes_ours ? step("prepareReply") : step("prepareFinal");
     case "INTERNAL_REVIEW":
+      // AM-398 r2: the client's version with Legal may still hold changes left to us
+      if (c.changes_left_for_me && f.answersChanges !== false) return step("answerChanges");
       // our reply (or draft) holds open points, or the final copy waits on Legal's
       // decision on the contract, and nobody in Legal has it yet
       return (c.points_open || f.finalLatest) && f.canSendToLegal ? step("sendToLegal") : null;

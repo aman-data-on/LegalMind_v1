@@ -36,7 +36,7 @@ describe("the dry run (PackageBar)", () => {
     expect(html).toContain("Clause 22 says Annexure A wins");
     expect(html).toContain("Clause 17.2, Monetary Cap on Liability");
     expect(html).toContain("Replaced with the client’s wording");
-    expect(html).toContain("Worse for us");
+    expect(html).toContain("Legal checks");
     expect(html.replace(/<[^>]+>/g, " ")).not.toMatch(/accept_theirs|NEGATIVE|K\.CAP/);
   });
   it("names the precedence clause from the server, never a fixed number", () => {

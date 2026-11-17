@@ -42,7 +42,7 @@ from legalmind.api.envelope import data
 from legalmind.api.routers.amendments import final_copy
 from legalmind.api.routers.contracts import negotiation_stages
 from legalmind.api.routers.negotiation import deal_counts
-from legalmind.api.routers.reviews import _visible_reviews, held_by, with_legal
+from legalmind.api.routers.reviews import _assigned, _visible_reviews, held_by, with_legal
 from legalmind.db import models as M
 from legalmind.db.lookup import contract_signed
 from legalmind.domain import enums as E
@@ -90,8 +90,11 @@ def _decisions(guard: Guard) -> list[dict]:
         .join(M.Contract, M.Contract.id == M.Review.contract_id)
         .where(M.Review.status.in_(_ACTIVE), M.Contract.archived_at.is_(None),
                with_legal(me),                  # B11: what is with Legal now
+               # AM-398 r3: a deal sent to Legal waits on them for its client changes
+               # too, even when no measured point is open
                M.Review.id.in_(select(M.Finding.review_id).where(
-                   M.Finding.status == E.FindingStatus.DECISION_REQUIRED)))
+                   M.Finding.status == E.FindingStatus.DECISION_REQUIRED))
+               | M.Review.id.in_(_assigned()))
     ).scalars().all()
     # Batch 1 (e): "decide" is for the lawyer who HOLDS the review; a co-signature is
     # owed by any other holder of `legal.decision` on what is with Legal (unchanged)
@@ -134,16 +137,20 @@ def _decisions(guard: Guard) -> list[dict]:
                 len(cosign), "decision awaits your second approval.",
                 "decisions await your second approval."), link, min(cosign),
                 review_id=str(review.id), count=len(cosign)))
-        if progress["to_decide"] and review.id in held:
-            # N13: the client's changes waiting on the same person, in the same line
-            changes = deal_counts(guard, [contract])[contract.id].get(
-                "changes_left_for_me", 0)
+        # N13: the client's changes waiting on the same person, in the same line
+        changes = deal_counts(guard, [contract])[contract.id].get(
+            "changes_left_for_me", 0) if review.id in held else 0
+        if (progress["to_decide"] or changes) and review.id in held:
             points = _plural(progress["to_decide"], "point", "points")
-            sentence = (f"{points} and {_plural(changes, 'change', 'changes')} await "
+            sentence = (_plural(changes, "change awaits your answer.",
+                                "changes await your answer.")
+                        if not progress["to_decide"] else
+                        f"{points} and {_plural(changes, 'change', 'changes')} await "
                         "your decision." if changes else _plural(
                             progress["to_decide"], "point awaits your decision.",
                             "points await your decision."))
-            out.append(_item("decide", contract, sentence, link, waiting,
+            out.append(_item("decide", contract, sentence, link,
+                             waiting or review.created_at,
                              review_id=str(review.id), count=progress["to_decide"],
                              **({"changes": changes} if changes else {})))
     return out + _contract_decisions(guard)
@@ -190,8 +197,13 @@ def _my_deals(guard: Guard) -> list[dict]:
     # deal waits on them no more and its name is never shown to them
     mine = [c for c in mine if can_read_contract(db, guard.user_id, c)]
     stages = negotiation_stages(guard, list(mine))
-    returned = [c for c in mine if stages.get(c.id, {}).get("stage") == "CLIENT_RETURNED"]
+    # AM-398 r2: a client's version sent to Legal reads With Legal; changes left to the
+    # deal owner there are still theirs
+    returned = [c for c in mine if stages.get(c.id, {}).get("stage")
+                in ("CLIENT_RETURNED", "INTERNAL_REVIEW")]
     counts = deal_counts(guard, returned)
+    returned = [c for c in returned if stages[c.id]["stage"] == "CLIENT_RETURNED"
+                or counts[c.id].get("changes_left_for_me")]
     out: list[dict] = [
         _item("reply_ready", c, "Our reply is ready to send to the client.",
               contract_link(c.id), datetime.fromisoformat(stages[c.id]["since"]),

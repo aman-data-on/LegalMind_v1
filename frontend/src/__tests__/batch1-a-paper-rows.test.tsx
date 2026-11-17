@@ -40,9 +40,9 @@ describe("why a NEGATIVE row goes to Legal", () => {
   it("never calls an unmeasured row worse, nor beyond our offer", () => {
     const c = theirs();
     const html = card(c);
-    expect(html).not.toContain("Worse for us");
+    expect(html).not.toContain("Bad for us");
     expect(html).not.toContain("Beyond what we can offer");
-    expect(html).toContain("Not measured — Legal checks");
+    expect(html).toContain("Legal checks");
     expect(matches(c, "NEGATIVE", list)).toBe(false);
     expect(offerFor(c, [POINT])).toBeNull();
   });
@@ -69,7 +69,7 @@ describe("why a NEGATIVE row goes to Legal", () => {
 
   it("keeps worse for what the server measured worse", () => {
     const c = theirs({ measured: "WORSE" });
-    expect(renderToStaticMarkup(<ForUs effect="NEGATIVE" measured="WORSE" />)).toContain("Worse for us");
+    expect(renderToStaticMarkup(<ForUs effect="NEGATIVE" measured="WORSE" />)).toContain("Bad for us");
     expect(matches(c, "NEGATIVE", list)).toBe(true);
     expect(offerFor(c, [POINT])?.within).toBe(false);
   });

@@ -393,14 +393,20 @@ def _list_summaries(guard: Guard, contract_ids: list[UUID]) -> dict[UUID, dict]:
 
 
 def negotiation_stages(guard: Guard, contracts: list[M.Contract]) -> dict[UUID, dict]:
-    """`AM-260` — each contract's derived stage (`domain.deal_stage`), batched.
-
-    Layered like `_list_summaries`: versions need `document.view` (omitted without it);
-    the review and contract-decision facts need `review.view`, and without it the stage
-    is derived from the versions alone."""
+    """`AM-260` — each contract's derived stage (`domain.deal_stage`), batched. The
+    stage needs `document.view` (omitted without it); AM-398 r2: it is then the same
+    for every reader — `derive_stages` reads the review facts with the system's own
+    read (a projection: no finding, decision or position leaves it)."""
     if not contracts or P.DOCUMENT_VIEW not in guard.permissions:
         return {}
-    db = guard.db
+    return derive_stages(guard.db, contracts)
+
+
+def derive_stages(db, contracts: list[M.Contract]) -> dict[UUID, dict]:
+    """Each contract's stage payload, whoever asks — the one computation the contract
+    pages, the To-do and signing readiness (`execution.blockers`) all read."""
+    if not contracts:
+        return {}
     versions: dict[UUID, list[DS.VersionFacts]] = {}
     latest_id: dict[UUID, tuple[int, UUID]] = {}
     # a signed copy ever named on the execution record (a replaced wrong copy too) is
@@ -420,7 +426,7 @@ def negotiation_stages(guard: Guard, contracts: list[M.Contract]) -> dict[UUID, 
             latest_id[v.contract_id] = (v.version_number, v.id)
 
     facts: dict[UUID, DS.ReviewFacts] = {}
-    if P.REVIEW_VIEW in guard.permissions and latest_id:
+    if latest_id:
         by_version = {vid: cid for cid, (_, vid) in latest_id.items()}
         latest_review: dict[UUID, M.Review] = {}
         for r in db.execute(select(M.Review).where(

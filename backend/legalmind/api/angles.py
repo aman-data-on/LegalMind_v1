@@ -743,11 +743,67 @@ def _proposals(db: DBSession, sections: set[str]) -> dict[str, dict[str, str]]:
 _TYPES = {t.upper() for t in DOCUMENT_TYPES}
 
 
+def _our_clauses(before: M.DocumentVersion, ours: list, clauses: list,
+                 changed: list[dict], document_type: str | None) -> dict[str, dict]:
+    """AM-395 (a): finding id -> our own words of the clause the client changed — the
+    unit of our previous version aligned with the client's unit the finding read
+    (`negotiation._align`, the change list's own alignment). Quoted, never composed."""
+    old, new = negotiation._units(ours), negotiation._units(clauses)
+    ours_of = {e: old[i] for i, j, _ in negotiation._align(old, new)
+               if i is not None and j is not None for e in new[j]["evidence_ids"]}
+    out: dict[str, dict] = {}
+    for r in changed:
+        unit = next((ours_of[e] for e in map(str, r["evidence_ids"]) if e in ours_of),
+                    None)
+        if unit is None or not unit["text"].strip():
+            continue
+        where = f", clause {unit['number']}" if unit["number"] else ""
+        out[str(r["finding"].id)] = {
+            "kind": "OUR_CLAUSE", "section": unit["number"] or "",
+            "label": f"Our {document_type or 'contract'} as we sent it (version "
+                     f"{before.version_number}){where}", "text": unit["text"].strip()}
+    return out
+
+
+def _msa_aligned(code: str) -> bool:
+    """AM-380: the MSA standard follows our MSA point to point — on an MSA its
+    Constitution drafting notes are never offered as wording (they may differ)."""
+    from legalmind.assist.knowledge.positions import RATIFIED_STANDARDS_DIR
+
+    path = RATIFIED_STANDARDS_DIR / f"{code}.json"
+    return path.exists() and '"msa_alignment"' in path.read_text()
+
+
+def _msa_quote(code: str) -> dict | None:
+    """AM-395 (b): an MSA standard aligned to our MSA (`msa_alignment`, AM-380) quotes
+    MSA.pdf verbatim in its ratified file's `source_quote` — that quote, labelled."""
+    from legalmind.assist.knowledge.positions import RATIFIED_STANDARDS_DIR
+
+    path = RATIFIED_STANDARDS_DIR / f"{code}.json"
+    if not path.exists():
+        return None
+    import json
+
+    payload = json.loads(path.read_text())
+    if not payload.get("msa_alignment") or not str(
+            payload.get("source_document", "")).startswith("Leapswitch Master Services"):
+        return None
+    return {"kind": "MSA_QUOTE", "section": str(payload.get("source_clause", "")),
+            "label": f"Our MSA, clause {payload.get('source_clause')}",
+            "text": payload["source_quote"]}
+
+
+#: every source of wording to send back (AM-395) — each is approved text, quoted
+WORDING_KINDS = ("OUR_CLAUSE", "MSA_QUOTE", "DRAFTING_LANGUAGE")
+
+
 def _origins(db: DBSession, review: M.Review, clauses: list,
-             actionable: list[dict]) -> dict[str, str]:
+             actionable: list[dict], document_type: str | None = None
+             ) -> tuple[dict[str, str], dict[str, dict]]:
     """Step 0 (owner, 2026-11-16): finding id -> whether the client changed the point or
     it was already in the paper we sent — by version diff against our previous version
-    (with that version's review), else the redline's own tracked changes. Display only."""
+    (with that version's review), else the redline's own tracked changes. Display only.
+    Also (AM-395 a) our own words of each clause the client changed."""
     version = db.get(M.DocumentVersion, review.document_version_id)
     versions = list(db.execute(select(M.DocumentVersion).where(
         M.DocumentVersion.contract_id == review.contract_id)).scalars())
@@ -760,9 +816,15 @@ def _origins(db: DBSession, review: M.Review, clauses: list,
     ours_result = None
     if before is not None and (our_review := negotiation._latest_review(db, before)):
         ours_result = {r["code"]: r["classification"] for r in _rows(db, our_review)}
-    return {str(r["finding"].id): got for r in actionable
-            if (got := lawyer_rows.origin([str(e) for e in r["evidence_ids"]], r["code"],
-                                          r["classification"], changed, ours_result))}
+    origins = {str(r["finding"].id): got for r in actionable
+               if (got := lawyer_rows.origin([str(e) for e in r["evidence_ids"]],
+                                             r["code"], r["classification"], changed,
+                                             ours_result))}
+    mine = _our_clauses(before, ours, clauses, [
+        r for r in actionable
+        if origins.get(str(r["finding"].id)) == lawyer_rows.CLIENT_CHANGED],
+        document_type) if before is not None and ours else {}
+    return origins, mine
 
 
 def review_angles(db: DBSession, review: M.Review, *, legal_position: bool) -> dict:
@@ -785,8 +847,8 @@ def review_angles(db: DBSession, review: M.Review, *, legal_position: bool) -> d
         return (not p["risk"], -(p["rupees"] or 0), order, p["requirement_code"])
 
     points.sort(key=rank)
-    origins = _origins(db, review, clauses, actionable) \
-        if review.document_version_id is not None else {}
+    origins, our_words = _origins(db, review, clauses, actionable, document_type) \
+        if review.document_version_id is not None else ({}, {})
     for p in points:
         if p["finding_id"] in origins:
             p["origin"] = origins[p["finding_id"]]
@@ -799,9 +861,16 @@ def review_angles(db: DBSession, review: M.Review, *, legal_position: bool) -> d
         section = str((r["standard"].get("constitution") or {}).get("section") or "")
         # never wording to send back on a point the approved rule accepted in our
         # favour (Batch 1 d): there is nothing to counter
-        if section in by_section and r["classification"] in ("DEVIATION", "MISSING") \
-                and not r.get("in_our_favour"):
-            wording[str(r["finding"].id)] = by_section[section]
+        if r["classification"] not in ("DEVIATION", "MISSING") or r.get("in_our_favour"):
+            continue
+        # AM-395: our own clause as we sent it, then our MSA's quote, then the
+        # Constitution's drafting notes — always approved words, quoted
+        fid = str(r["finding"].id)
+        got = our_words.get(fid) or _msa_quote(r["code"]) or (
+            None if document_type == "MSA" and _msa_aligned(r["code"])
+            else by_section.get(section))
+        if got:
+            wording[fid] = got
     # the action is the same for every reader; only the wording is position-gated (SEC-07)
     proposals = wording if legal_position else {}
     by_finding = {p["finding_id"]: p for p in points}
@@ -809,7 +878,7 @@ def review_angles(db: DBSession, review: M.Review, *, legal_position: bool) -> d
                      "title": r["title"], "classification": r["classification"],
                      "waived": (r["actual"].get("presence") == "WAIVED"),
                      "action": action(r, wording.get(str(r["finding"].id), {})
-                                      .get("kind") == "DRAFTING_LANGUAGE"),
+                                      .get("kind") in WORDING_KINDS),
                      "where": _where(r), "evidence_ids": r["evidence_ids"],
                      **({"origin": o} if (o := origins.get(str(r["finding"].id)))
                         else {}),

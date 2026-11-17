@@ -30871,3 +30871,82 @@ r1  The changes list carries sent_to_legal (the client version's Review has an a
     Legal row reads "Legal answers this", never "With Legal".
 r2  A lawyer still gets the byte-identical 404 on a contract not yet sent to them (SEC-07).
 ```
+
+## AMENDMENT BATCH AB-211 — `AM-395`, `AM-397`, `AM-399`, `AM-400` (2026-11-17): the production E2E fix batch, part 2 (wording, decisions, Annexure 1, Ask the client)
+
+Owner, 2026-11-17: same mandate as AB-210 (sales and Legal never confused; never write legal
+text). Standing rule (2026-11-16): a lock that weakens the lawyer agent → design the
+enterprise-best option, record the amendment, proceed. Collision scan 2026-11-17 (origin/main,
+every worktree, every remote branch, the CLM ledger): AB-211 free; AM-395, AM-397, AM-399 as
+reserved by AB-210; AM-400 free. Nothing here changes the 17.7 / LIABILITY-MSA-001 rule (C-32
+waits on the owner).
+
+`AM-395` — the wording to send back is our own paper first; one decision per clause (amends
+`AM-152` r7; extends `AM-251`/`AM-253`/`AM-284`)
+
+```text
+r1  The wording offered on a deviating point comes, in order, from: (a) our own clause as we
+    sent it — the unit of our previous version aligned with the client's changed clause (the
+    change list's own alignment), only where the client changed it; (b) the MSA standard's own
+    source_quote, where the standard carries msa_alignment and quotes MSA.pdf (AM-380); (c) the
+    Constitution's drafting notes (or its Company Position, never offered as wording), as before.
+    Every source is quoted, never composed; the label names it (Legal readers only).
+r2  A test reads MSA.pdf (LEGALMIND_SOURCE_MATERIAL_DIR) and fails if any MSA standard's quote is
+    not in it word for word.
+r3  A legal.decision holder's answer on a measured change records their Legal Decision on that
+    clause's points in the same request: keep ours / use our standard → Require our standard,
+    with the answer's reason; ask the client → Ask the client to clarify. Write our wording
+    already records its approval (AM-284 r2); accept theirs already needs one. A deal owner's
+    answer records none. Only the client clause's own Evaluations — never another clause's
+    (fail closed); a decision the workflow refuses leaves the point for the Points tab.
+r4  Display only (AM-383 r3): the review table and its Word export carry "Effect for us" (Good
+    for us · Neutral · Fallback · Bad for us · Not in their paper · Legal checks — never "Bad"
+    for what no standard measured) and "Source" (the client changed this, marked or not).
+r5  The deal owner's Summary shows their work; the lawyer's analysis (where it differs from our
+    standard, key obligations) is shown to Legal readers only.
+```
+
+`AM-397` — Annexure 1 on a template, and the final contract's page order (extends `AM-358`,
+`AM-359`, `AM-307`)
+
+```text
+r1  A template-page action (Legal, a version not yet published) adds Annexure 1 — Service Order
+    Form: the annexure, three "Order form" questions (services from the AM-359 catalogue, the
+    fee lines, the initial term in months), tables filled from the answers, clause 5.3 numbers
+    where the body holds the catalogue's delivery lines. 409 when already added; audited.
+r2  The annexure's words are Legal's (L3): its clause carries only "[Legal to supply]", which
+    blocks the final contract until Legal replaces it. Column headings are form structure.
+r3  The signature page goes after the annexures: MSA → Annexure 1 → Annexure 2 → signatures.
+r4  The wizard asks the Order form questions as their own step, after the deal's details.
+```
+
+`AM-399` — "Ask the client" on every change (amends `AM-251` answer set)
+
+```text
+r1  A new answer, ask_client (stored 'ask', migration c5e2a9d7f1b4): the question is required
+    (client_note) and goes into our reply as a Word comment; the client's words stay.
+r2  Offered on every change, measured or not. On an unmeasured change it records no Legal
+    Decision; on a measured one see AM-395 r3.
+r3  The contract-decision suggestion is On hold while any change is asked.
+```
+
+`AM-400` — the A+B leftovers (amends `AM-394` r3, `AM-398`, `AM-293`)
+
+```text
+r1  A fill-in field may be filled after the client round, until the final contract exists: no
+    new version — the value is kept on our generated version, audited contract.blank_filled,
+    used by the final contract's build, and listed on the signing note ("Filled since the client
+    last saw it"). A final copy of a stored file cannot carry it and says so.
+r2  One stage for every reader: the stage's review facts are read by the system (a projection —
+    no finding, decision or position leaves it). A client's version sent to Legal is With Legal
+    for everyone until the contract decision. The chip has one wording for both roles.
+r3  Legal's "For my review" lists a deal sent to Legal even when only unmeasured changes wait.
+r4  "Mark signed" reads the derived stage (Ready for the final contract / Final), never its
+    own list of outcomes.
+```
+
+`AM-400` r5 (2026-11-17, correcting r1's last sentence): a final copy of a stored file DOES carry
+a later fill — the value is written into that file's own blank (`clean.fill_blanks`, placed by the
+words before it; a blank it cannot place still blocks). `AM-395` r6: on an MSA, a standard aligned
+to our MSA (`msa_alignment`) never falls back to the Constitution's drafting notes. `AM-399` r4:
+only a `legal.decision` holder may ask the client (server-checked).

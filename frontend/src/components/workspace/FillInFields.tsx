@@ -20,7 +20,10 @@ export function FillInFields({ contractId, onSaved }: { contractId: string; onSa
   const load = useCallback(() => api.blankValues(contractId).then(setGot).catch(() => setGot(null)), [contractId]);
   useEffect(() => { void load(); }, [load]);
   if (!got?.fields.length) return null;
-  const shown = (f: BlankValues["fields"][number]) => f.value ?? (f.default ? `${f.default} (template default)` : "Not filled");
+  // B5: a value filled after the client saw our version waits for the final contract
+  const later = new Map((got.filled_since_sent ?? []).map((f) => [f.key, f.value]));
+  const shown = (f: BlankValues["fields"][number]) => later.has(f.key) ? `${later.get(f.key)} (for the final contract)`
+    : f.value ?? (f.default ? `${f.default} (template default)` : "Not filled");
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
@@ -49,12 +52,14 @@ export function FillInFields({ contractId, onSaved }: { contractId: string; onSa
           {got.fields.map((f) => (
             <label key={f.key}>
               <span>{f.label}{f.required ? "" : " (optional)"}</span>
-              <input type="text" maxLength={300} defaultValue={f.value ?? ""}
+              <input type="text" maxLength={300} defaultValue={later.get(f.key) ?? f.value ?? ""}
                      placeholder={f.default ?? undefined}
                      onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.value }))} />
             </label>
           ))}
-          <p className="ws-pane__note">Saving makes a new version of our contract with these words.</p>
+          <p className="ws-pane__note">{got.applies_at_final
+            ? "The client already has our contract. Saving keeps these words for the final contract, and the signing note lists them so they are checked before signing."
+            : "Saving makes a new version of our contract with these words."}</p>
           {error ? <p className="cx-error" role="alert">{error}</p> : null}
           <div className="ws-contract__actions">
             <button type="button" className="ws-btn" disabled={busy} onClick={() => setEditing(false)}>Cancel</button>

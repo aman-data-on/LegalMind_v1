@@ -218,7 +218,7 @@ describe("the actions each person has (S2, AM-291 r2)", () => {
 
   it("gives the lawyer four verdicts, as one choice (R3 step 10)", () => {
     expect(actionsFor(change(), list(LAWYER)))
-      .toEqual(["keep_ours", "accept_theirs", "use_standard", "write_wording"]);
+      .toEqual(["keep_ours", "accept_theirs", "use_standard", "write_wording", "ask_client"]);
     const html = card(change(), list(LAWYER));
     for (const label of ["Accept", "Accept with changes", "Reject", "Ask the client"]) {
       expect(html).toContain(`<span>${label}</span>`);
@@ -231,28 +231,31 @@ describe("the actions each person has (S2, AM-291 r2)", () => {
   });
 
   it("maps each verdict onto an answer that exists", () => {
-    const all: Answer[] = ["keep_ours", "accept_theirs", "use_standard", "write_wording"];
-    expect(verdictsFor(all, true)).toEqual(["accept", "accept_changes", "reject", "ask_client"]);
-    expect(verdictsFor(["accept_theirs", "write_wording"], false)).toEqual(["accept", "accept_changes"]);
+    const all: Answer[] = ["keep_ours", "accept_theirs", "use_standard", "write_wording", "ask_client"];
+    expect(verdictsFor(all)).toEqual(["accept", "accept_changes", "reject", "ask_client"]);
+    expect(verdictsFor(["accept_theirs", "write_wording"])).toEqual(["accept", "accept_changes"]);
     expect(answerFor("accept", all, null)).toBe("accept_theirs");
     expect(answerFor("accept_changes", all, null)).toBe("write_wording");
     expect(answerFor("reject", all, null)).toBeNull();                    // Legal picks the wording
     expect(answerFor("reject", all, "use_standard")).toBe("use_standard");
     expect(answerFor("reject", ["keep_ours", "accept_theirs"], null)).toBe("keep_ours");
-    expect(answerFor("ask_client", all, null)).toBeNull();                // a decision, not an answer
+    expect(answerFor("ask_client", all, null)).toBe("ask_client");        // AM-399: an answer
   });
 
-  it("offers Ask the client only on a point a standard measures", () => {
+  it("offers Ask the client on every change, measured or not (AM-399)", () => {
     const unmeasured = change({ review: { before: [], after: [] }, unmeasured: true });
-    expect(card(unmeasured, list(LAWYER))).not.toContain("Ask the client");
+    expect(card(unmeasured, list(LAWYER))).toContain("Ask the client");
+    const asked = compose(unmeasured, list(LAWYER), "ask_client");
+    expect(asked).toContain("Question to the client");
+    expect(asked).not.toContain("Ask the client to clarify");
   });
 
   it("on the client's paper: no Keep ours, and our standard only where one is published (AM-294)", () => {
     const theirs = change({ kind: "THEIRS", before: null, anchor: { left_key: null, clause_version_id: null } });
-    expect(actionsFor(theirs, list(LAWYER))).toEqual(["accept_theirs", "write_wording"]);
+    expect(actionsFor(theirs, list(LAWYER))).toEqual(["accept_theirs", "write_wording", "ask_client"]);
     expect(card(theirs, list({ ...LAWYER, from: null }))).toContain(NO_STANDARD);
     const anchored = { ...theirs, anchor: { left_key: "clause:liab", clause_version_id: "cv1" } };
-    expect(actionsFor(anchored, list(LAWYER))).toEqual(["accept_theirs", "use_standard", "write_wording"]);
+    expect(actionsFor(anchored, list(LAWYER))).toEqual(["accept_theirs", "use_standard", "write_wording", "ask_client"]);
   });
 
   it("says a missing standard clause plainly", () => {
@@ -353,7 +356,7 @@ describe("what each change does for us (AM-299)", () => {
 
   it("says it in words and a distinct shape for each — never colour alone", () => {
     const marks = (["POSITIVE", "NEUTRAL", "NEGATIVE"] as const).map((e) => renderToStaticMarkup(<ForUs effect={e} />));
-    expect(marks.map((m) => m.replace(/<[^>]+>/g, ""))).toEqual(["Better for us", "No change for us", "Worse for us"]);
+    expect(marks.map((m) => m.replace(/<[^>]+>/g, ""))).toEqual(["Good for us", "Neutral", "Legal checks"]);
     const glyphs = marks.map((m) => m.match(/lucide-[a-z-]+/)?.[0]);
     expect(new Set(glyphs).size).toBe(3);
     expect(marks.join("")).not.toMatch(/style=|#[0-9a-f]{3,6}/i);
@@ -389,7 +392,7 @@ describe("what each change does for us (AM-299)", () => {
       expect(html).toContain("The deal owner can accept it without Legal.");
     }
     const html = card(worse, list());
-    expect(html).toContain("Worse for us");
+    expect(html).toContain("Bad for us");
     expect(html).toContain("Ask Legal");
     expect(html).not.toContain(">Accept their wording</button>");
   });

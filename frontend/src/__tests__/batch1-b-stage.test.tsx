@@ -20,7 +20,7 @@ describe("the final contract waits on open points", () => {
     expect(finalReady(answered)).toBe(false);                       // absent: closed
     // keep-ours answers still lead to our reply, whatever the points
     expect(stageLine("CLIENT_RETURNED", { ...answered, changes_ours: 1, points_open: 3 }))
-      .toBe("Changes answered, reply next");
+      .toBe("Client replied");
   });
   it("makes Send to Legal the step, never Prepare final contract", () => {
     const counts = { ...answered, points_open: 3 };

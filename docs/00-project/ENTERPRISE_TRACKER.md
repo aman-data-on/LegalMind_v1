@@ -36,8 +36,10 @@ Nothing is committed until the owner says "commit".
 
 ## Open — AB-210 (2026-11-17): production E2E fix batch (`audit/E2E-FIX-BATCH-*.md`)
 - 🔧 Batch A+B (deal flow, fill-in fields; AM-393/394/396/398) — PR 1 `fix/e2e-batch-ab-20261117`.
-- ⏳ Batch C (wording to send back = our MSA; one decision per clause; Effect for us column; Ask the client) — AM-395/AM-399, PR 2.
-- ⏳ Batch D (Annexure 1 from the template page; package order) — AM-397, PR 2.
+- ✅ Batch A+B merged (#314, 56cd05b2), not deployed.
+- 🔧 Batch C (wording to send back = our MSA; one decision per clause; Effect for us + Source columns; Ask the client; sales Summary) — AB-211 AM-395/AM-399, PR 2 `fix/e2e-batch-cd-20261117`.
+- 🔧 Batch D (Annexure 1 from the template page; MSA → Annex 1 → Annex 2 → signatures) — AB-211 AM-397, PR 2.
+- 🔧 A+B leftovers (fill after the client round; one stage for every reader; Legal queue; Mark signed reads the stage) — AB-211 AM-400, PR 2.
 - 🙋 C-32: the 17.7 default "six (6)" makes the template publish check refuse (a filled 17.7 conflicts with 17.2, AM-380 r4/AM-387). Owner/Legal to choose; until then production keeps template v1 and sales fills 17.7 per deal under "Fill-in fields".
 - 🙋 Legal: recital A words (until then a sales field); Annexure 1 clause text (L3); 5.3 lines for 10 services.
 

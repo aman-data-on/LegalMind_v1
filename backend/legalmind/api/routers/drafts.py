@@ -464,18 +464,55 @@ class BlankValues(Body):
     expected_version: int = Field(ge=1)
 
 
+def _ours_generated(db, contract_id: UUID) -> tuple[M.DocumentVersion | None,
+                                                     M.DocumentVersion | None,
+                                                     M.ContractDraft | None]:
+    """(latest version, our latest generated version, its generation record)."""
+    versions = list(db.execute(select(M.DocumentVersion)
+                               .where(M.DocumentVersion.contract_id == contract_id)
+                               .order_by(M.DocumentVersion.version_number.desc())))
+    latest = versions[0][0] if versions else None
+    for (v,) in versions:
+        made = db.execute(select(M.ContractDraft).where(
+            M.ContractDraft.document_version_id == v.id)).scalar()
+        if made is not None:
+            return latest, v, made
+    return latest, None, None
+
+
+def _made_final(db, contract_id: UUID) -> bool:
+    """A final contract (package, final copy) or a signed copy exists: closed."""
+    return any(model_final(v.doc_metadata) for v in db.execute(
+        select(M.DocumentVersion).where(M.DocumentVersion.contract_id == contract_id))
+        .scalars())
+
+
+def model_final(meta: dict | None) -> bool:
+    meta = meta or {}
+    return bool(meta.get("package_of") or meta.get("final_copy_of")
+                or meta.get("version_role") == "FINAL_SIGNED")
+
+
+def _blank_context(db, tv: M.TemplateVersion, key: str) -> dict[str, str]:
+    """The words before and after a field's blank in the approved text (`blank_runs`) —
+    how a final copy finds the same blank in the client's agreed file (`AM-400` r1)."""
+    var = next(v for v in tv.variables if v["key"] == key)
+    where, n = var["blank"]["in"], int(var["blank"]["n"])
+    rows = {k: r for (k, _), r in publish.pinned_clauses(db, tv).items()}
+    source = ((tv.layout or {}).get(where) if where in ("preamble", "recitals")
+              else getattr(rows.get(where), "body", None))
+    runs = model_.blank_runs(source) if source is not None else []
+    return runs[n - 1] if len(runs) >= n else {}
+
+
 @router.get("/contracts/{contract_id}/blank-values")
 def list_blank_values(contract_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
     """`AM-394`: the fill-in fields of the contract's latest generated version of ours,
-    with their values, and whether this reader may change them now."""
+    with their values, and whether this reader may change them now (until the final
+    contract is made; after the client's round the value waits for the final, B5)."""
     contract = guard.contract_readable(contract_id, P.DOCUMENT_VIEW)
     db = guard.db
-    latest = db.execute(select(M.DocumentVersion)
-                        .where(M.DocumentVersion.contract_id == contract.id)
-                        .order_by(M.DocumentVersion.version_number.desc())
-                        .limit(1)).scalar()
-    made = None if latest is None else db.execute(select(M.ContractDraft).where(
-        M.ContractDraft.document_version_id == latest.id)).scalar()
+    latest, ours, made = _ours_generated(db, contract.id)
     tv = None if made is None else db.get(M.TemplateVersion, made.template_version_id)
     values = made.values if made is not None else {}
     fields = [{"key": v["key"], "label": model_.label(v),
@@ -483,9 +520,18 @@ def list_blank_values(contract_id: UUID, guard: Guard = Depends(get_guard)) -> d
                "required": v.get("class") == "M"}
               for v in (tv.variables if tv else []) if v.get("blank")]
     # the deal's sales side only (UX P3): Legal never edits deal details
-    may = (bool(fields) and latest is not None and latest.sent_at is None
-           and P.CONTRACT_UPDATE in guard.permissions and contract.archived_at is None)
+    # a Legal reader of someone else's deal reads them, never edits them (UX P3)
+    legal_reader = (P.LEGAL_DECISION in guard.permissions
+                    and contract.owner_id != guard.user_id)
+    may = (bool(fields) and latest is not None and not _made_final(db, contract.id)
+           and P.CONTRACT_UPDATE in guard.permissions and contract.archived_at is None
+           and not legal_reader)
     return data({"fields": fields, "can_edit": may,
+                 # B5: once our version left, a change waits for the final contract
+                 "applies_at_final": bool(ours is not None and latest is not None and (
+                     ours.id != latest.id or ours.sent_at is not None)),
+                 "filled_since_sent": [] if ours is None
+                 else (ours.doc_metadata or {}).get("filled_since_sent", []),
                  "version_number": latest.version_number if latest else None})
 
 
@@ -494,28 +540,29 @@ def fill_blank_values(contract_id: UUID, body: BlankValues,
                       guard: Guard = Depends(get_guard),
                       storage: StorageBackend = Depends(get_storage)) -> dict:
     """`AM-394`: the deal owner fills or changes a fill-in field after the contract was
-    made — only on our generated version not yet sent: a new version of ours is rendered
-    from the same template version with the new values, audited before/after. Any other
-    answer changes the deal and needs a new contract (409)."""
+    made. On our generated version not yet sent: a new version of ours is rendered from
+    the same template version with the new values. After it left (the client's round,
+    B5): no new version — the value is recorded on our generated version's answers, the
+    final contract is built with it, and the signing note lists it as filled since the
+    client last saw it. Closed once the final contract exists (409). Audited
+    before/after. Any other answer changes the deal and needs a new contract."""
     guard.contract_readable(contract_id, P.DOCUMENT_VIEW)
     contract = guard.contract_negotiable(contract_id, P.CONTRACT_UPDATE)
     guard.permission(P.CONTRACT_UPDATE)       # the sales side only, never Legal's basis
     guard.permission(P.DOCUMENT_UPLOAD)
     db = guard.db
-    latest = db.execute(select(M.DocumentVersion)
-                        .where(M.DocumentVersion.contract_id == contract.id)
-                        .order_by(M.DocumentVersion.version_number.desc())
-                        .limit(1).with_for_update()).scalar()
+    db.execute(select(M.Contract.id).where(M.Contract.id == contract.id)
+               .with_for_update())
+    latest, ours, made = _ours_generated(db, contract.id)
     if latest is None or latest.version_number != body.expected_version:
         raise Conflict("this contract changed meanwhile; reload it")
-    made = db.execute(select(M.ContractDraft).where(
-        M.ContractDraft.document_version_id == latest.id)).scalar()
-    if made is None or latest.sent_at is not None:
-        raise Conflict("fill-in fields change only on our latest version before it goes "
-                       "to the client")
+    if made is None or ours is None:
+        raise Conflict("this contract was not made from our template")
+    if _made_final(db, contract.id):
+        raise Conflict("the final contract is made; its fill-in fields are closed")
     tv = must_exist(db.get(M.TemplateVersion, made.template_version_id), "template")
-    fields = {v["key"] for v in tv.variables if v.get("blank")}
-    if set(body.values) - fields:
+    labels = {v["key"]: model_.label(v) for v in tv.variables if v.get("blank")}
+    if set(body.values) - set(labels):
         raise BusinessRuleRejected("only fill-in fields can be changed here — other "
                                    "answers change the deal: start a new contract")
     values = {k: " ".join(v.split()) for k, v in body.values.items()}
@@ -524,15 +571,33 @@ def fill_blank_values(contract_id: UUID, body: BlankValues,
                                {**made.values, **values})
     except model_.ModelError as exc:
         raise DraftInvalid(exc.problems) from exc
-    version = _store_version(
-        guard, storage, contract, tv, model, model_.model_hash(model),
-        latest.version_number + 1, BLANK_FILLED,
-        before={k: made.values.get(k) for k in values} | {
-            "document_version_id": str(latest.id)})
-    review = _review_reply(guard, version)
-    return data({"document_version_id": str(version.id),
-                 "version_number": version.version_number,
-                 "review_id": str(review.id) if review else None})
+    before = {k: made.values.get(k) for k in values} | {
+        "document_version_id": str(ours.id)}
+    if ours.id == latest.id and ours.sent_at is None:
+        version = _store_version(guard, storage, contract, tv, model,
+                                 model_.model_hash(model), latest.version_number + 1,
+                                 BLANK_FILLED, before=before)
+        review = _review_reply(guard, version)
+        return data({"document_version_id": str(version.id),
+                     "version_number": version.version_number,
+                     "review_id": str(review.id) if review else None,
+                     "applies_at_final": False})
+    # B5: the client has seen our version — the final contract carries the value. The
+    # generation record is append-only: the value sits on our version's metadata, which
+    # `negotiation.filled_values` reads over the record's answers
+    meta = ours.doc_metadata or {}
+    filled = {f["key"]: f for f in meta.get("filled_since_sent", [])}
+    filled.update({k: {"key": k, "label": labels[k], "value": v,
+                       **_blank_context(db, tv, k)} for k, v in values.items()})
+    ours.doc_metadata = {**(ours.doc_metadata or {}),
+                         "filled_since_sent": list(filled.values())}
+    db.flush()
+    audit.record(db, action=BLANK_FILLED, entity_type="contract", entity_id=contract.id,
+                 actor_id=guard.user_id, request_id=guard.request_id, before=before,
+                 after={**values, "document_version_id": str(ours.id),
+                        "applies_at_final": True})
+    return data({"document_version_id": None, "version_number": latest.version_number,
+                 "review_id": None, "applies_at_final": True})
 
 
 BLANK_FILLED = "contract.blank_filled"

@@ -2108,14 +2108,15 @@
    },
    "NegotiationAnswer": {
     "additionalProperties": false,
-    "description": "One answer to one client change (CLM Phase 1, `AM-253`; `AM-284`/`AM-285`):\nkeep ours \u00b7 accept theirs \u00b7 use our standard (a published clause,\n``clause_version_id``) \u00b7 write our wording (``wording``, typed by a holder of\n`legal.approve_customization`, never by a model \u2014 `AM-284` r7). The answer itself is\nnever a Legal Decision; on a measured point \"write our wording\" records one beside\nit (`AM-284` r2).\n``client_note`` goes into the reply as a Word comment (r6); ``internal_note`` never\nleaves LegalMind (`AM-285` r3).",
+    "description": "One answer to one client change (CLM Phase 1, `AM-253`; `AM-284`/`AM-285`):\nkeep ours \u00b7 accept theirs \u00b7 use our standard (a published clause,\n``clause_version_id``) \u00b7 write our wording (``wording``, typed by a holder of\n`legal.approve_customization`, never by a model \u2014 `AM-284` r7). The answer itself is\nnever a Legal Decision; on a measured point \"write our wording\" records one beside\nit (`AM-284` r2). Ask the client (`AM-399`): ``client_note`` is the question, a Word\ncomment in our reply; the client's text stays.\n``client_note`` goes into the reply as a Word comment (r6); ``internal_note`` never\nleaves LegalMind (`AM-285` r3).",
     "properties": {
      "answer": {
       "enum": [
        "keep_ours",
        "accept_theirs",
        "use_standard",
-       "write_wording"
+       "write_wording",
+       "ask_client"
       ],
       "title": "Answer",
       "type": "string"
@@ -3996,7 +3997,7 @@
   },
   "/api/v1/contracts/{contract_id}/blank-values": {
    "get": {
-    "description": "`AM-394`: the fill-in fields of the contract's latest generated version of ours,\nwith their values, and whether this reader may change them now.",
+    "description": "`AM-394`: the fill-in fields of the contract's latest generated version of ours,\nwith their values, and whether this reader may change them now (until the final\ncontract is made; after the client's round the value waits for the final, B5).",
     "operationId": "list_blank_values_api_v1_contracts__contract_id__blank_values_get",
     "parameters": [
      {
@@ -4040,7 +4041,7 @@
     ]
    },
    "post": {
-    "description": "`AM-394`: the deal owner fills or changes a fill-in field after the contract was\nmade \u2014 only on our generated version not yet sent: a new version of ours is rendered\nfrom the same template version with the new values, audited before/after. Any other\nanswer changes the deal and needs a new contract (409).",
+    "description": "`AM-394`: the deal owner fills or changes a fill-in field after the contract was\nmade. On our generated version not yet sent: a new version of ours is rendered from\nthe same template version with the new values. After it left (the client's round,\nB5): no new version \u2014 the value is recorded on our generated version's answers, the\nfinal contract is built with it, and the signing note lists it as filled since the\nclient last saw it. Closed once the final contract exists (409). Audited\nbefore/after. Any other answer changes the deal and needs a new contract.",
     "operationId": "fill_blank_values_api_v1_contracts__contract_id__blank_values_post",
     "parameters": [
      {
@@ -9806,6 +9807,52 @@
      }
     },
     "summary": "Get Template",
+    "tags": [
+     "templates"
+    ]
+   }
+  },
+  "/api/v1/templates/{template_id}/annexure-1": {
+   "post": {
+    "description": "`AM-397`: wire the AM-358/AM-359 Annexure 1 engine into a draft template \u2014 the\nannexure, its three \"Order form\" questions (services from the catalogue, the fee\nlines, the initial term), its tables filled from the answers, clause 5.3 numbers\nwhere the body has the catalogue's delivery lines, and the signature page after the\nannexures (MSA \u2192 Annex 1 \u2192 Annex 2 \u2192 signatures). The annexure's own WORDS are\nLegal's (L3): the clause carries only the `[Legal to supply]` stand-in, which blocks\nFinal until Legal replaces it \u2014 column headings are form structure. A DRAFT clause\nrow: Legal approves it like any other. 409 when already added. Audited.",
+    "operationId": "add_annexure_1_api_v1_templates__template_id__annexure_1_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "template_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Template Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Add Annexure 1 Api V1 Templates  Template Id  Annexure 1 Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Add Annexure 1",
     "tags": [
      "templates"
     ]

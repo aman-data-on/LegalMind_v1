@@ -700,13 +700,13 @@ def test_each_change_carries_its_lettered_points_and_the_review_table(api, db, o
     assert table.status_code == 200, table.text
     got = table.json()["data"]
     assert got["head"] == ["Sr", "Clause", "Original", "Requested change",
-                           "Updated clause", "Recommendation"]
-    assert got["rows"][0][4:] == ["Not decided yet", "Not decided yet"]
+                           "Effect for us", "Source", "Updated clause", "Recommendation"]
+    assert got["rows"][0][6:] == ["Not decided yet", "Not decided yet"]
     assert got["rows"][0][3].startswith("(a) ")
     assert api.post(_url(c, change["row_key"]), json=_first("keep_ours")).status_code \
         == 201
     row = api.get(f"{_url(c)}/review-table").json()["data"]["rows"][0]
-    assert row[4] == row[2] and row[5].startswith("Keep our wording")
+    assert row[6] == row[2] and row[7].startswith("Keep our wording")
 
     r = api.post(f"{_url(c)}/review-table/export")
     assert r.status_code == 200 and r.content[:2] == b"PK"
@@ -743,7 +743,8 @@ def test_a_point_on_our_own_unchanged_text_is_labelled_already_ours(db, owner):
                                  .finding_id, evidence_id=ev.evidence_id,
                                  relationship_type=ev.relationship_type))
     db.flush()
-    got = angles._origins(db, review, load_clauses(db, theirs.id), angles._rows(db, review))
+    got, _ = angles._origins(db, review, load_clauses(db, theirs.id),
+                             angles._rows(db, review))
     by_clause = {r["sections"][0]: got[str(r["finding"].id)]
                  for r in angles._rows(db, review)}
     assert by_clause == {"8": "ALREADY_OURS", "9": "CLIENT_CHANGED"}

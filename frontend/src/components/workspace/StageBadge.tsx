@@ -45,7 +45,9 @@ export function StageBadge({ stage, counts, showDays = true, viewer = "owner", f
     // the end of the deal: "Final · 9 Nov 2026", a date rather than an age
     return <span className="ws-dealstage ws-dealstage--final">{`Final · ${shortDate(stage.since)}`}</span>;
   }
-  const label = unsent && stage.stage === "INTERNAL_REVIEW" && counts?.points_open
+  // AM-400 r2: the server's own fact, so every reader reads the same chip
+  const notSent = counts?.sent_to_legal === false || (unsent && counts?.sent_to_legal === undefined);
+  const label = notSent && stage.stage === "INTERNAL_REVIEW" && counts?.points_open
     ? `${counts.points_open === 1 ? "1 open point" : `${counts.points_open} open points`}, not sent to Legal`
     : stageLine(stage.stage, counts, viewer, final);
   return (

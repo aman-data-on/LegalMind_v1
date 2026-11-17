@@ -45,27 +45,38 @@ def suggest(db: DBSession, review: M.Review) -> ContractOutcome:
     back (a Reject — "this clause must change" — a required standard, our wording, or an
     answer other than accepting theirs) → Sign after our changes; else Sign as is. Do not
     sign stays a person's choice."""
+    if "ask" in _round_answers(db, review):      # AM-399: we wait for the client's answer
+        return ContractOutcome.ON_HOLD
     return (ContractOutcome.SIGN_WITH_CHANGES if changes_go_back(db, review)
             else ContractOutcome.SIGN_AS_IS)
+
+
+def _target(review: M.Review, version: M.DocumentVersion | None) -> UUID:
+    replied = (version.doc_metadata or {}).get("reply_to") if version else None
+    return UUID(replied) if replied else review.document_version_id
+
+
+def _round_answers(db: DBSession, review: M.Review) -> set[str]:
+    """The current answer of each change in the round (the version our reply answers)."""
+    C = M.ComparisonChoice
+    target = _target(review, db.get(M.DocumentVersion, review.document_version_id))
+    return set(db.execute(select(C.choice).where(C.right_version_id == target)
+                          .distinct(C.row_key)
+                          .order_by(C.row_key, C.version_number.desc())).scalars())
 
 
 def changes_go_back(db: DBSession, review: M.Review) -> bool:
     if current_types(db, review.id) & _CHANGES_BACK:
         return True
     version = db.get(M.DocumentVersion, review.document_version_id)
-    replied = (version.doc_metadata or {}).get("reply_to") if version else None
-    target = UUID(replied) if replied else review.document_version_id
-    if replied:
+    target = _target(review, version)
+    if target != review.document_version_id:
         theirs = db.execute(select(M.Review.id)
                             .where(M.Review.document_version_id == target)
                             .order_by(M.Review.created_at.desc()).limit(1)).scalar()
         if theirs is not None and current_types(db, theirs) & _CHANGES_BACK:
             return True
-    C = M.ComparisonChoice
-    current = db.execute(select(C.choice).where(C.right_version_id == target)
-                         .distinct(C.row_key).order_by(C.row_key, C.version_number.desc())
-                         ).scalars()
-    return any(c != "theirs" for c in current)
+    return any(c != "theirs" for c in _round_answers(db, review))
 
 
 def is_final_copy(db: DBSession, review: M.Review) -> bool:

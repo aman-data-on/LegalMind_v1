@@ -19,7 +19,9 @@ INTERNAL_REVIEW  ... a final contract with no contract decision yet (Legal recor
 READY_TO_SIGN    the latest (not final) version's contract decision is Sign as is / after
                  our changes — "Ready for the final contract"
 ON_HOLD          ... or On hold
-CLIENT_RETURNED  the latest version is the client's (CLIENT_MODIFIED) — our turn
+CLIENT_RETURNED  the latest version is the client's (CLIENT_MODIFIED) — our turn; once
+                 sent to Legal (an active assignment) it is INTERNAL_REVIEW for every
+                 reader until the contract decision (AM-398 r2)
 WITH_CLIENT      the latest version was sent to the client
 INTERNAL_REVIEW  the latest version's review is with a reviewer / Legal and holds an
                  undecided point, or it is our prepared reply and its Review is
@@ -116,6 +118,10 @@ def derive_stage(created_at: datetime, versions: list[VersionFacts],
     if review.outcome == "ON_HOLD" and review.outcome_at:
         return NegotiationStage.ON_HOLD, review.outcome_at
     if latest.role == "CLIENT_MODIFIED":
+        # AM-398 r2: once sent to Legal, every reader reads With Legal until Legal
+        # records the decision on the contract; before that it is the deal owner's turn
+        if review.in_review_since is not None:
+            return NegotiationStage.INTERNAL_REVIEW, review.in_review_since
         return NegotiationStage.CLIENT_RETURNED, latest.created_at
     if latest.sent_at is not None:
         return NegotiationStage.WITH_CLIENT, latest.sent_at
