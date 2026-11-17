@@ -23,7 +23,7 @@ from legalmind.domain import enums as E
 from legalmind.domain.constitution_boundaries import constitution_prohibition_for
 from legalmind.ingestion.service import ingest_document
 from tests.test_analysis import DOCX_MIME, build, storage  # noqa: F401 — fixtures
-from tests.test_hard_test_fixes import _ratified
+from tests.test_hard_test_fixes import _ratified, _standard
 
 PAGE = object()          # a page break the file itself states (w:br type="page")
 
@@ -40,9 +40,24 @@ def _docx(paragraphs: list) -> bytes:
     return buffer.getvalue()
 
 
-def _review(build, db, codes: list[str], paragraphs: list, kind: str = "MSA"):
+def _ratified_before_am380(build, code: str) -> None:
+    """The standard as it stood before `AM-380` (2026-11-16) moved the MSA copy to our
+    MSA's own clause: its `_history` keeps the Constitution configuration (§9: a mutual
+    12-month cap on total fees; G-F narrowing). The engine still carries those mechanisms
+    for any standard that declares them, so they stay tested on that configuration."""
+    p = _standard(code)
+    before = next(h for h in p["_history"] if h.get("record") == "AM-380")
+    build.requirement(code, E.EvaluatorType[p.get("evaluator_type", "NUMERIC_COMPARISON")],
+                      mapping=p["mapping_rules"],
+                      standard={**p["configuration"], **before["configuration_before"]},
+                      legal_rule=p["legal_rule"]["configuration"],
+                      evaluation_rules=p.get("evaluation_rules"))
+
+
+def _review(build, db, codes: list[str], paragraphs: list, kind: str = "MSA",
+            before_am380: tuple[str, ...] = ()):
     for code in codes:
-        _ratified(build, code)
+        (_ratified_before_am380 if code in before_am380 else _ratified)(build, code)
     contract = M.Contract(owner_id=build.owner.id, name="Regression contract",
                           contract_type=kind, status=E.ContractStatus.ACTIVE)
     db.add(contract); db.flush()
@@ -152,7 +167,7 @@ CAP = "LIABILITY-MSA-001"
 
 
 def test_a_six_month_cap_deviates_and_cites_its_clause_and_page(build, db):
-    review, _ = _review(build, db, [CAP], [
+    review, _ = _review(build, db, [CAP], before_am380=(CAP,), paragraphs=[
         "1. Services", "1.1 Leapswitch shall provide the Services.", PAGE,
         "17. Limitation of Liability",
         "17.2 The total aggregate liability of each party shall not exceed the total fees "
@@ -179,8 +194,10 @@ ONE_SIDED = ("17.2 Leapswitch's total aggregate liability shall not exceed the t
 
 
 def _cap_case(build, db, sentence, codes=(CAP,), kind="MSA"):
+    # the mutual-cap mechanism (G-D) on the Constitution §9 configuration; since AM-380 the
+    # MSA copy is our MSA 17.2 (Leapswitch only, not mutual)
     review, _ = _review(build, db, list(codes), ["17. Limitation of Liability", sentence],
-                        kind=kind)
+                        kind=kind, before_am380=(CAP,))
     return review, _findings(db, review)
 
 
@@ -281,7 +298,7 @@ def test_a_fixed_term_of_twelve_months_is_a_commitment(build, db):
 
 
 def test_fees_paid_in_the_months_before_the_claim_is_a_fees_paid_basis(build, db):
-    review, _ = _review(build, db, [CAP], [
+    review, _ = _review(build, db, [CAP], before_am380=(CAP,), paragraphs=[
         "17. Limitation of Liability", "17.2 The total aggregate liability of each party shall "
         "not exceed the fees paid in the six (6) months preceding the claim."])
     assert _findings(db, review)[CAP]["classification"] == "DEVIATION"
@@ -417,7 +434,8 @@ def test_our_msa_data_purge_is_15_days_at_7_6_6_on_page_8(build, db):
     db.add(review); db.flush()
     run_analysis(db, review)
     purge = _findings(db, review)["DATA-PURGE-MSA-001"]
-    assert purge["classification"] == "DEVIATION" and ("7.6.6", 8) in purge["cited"]
+    # AM-380: the MSA standard IS our MSA's 7.6.6 (15 days) — our own paper matches
+    assert purge["classification"] == "MATCH" and ("7.6.6", 8) in purge["cited"]
 
 
 def test_an_other_typed_document_still_has_its_missing_cap(build, db):
@@ -527,8 +545,9 @@ DATA_LOSS = "DATA-LOSS-EXCLUSION-MSA-001"
 
 def test_a_data_loss_exclusion_limited_to_customer_causes_is_narrower(build, db):
     """G-F (owner, 2026-10-21): our MSA §9.9's shape — the position also covers our own
-    operational error (Constitution L1.14 §9)."""
-    review, _ = _review(build, db, [DATA_LOSS], [
+    operational error (Constitution L1.14 §9). Since AM-380 the MSA copy IS 9.9, so the
+    narrowing mechanism is tested on the Constitution configuration."""
+    review, _ = _review(build, db, [DATA_LOSS], before_am380=(DATA_LOSS,), paragraphs=[
         "9. Liability", "9.9 Leapswitch shall not be liable for any direct or indirect "
         "damages, including without limitation loss of data, arising from customer-supplied "
         "misinformation, misuse, third-party systems, or incompatible hardware/software "

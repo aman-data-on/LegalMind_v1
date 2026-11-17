@@ -34,6 +34,12 @@ Nothing is committed until the owner says "commit".
 
 ---
 
+## Open — AB-205 (2026-11-16): MSA standards aligned to our MSA
+- Deploy: re-import + publish the standards (new snapshot) + chunk_standards.
+- Legal: MSA 17.7 "total fees paid … in the __________ months" — blank period contradicts 17.2 (our MSA keeps a liability CONFLICT until fixed on paper).
+- Legal: 8.9 "discontinue" on non-payment read as NOT a service-discontinuation notice (suspension of SERVICE-DISCONTINUATION for MSA rests on that).
+- Product: residency (11.5) and sub-processors (11.4) clauses still go to a person on every MSA (AM-322 r11); a "same as our MSA text" check would clear them.
+
 ## 0. Done 2026-11-02
 
 | ID | Item | Done |

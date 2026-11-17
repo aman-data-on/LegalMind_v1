@@ -171,6 +171,24 @@ Left in `proposed/`: PO-MSA-REFERENCE and PO-PRECEDENCE (approved through §31.1
 to calibrate against; the owner will supply one), SERVICE-DISCONTINUATION-NOTICE (**Pending Business
 Approval** — a compound position the draft would narrow).
 
+### MSA standards follow our MSA point to point (`AM-380`, AB-205, owner 2026-11-16)
+
+Supersedes the MSA rows above where they differ. Source `MSA.pdf` (our July 2025 MSA); the
+Constitution text is unchanged and its old quote sits in each file's `_history`.
+
+| Code | Was (Constitution) | Now (our MSA) |
+|---|---|---|
+| LIABILITY-MSA-001 | 12 months total fees, mutual (§9) | **6 months, fees for the affected Services, Leapswitch only** (17.2; 17.7 blank → open item for Legal) |
+| DATA-LOSS-EXCLUSION-MSA-001 | every cause (§9) | cause-limited exclusion (9.9) |
+| DATA-PURGE-MSA-001 | 30 days (§13) | **15 days** (7.6.6) |
+| DISPUTE-VENUE-MSA-001 | Pune (§22) | **Mumbai** / High Court of Mumbai (19.1, 19.3, 19.4) |
+| DISPUTE-WINDOW-MSA-001 | 15 days of invoice date (§16) | **5 working days** from receipt (8.3) |
+| INDEMNITY-MSA-001 | mutual framework (§10) | customer-only (16.1) |
+| DATA-RESIDENCY-MSA-001 | India residency (§12) | lawful cross-border transfer (11.5); still read by a person |
+| SUB-PROCESSORS-MSA-001 | disclosed and bound (§12) | disclosure under safeguards, deemed consent (11.4); still read by a person |
+| TRADE-SECRET-CARVEOUT-MSA-001 | survive while secret (§15) | not applied on an MSA: 12.3's flat 3 years (CONF-SURVIVAL-MSA-001) |
+| BREACH-NOTIFICATION-MSA-001, CHANGE-OF-CONTROL-NOTICE-MSA-001, LATE-INTEREST-MSA-001, PRICE-CHANGE-NOTICE-MSA-001, SERVICE-DISCONTINUATION-MSA-001, PAYMENT-PERIOD-MSA-001 | Constitution positions | **suspended for MSA** — our MSA is silent; `not_applicable_to: MSA` |
+
 ### Partner Agreement — 4 Requirements (`AM-72`, AB-24, 2026-09-18)
 
 The owner resolved **C-23**: a document type whose final text already exists in the Constitution is

@@ -6,11 +6,11 @@
     "the evaluator type it needs is added by AM-148; this file amends no locked decision."
   ],
   "requirement_code": "DISPUTE-VENUE-MSA-001",
-  "description": "Disputes are heard where the Constitution places them: the courts at Pune, and arbitration seated in Pune.",
+  "description": "Disputes are heard where our MSA places them: arbitration in Mumbai, the High Court of Mumbai appointing the arbitrator.",
   "ratified": "2026-10-16",
-  "source_document": "Legal Constitution, Lawyer Review Version L1.10 — docs/02-legal-domain/LEGAL_CONSTITUTION_L1.10.md",
-  "source_clause": "Section 22 Governing Law & Dispute Resolution - Company Position",
-  "source_quote": "Standard Leapswitch/CloudPe agreements are governed by the laws of India, with courts at Pune, Maharashtra having exclusive jurisdiction. Disputes are first referred to arbitration under the Arbitration and Conciliation Act 1996, seated in Pune and conducted in English. ... Where a High Court is referenced, the correct name is the Bombay High Court.",
+  "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025) — MSA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR (Sayan's MSA; same text as the approved July 2025 docx, all_lock.md AM-316)",
+  "source_clause": "19.1, 19.3, 19.4",
+  "source_quote": "The courts, tribunals, councils, forums and other dispute resolution bodies in India shall have the exclusive jurisdiction to adjudicate upon any or all disputes arising out of or in connection with this Agreement. ... in the event of no consensus, then the High Court of Mumbai shall appoint an Arbitrator. ... The arbitration shall take place in Mumbai, India unless otherwise mutually agreed by the Parties and shall be conducted in the English language.",
   "configuration": {
     "document_type": "MSA",
     "constitution": {
@@ -28,7 +28,7 @@
     "scope_key": "DISPUTE_VENUE",
     "applicability": "REQUIRED",
     "allowed_values": [
-      "PUNE",
+      "MUMBAI",
       "BOMBAY_HIGH_COURT"
     ],
     "recognised_values": {
@@ -156,5 +156,29 @@
       "effect_rule": "GOOD_AND_NEUTRAL_ACCEPTED_2026_11_16"
     }
   },
-  "_legal_rule_note": "PRIYEN'S RULE (owner 'change and update', 2026-11-16; replaces the zero-tolerance ruling of 2026-08-19/20 for client changes). Better for us or no change for us is accepted without a Legal Decision; only what is worse goes to Legal. MATCH -> ACCEPTABLE; a deviation -> UNACCEPTABLE -> Legal, except a deviation on this standard's declared favourable side (favourable_direction, from a source; never with favourable_counsel_check) -> ACCEPTABLE, still a DEVIATION (AM-239). No tolerance bands. effect_rule lets a client change the engine proves better or unchanged for us be accepted automatically, audited, reopenable by Legal."
+  "_legal_rule_note": "PRIYEN'S RULE (owner 'change and update', 2026-11-16; replaces the zero-tolerance ruling of 2026-08-19/20 for client changes). Better for us or no change for us is accepted without a Legal Decision; only what is worse goes to Legal. MATCH -> ACCEPTABLE; a deviation -> UNACCEPTABLE -> Legal, except a deviation on this standard's declared favourable side (favourable_direction, from a source; never with favourable_counsel_check) -> ACCEPTABLE, still a DEVIATION (AM-239). No tolerance bands. effect_rule lets a client change the engine proves better or unchanged for us be accepted automatically, audited, reopenable by Legal.",
+  "_history": [
+    {
+      "date": "2026-11-16",
+      "record": "AM-380",
+      "source_document_before": "Legal Constitution, Lawyer Review Version L1.10 — docs/02-legal-domain/LEGAL_CONSTITUTION_L1.10.md",
+      "source_clause_before": "Section 22 Governing Law & Dispute Resolution - Company Position",
+      "source_quote_before": "Standard Leapswitch/CloudPe agreements are governed by the laws of India, with courts at Pune, Maharashtra having exclusive jurisdiction. Disputes are first referred to arbitration under the Arbitration and Conciliation Act 1996, seated in Pune and conducted in English. ... Where a High Court is referenced, the correct name is the Bombay High Court.",
+      "description_before": "Disputes are heard where the Constitution places them: the courts at Pune, and arbitration seated in Pune.",
+      "configuration_before": {
+        "allowed_values": [
+          "PUNE",
+          "BOMBAY_HIGH_COURT"
+        ]
+      }
+    }
+  ],
+  "source_file": "MSA.pdf",
+  "msa_alignment": {
+    "record": "AM-380",
+    "date": "2026-11-16",
+    "ruling": "owner, 2026-11-16: \"Do not change the whole Constitution. Only change the points that differ from Sayan's MSA. Sayan's MSA is the final verdict for now — point to point use Sayan's MSA.\" (rule 6 approval for these lock changes; AB-205)",
+    "kind": "DIFFERS — the MSA standard now states Sayan's MSA",
+    "note": "Resolves Pune vs Mumbai for MSAs (supersedes AM-150's Pune for the MSA venue; C-27 re-opened and closed by AM-380). BOMBAY_HIGH_COURT stays allowed: 19.3's 'High Court of Mumbai' is the Bombay High Court, the name Constitution §22 says to use. PUNE is no longer an allowed value on an MSA."
+  }
 }

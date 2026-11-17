@@ -15,8 +15,8 @@ from legalmind.domain import enums as E
 from legalmind.evaluation.workflow import DECISION_CARRIED_FORWARD
 from legalmind.workflow.decisions import carry_forward
 from tests.legal_regression.test_effect_for_us import CAP, OURS, _version
+from tests.legal_regression.test_legal_regression import _ratified_before_am380
 from tests.test_analysis import build, storage  # noqa: F401 — fixtures
-from tests.test_hard_test_fixes import _ratified
 from tests.test_negotiation_wording import _lawyer
 
 CAPPED = OURS.replace("twelve (12)", "eighteen (18)")
@@ -31,7 +31,8 @@ def _cap_finding(db, review):
 
 
 def _deal(build, db, seeded):
-    _ratified(build, CAP)
+    # a comparable cap (Constitution §9 configuration, pre-AM-380) so the point is a DEVIATION
+    _ratified_before_am380(build, CAP)
     contract = M.Contract(owner_id=build.owner.id, name="Deal", contract_type="MSA",
                           status=E.ContractStatus.ACTIVE)
     db.add(contract); db.flush()
@@ -84,7 +85,7 @@ def test_one_word_changed_and_the_point_reopens(build, db, seeded):
 
 
 def test_an_undecided_earlier_point_carries_nothing(build, db, seeded):
-    _ratified(build, CAP)
+    _ratified_before_am380(build, CAP)
     contract = M.Contract(owner_id=build.owner.id, name="Deal", contract_type="MSA",
                           status=E.ContractStatus.ACTIVE)
     db.add(contract); db.flush()

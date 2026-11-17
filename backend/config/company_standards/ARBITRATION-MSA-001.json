@@ -103,10 +103,20 @@
   },
   "_legal_rule_note": "PRIYEN'S RULE (owner 'change and update', 2026-11-16; replaces the zero-tolerance ruling of 2026-08-19/20 for client changes). Better for us or no change for us is accepted without a Legal Decision; only what is worse goes to Legal. MATCH -> ACCEPTABLE; a deviation -> UNACCEPTABLE -> Legal, except a deviation on this standard's declared favourable side (favourable_direction, from a source; never with favourable_counsel_check) -> ACCEPTABLE, still a DEVIATION (AM-239). No tolerance bands. effect_rule lets a client change the engine proves better or unchanged for us be accepted automatically, audited, reopenable by Legal.",
   "_c27_note": [
+    "SUPERSEDED 2026-11-16 by AM-380 r5 (AB-205): the MSA venue is Mumbai per our MSA 19.3/19.4; this quote IS the position. Earlier note kept below as history.",
     "C-27 RESOLVED by the owner, 2026-10-16 ('pune'): the venue position is Pune",
     "(Constitution §22, measured by DISPUTE-VENUE-MSA-001, AM-148/AM-150). The Mumbai wording in",
     "source_quote is the MSA template's own historical text, kept verbatim as provenance; it is",
     "not the company position. This presence standard reads no venue, so nothing it evaluates changes."
   ],
-  "quote_not_position": "DISPUTE-VENUE-MSA-001"
+  "_history": [
+    {
+      "date": "2026-11-16",
+      "record": "AM-380",
+      "removed": {
+        "quote_not_position": "DISPUTE-VENUE-MSA-001"
+      },
+      "why": "the Mumbai arbitration clause is the MSA position again (AM-380 r5), not historical template wording"
+    }
+  ]
 }

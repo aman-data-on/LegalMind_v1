@@ -11,11 +11,11 @@
     "exceptions; it must not be treated as excluding liabilities that cannot lawfully be excluded."
   ],
   "requirement_code": "DATA-LOSS-EXCLUSION-MSA-001",
-  "description": "The provider is not liable for loss, deletion, corruption or unavailability of customer data, or its restoration costs, whether direct or indirect.",
+  "description": "Leapswitch is not liable for direct or indirect damages, including loss of data, arising from customer-supplied misinformation, misuse, third-party systems or incompatible configurations.",
   "ratified": "2026-10-19",
-  "source_document": "Legal Mind — Legal Constitution, Lawyer Review Version L1.14 (docs/02-legal-domain/LEGAL_CONSTITUTION_L1.14.md)",
-  "source_clause": "§9 Liability — Data-Loss Exclusion and Relationship to the Liability Cap",
-  "source_quote": "Leapswitch/CloudPe shall not be liable for loss, deletion, corruption or unavailability of customer data, or associated restoration, recovery, reconstruction or recreation costs, whether those losses or costs are direct, indirect, incidental, special or consequential.",
+  "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025) — MSA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR (Sayan's MSA; same text as the approved July 2025 docx, all_lock.md AM-316)",
+  "source_clause": "9.9",
+  "source_quote": "Leapswitch shall not be liable for any direct or indirect damages, including without limitation loss of data, business disruption, or security breaches, arising from customer-supplied misinformation, misuse, third-party systems, or incompatible hardware/software configurations.",
   "configuration": {
     "document_type": "MSA",
     "commercial_pillar": true,
@@ -32,14 +32,9 @@
       }
     },
     "expected_presence": "PRESENT",
-    "_narrowing_note": "G-F (owner, 2026-10-21): the position also covers 'a provider-side operational error, such as accidental deletion or decommissioning' (L1.14 §9). An exclusion limited to causes the customer or a third party brings is narrower — a DEVIATION for a person, never a match.",
-    "narrowing_subject": ["data"],
-    "narrowing_lead": ["arising from", "arising out of", "caused by", "due to", "resulting from", "attributable to"],
-    "narrowing_causes": ["customer-supplied", "customer supplied", "misuse", "third-party", "third party", "incompatible hardware", "acts or omissions of the customer", "customer's negligence", "customer's own"],
-    "full_scope_terms": ["howsoever", "any cause", "whatever cause", "regardless of cause", "operational error", "accidental deletion", "decommission", "its own negligence", "provider's negligence"],
     "scope_key": "DATA_LOSS_EXCLUSION",
     "applicability": "REQUIRED",
-    "position_statement": "The provider is not liable for loss, deletion, corruption or unavailability of customer data, or its restoration costs, even where its own operational error caused the loss; infrastructure restoration and SLA service credits remain.",
+    "position_statement": "Leapswitch is not liable for direct or indirect damages, including loss of data, arising from customer-supplied misinformation, misuse, third-party systems or incompatible hardware/software configurations (MSA 9.9).",
     "waiver_patterns": [
       "shall be liable for any service interruptions or data loss",
       "shall be liable for data loss",
@@ -137,5 +132,59 @@
       "effect_rule": "GOOD_AND_NEUTRAL_ACCEPTED_2026_11_16"
     }
   },
-  "_legal_rule_note": "PRIYEN'S RULE (owner 'change and update', 2026-11-16; replaces the zero-tolerance ruling of 2026-08-19/20 for client changes). Better for us or no change for us is accepted without a Legal Decision; only what is worse goes to Legal. MATCH -> ACCEPTABLE; a deviation -> UNACCEPTABLE -> Legal, except a deviation on this standard's declared favourable side (favourable_direction, from a source; never with favourable_counsel_check) -> ACCEPTABLE, still a DEVIATION (AM-239). No tolerance bands. effect_rule lets a client change the engine proves better or unchanged for us be accepted automatically, audited, reopenable by Legal."
+  "_legal_rule_note": "PRIYEN'S RULE (owner 'change and update', 2026-11-16; replaces the zero-tolerance ruling of 2026-08-19/20 for client changes). Better for us or no change for us is accepted without a Legal Decision; only what is worse goes to Legal. MATCH -> ACCEPTABLE; a deviation -> UNACCEPTABLE -> Legal, except a deviation on this standard's declared favourable side (favourable_direction, from a source; never with favourable_counsel_check) -> ACCEPTABLE, still a DEVIATION (AM-239). No tolerance bands. effect_rule lets a client change the engine proves better or unchanged for us be accepted automatically, audited, reopenable by Legal.",
+  "_history": [
+    {
+      "date": "2026-11-16",
+      "record": "AM-380",
+      "source_document_before": "Legal Mind — Legal Constitution, Lawyer Review Version L1.14 (docs/02-legal-domain/LEGAL_CONSTITUTION_L1.14.md)",
+      "source_clause_before": "§9 Liability — Data-Loss Exclusion and Relationship to the Liability Cap",
+      "source_quote_before": "Leapswitch/CloudPe shall not be liable for loss, deletion, corruption or unavailability of customer data, or associated restoration, recovery, reconstruction or recreation costs, whether those losses or costs are direct, indirect, incidental, special or consequential.",
+      "description_before": "The provider is not liable for loss, deletion, corruption or unavailability of customer data, or its restoration costs, whether direct or indirect.",
+      "configuration_before": {
+        "position_statement": "The provider is not liable for loss, deletion, corruption or unavailability of customer data, or its restoration costs, even where its own operational error caused the loss; infrastructure restoration and SLA service credits remain.",
+        "_narrowing_note": "G-F (owner, 2026-10-21): the position also covers 'a provider-side operational error, such as accidental deletion or decommissioning' (L1.14 §9). An exclusion limited to causes the customer or a third party brings is narrower — a DEVIATION for a person, never a match.",
+        "narrowing_subject": [
+          "data"
+        ],
+        "narrowing_lead": [
+          "arising from",
+          "arising out of",
+          "caused by",
+          "due to",
+          "resulting from",
+          "attributable to"
+        ],
+        "narrowing_causes": [
+          "customer-supplied",
+          "customer supplied",
+          "misuse",
+          "third-party",
+          "third party",
+          "incompatible hardware",
+          "acts or omissions of the customer",
+          "customer's negligence",
+          "customer's own"
+        ],
+        "full_scope_terms": [
+          "howsoever",
+          "any cause",
+          "whatever cause",
+          "regardless of cause",
+          "operational error",
+          "accidental deletion",
+          "decommission",
+          "its own negligence",
+          "provider's negligence"
+        ]
+      }
+    }
+  ],
+  "msa_alignment": {
+    "record": "AM-380",
+    "date": "2026-11-16",
+    "ruling": "owner, 2026-11-16: \"Do not change the whole Constitution. Only change the points that differ from Sayan's MSA. Sayan's MSA is the final verdict for now — point to point use Sayan's MSA.\" (rule 6 approval for these lock changes; AB-205)",
+    "kind": "DIFFERS — the MSA standard now states Sayan's MSA",
+    "note": "Sayan's 9.9 is limited to the causes it lists, so a cause-limited exclusion is the position, not a narrowing (the G-F narrowing check is withdrawn for this standard). A clause in which the provider accepts data-loss liability is still a waiver (AM-152)."
+  }
 }

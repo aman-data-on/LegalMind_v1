@@ -1,6 +1,6 @@
 {
   "_about": [
-    "mutual (2026-10-21): Constitution \u00a79 states the cap 'applied mutually' and names 'a cap applying to only one party' an Unacceptable Position; a cap whose sentence limits only one side's liability is a DEVIATION and Needs a decision. Not on LIABILITY-TOS-001: the published Terms of Service are the company's own paper.",
+    "mutual (2026-10-21): Constitution §9 states the cap 'applied mutually' and names 'a cap applying to only one party' an Unacceptable Position; a cap whose sentence limits only one side's liability is a DEVIATION and Needs a decision. Not on LIABILITY-TOS-001: the published Terms of Service are the company's own paper.",
     "RATIFIED Company Standard for LIABILITY-MSA-001 — the MASTER SERVICES AGREEMENT",
     "liability position. Owner decisions of 2026-08-19: Q3=B (per-type standards) and",
     "'MSA standard = 6 months from MSA.pdf §17.2'. It is CONFIGURATION, not",
@@ -70,14 +70,29 @@
         }
       },
       "why": "a year is a fixed number of months by definition; the engine performs the arithmetic only because the standard declares the pair (45C.23, 44.29)."
+    },
+    {
+      "date": "2026-11-16",
+      "record": "AM-380",
+      "source_document_before": "Legal Mind — Legal Constitution, Lawyer Review Version L1.5 (docs/02-legal-domain/LEGAL_CONSTITUTION_L1.5.md; owner ruling 2026-09-08: governs company positions)",
+      "source_clause_before": "§9 Liability — Company Position (final, closed)",
+      "source_quote_before": "the standard 12-month liability cap applies unless a specific agreement approved by the company expressly provides otherwise. ... The cap applies mutually to both parties; there is no one-sided or party-specific cap. Indirect, incidental, and consequential damages are excluded for both parties. [Illustrative clause:] the aggregate liability of either Party ... shall not exceed the total fees paid or payable by Customer in the twelve (12) months immediately preceding the event giving rise to the claim.",
+      "description_before": "Each party's total liability is capped at the fees paid over a set period before the claim.",
+      "configuration_before": {
+        "preferred": 12,
+        "basis": "FEES_PAID",
+        "mutual": true,
+        "favourable_direction": "LOWER",
+        "_favourable_direction_note": "AM-303 (AB-158 addendum, owner 2026-11-04, the manager's point: our template opens with our best position), amending AM-239 r4 for this standard only: a LOWER mutual cap on the same basis is in LeapSwitch's favour on paper where LeapSwitch is the provider. Never a cap limiting one party only (AM-239 r2, Constitution §9) — the evaluator withholds the favour from a one-party cap."
+      }
     }
   ],
   "requirement_code": "LIABILITY-MSA-001",
-  "description": "Each party's total liability is capped at the fees paid over a set period before the claim.",
+  "description": "LeapSwitch's total liability is capped at the amount paid for the specific Services giving rise to the claim in the six months before it.",
   "ratified": "2026-08-19",
-  "source_document": "Legal Mind — Legal Constitution, Lawyer Review Version L1.5 (docs/02-legal-domain/LEGAL_CONSTITUTION_L1.5.md; owner ruling 2026-09-08: governs company positions)",
-  "source_clause": "§9 Liability — Company Position (final, closed)",
-  "source_quote": "the standard 12-month liability cap applies unless a specific agreement approved by the company expressly provides otherwise. ... The cap applies mutually to both parties; there is no one-sided or party-specific cap. Indirect, incidental, and consequential damages are excluded for both parties. [Illustrative clause:] the aggregate liability of either Party ... shall not exceed the total fees paid or payable by Customer in the twelve (12) months immediately preceding the event giving rise to the claim.",
+  "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025) — MSA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR (Sayan's MSA; same text as the approved July 2025 docx, all_lock.md AM-316)",
+  "source_clause": "17.2 Monetary Cap on Liability",
+  "source_quote": "Notwithstanding anything to the contrary contained in this Agreement, the total aggregate liability of Leapswitch and its affiliates, whether in contract, tort (including negligence), strict liability, or otherwise, shall not exceed the total amount actually paid by the Customer to Leapswitch for the specific Services giving rise to the claim during the six (6) month period immediately preceding the event giving rise to such liability.",
   "configuration": {
     "document_type": "MSA",
     "constitution": {
@@ -95,12 +110,10 @@
     "not_applicable_to": [
       "SLA"
     ],
-    "preferred": 12,
+    "preferred": 6,
     "unit": "MONTHS",
-    "basis": "FEES_PAID",
-    "mutual": true,
-    "favourable_direction": "LOWER",
-    "_favourable_direction_note": "AM-303 (AB-158 addendum, owner 2026-11-04, the manager's point: our template opens with our best position), amending AM-239 r4 for this standard only: a LOWER mutual cap on the same basis is in LeapSwitch's favour on paper where LeapSwitch is the provider. Never a cap limiting one party only (AM-239 r2, Constitution §9) — the evaluator withholds the favour from a one-party cap.",
+    "basis": "FEES_PAID_FOR_AFFECTED_SERVICES",
+    "mutual": false,
     "scope_key": "AGGREGATE",
     "extraction": {
       "cap_phrases": [
@@ -142,7 +155,9 @@
           "amounts you have paid",
           "fees paid by you",
           "amount paid by customer",
-          "amount paid by the customer", "fees paid in the", "fees paid during the"
+          "amount paid by the customer",
+          "fees paid in the",
+          "fees paid during the"
         ],
         "FEES_PAID_FOR_AFFECTED_SERVICES": [
           "for the specific services giving rise to the claim",
@@ -161,7 +176,7 @@
       "approved_carve_outs": [
         "a party's obligation to pay fees and charges due under this agreement"
       ],
-      "_approved_carve_outs_note": "AM-313 (AB-166, owner decision 2026-11-05 on Claude's drafting recommendation; L1.17 by AM-325): Legal Constitution L1.17 \u00a79, Payment Obligations Outside the Cap \u2014 'a Party's obligation to pay fees and charges due under this Agreement' is not limited by the liability cap. A carve-out of this class leaves the cap as it reads, as the lawful floor does; an indemnity or any other class taken out of the cap is still unlimited for those claims and a person's call (AM-304 r2).",
+      "_approved_carve_outs_note": "AM-313 (AB-166, owner decision 2026-11-05 on Claude's drafting recommendation; L1.17 by AM-325): Legal Constitution L1.17 §9, Payment Obligations Outside the Cap — 'a Party's obligation to pay fees and charges due under this Agreement' is not limited by the liability cap. A carve-out of this class leaves the cap as it reads, as the lawful floor does; an indemnity or any other class taken out of the cap is still unlimited for those claims and a person's call (AM-304 r2).",
       "composite_phrases": [
         "greater of",
         "the lesser of",
@@ -283,5 +298,12 @@
     "words (AWS 9.2, CtrlS 12.1(ii)). No position, threshold or tolerance",
     "changed; composite formulas (greater-of/lesser-of/averages) still fail",
     "closed rather than having one limb read as the cap (45B.4)."
-  ]
+  ],
+  "msa_alignment": {
+    "record": "AM-380",
+    "date": "2026-11-16",
+    "ruling": "owner, 2026-11-16: \"Do not change the whole Constitution. Only change the points that differ from Sayan's MSA. Sayan's MSA is the final verdict for now — point to point use Sayan's MSA.\" (rule 6 approval for these lock changes; AB-205)",
+    "kind": "DIFFERS — the MSA standard now states Sayan's MSA",
+    "note": "17.2 is the operative clause (owner, 2026-08-19, and again 2026-11-16). 17.7 ('total fees paid by Customer in the __________ months preceding the claim') leaves its period blank: an OPEN ITEM for Legal; the document read as a whole still CONFLICTs (fixture DOC-LIAB-04). 17.2 limits Leapswitch's liability only, so the cap is no longer declared mutual; the AM-303 favour form is withdrawn here because AM-239 r2 never favours a one-party cap. Reverses AM-43 r4 for the MSA only; LIABILITY-TOS-001 is unchanged."
+  }
 }

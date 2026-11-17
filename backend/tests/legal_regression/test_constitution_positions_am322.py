@@ -36,12 +36,42 @@ def test_every_new_position_quotes_the_canonical_constitution_verbatim(code):
     text = CANONICAL.read_text().replace("\\&", "&")
     payload = json.loads((STANDARDS / f"{code}.json").read_text())
     cfg = payload["configuration"]
-    for part in payload["source_quote"].split(" ... "):
+    quote = payload["source_quote"]
+    if payload.get("source_file") == "MSA.pdf":
+        # AM-380: the MSA copy now states our MSA; its Constitution quote is history
+        quote = next(h["source_quote_before"] for h in payload["_history"]
+                     if h.get("record") == "AM-380")
+        _in_our_msa(payload["source_quote"])
+    for part in quote.split(" ... "):
         assert part in text, (code, part)
     if cfg.get("unacceptable_position"):
         assert cfg["unacceptable_position"] in text, code
     assert cfg["constitution"]["version"] == "L1.16"
     assert payload["legal_rule"]["configuration"] == OWNER_EFFECT_RULE     # AM-383
+
+
+def _in_our_msa(quote: str) -> None:
+    """Each part of an AM-380 quote is MSA.pdf's own text (whitespace and ligatures
+    normalised); skipped where the source material is not on the machine (CI)."""
+    pdf = Path(os.environ.get("LEGALMIND_SOURCE_MATERIAL_DIR", ROOT / "legal-docs")) / "MSA.pdf"
+    if not pdf.exists():
+        pytest.skip("MSA.pdf not supplied on this machine")
+    import pymupdf
+    doc = pymupdf.open(pdf)
+    raw = " ".join(doc[i].get_text() for i in range(doc.page_count))
+    norm = " ".join(raw.replace("\ufb01", "fi").replace("\ufb02", "fl").split())
+    for part in quote.split(" ... "):
+        assert " ".join(part.split()) in norm, part
+
+
+def test_on_an_msa_the_suspended_section_12_and_15_copies_raise_nothing(build, db):
+    """AM-380 r1/r2: our MSA is silent on breach notification and has no trade-secret
+    carve-out (12.3), so neither copy is measured on a document declared MSA."""
+    for code, clause in (("BREACH-NOTIFICATION-MSA-001", "4.1 Provider shall notify "
+                          "Customer of any personal data breach without undue delay."),
+                         ("TRADE-SECRET-CARVEOUT-MSA-001", SURVIVAL + "."),
+                         ("TRADE-SECRET-CARVEOUT-NDA-001", SURVIVAL + ".")):
+        assert _one(build, db, code, "MSA", "4. Terms", clause) is None, code
 
 
 def _one(build, db, code: str, kind: str, *clauses: str) -> str | None:
@@ -114,13 +144,13 @@ def test_our_published_breach_wording_is_read_by_a_person(build, db):
 def test_a_breach_clause_without_a_notification_timeline_is_never_a_match(build, db,
                                                                          heading, clause):
     # §12 Unacceptable: "no defined breach-notification timeline at all"
-    assert _one(build, db, "BREACH-NOTIFICATION-MSA-001", "MSA", heading, clause) \
+    assert _one(build, db, "BREACH-NOTIFICATION-MSA-001", "OTHER", heading, clause) \
         != "MATCH"
 
 
 def test_cert_in_reporting_alone_is_not_customer_breach_notification(build, db):
     # §12.3: statutory reporting to CERT-In and customer notification are separate
-    assert _one(build, db, "BREACH-NOTIFICATION-MSA-001", "MSA", "4. Incident Reporting",
+    assert _one(build, db, "BREACH-NOTIFICATION-TOS-001", "TOS", "4. Incident Reporting",
                 "4.1 The Provider reports cyber security incidents to CERT-In within six "
                 "(6) hours of detection.") == "MISSING"
 
@@ -162,19 +192,21 @@ SURVIVAL = ("5.3 Obligations under this Clause shall survive for a period of thr
 
 
 def test_an_msa_keeping_trade_secrets_while_they_remain_so_states_section_15(build, db):
-    assert _one(build, db, "TRADE-SECRET-CARVEOUT-MSA-001", "MSA", "5. Confidentiality",
+    assert _one(build, db, "TRADE-SECRET-CARVEOUT-MSA-001", "OTHER", "5. Confidentiality",
                 SURVIVAL + ", provided that obligations relating to trade secrets shall "
                 "survive for as long as such information remains a trade secret under "
                 "applicable law.") == "MATCH"
 
 
 def test_an_msa_where_trade_secrets_expire_with_the_three_years_is_missing_it(build, db):
-    assert _one(build, db, "TRADE-SECRET-CARVEOUT-MSA-001", "MSA", "5. Confidentiality",
+    # absence is measured inside the declared family; the MSA copy is suspended on an MSA
+    # (AM-380), so the same §15 position is proved on its NDA copy
+    assert _one(build, db, "TRADE-SECRET-CARVEOUT-NDA-001", "NDA", "5. Confidentiality",
                 SURVIVAL + ".") == "MISSING"
 
 
 def test_protecting_only_labelled_trade_secrets_narrows_section_15(build, db):
-    assert _one(build, db, "TRADE-SECRET-CARVEOUT-MSA-001", "MSA", "5. Confidentiality",
+    assert _one(build, db, "TRADE-SECRET-CARVEOUT-MSA-001", "OTHER", "5. Confidentiality",
                 SURVIVAL + "; information expressly identified as a trade secret remains "
                 "protected for so long as it remains a trade secret.") == "DEVIATION"
 
@@ -268,20 +300,20 @@ TAKEN_BACK = [
     ("DATA-RESIDENCY-VENDOR_AGREEMENT-001", "VENDOR_AGREEMENT",
      "The Vendor gives no data residency commitment for India-designated services."),
     # §12 breach notification (Unacceptable: no defined breach-notification timeline)
-    ("BREACH-NOTIFICATION-MSA-001", "MSA",
+    ("BREACH-NOTIFICATION-MSA-001", "OTHER",
      "Provider shall notify Customer of any personal data breach within 72 hours where "
      "Provider deems appropriate."),
-    ("BREACH-NOTIFICATION-MSA-001", "MSA",
+    ("BREACH-NOTIFICATION-MSA-001", "OTHER",
      "Provider is not required to notify Customer of a personal data breach without undue "
      "delay or within any number of hours."),
-    ("BREACH-NOTIFICATION-MSA-001", "MSA",
+    ("BREACH-NOTIFICATION-MSA-001", "OTHER",
      "Provider may, but shall not be obliged to, notify Customer of a personal data breach "
      "without undue delay."),
-    ("BREACH-NOTIFICATION-MSA-001", "MSA",
+    ("BREACH-NOTIFICATION-MSA-001", "OTHER",
      "Customer shall notify Provider of any personal data breach without undue delay and "
      "in any event within 24 hours. Provider gives no notification of a personal data "
      "breach."),
-    ("BREACH-NOTIFICATION-MSA-001", "MSA",
+    ("BREACH-NOTIFICATION-MSA-001", "OTHER",
      "Provider will notify Customer of a personal data breach without undue delay or at a "
      "time of its choosing, which may exceed 720 hours."),
     ("BREACH-NOTIFICATION-TOS-001", "TOS",
@@ -312,7 +344,7 @@ def test_elements_negated_permitted_or_conditioned_are_for_a_person(build, db, c
 
 @pytest.mark.parametrize("code,kind,clauses", [
     # each element present, but no ONE clause states them all
-    ("BREACH-NOTIFICATION-MSA-001", "MSA",
+    ("BREACH-NOTIFICATION-MSA-001", "OTHER",
      ("4. Data Protection", "4.1 The Provider will notify the Customer of a personal data "
       "breach.", "5. Support", "5.1 Support requests are answered without undue delay.")),
     ("SUB-PROCESSORS-MSA-001", "MSA",
@@ -329,7 +361,7 @@ def test_elements_split_across_clauses_stay_for_a_person(build, db, code, kind, 
 
 def test_an_hours_figure_alone_is_not_the_customer_notice_timeline(build, db):
     # §12.3: the hours deadline is CERT-In's; none is assumed for the customer
-    assert _one(build, db, "BREACH-NOTIFICATION-MSA-001", "MSA", "4. Data Protection",
+    assert _one(build, db, "BREACH-NOTIFICATION-MSA-001", "OTHER", "4. Data Protection",
                 "4.1 Provider shall notify Customer of any personal data breach within 72 "
                 "hours.") == "UNABLE_TO_EVALUATE"
 
@@ -337,7 +369,7 @@ def test_an_hours_figure_alone_is_not_the_customer_notice_timeline(build, db):
 @pytest.mark.parametrize("code,kind,clause", [
     ("DATA-RESIDENCY-VENDOR_AGREEMENT-001", "VENDOR_AGREEMENT",
      "Data residency is maintained within India for all India-designated services."),
-    ("BREACH-NOTIFICATION-MSA-001", "MSA",
+    ("BREACH-NOTIFICATION-MSA-001", "OTHER",
      "Provider shall notify Customer of any Personal Data Breach affecting Customer's data "
      "without undue delay after becoming aware of it."),
     ("SUB-PROCESSORS-TOS-001", "TOS",
@@ -354,7 +386,7 @@ def test_even_the_constitutions_own_wording_is_read_by_a_person(build, db, code,
 # r10 read these as "the duty on the other side"; r11 withdrew that reading (§12 does not
 # say which party commits). Under r11 every one is found and read by a person.
 @pytest.mark.parametrize("code,kind,clause", [
-    ("BREACH-NOTIFICATION-MSA-001", "MSA",
+    ("BREACH-NOTIFICATION-MSA-001", "OTHER",
      "Customer shall notify Provider of any personal data breach without undue delay."),
     ("BREACH-NOTIFICATION-TOS-001", "TOS",
      "You shall notify Leapswitch of any personal data breach without undue delay."),
@@ -380,7 +412,7 @@ def test_elements_on_the_other_side_are_for_a_person(build, db, code, kind, clau
     ("DATA-RESIDENCY-VENDOR_AGREEMENT-001", "VENDOR_AGREEMENT",
      "The Vendor shall maintain data residency within India for all India-designated "
      "services."),
-    ("BREACH-NOTIFICATION-MSA-001", "MSA",
+    ("BREACH-NOTIFICATION-MSA-001", "OTHER",
      "Each party shall notify the other of any personal data breach without undue delay."),
 ])
 def test_the_providing_side_or_both_sides_are_read_by_a_person(build, db, code, kind,
@@ -440,26 +472,26 @@ ROUND_3 = [
                                "determines."]),
     (DRV, "VENDOR_AGREEMENT", ["Users of the Vendor platform shall maintain data residency "
                                "within India for all India-designated services."]),
-    (BN, "MSA", [f"{BNS} to the extent permitted by Provider's internal policies."]),
-    (BN, "MSA", [f"{BNS}. This clause shall not bind Provider in any respect."]),
-    (BN, "MSA", [f"{BNS}; Customer hereby waives the foregoing obligation."]),
-    (BN, "MSA", ["Nothing in this Agreement requires Provider to notify Customer of any "
+    (BN, "OTHER", [f"{BNS} to the extent permitted by Provider's internal policies."]),
+    (BN, "OTHER", [f"{BNS}. This clause shall not bind Provider in any respect."]),
+    (BN, "OTHER", [f"{BNS}; Customer hereby waives the foregoing obligation."]),
+    (BN, "OTHER", ["Nothing in this Agreement requires Provider to notify Customer of any "
                  "personal data breach without undue delay."]),
-    (BN, "MSA", ["Provider disclaims any duty to notify Customer of any personal data breach "
+    (BN, "OTHER", ["Provider disclaims any duty to notify Customer of any personal data breach "
                  "without undue delay."]),
-    (BN, "MSA", ["Provider shall require Customer to notify Provider of any personal data "
+    (BN, "OTHER", ["Provider shall require Customer to notify Provider of any personal data "
                  "breach without undue delay."]),
-    (BN, "MSA", [f"{BNS} save as Provider's insurers direct otherwise."]),
-    (BN, "MSA", [SUBS, "The Subscriber shall notify the Provider of any personal data breach "
+    (BN, "OTHER", [f"{BNS} save as Provider's insurers direct otherwise."]),
+    (BN, "OTHER", [SUBS, "The Subscriber shall notify the Provider of any personal data breach "
                  "without undue delay."]),
     # §12.3: "without undue delay" here is the CERT-In report, not the customer's notice
-    (BN, "MSA", ["Provider shall notify Customer of the incident in writing; any personal "
+    (BN, "OTHER", ["Provider shall notify Customer of the incident in writing; any personal "
                  "data breach is reported without undue delay to CERT-In."]),
-    (BN, "MSA", [f"4.1 {BNS}.", "4.2 Clause 4.1 does not apply to data hosted on shared "
+    (BN, "OTHER", [f"4.1 {BNS}.", "4.2 Clause 4.1 does not apply to data hosted on shared "
                  "infrastructure."]),
-    (BN, "MSA", [f"{BNS}, where practicable."]),
-    (BN, "MSA", [f"{BNS} only where Provider is legally compelled to do so."]),
-    (BN, "MSA", ["Provider shall not fail to notify Customer of any personal data breach "
+    (BN, "OTHER", [f"{BNS}, where practicable."]),
+    (BN, "OTHER", [f"{BNS} only where Provider is legally compelled to do so."]),
+    (BN, "OTHER", ["Provider shall not fail to notify Customer of any personal data breach "
                  "without undue delay."]),
     (BNT, "TOS", ["We will notify you of any personal data breach without undue delay where "
                   "we consider it appropriate."]),
@@ -489,7 +521,7 @@ ROUND_3 = [
                   "decide."]),
 ]
 SOUND = [  # the verifier's controls: sound wording, still a person's call
-    (BN, "MSA", ["Provider shall notify Customer without undue delay if it becomes aware of "
+    (BN, "OTHER", ["Provider shall notify Customer without undue delay if it becomes aware of "
                  "a personal data breach affecting Customer's data."]),
     (SP, "MSA", ["Provider may engage sub-processors provided that they are disclosed to the "
                  "Customer and bound to obligations no less protective than this "
@@ -544,8 +576,8 @@ def test_a_split_breach_clause_cites_its_operative_sub_clause(build, db):
      "cross-border transfers from India), Provider shall ensure such transfers are lawful."),
     (DR, "MSA", "11. Data Protection", "11.5 Personal Data transferred outside India is "
      "protected by standard contractual clauses."),
-    (BN, "MSA", "Data Breach Notification", "Provider will tell Customer promptly."),
-    (BN, "MSA", "4. Security", "4.1 Provider shall notify Customer of any data breach."),
+    (BNT, "TOS", "Data Breach Notification", "Provider will tell Customer promptly."),
+    (BNT, "TOS", "4. Security", "4.1 Provider shall notify Customer of any data breach."),
     (SP, "MSA", "11. Data Protection", "11.4 Sharing with Affiliates, Business Partners and "
      "Third-Party Processors: Provider may disclose Personal Data to its affiliates."),
     (SP, "MSA", "18. Assignment", "18.2 Provider may upon notice to Customer engage a "
@@ -561,7 +593,7 @@ def test_an_approved_finding_term_sends_the_clause_to_a_person(build, db, code, 
 @pytest.mark.parametrize("code,kind,clause", [
     # rejected or conditioned terms alone find nothing (R5, B2 without "notify", B3, S3)
     (DR, "MSA", "1.1 “Territory” means the territory of India."),
-    (BN, "MSA", "9.1 LeapSwitch disclaims all liability for any security incident or data "
+    (BNT, "TOS", "9.1 LeapSwitch disclaims all liability for any security incident or data "
      "breach caused by Customer content."),
     (SP, "MSA", "13.1 The total liability of Provider, its employees, subcontractors or "
      "suppliers shall not exceed the fees paid."),

@@ -30579,3 +30579,100 @@ r1  backend/config/never_concede.json requirement_codes: a change touching a lis
     holder's (NEGATIVE, NEVER_CONCEDE) whatever its effect. Starts EMPTY — Legal to supply;
     nothing invented (rules 7/21).
 ```
+
+
+## AMENDMENT BATCH AB-205 — `AM-380`–`AM-381` (2026-11-16): the MSA standards follow Sayan's MSA point to point
+
+**Owner, 2026-11-16 (ruling, relayed verbatim in spirit):** "Do not change the whole Constitution.
+Only change the points that differ from Sayan's MSA. Sayan's MSA is the final verdict for now —
+point to point use Sayan's MSA." This is the owner's explicit approval (rule 6) for every lock change
+below. Sayan's MSA = `legal-docs/MSA.pdf` (same text as the approved July 2025 docx recorded at
+`AM-316`, line 29841). Research: the CLM ledger's `audit/SAYAN-BASELINE-RND.md` (mismatch table
+D1–D15, PROP-SB-1..14). The Constitution text is NOT edited (`AM-72`/`AM-73`); this record is the
+amendment. Scope: MSA-coded standard files only; TOS, NDA and every other type keep their position.
+IDs scanned free on origin/main, every worktree, the CLM ledger and every remote branch for
+AM-370…AM-382, AB-200…AB-205, C-40…C-41 (another session takes IDs in parallel; headroom left).
+No legal wording is authored: every new position is MSA.pdf's own clause, quoted (rules 7/21).
+
+`AM-380` — the nine MSA positions that differ become MSA.pdf's text; the six it is silent on are suspended for MSA
+
+```text
+r1  DIFFERS (9). Each MSA standard's source becomes MSA.pdf, the clause quoted verbatim; the
+    Constitution quote moves to the file's `_history`; `msa_alignment` names this record.
+    D1 LIABILITY-MSA-001        12 months total fees, mutual (CONST §9)  -> 17.2: six (6) months
+                                of the amount paid for the specific Services giving rise to the
+                                claim, Leapswitch only (FEES_PAID_FOR_AFFECTED_SERVICES, mutual
+                                false). Reverses AM-43 r4 for the MSA; the AM-303 favour form is
+                                withdrawn on this standard (AM-239 r2: never a one-party cap).
+    D2 DATA-LOSS-EXCLUSION-MSA  every cause, direct or indirect (CONST §9, AM-163) -> 9.9:
+                                cause-limited (customer-supplied misinformation, misuse,
+                                third-party systems, incompatible configurations). The G-F
+                                narrowing check is withdrawn for this standard; a provider
+                                accepting data-loss liability is still a waiver (AM-152).
+    D3 DATA-PURGE-MSA-001       30-day retrieval window (CONST §13) -> 7.6.6: purge within
+                                fifteen (15) days of termination. The §13 "shorter than 30 days"
+                                Unacceptable limb (constitution_boundaries, AM-63/AM-159) no
+                                longer applies to the MSA.
+    D4 DISPUTE-VENUE-MSA-001    Pune (CONST §22, AM-150) -> 19.1 courts in India; 19.3 the High
+                                Court of Mumbai appoints; 19.4 arbitration in Mumbai, English.
+                                allowed_values MUMBAI, BOMBAY_HIGH_COURT (19.3's court by the name
+                                §22 prescribes). PUNE is no longer allowed on an MSA.
+    D5 DISPUTE-WINDOW-MSA-001   15 days of invoice date (CONST §16) -> 8.3: 5 working days from
+                                receipt of invoice (unit WORKING_DAYS; AM-381 r1).
+    D6 INDEMNITY-MSA-001        mutual framework (CONST §10, AM-311) -> 16.1: only the Customer
+                                indemnifies (`customer_indemnity_only`; AM-381 r2). Reverses
+                                AM-311 for the MSA.
+    D13 DATA-RESIDENCY-MSA-001  India residency (CONST §12) -> 11.5: lawful cross-border transfer.
+                                The "no data-residency commitment" Unacceptable limb withdrawn
+                                for the MSA. AM-322 r11 unchanged: a clause found is read by a
+                                person, never MATCH.
+    D14 SUB-PROCESSORS-MSA-001  disclosed and bound (CONST §12) -> 11.4: disclosure to
+                                affiliates/subcontractors/service providers under safeguards no
+                                less stringent than Applicable Law, deemed consent. AM-322 r11
+                                unchanged (person-read).
+    D15 TRADE-SECRET-CARVEOUT-MSA-001  trade secrets survive while secret (CONST §15) -> 12.3's
+                                flat three (3) years, which CONF-SURVIVAL-MSA-001 already
+                                measures: the carve-out is not applied to a document declared
+                                MSA (not_applicable_to MSA), and TRADE-SECRET-CARVEOUT-NDA-001
+                                may not take its place there (same treatment). The NDA position
+                                is unchanged on NDAs.
+r2  SILENT (6) — suspended for MSA, not deleted: BREACH-NOTIFICATION-MSA-001 (§12),
+    CHANGE-OF-CONTROL-NOTICE-MSA-001 (§31.14), LATE-INTEREST-MSA-001 (§16),
+    PRICE-CHANGE-NOTICE-MSA-001 (§16), SERVICE-DISCONTINUATION-MSA-001 (§31.14 A),
+    PAYMENT-PERIOD-MSA-001 (§16; 8.2 defers payment terms to the Service Order Form). Each gains
+    "MSA" in `not_applicable_to`: nothing is raised on a document declared MSA until the new MSA
+    states a position. On an untyped document they still apply by content (AM-51). No text is
+    invented (rule 7).
+r3  SAME (12) — unchanged: ARBITRATION, ASSIGNMENT, AUTORENEW, CONF-MUTUAL-NDA, CONF-SURVIVAL,
+    CURE-PERIOD, EARLY-TERM-RESTRICTION, GOVLAW, GST-EXCLUSIVE, IP-OWNERSHIP, LIAB-EXCLUSIONS,
+    SUSPENSION-NOTICE-CURE.
+r4  17.2 vs 17.7: 17.2 is used (the operative, complete clause; as the owner ruled 2026-08-19).
+    17.7 ("total fees paid by Customer in the __________ months preceding the claim") leaves its
+    period blank — OPEN ITEM for Legal. The document read as a whole still CONFLICTs (fixture
+    DOC-LIAB-04 unchanged), so our own MSA keeps one Needs-a-decision on liability until 17.7 is
+    fixed on paper.
+r5  Pune vs Mumbai is resolved FOR MSAs by this ruling: Mumbai. C-27 (resolved Pune by AM-150) is
+    superseded for the MSA venue; the Constitution's own §22 text and other types are untouched.
+    ARBITRATION-MSA-001 loses its `quote_not_position` label: its Mumbai quote is the position.
+r6  Locks amended (MSA scope only): AM-43 r4, AM-150, AM-163 (G-F narrowing), AM-303 (liability
+    favour), AM-311, AM-322 (r3 scope of §12/§15 MSA copies; r11 kept), AM-63/AM-159 (§13
+    retrieval limb), AM-316 (the ORIGINAL_2025 known points shrink accordingly). Not amended:
+    the zero-tolerance Legal Rule, rules 15/18, the audit trail, the cost guard, AM-65.
+r7  Config versioning: the standards are re-imported as new versions and published as a NEW
+    snapshot; no existing snapshot or Review changes (rule 16). Counts unchanged (92 active,
+    7 retired), so `tools.publish_payload` defaults hold.
+```
+
+`AM-381` — the engine reads a working-days standard and a customer-only indemnity (supports `AM-380`)
+
+```text
+r1  A NUMERIC standard whose own unit is WORKING_DAYS compares a working-days figure like for
+    like; against a calendar-day standard working days still deviate unconverted (AM-154). A
+    calendar-day figure against a working-days standard is a unit mismatch and fails closed
+    (45C.23).
+r2  `customer_indemnity_only` on an indemnity standard: the §10 mutual-framework check (R-1,
+    AM-311) is not applied, and ANY indemnity we, each party or an indemnifying role give is a
+    difference (TOO_BROAD) for a person. Grammar only, the existing `_WE_INDEMNIFY` recognition.
+r3  Deploy-time publish (ops-publish account): import_ratified_standards → publish_payload →
+    POST /configuration/publish → chunk_standards (ops/README §standards). Not run by this record.
+```

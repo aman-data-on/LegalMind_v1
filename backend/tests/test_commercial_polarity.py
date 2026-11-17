@@ -356,7 +356,8 @@ def test_the_business_angle_never_turns_working_days_into_days_or_money():
 def test_the_venue_named_is_the_one_the_standard_does_not_allow():
     from legalmind.api import angles
     std = _standard("DISPUTE-VENUE-MSA-001")["configuration"]
-    assert angles._outside({"values": ["Pune", "Mumbai"]}, std) == "Mumbai"
+    # AM-380 r5: the MSA venue is Mumbai (our MSA 19.4), so Pune is the one outside
+    assert angles._outside({"values": ["Mumbai", "Pune"]}, std) == "Pune"
 
 
 def test_breadth_reads_a_confirmed_clauses_own_continuation_paragraph():

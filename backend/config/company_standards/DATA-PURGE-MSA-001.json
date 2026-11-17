@@ -40,14 +40,25 @@
         }
       },
       "why": "phrase-shaped unit terms ('days after receipt of written notice') failed on any paraphrase and on '30days'; the unit is the unit, the context is a cap phrase/basis."
+    },
+    {
+      "date": "2026-11-16",
+      "record": "AM-380",
+      "source_document_before": "Legal Mind — Legal Constitution, Lawyer Review Version L1.5 (docs/02-legal-domain/LEGAL_CONSTITUTION_L1.5.md; owner ruling 2026-09-08: governs company positions)",
+      "source_clause_before": "§13 Termination & Suspension — Company Position",
+      "source_quote_before": "Following termination, the customer has a 30-day window to retrieve or export its data before deletion, free of charge, subject to the legal/compliance retention carve-outs in Section 12",
+      "description_before": "After termination, the customer has a set period to retrieve or export its data before it is deleted.",
+      "configuration_before": {
+        "preferred": 30
+      }
     }
   ],
   "requirement_code": "DATA-PURGE-MSA-001",
-  "description": "After termination, the customer has a set period to retrieve or export its data before it is deleted.",
+  "description": "After termination Leapswitch purges the customer's data within a set number of days.",
   "ratified": "2026-08-19",
-  "source_document": "Legal Mind — Legal Constitution, Lawyer Review Version L1.5 (docs/02-legal-domain/LEGAL_CONSTITUTION_L1.5.md; owner ruling 2026-09-08: governs company positions)",
-  "source_clause": "§13 Termination & Suspension — Company Position",
-  "source_quote": "Following termination, the customer has a 30-day window to retrieve or export its data before deletion, free of charge, subject to the legal/compliance retention carve-outs in Section 12",
+  "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025) — MSA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR (Sayan's MSA; same text as the approved July 2025 docx, all_lock.md AM-316)",
+  "source_clause": "7.6.6",
+  "source_quote": "Leapswitch shall purge all Customer data from its equipment and infrastructure within fifteen (15) days of termination, without further notice, and repurpose such infrastructure for other operations.",
   "configuration": {
     "document_type": "MSA",
     "commercial_pillar": true,
@@ -62,7 +73,7 @@
         ]
       }
     },
-    "preferred": 30,
+    "preferred": 15,
     "unit": "DAYS",
     "basis": "POST_TERMINATION_DATA_PURGE",
     "scope_key": "GENERAL",
@@ -138,5 +149,12 @@
       "effect_rule": "GOOD_AND_NEUTRAL_ACCEPTED_2026_11_16"
     }
   },
-  "_legal_rule_note": "PRIYEN'S RULE (owner 'change and update', 2026-11-16; replaces the zero-tolerance ruling of 2026-08-19/20 for client changes). Better for us or no change for us is accepted without a Legal Decision; only what is worse goes to Legal. MATCH -> ACCEPTABLE; a deviation -> UNACCEPTABLE -> Legal, except a deviation on this standard's declared favourable side (favourable_direction, from a source; never with favourable_counsel_check) -> ACCEPTABLE, still a DEVIATION (AM-239). No tolerance bands. effect_rule lets a client change the engine proves better or unchanged for us be accepted automatically, audited, reopenable by Legal."
+  "_legal_rule_note": "PRIYEN'S RULE (owner 'change and update', 2026-11-16; replaces the zero-tolerance ruling of 2026-08-19/20 for client changes). Better for us or no change for us is accepted without a Legal Decision; only what is worse goes to Legal. MATCH -> ACCEPTABLE; a deviation -> UNACCEPTABLE -> Legal, except a deviation on this standard's declared favourable side (favourable_direction, from a source; never with favourable_counsel_check) -> ACCEPTABLE, still a DEVIATION (AM-239). No tolerance bands. effect_rule lets a client change the engine proves better or unchanged for us be accepted automatically, audited, reopenable by Legal.",
+  "msa_alignment": {
+    "record": "AM-380",
+    "date": "2026-11-16",
+    "ruling": "owner, 2026-11-16: \"Do not change the whole Constitution. Only change the points that differ from Sayan's MSA. Sayan's MSA is the final verdict for now — point to point use Sayan's MSA.\" (rule 6 approval for these lock changes; AB-205)",
+    "kind": "DIFFERS — the MSA standard now states Sayan's MSA",
+    "note": "Constitution §13's 30-day window (and its 'shorter than 30 days' Unacceptable limb, constitution_boundaries) no longer applies to the MSA."
+  }
 }
