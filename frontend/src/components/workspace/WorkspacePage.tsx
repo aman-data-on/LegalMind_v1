@@ -46,6 +46,7 @@ import { AskIntentProvider } from "./askIntent";
 import { ChangesPane, ReplyNotice, SendOut, useClientChanges } from "./ChangesPane";
 import { ConvertPaper } from "./ConvertPaper";
 import { PackageBar, PackageCard, usePackagePlan, usePreparedEntries } from "./Package";
+import { FillInFields } from "./FillInFields";
 import { AmendmentsPanel, GovernedByLink } from "./Amendments";
 import { AMENDMENT_PLACE, packageLine } from "@/lib/package";
 import { ClientMenu } from "@/components/clients/ClientWorkspace";
@@ -514,7 +515,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
           With Legal and nothing here offers it as sendable. */}
       {version && view === "document" && version.reply
         && (version.sent_at || stageCode === "READY_TO_SEND") ? (
-        <ReplyNotice version={version} versions={versions} canSend={!!changeList?.can_send} />
+        <ReplyNotice version={version} versions={versions} canSend={!!changeList?.can_send && viewer !== "legal"} />
       ) : null}
       {version && view === "document" && stageCode === "FINAL" && isLatest ? (
         <FinalCard version={version} versions={versions} since={contract.negotiation_stage!.since} />
@@ -523,6 +524,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
                      filesOpen={stageCode === "READY_TO_SEND" || stageCode === "READY_TO_SIGN" || stageCode === "SIGNED"} />
       ) : null}
       {view === "document" ? <AmendmentsPanel contract={contract} canStart={canAmend} /> : null}
+      {view === "document" ? <FillInFields contractId={contract.id} onSaved={() => { openVersion(null); void load(); }} /> : null}
       {/* B3 page 1: an old Markdown reading keeps its marks; a pinned reading is never re-read
           (rules 16/17), so the way out is the same file as a new version */}
       {version && versions.find((v) => v.id === version.id)?.reader_outdated ? (

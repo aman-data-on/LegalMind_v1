@@ -708,7 +708,12 @@ export const api = {
     request<unknown>(p`/templates/${id}/keep-as-written`, { method: "POST", body: { code, detail, reason } }),
   setOurSignatory: (id: string, body: { name: string; designation: string; email: string }) =>
     request<unknown>(p`/templates/${id}/our-signatory`, { method: "POST", body }),
-  makeBlankField: (id: string, body: { where: string; n: number; label: string; required: boolean }) =>
+  /** `AM-394`: the contract's fill-in fields and their values */
+  blankValues: (contractId: string) => request<BlankValues>(p`/contracts/${contractId}/blank-values`),
+  fillBlankValues: (contractId: string, body: { values: Record<string, string>; expected_version: number }) =>
+    request<{ document_version_id: string; version_number: number }>(
+      p`/contracts/${contractId}/blank-values`, { method: "POST", body }),
+  makeBlankField: (id: string, body: { where: string; n: number; label: string; required: boolean; default?: string }) =>
     request<unknown>(p`/templates/${id}/blank-fields`, { method: "POST", body }),
   publishTemplate: (id: string, approvalReference = "") =>
     request<TemplateSummary>(p`/templates/${id}/publish`, {
@@ -1157,4 +1162,11 @@ export async function feedback(
     throw await toApiError(response, response.headers.get("X-Request-Id") ?? "-");
   }
   return ((await response.json()) as DataEnvelope<{ id: string }>).data;
+}
+
+/** `AM-394`: a contract's fill-in fields (blanks Legal made into fields) */
+export interface BlankValues {
+  fields: { key: string; label: string; value: string | null; default: string | null; required: boolean }[];
+  version_number: number | null;
+  can_edit: boolean;
 }

@@ -31,15 +31,17 @@ export function ReanalyseNotice({ documentVersionId, snapshotId, onStarted }: {
   const [error, setError] = useState<string | null>(null);
   const [refused, setRefused] = useState(false);
 
+  const mayReanalyse = can(P.REVIEW_CREATE) && owner;
   useEffect(() => {
+    if (!mayReanalyse) return;   // E2E 6h: never request what this reader cannot use
     let live = true;
     api.snapshots({ page_size: 1 })
       .then(({ items }) => { if (live) setLatest(items[0]?.id ?? null); })
       .catch(() => { /* no notice: nothing to compare with */ });
     return () => { live = false; };
-  }, [snapshotId]);
+  }, [snapshotId, mayReanalyse]);
 
-  if (!can(P.REVIEW_CREATE) || !owner || !latest || latest === snapshotId) return null;
+  if (!mayReanalyse || !latest || latest === snapshotId) return null;
 
   async function reanalyse() {
     setBusy(true);

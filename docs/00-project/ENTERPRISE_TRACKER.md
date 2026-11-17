@@ -34,8 +34,15 @@ Nothing is committed until the owner says "commit".
 
 ---
 
+## Open — AB-210 (2026-11-17): production E2E fix batch (`audit/E2E-FIX-BATCH-*.md`)
+- 🔧 Batch A+B (deal flow, fill-in fields; AM-393/394/396/398) — PR 1 `fix/e2e-batch-ab-20261117`.
+- ⏳ Batch C (wording to send back = our MSA; one decision per clause; Effect for us column; Ask the client) — AM-395/AM-399, PR 2.
+- ⏳ Batch D (Annexure 1 from the template page; package order) — AM-397, PR 2.
+- 🙋 C-32: the 17.7 default "six (6)" makes the template publish check refuse (a filled 17.7 conflicts with 17.2, AM-380 r4/AM-387). Owner/Legal to choose; until then production keeps template v1 and sales fills 17.7 per deal under "Fill-in fields".
+- 🙋 Legal: recital A words (until then a sales field); Annexure 1 clause text (L3); 5.3 lines for 10 services.
+
 ## Open — AB-205 (2026-11-16): MSA standards aligned to our MSA
-- Deploy: re-import + publish the standards (new snapshot) + chunk_standards.
+- ✅ 2026-11-17 Deploy: standards imported and published on production, snapshot `179b29e4` (Mumbai, own_wording verified live).
 - Legal: MSA 17.7 "total fees paid … in the __________ months" — blank period contradicts 17.2 (our MSA keeps a liability CONFLICT until fixed on paper).
 - Legal: 8.9 "discontinue" on non-payment read as NOT a service-discontinuation notice (suspension of SERVICE-DISCONTINUATION for MSA rests on that).
 - Product: residency (11.5) and sub-processors (11.4) clauses still go to a person on every MSA (AM-322 r11); a "same as our MSA text" check would clear them.

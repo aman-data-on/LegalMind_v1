@@ -16,6 +16,17 @@
 *The short version, kept current so a new session can answer "where are we?" immediately.
 Updated at the end of every working session.*
 
+**2026-11-17 — Production test fixes, part 1 (built, being merged; not deployed).** After Legal
+says "Sign after our changes", the deal now waits at "Ready to send" so sales can download our reply
+and mark it sent; the suggestion no longer says "Sign as is" when points were rejected, and Sign as
+is is refused then; Legal no longer sees sales buttons; sales sees "With Legal" only after sending
+to Legal. A blank Legal makes optional now needs a default (17.7 → "six (6)", your decision), and
+sales can change fill-in fields on our contract until it goes to the client. One thing needs you: with 17.7
+filled, the template check reports 17.7 and 17.2 as a conflict, so the new template version cannot be
+published (C-32) — choose: Legal removes 17.7, or the check treats a 17.7 equal to 17.2 as a repeat.
+Until then sales fills 17.7 on each deal. Part 2 (our MSA's wording on the cards,
+one decision per clause, Annexure 1) follows.
+
 **2026-11-11 — Fourteen Constitution positions become standards (built and verified, waiting for your "commit").**
 Contracts are now checked for data kept in India, telling the other side about a personal data
 breach, and sub-processors (§12), for trade secrets staying protected on an MSA (§15), and for

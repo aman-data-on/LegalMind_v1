@@ -78,7 +78,7 @@ export interface TemplateClause {
   blanks?: TemplateBlank[];
 }
 
-export interface TemplateBlank { n: number; before: string; after: string; field: { key: string; label: string; required: boolean } | null }
+export interface TemplateBlank { n: number; before: string; after: string; field: { key: string; label: string; required: boolean; default?: string | null } | null }
 /** `AM-390`: a check finding Legal kept as written, from the audit trail */
 export interface KeptItem { code: string; detail: string; reason: string; by: string | null; at: string }
 

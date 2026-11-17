@@ -316,7 +316,7 @@ export function ChangesPane({
       {data.can_decide ? <NotesForLegal list={data} onPick={pick} rowFor={(n) => (data.changes.find((c) => c.clause.number === n)
         ?? data.changes.find((c) => c.clause.number?.startsWith(`${n}.`)))?.row_key ?? null} /> : null}
       {/* R3: the deal owner's one line — who has the changes now, never Legal's view */}
-      {!data.can_decide && data.changes.length ? <p className="cx-banner cx-sales-status" data-testid="sales-status">{salesStatus(data.changes)}</p> : null}
+      {!data.can_decide && data.changes.length ? <p className="cx-banner cx-sales-status" data-testid="sales-status">{salesStatus(data.changes, data.sent_to_legal ?? true)}</p> : null}
       <p className="ws-visually-hidden" role="status" aria-live="polite">{said}</p>
       {packageBar?.(pick)}
       {data.special_conditions_not_applied?.length ? (
@@ -539,7 +539,7 @@ export function AcceptTogether({ effect, rows, list, contractId, onClose, onDone
  *  "what is left" without a colour or a counter shouting. */
 function RowWho({ change, reader }: { change: ClientChange; reader: ChangeList }) {
   // R3: a deal owner reads who has it in their own words, on every row
-  if (!reader.can_decide) return <span className={change.answer ? "cx-row__done" : "cx-row__tag"}>{salesLine(change)}</span>;
+  if (!reader.can_decide) return <span className={change.answer ? "cx-row__done" : "cx-row__tag"}>{salesLine(change, reader.sent_to_legal ?? true)}</span>;
   const who = whoLine(change, reader);
   if (change.answer) {
     return (

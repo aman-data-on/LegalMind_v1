@@ -63,9 +63,6 @@ def final_of(meta: dict | None) -> str | None:
     meta = meta or {}
     return meta.get("package_of") or meta.get("final_copy_of")
 
-_READY = {"SIGN_AS_IS", "SIGN_WITH_CHANGES"}
-
-
 @dataclass(frozen=True)
 class VersionFacts:
     version_number: int
@@ -106,7 +103,15 @@ def derive_stage(created_at: datetime, versions: list[VersionFacts],
         if review.outcome is None:    # Legal records the decision on the final copy
             return NegotiationStage.INTERNAL_REVIEW, (review.in_review_since
                                                       or latest.created_at)
-    if review.outcome in _READY and review.outcome_at:
+    # AM-393: "Sign after our changes" is ready to sign only once our changes reached the
+    # client. Our unsent reply, or the client's version itself, is Ready to send; a sent
+    # reply falls through to With the client.
+    if (review.outcome == "SIGN_WITH_CHANGES" and review.outcome_at
+            and latest.sent_at is None):
+        if latest.reply_to or latest.role == "CLIENT_MODIFIED":
+            return NegotiationStage.READY_TO_SEND, review.outcome_at
+        return NegotiationStage.READY_TO_SIGN, review.outcome_at
+    if review.outcome == "SIGN_AS_IS" and review.outcome_at:
         return NegotiationStage.READY_TO_SIGN, review.outcome_at
     if review.outcome == "ON_HOLD" and review.outcome_at:
         return NegotiationStage.ON_HOLD, review.outcome_at

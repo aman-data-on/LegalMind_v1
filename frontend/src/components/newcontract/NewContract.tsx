@@ -255,6 +255,8 @@ function OurCompany({ questions, local, open, onOpen, children }: {
   const signs = signer && answered(signer, local[signer.key]) ? String(local[signer.key]) : null;
   const as = title && answered(title, local[title.key]) ? String(local[title.key]) : null;
   const missing = questions.filter((q) => (q.class ?? "M") !== "O" && q.locked_value === undefined && !answered(q, local[q.key]));
+  // E2E 6f: a signatory fixed by our template is shown, never offered as a choice
+  const fixed = questions.filter((q) => (q.class ?? "M") !== "O").every((q) => q.locked_value !== undefined);
   return (
     <section className="nc-group nc-ours" aria-labelledby="nc-g-ours">
       <h2 id="nc-g-ours" className="nc-sub">{OURS}</h2>
@@ -267,7 +269,7 @@ function OurCompany({ questions, local, open, onOpen, children }: {
           </p>
         </div>
         <button type="button" className="ws-btn ws-btn--sm" aria-expanded={open} aria-controls="nc-ours-fields"
-                onClick={() => onOpen(!open)}>{open ? "Done" : signs ? "Change" : "Choose who signs"}</button>
+                onClick={() => onOpen(!open)}>{open ? "Done" : fixed ? "See who signs" : signs ? "Change" : "Choose who signs"}</button>
       </div>
       {open ? <div id="nc-ours-fields" className="nc-group">{children}</div> : null}
     </section>

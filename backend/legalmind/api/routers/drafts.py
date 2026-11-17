@@ -404,9 +404,27 @@ def create_from_draft(draft_id: UUID, body: DraftCreateContract,
         issuing_entity=publish.issuing_entity(row.brand or tv.brand)),  # type: ignore[arg-type]
         guard)["data"]
     contract = must_exist(guard.db.get(M.Contract, UUID(made["id"])), "contracts row")
+    version = _store_version(guard, storage, contract, tv, model, digest, 1,
+                             audit.CONTRACT_GENERATED)
+    guard.db.delete(row)                                       # AM-265 d4
+    guard.db.flush()
+    review = _review_reply(guard, version)
+    return data({"contract_id": str(contract.id), "document_version_id": str(version.id),
+                 "review_id": str(review.id) if review else None, "model_hash": digest,
+                 "pdf": f"/document-versions/{version.id}/pdf"})
+
+
+def _store_version(guard: Guard, storage: StorageBackend, contract: M.Contract,
+                   tv: M.TemplateVersion, model: dict[str, Any], digest: str,
+                   number: int, action: str,
+                   before: dict[str, Any] | None = None) -> M.DocumentVersion:
+    """Render ``model`` as our version ``number`` of ``contract``, preflight it, store it
+    with its generation record, audit ``action`` and start indexing and the PDF."""
+    layout = tv.layout or {}
+    name = layout.get("short_title") or layout.get("title") or tv.template_key
     docx = render_contract.render(model, tv.assets,
                                   contract_ref=str(contract.id)[:8].upper(),
-                                  version_number=1, model_hash=digest)
+                                  version_number=number, model_hash=digest)
     # AM-293 r2: no LibreOffice in this request — the worker makes the client PDF from
     # the stored DOCX (its page totals filled, the PDF checks run there, fail closed)
     found = publish.unkept(guard.db, tv.id, preflight.check(docx, model=model))
@@ -415,30 +433,106 @@ def create_from_draft(draft_id: UUID, body: DraftCreateContract,
                             for p in found])
     result = ingest_document(guard.db, storage, contract_id=contract.id,
                              uploaded_by=guard.user_id, data=docx,
-                             filename=f"{layout.get('short_title') or title}.docx",
+                             filename=f"{name}.docx",
                              declared_mime=DOCX_MIME)
     version = result.document_version
     version.doc_metadata = {**(version.doc_metadata or {}), "source": "ORGANIZATION",
                             "version_role": "COMPANY_DRAFT"}
-    generated = M.ContractDraft(
+    guard.db.add(M.ContractDraft(
         contract_id=contract.id, document_version_id=version.id,
         template_version_id=tv.id,
         values=model["values"], model_hash=digest,
         renderer_version=render_contract.RENDERER_VERSION,
         clean_storage_key=version.storage_key,   # the PDF is recorded on the version
-        created_by=guard.user_id)
-    guard.db.add(generated)
-    guard.db.delete(row)                                       # AM-265 d4
+        created_by=guard.user_id))
     guard.db.flush()
-    audit.record(guard.db, action=audit.CONTRACT_GENERATED, entity_type="contract",
+    audit.record(guard.db, action=action, entity_type="contract",
                  entity_id=contract.id, actor_id=guard.user_id,
-                 request_id=guard.request_id,
+                 request_id=guard.request_id, before=before,
                  after={"document_version_id": str(version.id),
                         "template_version_id": str(tv.id), "model_hash": digest,
                         "renderer_version": render_contract.RENDERER_VERSION})
     dispatch_indexing(guard.db, version.id, request_id=guard.request_id)
     dispatch_pdf(guard.db, version, "contract", request_id=guard.request_id)
+    return version
+
+
+class BlankValues(Body):
+    #: fill-in field key → its value (only fields Legal made of a blank, `AM-392`)
+    values: dict[str, str] = Field(min_length=1, max_length=50)
+    #: the latest version number the reader saw
+    expected_version: int = Field(ge=1)
+
+
+@router.get("/contracts/{contract_id}/blank-values")
+def list_blank_values(contract_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
+    """`AM-394`: the fill-in fields of the contract's latest generated version of ours,
+    with their values, and whether this reader may change them now."""
+    contract = guard.contract_readable(contract_id, P.DOCUMENT_VIEW)
+    db = guard.db
+    latest = db.execute(select(M.DocumentVersion)
+                        .where(M.DocumentVersion.contract_id == contract.id)
+                        .order_by(M.DocumentVersion.version_number.desc())
+                        .limit(1)).scalar()
+    made = None if latest is None else db.execute(select(M.ContractDraft).where(
+        M.ContractDraft.document_version_id == latest.id)).scalar()
+    tv = None if made is None else db.get(M.TemplateVersion, made.template_version_id)
+    values = made.values if made is not None else {}
+    fields = [{"key": v["key"], "label": model_.label(v),
+               "value": values.get(v["key"]), "default": v.get("default"),
+               "required": v.get("class") == "M"}
+              for v in (tv.variables if tv else []) if v.get("blank")]
+    # the deal's sales side only (UX P3): Legal never edits deal details
+    may = (bool(fields) and latest is not None and latest.sent_at is None
+           and P.CONTRACT_UPDATE in guard.permissions and contract.archived_at is None)
+    return data({"fields": fields, "can_edit": may,
+                 "version_number": latest.version_number if latest else None})
+
+
+@router.post("/contracts/{contract_id}/blank-values", status_code=201)
+def fill_blank_values(contract_id: UUID, body: BlankValues,
+                      guard: Guard = Depends(get_guard),
+                      storage: StorageBackend = Depends(get_storage)) -> dict:
+    """`AM-394`: the deal owner fills or changes a fill-in field after the contract was
+    made — only on our generated version not yet sent: a new version of ours is rendered
+    from the same template version with the new values, audited before/after. Any other
+    answer changes the deal and needs a new contract (409)."""
+    guard.contract_readable(contract_id, P.DOCUMENT_VIEW)
+    contract = guard.contract_negotiable(contract_id, P.CONTRACT_UPDATE)
+    guard.permission(P.CONTRACT_UPDATE)       # the sales side only, never Legal's basis
+    guard.permission(P.DOCUMENT_UPLOAD)
+    db = guard.db
+    latest = db.execute(select(M.DocumentVersion)
+                        .where(M.DocumentVersion.contract_id == contract.id)
+                        .order_by(M.DocumentVersion.version_number.desc())
+                        .limit(1).with_for_update()).scalar()
+    if latest is None or latest.version_number != body.expected_version:
+        raise Conflict("this contract changed meanwhile; reload it")
+    made = db.execute(select(M.ContractDraft).where(
+        M.ContractDraft.document_version_id == latest.id)).scalar()
+    if made is None or latest.sent_at is not None:
+        raise Conflict("fill-in fields change only on our latest version before it goes "
+                       "to the client")
+    tv = must_exist(db.get(M.TemplateVersion, made.template_version_id), "template")
+    fields = {v["key"] for v in tv.variables if v.get("blank")}
+    if set(body.values) - fields:
+        raise BusinessRuleRejected("only fill-in fields can be changed here — other "
+                                   "answers change the deal: start a new contract")
+    values = {k: " ".join(v.split()) for k, v in body.values.items()}
+    try:
+        model = model_.resolve(publish.template_dict(tv), _clauses(guard, tv),
+                               {**made.values, **values})
+    except model_.ModelError as exc:
+        raise DraftInvalid(exc.problems) from exc
+    version = _store_version(
+        guard, storage, contract, tv, model, model_.model_hash(model),
+        latest.version_number + 1, BLANK_FILLED,
+        before={k: made.values.get(k) for k in values} | {
+            "document_version_id": str(latest.id)})
     review = _review_reply(guard, version)
-    return data({"contract_id": str(contract.id), "document_version_id": str(version.id),
-                 "review_id": str(review.id) if review else None, "model_hash": digest,
-                 "pdf": f"/document-versions/{version.id}/pdf"})
+    return data({"document_version_id": str(version.id),
+                 "version_number": version.version_number,
+                 "review_id": str(review.id) if review else None})
+
+
+BLANK_FILLED = "contract.blank_filled"

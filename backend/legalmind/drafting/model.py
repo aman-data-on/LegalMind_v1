@@ -247,6 +247,8 @@ def validate(variables: list[Mapping[str, Any]],
                 problems.append({"field": key, "problem": "is fixed by our standard and "
                                  "cannot be changed here"})
             raw = var["locked_value"]
+        if (raw is None or raw == "") and var.get("default"):
+            raw = var["default"]        # AM-394: the value Legal set for an empty blank
         if raw is None or raw == "":
             if cls != "O":
                 problems.append({"field": key, "problem": "is required"})
@@ -534,6 +536,8 @@ def _pins(r: _Resolver, pins: list[Mapping[str, Any]],
 
 #: a blank in approved text: a run of three or more underscores ("banks at ______")
 UNDERSCORES = re.compile(r"_{3,}")
+#: a blank and a lone space before the punctuation after it (dropped once filled)
+_BLANK_IN_TEXT = re.compile(r"_{3,}(?: (?=[.,;:]))?")
 
 
 def blank_runs(node: Any) -> list[dict[str, str]]:
@@ -573,8 +577,13 @@ def _fill_blanks(template: Mapping[str, Any],
             def one(m: re.Match) -> str:
                 seen[0] += 1
                 key = slots.get(seen[0])
-                return "{" + key + "}" if key else m.group(0)
-            return UNDERSCORES.sub(one, node)
+                if not key:
+                    return m.group(0)
+                # AM-394: the source glues a blank to the next word ("___are") or spaces
+                # it from a full stop ("___ ."); the filled copy reads as a sentence
+                glued = m.end() < len(node) and node[m.end()].isalnum()
+                return "{" + key + "}" + (" " if glued else "")
+            return _BLANK_IN_TEXT.sub(one, node)
         if isinstance(node, list):
             return [fill(x, slots, seen) for x in node]
         if isinstance(node, dict):

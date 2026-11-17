@@ -553,6 +553,8 @@ export const VERDICT_COPY = {
 /** R3: the deal owner's words for who has each change, and the deal's one status line. */
 export const SALES_LINE = {
   withLegal: "With Legal: nothing for you",
+  forLegal: "Legal answers this",
+  sendToLegal: "Your turn: send the client's changes to Legal.",
   legalAnswered: "Legal answered",
   yourTurn: "Your turn",
   ready: "Ready to send the reply",

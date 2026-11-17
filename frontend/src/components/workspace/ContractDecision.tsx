@@ -54,7 +54,9 @@ export function ContractDecision({ reviewId, reviewStatus, refreshKey, onRecorde
   const current = state.history.at(-1) ?? null;
   const closed = reviewStatus === "CLOSED";
   // AM-318: a final contract is signed as it is, or not — never "after our changes"
-  const options = ORDER.filter((o) => !(closed && o === "ON_HOLD") && !(state.final && o === "SIGN_WITH_CHANGES"));
+  // AM-396: the server refuses Sign as is while this round sends changes back
+  const options = ORDER.filter((o) => !(closed && o === "ON_HOLD") && !(state.final && o === "SIGN_WITH_CHANGES")
+    && !(o === "SIGN_AS_IS" && state.sign_as_is_allowed === false));
   const showForm = canDecide && state.ready && (editing || current === null);
   const preset = current?.outcome !== "ON_HOLD" && current ? current.outcome : state.suggested;
   // a suggestion the final contract cannot take is no default: the reviewer chooses
@@ -105,8 +107,7 @@ export function ContractDecision({ reviewId, reviewStatus, refreshKey, onRecorde
           {": “"}{current.justification}{"”"}
         </p>
       ) : canDecide ? null : (
-        <p className="ws-pane__note">Every point is decided. A reviewer records what to do with
-          the contract.</p>
+        <p className="ws-pane__note">Legal decides the contract. Nothing for you.</p>
       )}
       {state.read_only && !error ? (
         <p className="ws-pane__note">No decision can be recorded here: {state.read_only}.</p>
@@ -126,7 +127,7 @@ export function ContractDecision({ reviewId, reviewStatus, refreshKey, onRecorde
                        checked={selected === o} onChange={() => setChoice(o)} />
                 <span>{CONTRACT_OUTCOME_LABELS[o]}</span>
                 {o === state.suggested && options.includes(state.suggested) ? (
-                  <span className="ws-contract__hint">Suggested from the point decisions</span>
+                  <span className="ws-contract__hint">Suggested from your answers</span>
                 ) : null}
               </label>
             ))}

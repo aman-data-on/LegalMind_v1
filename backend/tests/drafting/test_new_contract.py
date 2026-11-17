@@ -247,6 +247,45 @@ def test_create_makes_v1_company_draft_reviewed_and_prefills_the_next(
     assert {"party_two_name", "count_value"} <= set(again["prefilled"])
 
 
+@pytest.fixture
+def count_is_blank(placeholder):
+    """party_one_cin made a fill-in field (`AM-392`) before the template is published."""
+    for v in placeholder[0]["variables"]:
+        if v["key"] == "party_one_cin":
+            v["blank"] = {"in": "NOWHERE", "n": 1}
+
+
+def test_a_fill_in_field_is_changed_after_create_as_a_new_version_of_ours(
+        db, api, count_is_blank, published, staff, answers):
+    """AM-394: the deal owner fills a blank field on the made contract — a new version
+    of ours, audited; any other answer, a stale version or another user is refused."""
+    sign_in(api, db, staff)
+    draft = _start(api, published, answers=answers).json()["data"]
+    cid = api.post(f"{V1}/drafts/{draft['id']}/create",
+                   json={"expected_version": 0}).json()["data"]["contract_id"]
+    url = f"{V1}/contracts/{cid}/blank-values"
+    listed = api.get(url).json()["data"]
+    assert (listed["can_edit"], [f["key"] for f in listed["fields"]]) == (
+        True, ["party_one_cin"])
+    assert api.post(url, json={"values": {"party_one_cin": "U5"}, "expected_version": 2}
+                    ).status_code == 409
+    assert api.post(url, json={"values": {"party_two_name": "X"}, "expected_version": 1}
+                    ).status_code == 422
+    done = api.post(url, json={"values": {"party_one_cin": "U5"}, "expected_version": 1})
+    assert done.status_code == 201, done.text
+    v2 = db.get(M.DocumentVersion, uuid.UUID(done.json()["data"]["document_version_id"]))
+    assert (v2.version_number, v2.doc_metadata["version_role"]) == (2, "COMPANY_DRAFT")
+    assert db.query(M.ContractDraft).filter_by(document_version_id=v2.id).one(
+        ).values["party_one_cin"] == "U5"
+    event = db.query(M.AuditEvent).filter_by(action="contract.blank_filled").one()
+    assert event.before_state["party_one_cin"] == answers.get("party_one_cin")
+    other = make_user(db)
+    grant_role(db, other, P.ROLE_USER)
+    sign_in(api, db, other)
+    assert api.post(url, json={"values": {"party_one_cin": "U6"}, "expected_version": 2}
+                    ).status_code == 404
+
+
 def test_a_deals_own_figure_is_never_carried_from_another_deal():
     """AM-324 r2: a variable marked "prefill": false (the liability months) is answered
     afresh on every deal — never filled from the client's previous contract."""

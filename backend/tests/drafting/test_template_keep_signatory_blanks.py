@@ -94,10 +94,14 @@ def test_a_blank_becomes_a_fill_in_field_and_the_words_never_change(db, api, rea
         "where": "CLAUSE_B", "n": 3, "label": "Place"}).status_code == 409
     assert api.post(_url(ready, "/blank-fields"), json={
         "where": "CLAUSE_B", "n": 1, "label": "bad_label"}).status_code == 409
+    # AM-394: an optional blank needs the value it takes when sales leaves it empty
+    assert api.post(_url(ready, "/blank-fields"), json={
+        "where": "CLAUSE_B", "n": 2, "label": "Months", "required": False}).status_code == 409
     for n, label, required in ((1, "Placeholder place", True),
                                (2, "Placeholder months", False)):
         made = api.post(_url(ready, "/blank-fields"), json={
-            "where": "CLAUSE_B", "n": n, "label": label, "required": required})
+            "where": "CLAUSE_B", "n": n, "label": label, "required": required,
+            **({} if required else {"default": "Six"})})
         assert made.status_code == 200, made.text
     assert api.post(_url(ready, "/blank-fields"), json={
         "where": "CLAUSE_B", "n": 1, "label": "Again"}).status_code == 409
@@ -112,13 +116,27 @@ def test_a_blank_becomes_a_fill_in_field_and_the_words_never_change(db, api, rea
     clauses = {k: publish.clause_dict(r) for k, r in rows.items()}
     answers = dict(ready.layout["check_values"])
     filled = model_.resolve(publish.template_dict(ready), clauses,
-                            {**answers, "blank_2": "Six"})
+                            {**answers, "blank_2": "Seven"})
     text = str(filled)
-    assert "Check value" in text and "Six" in text and "______" not in text
+    assert "Check value" in text and "Seven" in text and "______" not in text
     left = str(model_.resolve(publish.template_dict(ready), clauses, answers))
-    assert "______" in left                    # unanswered: Final is blocked on it
+    assert "Six" in left and "______" not in left     # unanswered: Legal's default
     with pytest.raises(model_.ModelError, match="blank_1"):
         model_.resolve(publish.template_dict(ready), clauses,
                        {k: v for k, v in answers.items() if k != "blank_1"})
     assert {k: r.content_hash for k, r in publish.pinned_clauses(db, ready).items()
             } == hashes
+
+
+@pytest.mark.parametrize("text, out", [
+    ("banks at ___________are open", "banks at Pune are open"),
+    ("providing _______________ .", "providing Pune."),
+    ("providing ____, and", "providing Pune, and"),
+    ("at ____ and ____", "at Pune and ____"),
+])
+def test_a_filled_blank_reads_as_a_sentence(text, out):
+    """AM-394: no glued word, no space before punctuation; an unfilled run stays."""
+    tpl = {"variables": [{"key": "b", "blank": {"in": "C", "n": 1}}], "layout": {}}
+    _, clauses = model_._fill_blanks(tpl, {("C", 1): {"clause_key": "C", "body": text}},
+                                     {"b": "x"})
+    assert clauses[("C", 1)]["body"].replace("{b}", "Pune") == out
