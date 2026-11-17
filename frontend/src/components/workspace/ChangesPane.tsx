@@ -110,10 +110,11 @@ export function useClientChanges(contractId: string, versions: DocumentVersion[]
 type FilterDef = { id: Filter; label: string; empty: string };
 /** What each change does for us (`AM-299`) — a second, separate set of filters. */
 export const EFFECT_FILTERS: FilterDef[] = [
-  { id: "POSITIVE", label: "Better for us", empty: "No change here is better for us." },
-  { id: "NEUTRAL", label: "No change for us", empty: "No change here leaves us where we were." },
+  // 6d (UX §4): Good / Neutral / Bad or Legal checks — the review table's words
+  { id: "POSITIVE", label: "Good for us", empty: "No change here is good for us." },
+  { id: "NEUTRAL", label: "Neutral", empty: "No change here leaves us where we were." },
   { id: "FALLBACK", label: "Fallback", empty: "No change here is a fallback from our opening position." },
-  { id: "NEGATIVE", label: "Worse for us", empty: "No change here is worse for us." },
+  { id: "NEGATIVE", label: "Legal checks", empty: "No change here goes to Legal." },
 ];
 
 const EFFECT_ICON: Record<EffectForUs, typeof IconBetter> = { POSITIVE: IconBetter, NEUTRAL: IconSame, FALLBACK: IconFallback, NEGATIVE: IconWorse };

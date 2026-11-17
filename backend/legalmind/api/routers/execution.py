@@ -55,7 +55,9 @@ router = APIRouter(tags=["execution"], route_class=CommitBeforeResponse)
 
 #: `AM-298`: a contract filed as already signed — no negotiation in LegalMind
 SIGNED_OUTSIDE = "SIGNED_OUTSIDE"
-_READY = {"SIGN_AS_IS", "SIGN_WITH_CHANGES"}
+#: AM-393: "Mark signed" reads the one derived stage (`domain.deal_stage`), never its own
+#: outcome list — "Sign after our changes" is ready only once the client has our reply
+_READY = {"READY_TO_SIGN", "FINAL"}
 #: the record's own fields, carried from row to row
 FIELDS = ("stamp_method", "stamp_reference", "stamp_state", "duty_paid", "stamped_on",
           "not_stamped_ack_by", "signatories", "seal_used", "witnesses",
@@ -174,9 +176,14 @@ def agreed(db, contract_id: UUID, signed_copy: UUID | None) -> dict[str, Any]:
         open_points = len(db.execute(select(M.Finding.id).where(
             M.Finding.review_id == review.id,
             M.Finding.status.in_(negotiation._UNDECIDED))).all())
+    from legalmind.api.routers.contracts import derive_stages  # circular at import
+
+    contract = db.get(M.Contract, contract_id)
+    stage = derive_stages(db, [contract]).get(contract_id, {}).get("stage") \
+        if contract is not None else None
     return {"version": version, "review": review,
             "outcome": outcome.outcome.value if outcome else None,
-            "open_points": open_points}
+            "stage": stage, "open_points": open_points}
 
 
 def compare(guard: Guard, contract: M.Contract, agreed_version: M.DocumentVersion | None,
@@ -215,9 +222,12 @@ def blockers(facts: dict, record: M.Execution | None, comparison: dict | None,
     def no(code: str, message: str) -> None:
         out.append({"code": code, "message": message})
 
-    if facts["outcome"] not in _READY:
+    if facts["outcome"] not in ("SIGN_AS_IS", "SIGN_WITH_CHANGES"):
         no("NOT_DECIDED", "The contract decision is not “Sign as is” or “Sign after our "
                           "changes”.")
+    elif facts.get("stage") not in _READY:
+        no("REPLY_NOT_AGREED", "Our changes have not reached the client and come back "
+                               "agreed yet — send our reply first.")
     if facts["open_points"]:
         n = facts["open_points"]
         no("OPEN_POINTS", f"{n} point{'s are' if n != 1 else ' is'} still undecided.")

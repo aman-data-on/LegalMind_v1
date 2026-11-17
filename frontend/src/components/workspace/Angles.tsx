@@ -297,12 +297,16 @@ export function LegalAngleView({ angles, onOpen, decided, words, withRecommendat
   );
 }
 
+/** AM-395: every source but a Company Position is approved wording to send back. */
+export const isWording = (proposal: CounterProposal | undefined): boolean =>
+  !!proposal && proposal.kind !== "COMPANY_POSITION";
+
 /** The counter-proposal card on a deviating finding: the Constitution's own words to
  *  send back, labelled exactly as the Constitution labels them. */
 export function CounterProposalCard({ proposal }: { proposal: CounterProposal }) {
   // a Company Position is our stance, not clause wording: never "send this back" (review,
   // 2026-10-17) — only the Constitution's Drafting Notes are wording to send
-  const wording = proposal.kind === "DRAFTING_LANGUAGE";
+  const wording = isWording(proposal);
   // B3 p1: where the wording comes from ("Constitution §16 — Drafting Notes…") is a Legal
   // detail (PLAIN-LANGUAGE §3): shown to a `legal.review` holder only — by permission,
   // never by role name. The wording itself is the server's, unchanged.

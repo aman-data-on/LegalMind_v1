@@ -171,3 +171,55 @@ def clean(docx_bytes: bytes) -> bytes:
                                       standalone=True)
             dst.writestr(info, data)
     return out.getvalue()
+
+
+_RUN = re.compile(r"_{3,}")
+
+
+def _flat(text: str) -> str:
+    return " ".join(text.split())
+
+
+def fill_blanks(docx_bytes: bytes, fills: list[dict]) -> tuple[bytes, list[str]]:
+    """`AM-400` r1: each fill-in field filled after the client saw our version, written
+    into the final copy's own blank — the underscore run that the words recorded before
+    it (``before``, from `model.blank_runs`) lead up to. Only that run is replaced,
+    inside one ``w:t``; what cannot be placed exactly is returned by key and left as it
+    is (rule 15: the blank check still blocks). Listed on the signing note."""
+    src = zipfile.ZipFile(io.BytesIO(docx_bytes))
+    root = etree.fromstring(src.read("word/document.xml"))
+    left = {f["key"]: f for f in fills if f.get("before")}
+    for p in root.iter(_W + "p"):
+        if not left:
+            break
+        ts = list(p.iter(_W + "t"))
+        seen = ""
+        for t in ts:
+            text = t.text or ""
+            m = _RUN.search(text)
+            while m is not None:
+                ahead = _flat(seen + text[:m.start()])
+                key = next((k for k, f in left.items()
+                            if ahead.endswith(_flat(f["before"])[-30:])), None)
+                if key is None:
+                    m = _RUN.search(text, m.end())
+                    continue
+                value = left.pop(key)["value"]
+                rest = text[m.end():]
+                glued = bool(rest) and rest[0].isalnum()
+                if rest.startswith(" ") and rest[1:2] in (".", ",", ";", ":"):
+                    rest = rest[1:]
+                text = text[:m.start()] + value + (" " if glued else "") + rest
+                t.text = text
+                t.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
+                m = _RUN.search(text, m.start() + len(value))
+            seen += text
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as dst:
+        for info in src.infolist():
+            data = src.read(info.filename)
+            if info.filename == "word/document.xml":
+                data = etree.tostring(root, xml_declaration=True, encoding="UTF-8",
+                                      standalone=True)
+            dst.writestr(info, data)
+    return out.getvalue(), sorted(left)

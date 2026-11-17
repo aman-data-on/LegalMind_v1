@@ -502,10 +502,11 @@ test.describe("the 3-column redesign (2026-08-31)", () => {
     // Back to Summary for the obligations assertion below.
     await page.getByRole("tab", { name: "Summary", exact: true }).click();
 
-    // No generation credential in e2e: obligations degrade to the honest quiet
-    // sentence — never an error banner, never fabricated content.
+    // AM-395 r5 (UX L10): the obligations analysis is Legal's — absent for this owner,
+    // never greyed (counsel's Summary carries it).
+    await expect(panel.getByRole("heading", { name: "Key terms" })).toBeVisible();
     await expect(panel.getByText("Obligations could not be extracted", { exact: false }))
-      .toBeVisible({ timeout: 20_000 });
+      .toHaveCount(0);
   });
 
   test("the outline carries DD-9 status markers derived from findings", async ({ page }) => {

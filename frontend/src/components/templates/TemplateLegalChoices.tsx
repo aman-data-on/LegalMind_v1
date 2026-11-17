@@ -30,6 +30,34 @@ function useSend(onDone: () => Promise<void>) {
   return { busy, error, send };
 }
 
+/** `AM-397`: Annexure 1 — Service Order Form on this version: the services, fees and
+ *  initial term sales answers, and the signature page after the annexures. The annexure's
+ *  own words are Legal's to supply; until then Final is blocked (the server says so). */
+export function OrderForm({ detail, onDone }: { detail: TemplateDetail; onDone: () => Promise<void> }) {
+  const { busy, error, send } = useSend(onDone);
+  const added = detail.variables.some((v) => v.key === "services" && v.group === "Order form");
+  return (
+    <div className="tpl-pubgroup"><h3>Annexure 1 — Service Order Form</h3>
+      {added ? (
+        <p className="tpl-help">Added. Sales picks the services, the fees for each and the initial term when making a
+          contract. The annexure&apos;s own wording is still yours to supply: a final contract cannot be made until
+          then.</p>
+      ) : (
+        <>
+          <p className="tpl-help">Add the order form: sales then picks the services, the fees and the initial term, and
+            the final contract reads MSA, Annexure 1, Annexure 2, then the signature page. No wording is added: the
+            annexure&apos;s words stay yours to supply.</p>
+          {error ? <p className="tpl-error" role="alert">{error}</p> : null}
+          <button type="button" className="ws-btn" disabled={busy}
+                  onClick={() => void send(() => api.addAnnexure1(detail.id))}>
+            {busy ? "Adding…" : "Add Annexure 1"}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
 /** "Keep as written" on one check finding about the approved words, with a reason. */
 export function KeepAsWritten({ templateId, keep, onDone }: {
   templateId: string; keep: { code: string; detail: string }; onDone: () => Promise<void>;

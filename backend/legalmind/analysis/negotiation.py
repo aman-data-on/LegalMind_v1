@@ -133,7 +133,9 @@ LOWER_CAP_IS_OURS = frozenset({"LIABILITY-MSA-001", "LIABILITY-TOS-001"})
 _NOT_MORE_THAN = frozenset({("FEES_PAID_FOR_AFFECTED_SERVICES", "FEES_PAID")})
 #: answer -> the stored choice (`AM-285` r1: our standard and our wording beside them)
 ANSWERS = {"keep_ours": "ours", "accept_theirs": "theirs",
-           "use_standard": "standard", "write_wording": "custom"}
+           "use_standard": "standard", "write_wording": "custom",
+           # AM-399: a question to the client in our reply (a Word comment), on any change
+           "ask_client": "ask"}
 #: `AM-290`: client paper first — a row per Finding of the client's version
 THEIRS_KIND = "THEIRS"
 THEIRS_PREFIX = "N|THEIRS|"

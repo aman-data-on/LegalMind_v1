@@ -34,13 +34,13 @@ describe("the stage line agrees with the counts", () => {
   const answered = { changes_total: 82, changes_left: 0, changes_left_for_me: 0, points_open: 17 };
   it("names the real next step once every change is answered", () => {
     expect(stageLine("INTERNAL_REVIEW", answered, "owner")).toBe("With Legal, 17 points");
-    expect(stageLine("INTERNAL_REVIEW", answered, "legal")).toBe("Legal deciding 17 points");
+    expect(stageLine("INTERNAL_REVIEW", answered, "legal")).toBe("With Legal, 17 points");   // AM-398 r2: one chip
     // Batch 1 (c): open points keep the final contract waiting
     expect(stageLine("CLIENT_RETURNED", answered)).toBe("Client replied");
     expect(stageLine("CLIENT_RETURNED", { ...answered, points_open: 0, points_waiting: 0 })).toBe("Ready for the final contract"); // N16
-    expect(stageLine("CLIENT_RETURNED", { ...answered, changes_ours: 5 })).toBe("Changes answered, reply next");
+    expect(stageLine("CLIENT_RETURNED", { ...answered, changes_ours: 5 })).toBe("Client replied");
     expect(stageLine("CLIENT_RETURNED", round)).toBe("Client replied");
-    expect(stageLine("INTERNAL_REVIEW", { points_open: 0 }, "legal")).toBe("Your review");
+    expect(stageLine("INTERNAL_REVIEW", { points_open: 0 }, "legal")).toBe("With Legal");
   });
   it("draws the same words on the chip", () => {
     const html = renderToStaticMarkup(

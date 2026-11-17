@@ -708,10 +708,12 @@ export const api = {
     request<unknown>(p`/templates/${id}/keep-as-written`, { method: "POST", body: { code, detail, reason } }),
   setOurSignatory: (id: string, body: { name: string; designation: string; email: string }) =>
     request<unknown>(p`/templates/${id}/our-signatory`, { method: "POST", body }),
+  /** `AM-397`: Annexure 1 — Service Order Form on a draft template version */
+  addAnnexure1: (id: string) => request<unknown>(p`/templates/${id}/annexure-1`, { method: "POST" }),
   /** `AM-394`: the contract's fill-in fields and their values */
   blankValues: (contractId: string) => request<BlankValues>(p`/contracts/${contractId}/blank-values`),
   fillBlankValues: (contractId: string, body: { values: Record<string, string>; expected_version: number }) =>
-    request<{ document_version_id: string; version_number: number }>(
+    request<{ document_version_id: string | null; version_number: number; applies_at_final: boolean }>(
       p`/contracts/${contractId}/blank-values`, { method: "POST", body }),
   makeBlankField: (id: string, body: { where: string; n: number; label: string; required: boolean; default?: string }) =>
     request<unknown>(p`/templates/${id}/blank-fields`, { method: "POST", body }),
@@ -1169,4 +1171,7 @@ export interface BlankValues {
   fields: { key: string; label: string; value: string | null; default: string | null; required: boolean }[];
   version_number: number | null;
   can_edit: boolean;
+  /** B5: our version already left — a change goes into the final contract, not a new version */
+  applies_at_final?: boolean;
+  filled_since_sent?: { key: string; label: string; value: string }[];
 }

@@ -16,6 +16,15 @@
 *The short version, kept current so a new session can answer "where are we?" immediately.
 Updated at the end of every working session.*
 
+**2026-11-17 — Production test fixes, part 2 (built; PR 2; not deployed).** The wording Legal
+offers to send back is now our own clause as we sent it (then our MSA's own words), never the generic
+Constitution paragraph; a lawyer's answer on a change is their decision on that clause (no second
+decision); the review table shows "Effect for us" and "Source"; Legal can "Ask the client" on any
+change; sales' Summary shows only sales work. Legal can add Annexure 1 (services, fees, term) to a
+draft template — its wording is still Legal's to supply, so a final contract waits for it. Sales and
+Legal now see the same stage at every step. Nothing for you except C-32 (still waiting) and Legal's
+Annexure 1 wording.
+
 **2026-11-17 — Production test fixes, part 1 (built, being merged; not deployed).** After Legal
 says "Sign after our changes", the deal now waits at "Ready to send" so sales can download our reply
 and mark it sent; the suggestion no longer says "Sign as is" when points were rejected, and Sign as

@@ -10,6 +10,16 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+- Production E2E fixes, part 2 (AB-211: `AM-395`, `AM-397`, `AM-399`, `AM-400`): the wording offered to
+  send back is our own clause as we sent it (then our MSA's own words, then the Constitution), with a
+  test that every MSA standard quote is word for word in MSA.pdf; a lawyer's answer on a change records
+  their decision on that clause's points once; the review table and its Word file gain "Effect for us"
+  and "Source"; "Ask the client" on every change (a comment in our reply); the sales Summary shows sales
+  work only; Legal can add Annexure 1 (services, fees, initial term) to a draft template from its page —
+  the annexure's words stay Legal's — and the final reads MSA → Annexure 1 → Annexure 2 → signatures;
+  a fill-in field filled after the client round goes into the final contract and the signing note;
+  one stage label for sales and Legal; Legal's "For my review" lists contracts sent to Legal; Mark
+  signed reads the deal stage.
 - Production E2E fixes, part 1 (AB-210: `AM-393`, `AM-394`, `AM-396`, `AM-398`): "Sign after our changes"
   now waits at Ready to send until sales downloads our reply and marks it sent; the contract-decision
   suggestion reads the whole round (a Reject suggests Sign after our changes) and Sign as is is refused

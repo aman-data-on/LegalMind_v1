@@ -21,7 +21,7 @@ export type EffectForUs = "POSITIVE" | "NEUTRAL" | "FALLBACK" | "NEGATIVE";
 /** Accepted together, without Legal: every effect but NEGATIVE. */
 export type AcceptableEffect = Exclude<EffectForUs, "NEGATIVE">;
 export const ACCEPTABLE_EFFECTS: AcceptableEffect[] = ["POSITIVE", "NEUTRAL", "FALLBACK"];
-export type Answer = "keep_ours" | "accept_theirs" | "use_standard" | "write_wording";
+export type Answer = "keep_ours" | "accept_theirs" | "use_standard" | "write_wording" | "ask_client";
 
 export interface ChangeFinding {
   finding_id: string;
@@ -218,6 +218,7 @@ export const ANSWER_LABEL: Record<Answer, string> = {
   accept_theirs: "accepted theirs",
   use_standard: "our standard",
   write_wording: "our wording",
+  ask_client: "asked the client",
 };
 
 /** Why the server routed a change where it did — its codes, in plain words. "Legal" is
@@ -235,16 +236,19 @@ export const ROUTE_REASON: Record<string, string> = {
 /** What a change does for us, in words: the row's short form and the card's sentence.
  *  "Worse" also covers what could not be measured — it is the one that needs review. */
 export const EFFECT_LABEL: Record<EffectForUs, string> = {
-  POSITIVE: "Better for us",
-  NEUTRAL: "No change for us",
+  // 6d (UX §4): Good / Neutral / Bad / Legal checks — the review table's own words
+  POSITIVE: "Good for us",
+  NEUTRAL: "Neutral",
   FALLBACK: "Fallback",
-  NEGATIVE: "Worse for us",
+  // every NEGATIVE row goes to Legal; only a measured-worse one says "Bad for us"
+  NEGATIVE: "Legal checks",
 };
 /** A NEGATIVE row's words by why it goes to Legal. Without ``measured`` (a caller that
  *  does not carry it) the effect's own word stands. */
 const MEASURED_LABEL: Record<Measured, string> = {
-  WORSE: "Worse for us",
-  NOT_MEASURED: "Not measured — Legal checks",
+  WORSE: "Bad for us",
+  // never "Bad" for what no standard measured (rule 15)
+  NOT_MEASURED: "Legal checks",
   ABSENT: "Not in their paper",
   // a standard measured it and nothing says worse (a settled deviation, changed words)
   REVIEW: "Legal checks",
@@ -304,6 +308,7 @@ export const ACTION_LABEL: Record<Answer, string> = {
   accept_theirs: "Accept their wording",
   use_standard: "Use our standard wording",
   write_wording: "Write new wording",
+  ask_client: "Ask the client",
 };
 
 type Reader = Pick<ChangeList, "can_answer" | "can_decide" | "can_write_wording">;
@@ -328,6 +333,8 @@ export function actionsFor(change: ClientChange, list: Reader): Answer[] {
   // our published clause: Legal's answer; on their paper only where one is anchored
   if (legal && list.can_answer && (!theirs || change.anchor?.clause_version_id)) out.push("use_standard");
   if (list.can_write_wording) out.push("write_wording");
+  // AM-399: Legal may ask the client about any change, measured or not
+  if (legal && list.can_answer) out.push("ask_client");
   return out;
 }
 
@@ -382,21 +389,22 @@ export function whoLine(change: ClientChange, list: Reader): string {
 
 /** R3 step 10: Legal's verdict on a change — presentation over the answers that exist:
  *  Accept = accept theirs; Accept with changes = write our wording; Reject = keep ours or
- *  our standard wording (Legal's choice); Ask the client = the existing decision
- *  "Ask the client to clarify" on each measured point. Only what the server offers. */
+ *  our standard wording (Legal's choice); Ask the client = the answer `ask_client`
+ *  (`AM-399`, on every change): our question goes into the reply as a comment. */
 export type Verdict = keyof typeof VERDICT_LABELS;
-export function verdictsFor(actions: Answer[], askable: boolean): Verdict[] {
+export function verdictsFor(actions: Answer[]): Verdict[] {
   const out: Verdict[] = [];
   if (actions.includes("accept_theirs")) out.push("accept");
   if (actions.includes("write_wording")) out.push("accept_changes");
   if (actions.includes("keep_ours") || actions.includes("use_standard")) out.push("reject");
-  if (askable) out.push("ask_client");
+  if (actions.includes("ask_client")) out.push("ask_client");
   return out;
 }
 /** The answer a verdict records; Reject waits for the wording choice unless only one exists. */
 export function answerFor(verdict: Verdict | null, actions: Answer[], rejectWith: Answer | null): Answer | null {
   if (verdict === "accept") return "accept_theirs";
   if (verdict === "accept_changes") return "write_wording";
+  if (verdict === "ask_client") return "ask_client";
   if (verdict !== "reject") return null;
   const wordings = actions.filter((a) => a === "keep_ours" || a === "use_standard");
   return rejectWith && wordings.includes(rejectWith as typeof wordings[number]) ? rejectWith : wordings.length === 1 ? wordings[0]! : null;

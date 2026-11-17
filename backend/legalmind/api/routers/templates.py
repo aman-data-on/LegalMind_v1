@@ -13,6 +13,7 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+from pathlib import Path
 from typing import Any
 from uuid import UUID
 
@@ -456,6 +457,110 @@ def make_blank_field(template_id: UUID, body: BlankField,
     A.record(guard.db, action=BLANK_FIELD_MADE, entity_type="template_version",
              entity_id=tv.id, actor_id=guard.user_id, request_id=guard.request_id,
              after={"template_key": tv.template_key, "version": tv.version, **var})
+    return data(_detail(guard, tv))
+
+
+ANNEXURE_1_ADDED = "template.annexure_1_added"
+#: S4/AM-359: the services a client may take under the one MSA — names only
+SERVICE_CATALOGUE = (Path(__file__).resolve().parents[3] / "config" / "templates"
+                     / "service_order" / "catalogue.json")
+ANNEX_1 = {"key": "ANNEXURE_1", "title": "Annexure 1 — Service Order Form",
+           "clause_key": "ANNEX1.ORDER_FORM"}
+
+
+@router.post("/templates/{template_id}/annexure-1")
+def add_annexure_1(template_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
+    """`AM-397`: wire the AM-358/AM-359 Annexure 1 engine into a draft template — the
+    annexure, its three "Order form" questions (services from the catalogue, the fee
+    lines, the initial term), its tables filled from the answers, clause 5.3 numbers
+    where the body has the catalogue's delivery lines, and the signature page after the
+    annexures (MSA → Annex 1 → Annex 2 → signatures). The annexure's own WORDS are
+    Legal's (L3): the clause carries only the `[Legal to supply]` stand-in, which blocks
+    Final until Legal replaces it — column headings are form structure. A DRAFT clause
+    row: Legal approves it like any other. 409 when already added. Audited."""
+    import json
+
+    tv = _editable(guard, template_id)
+    if any(a.get("key") == ANNEX_1["key"] for a in tv.annexures or []):
+        raise Conflict("this version already has Annexure 1")
+    taken = {v["key"] for v in tv.variables}
+    if taken & {"services", "fees", "initial_term_months"}:
+        raise Conflict("this version already asks for services, fees or the term")
+    catalogue = json.loads(SERVICE_CATALOGUE.read_text(encoding="utf-8"))
+    names = catalogue["services"]
+    rows = publish.pinned_clauses(guard.db, tv)
+    starts = list(catalogue["delivery"].values())
+
+    def subs(blocks: list) -> list[str]:
+        return [t for b in blocks or [] if b.get("kind") == "sub"
+                for t in (b.get("title", "") + b.get("text", ""), *subs(b.get("body")))]
+    # the body clause whose sub-clauses start with every delivery line (MSA 5.3)
+    delivery = next((k for (k, _), r in rows.items()
+                     if all(any(t.startswith(w) for t in subs(r.body)) for w in starts)),
+                    None)
+    body: list[dict] = [{"kind": "p", "text": model_.LEGAL_TO_SUPPLY}]
+    body.append({"kind": "table", "header": ["Service", "Delivery (clause 5.3)"],
+                 "rows_from": "services", "cells": ["{item}", "{delivery}"]}
+                if delivery else {"kind": "table", "header": ["Service"],
+                                  "rows_from": "services", "cells": ["{item}"]})
+    # "INR", not the rupee sign: the sign does not survive the PDF text check (browser run
+    # 2026-11-17, PREFLIGHT TEXT_EQUAL refused the publish)
+    body += [{"kind": "table",
+              "header": ["Service", "Quantity", "Monthly fee (INR)",
+                         "One-time fee (INR)"],
+              "rows_from": "fees",
+              "cells": ["{item.service}", "{item.quantity}", "{item.monthly_fee}",
+                        "{item.one_time_fee}"]},
+             {"kind": "table", "header": ["Initial term (months)"],
+              "rows": [["{initial_term_months}"]]}]
+    clause = {"clause_key": ANNEX_1["clause_key"], "title": ANNEX_1["title"],
+              "body": body, "realises": [], "stance": None,
+              "source": {"kind": "STRUCTURAL_PLACEHOLDER", "label": "Legal to supply",
+                         "supplier": "LegalMind (AM-397): the form's structure only; "
+                                     "the annexure's words are Legal's (L3)",
+                         "approval_ref": None}}
+    existing = guard.db.execute(select(M.ClauseVersion).where(
+        M.ClauseVersion.clause_key == clause["clause_key"])
+        .order_by(M.ClauseVersion.version.desc())).scalars().first()
+    # the same form already on record is reused; a different one is a new version
+    version = 1 if existing is None else existing.version + (existing.body != body)
+    if existing is None or existing.version != version:
+        row = {**clause, "version": version}
+        guard.db.add(M.ClauseVersion(**row, content_hash=model_.clause_hash(row),
+                                     status="DRAFT", created_by=guard.user_id))
+    group = "Order form"
+    money = {"type": "int", "range": [0, 1_000_000_000]}
+    variables = [
+        {"key": "services", "label": "Which services does the client take?",
+         "type": "choice", "multi": True, "class": "M", "group": group,
+         "prefill": False, "allowed": names},
+        {"key": "fees", "label": "Fees for each service", "type": "rows", "class": "M",
+         "group": group, "prefill": False, "columns": [
+             {"key": "service", "label": "Service", "type": "choice", "allowed": names},
+             {"key": "quantity", "label": "Quantity", "type": "int", "range": [1, 999]},
+             {"key": "monthly_fee", "label": "Monthly fee (INR)", **money},
+             {"key": "one_time_fee", "label": "One-time fee (INR)", **money}]},
+        {"key": "initial_term_months", "label": "Initial term (months)", "type": "int",
+         "class": "M", "group": group, "prefill": False, "range": [1, 120]}]
+    layout = dict(tv.layout or {})
+    layout["execution"] = {**(layout.get("execution") or {}), "last": True}
+    if delivery:
+        layout["delivery"] = {"clause": delivery, "lines": dict(catalogue["delivery"])}
+    layout["check_values"] = {**(layout.get("check_values") or {}),
+                              "services": [names[0]],
+                              "fees": [{"service": names[0], "quantity": 1,
+                                        "monthly_fee": 1, "one_time_fee": 0}],
+                              "initial_term_months": 12}
+    tv.annexures = [*(tv.annexures or []), {
+        "key": ANNEX_1["key"], "title": ANNEX_1["title"],
+        "clauses": [{"clause_key": ANNEX_1["clause_key"], "version": version}]}]
+    _set_variables(guard, tv, [*tv.variables, *variables], layout)
+    A.record(guard.db, action=ANNEXURE_1_ADDED, entity_type="template_version",
+             entity_id=tv.id, actor_id=guard.user_id, request_id=guard.request_id,
+             after={"template_key": tv.template_key, "version": tv.version,
+                    "clause": f"{ANNEX_1['clause_key']}@{version}",
+                    "delivery_clause": delivery,
+                    "fields": [v["key"] for v in variables]})
     return data(_detail(guard, tv))
 
 

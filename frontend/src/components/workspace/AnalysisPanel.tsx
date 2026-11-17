@@ -243,8 +243,10 @@ export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner
             <ContractDecision reviewId={state.review.id} reviewStatus={state.review.status}
                               refreshKey={state.findings.map((f) => f.status).join()}
                               onRecorded={reload} readOnly={reference} />
-            {/* AM-318: a Final deal has nothing open and nothing left to offer */}
-            {reference || stage?.stage === "FINAL" ? null : <LegalAngle reviewId={state.review.id} refreshKey={refreshKey} withRecommendation={false}
+            {/* AM-318: a Final deal has nothing open and nothing left to offer. L10: the
+                lawyer's analysis ("where it differs", once all is decided) is Legal's — the deal
+                owner keeps the open points and who has each */}
+            {reference || stage?.stage === "FINAL" || (!legal && counts?.points_open === 0) ? null : <LegalAngle reviewId={state.review.id} refreshKey={refreshKey} withRecommendation={false}
                         allDecided={counts?.points_open === 0}
                         decided={new Set(state.findings.filter((f) => !OPEN_STATES.has(pointState(f)))
                                                       .map((f) => f.id))}
@@ -261,7 +263,7 @@ export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner
           <section className="ws-summary__part" aria-labelledby="ws-sum-terms">
             <h3 id="ws-sum-terms" className="ws-summary__title">Key terms</h3>
             <BusinessAngle reviewId={state.review.id} refreshKey={refreshKey} />
-            <ObligationsPanel documentVersionId={documentVersionId} />
+            {legal ? <ObligationsPanel documentVersionId={documentVersionId} /> : null}
           </section>
           {legal ? (
             <details className="ws-summary__legal">

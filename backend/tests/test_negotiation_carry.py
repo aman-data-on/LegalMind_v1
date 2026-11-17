@@ -190,7 +190,7 @@ def test_keep_ours_on_the_clients_paper_is_our_standard_or_not_offered(
     db.flush()
     _review(db, paper, [(0, E.FindingClassification.DEVIATION, E.RuleOutcome.UNACCEPTABLE)])
     row = _changes(api, c)["changes"][0]
-    assert row["offers"] == ["accept_theirs", "write_wording"]
+    assert row["offers"] == ["accept_theirs", "write_wording", "ask_client"]
     r = api.post(_url(c, row["row_key"]), json=_first("keep_ours"))
     assert r.status_code == 409 and r.json()["error"]["code"] == "NOTHING_OF_OURS"
     assert "no standard clause" in r.json()["error"]["message"]
@@ -198,7 +198,7 @@ def test_keep_ours_on_the_clients_paper_is_our_standard_or_not_offered(
     cv = _publish_clause(db, owner, row["review"]["after"][0]["requirement_code"],
                          "9. Placeholder standard clause text.")
     row = _changes(api, c)["changes"][0]
-    assert row["offers"] == ["keep_ours", "accept_theirs", "write_wording"]
+    assert row["offers"] == ["keep_ours", "accept_theirs", "write_wording", "ask_client"]
     r = api.post(_url(c, row["row_key"]), json=_first("keep_ours"))
     assert r.status_code == 201, r.text
     answer = r.json()["data"]["answer"]

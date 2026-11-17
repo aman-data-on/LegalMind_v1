@@ -165,8 +165,8 @@ describe("(h) Compare says chosen, never decided", () => {
 describe("leftovers", () => {
   it("a package entry's effect words follow measured, as the Changes rows do", () => {
     const html = renderToStaticMarkup(<ForUs effect="NEGATIVE" measured="NOT_MEASURED" />);
-    expect(html).not.toContain("Worse for us");
-    expect(renderToStaticMarkup(<ForUs effect="NEGATIVE" measured="WORSE" />)).toContain("Worse for us");
+    expect(html).not.toContain("Bad for us");
+    expect(renderToStaticMarkup(<ForUs effect="NEGATIVE" measured="WORSE" />)).toContain("Bad for us");
   });
   it("the list says the points waiting for the client, as the Summary does", () => {
     const contract = { id: "c", counts: { points_open: 3, points_for_me: 0, points_waiting: 15 },

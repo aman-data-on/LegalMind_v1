@@ -26,7 +26,7 @@
  * EDITABLE question to the Ask pane — the user sees exactly what is asked.
  */
 
-import { CounterProposalCard, useReviewAngles } from "./Angles";
+import { CounterProposalCard, isWording, useReviewAngles } from "./Angles";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api, describeError } from "@/lib/api";
@@ -697,7 +697,7 @@ export function FindingCard({ finding, onChanged, prepared, qualify, explanation
   // that matches or differs in our favour (Batch 1 d).
   const proposal = state === "matches" || state === "favour" ? undefined
     : angles?.counter_proposals[finding.id];
-  const todo = whatToDo(finding, lead, status, proposal?.kind === "DRAFTING_LANGUAGE", legalDetails);
+  const todo = whatToDo(finding, lead, status, isWording(proposal), legalDetails);
   const sides = lead ? faceSides(lead) : null;
   return (
     <article

@@ -636,10 +636,12 @@ class NegotiationAnswer(Body):
     ``clause_version_id``) · write our wording (``wording``, typed by a holder of
     `legal.approve_customization`, never by a model — `AM-284` r7). The answer itself is
     never a Legal Decision; on a measured point "write our wording" records one beside
-    it (`AM-284` r2).
+    it (`AM-284` r2). Ask the client (`AM-399`): ``client_note`` is the question, a Word
+    comment in our reply; the client's text stays.
     ``client_note`` goes into the reply as a Word comment (r6); ``internal_note`` never
     leaves LegalMind (`AM-285` r3)."""
-    answer: Literal["keep_ours", "accept_theirs", "use_standard", "write_wording"]
+    answer: Literal["keep_ours", "accept_theirs", "use_standard", "write_wording",
+                    "ask_client"]
     reason: str | None = Field(default=None, max_length=200)
     #: `AM-284` r1 — the lawyer's own replacement text, paragraphs separated by newlines
     wording: str | None = Field(default=None, max_length=5000)
@@ -669,6 +671,8 @@ class NegotiationAnswer(Body):
             raise ValueError("wording is required to write our wording, and only then")
         if self.clause_version_id is not None and self.answer != "use_standard":
             raise ValueError("clause_version_id belongs to use_standard only")
+        if self.answer == "ask_client" and self.client_note is None:
+            raise ValueError("write the question to the client (client_note) to ask them")
         return self
 
 
