@@ -1266,6 +1266,72 @@ def _whole_sections(clauses: list[Clause], mapping: MappingResult) -> tuple[UUID
     return tuple(out)
 
 
+def _own_words(text: str) -> str:
+    """Comparison form for AM-386: case, punctuation, whitespace and ligatures folded."""
+    text = text.replace("\ufb01", "fi").replace("\ufb02", "fl").lower()
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", text).split())
+
+
+#: A clause's own number ("11.5.") only; a label or a letter is wording (AM-386).
+_OWN_LEAD = re.compile(r"\s*(?:\d+[.)])+(?:\d+)?\s+")
+
+
+def _own_wording_clause(clauses: list[Clause], mapping: MappingResult,
+                        configuration: dict) -> UUID | None:
+    """AM-386 — the mapped clause whose whole text (the row, its own sub-clauses and the
+    unnumbered rows after it), less its number, is the ``own_wording_match`` quote (after
+    its ``own_wording_label``, if any) word for word after `_own_words`; any added,
+    removed or changed word → None (a person reads it)."""
+    quote = configuration.get("own_wording_match")
+    if not quote:
+        return None
+    # the template's own heading label ("Cross-Border Data Transfers:") only, never any
+    # other label ("Not Applicable:" changes the clause — independent verifier 2026-11-17)
+    label = configuration.get("own_wording_label")
+    wants = {_own_words(quote)} | ({_own_words(f"{label} {quote}")} if label else set())
+    for i, clause in enumerate(clauses):
+        if clause.evidence_id not in mapping.evidence_ids:
+            continue
+        stem = (clause.section_number or "").rstrip(".") + "."
+        body = [clause.content or ""]
+        for nxt in clauses[i + 1:]:
+            # any unnumbered row after it, a heading too ("Exceptions"), is added text;
+            # only the next number or a signature block ends the clause
+            if (nxt.section_number and not nxt.section_number.startswith(stem)) or (
+                    not nxt.section_number and _ends_section(nxt.content or "")):
+                break
+            body.append(nxt.content or "")
+        text = " ".join(" ".join(body).split())
+        if _own_words(_OWN_LEAD.sub("", text, count=1)) in wants:
+            return clause.evidence_id
+    return None
+
+
+def _without_duplicate_caps(caps: tuple, clauses: list[Clause], configuration: dict,
+                            outcome: RequirementOutcome) -> tuple:
+    """AM-387 — an unread cap (UNKNOWN) stated ONLY by clauses whose whole text is a
+    configured ``duplicate_cap_wording`` (our MSA's 17.7 with its months blank) is a
+    duplicate of the stated cap beside it: dropped while a FINITE cap of the same kind
+    and scope remains. A filled-in figure is other words: kept, CONFLICT (fail closed)."""
+    wording = {_own_words(w) for w in configuration.get("duplicate_cap_wording") or ()}
+    if not wording:
+        return caps
+    text = {c.evidence_id: _own_words(_OWN_LEAD.sub("", " ".join(
+        (c.content or "").split()), count=1)) for c in clauses}
+    stated = {(c.cap_kind, c.scope, c.scope_label)
+              for c in caps if c.cap_status == FINITE}
+    keep = []
+    for cap in caps:
+        if (cap.cap_status == UNKNOWN and cap.evidence_refs
+                and (cap.cap_kind, cap.scope, cap.scope_label) in stated
+                and all(text.get(ref) in wording for ref in cap.evidence_refs)):
+            outcome.diagnostics.append("a blank cap clause in the configured duplicate "
+                                       "wording restates the stated cap (AM-387)")
+            continue
+        keep.append(cap)
+    return tuple(keep)
+
+
 _TOP = re.compile(r"\d+|[A-Za-z](?=[.)])")
 #: A page number a page break left at a row's start ("20 IN WITNESS WHEREOF …").
 _PAGE_LEAD = re.compile(r"^\s*\d{1,3}\s+")
@@ -2085,11 +2151,20 @@ def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
         mapping = replace(mapping, state=MappingState.UNRESOLVED, explanation=(
             *mapping.explanation, "the clause found states how the paper is amended, "
                                   "not how a change or cancellation is made (R-6)"))
-    if (standard_configuration.get("found_clause_for_a_person")
+    own = (_own_wording_clause(clauses, mapping, standard_configuration)
+           if standard_configuration.get("found_clause_for_a_person")
+           and mapping.state in (MappingState.CONFIRMED, MappingState.UNRESOLVED)
+           else None)
+    if own is not None:
+        # AM-386 — our own wording, word for word, states the position: MATCH, not r11
+        mapping = replace(mapping, state=MappingState.CONFIRMED, evidence_ids=(own,),
+                          explanation=(*mapping.explanation, "the clause found is the "
+                                       "standard's own wording word for word (AM-386)"))
+    elif (standard_configuration.get("found_clause_for_a_person")
             and mapping.state in (MappingState.CONFIRMED, MappingState.UNRESOLVED)):
         # AM-322 r12 — what was found is read by a person: cite the whole section
         mapping = replace(mapping, evidence_ids=_whole_sections(clauses, mapping))
-    if (mapping.state is MappingState.CONFIRMED
+    if (own is None and mapping.state is MappingState.CONFIRMED
             and standard_configuration.get("found_clause_for_a_person")):
         # AM-322 r11 — a qualitative §12 position (data residency, a breach-notice
         # timeline, sub-processors) states no figure, and no word list reads whether a
@@ -2422,7 +2497,8 @@ def _facts_for(rv: M.RequirementVersion, standard_configuration: dict,
         facts = replace(facts, caps=tuple(caps) or (Cap(
             cap_kind=EvaluationKind.PRIMARY, scope=config.general_scope, scope_label=None,
             cap_status=UNKNOWN, reason=APPLICABILITY_UNCERTAIN, evidence_refs=refs),))
-    facts = replace(facts, caps=one_position(facts.caps))
+    facts = replace(facts, caps=_without_duplicate_caps(
+        one_position(facts.caps), clauses, standard_configuration, outcome))
     # Constitution §9 — a mutual cap: whose liability each stated cap limits, from its
     # own sentence; None when the words do not say (never guessed).
     if standard_configuration.get(MUTUAL):

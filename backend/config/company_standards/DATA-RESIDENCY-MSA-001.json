@@ -32,7 +32,9 @@
       "PRIVACY_POLICY",
       "AUP",
       "DPA"
-    ]
+    ],
+    "own_wording_match": "If Personal Data is transferred outside the jurisdiction in which it was originally collected (including cross-border transfers from India or the European Economic Area), LeapSwitch shall ensure such transfers are lawful under applicable regulations, including through the use of standard contractual clauses, adequacy decisions, or other recognized mechanisms.",
+    "own_wording_label": "Cross-Border Data Transfers"
   },
   "evaluator_type": "PRESENCE",
   "evaluation_rules": {
@@ -98,6 +100,6 @@
     "date": "2026-11-16",
     "ruling": "owner, 2026-11-16: \"Do not change the whole Constitution. Only change the points that differ from Sayan's MSA. Sayan's MSA is the final verdict for now — point to point use Sayan's MSA.\" (rule 6 approval for these lock changes; AB-205)",
     "kind": "DIFFERS — the MSA standard now states Sayan's MSA",
-    "note": "No India-residency commitment: 11.5 permits a lawful transfer. A clause found is still read by a person (AM-322 r11 unchanged); the 'no data-residency commitment' Unacceptable limb is withdrawn for the MSA."
+    "note": "No India-residency commitment: 11.5 permits a lawful transfer. A clause found is still read by a person (AM-322 r11) unless it is 11.5 word for word (AM-386); the 'no data-residency commitment' Unacceptable limb is withdrawn for the MSA."
   }
 }

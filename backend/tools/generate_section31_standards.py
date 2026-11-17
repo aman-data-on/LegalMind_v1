@@ -486,6 +486,10 @@ def _align_to_msa(payload: dict, msa: dict) -> dict:
         payload.update(source_document=_MSA_DOC, source_clause=msa["clause"],
                        source_quote=msa["quote"], source_file="MSA.pdf")
         kind = "DIFFERS \u2014 the MSA standard now states Sayan's MSA"
+        if msa.get("own_wording"):
+            # AM-386 (owner, 2026-11-17): our MSA's own clause, word for word, is MATCH
+            cfg["own_wording_match"] = msa["quote"]
+            cfg["own_wording_label"] = msa["clause"].split(" ", 1)[1]
     else:
         history["configuration_before"] = {"not_applicable_to":
                                            cfg.get("not_applicable_to")}
@@ -523,8 +527,10 @@ POSITIONS: dict[str, dict] = {
                "European Economic Area), LeapSwitch shall ensure such transfers are lawful "
                "under applicable regulations, including through the use of standard "
                "contractual clauses, adequacy decisions, or other recognized mechanisms."),
+                "own_wording": True,
                 "note": ("No India-residency commitment: 11.5 permits a lawful transfer. A "
-                         "clause found is still read by a person (AM-322 r11 unchanged); the "
+                         "clause found is still read by a person (AM-322 r11) unless it is "
+                         "11.5 word for word (AM-386); the "
                          "'no data-residency commitment' Unacceptable limb is withdrawn for "
                          "the MSA.")}),
     # §12 Acceptable / Unacceptable: "a defined breach-notification timeline". §12.3: no
@@ -582,8 +588,10 @@ POSITIONS: dict[str, dict] = {
                "Services. LeapSwitch may also share Personal Data with its business partners "
                "to perform data analysis, service optimization, or customer communications, "
                "provided such partners follow equivalent standards of data protection."),
+                "own_wording": True,
                 "note": ("No disclosure list; deemed consent. A clause found is still read "
-                         "by a person (AM-322 r11 unchanged).")}),
+                         "by a person (AM-322 r11) unless it is 11.4 word for word "
+                         "(AM-386).")}),
     # §15: "except that obligations relating to trade secrets survive for as long as the
     # information remains a trade secret" — entity-wide; the NDA copy exists, the MSA's
     # did not. Same position, so the same scope key and terminology as the NDA copy.
