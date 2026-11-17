@@ -30759,3 +30759,50 @@ r4  Fail closed on everything else: the customer's data, content, IP or property
     Known ceiling: deterministic words only; a list in another sentence shape is read as before.
 r5  No standard JSON changes; no re-publish needed. Applies to new analyses only (rule 16).
 ```
+
+## AMENDMENT BATCH AB-209 — `AM-390`–`AM-392` (2026-11-17): the template page lets Legal publish our own MSA as written
+
+Owner, 2026-11-17: ownership of the e2e fix batch; standing rule (2026-11-16): a check that
+weakens the lawyer agent → design the enterprise-best option, record the amendment, proceed.
+Never invent legal text; our MSA body is never edited. Collision scan 2026-11-17 (origin/main,
+every worktree, every remote branch): AB-209 and AM-390–AM-392 free.
+
+`AM-390` — keep approved words as written (amends `AM-283`'s publish gate and the preflight's
+"a quoted defined term is defined" as a hard stop)
+
+```text
+r1  A check finding about the approved WORDS themselves (today only UNDEFINED_TERM: a quoted
+    term the text never defines) may be kept as written by a holder of
+    legal.approve_customization, with a required reason, on a version not yet published.
+r2  Recorded only as an append-only audit event (template.text_kept) on that template version:
+    code, the finding's exact words, reason; who and when from the event. A new version starts
+    clean.
+r3  The publish gate, the gate's check, contract generation and the final contract pass over a
+    finding kept on that version (same code and words). Nothing else changes.
+r4  Never keepable: anything that breaks the generated document — an unresolved cross-reference
+    or bookmark, a slot or blank left, a missing required field, numbering, model, markup, PDF
+    checks. The server refuses (409).
+r5  The template page lists what was kept (who, when, why).
+```
+
+`AM-391` — who signs for us is set on the template
+
+```text
+r1  Legal sets our signatory (name, designation, email) on a version not yet published; the
+    three our_signatory_* fields (by role) become fixed by our standard (locked_value), the way
+    our name and office already are, and print on the signature page of every contract.
+r2  Sales does not override it per deal (a locked value is fixed); another signatory = a new
+    version. Audited (template.signatory_set) without the person's details.
+```
+
+`AM-392` — a blank in approved words becomes a fill-in field (extends `AM-324` r3/`AM-326` r2)
+
+```text
+r1  Legal may make an underscore blank (3+ underscores) in a clause, the preamble or the
+    recitals a fill-in field with a label: the n-th blank there takes the deal's answer when the
+    contract is made. The approved words and the clause hash never change.
+r2  Required (default): sales must fill it to create the contract. Optional: it may stay empty,
+    the underscores stay, and the final contract is blocked until filled (negotiation.blanks) —
+    the choice for a figure our MSA leaves open (17.7, AM-387).
+r3  A blank never reaches a final contract as underscores (unchanged final blocker).
+```

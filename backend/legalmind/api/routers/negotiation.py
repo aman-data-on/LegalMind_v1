@@ -1863,7 +1863,7 @@ def _make_package(guard: Guard, storage: StorageBackend, contract: M.Contract,
     docx = render_contract.render(model, built.assets,
                                   contract_ref=str(contract.id)[:8].upper(),
                                   version_number=number, model_hash=digest)
-    found = preflight.check(docx, model=model)
+    found = publish.unkept(guard.db, tv.id, preflight.check(docx, model=model))
     if found:                # our own rendering is wrong: nothing is stored (rule 15)
         raise PackageNotReady("The final contract failed its checks.",
                               [{"code": f"PREFLIGHT_{p.code}", "message": p.detail}

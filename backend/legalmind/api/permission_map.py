@@ -210,6 +210,13 @@ ASSIST_ENDPOINTS: Final[dict[tuple[str, str], str]] = {
         P.LEGAL_APPROVE_CUSTOMIZATION,
     ("POST", f"{API_PREFIX}/templates/{{template_id}}/withdraw"):
         P.LEGAL_APPROVE_CUSTOMIZATION,
+    # AM-390/391/392: keep words as written, our signatory, a blank made a field
+    ("POST", f"{API_PREFIX}/templates/{{template_id}}/keep-as-written"):
+        P.LEGAL_APPROVE_CUSTOMIZATION,
+    ("POST", f"{API_PREFIX}/templates/{{template_id}}/our-signatory"):
+        P.LEGAL_APPROVE_CUSTOMIZATION,
+    ("POST", f"{API_PREFIX}/templates/{{template_id}}/blank-fields"):
+        P.LEGAL_APPROVE_CUSTOMIZATION,
     # a clause's recorded versions: who approved each, how, and why
     ("GET", f"{API_PREFIX}/templates/{{template_id}}/clauses/{{clause_key}}/versions"):
         P.LEGAL_APPROVE_CUSTOMIZATION,

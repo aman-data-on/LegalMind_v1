@@ -74,7 +74,13 @@ export interface TemplateClause {
   wording?: string;
   /** the version the published template uses; null when it is not in it (approvers only) */
   published_version?: number | null;
+  /** `AM-392`: each underscore blank in the approved words, and the field Legal made of it */
+  blanks?: TemplateBlank[];
 }
+
+export interface TemplateBlank { n: number; before: string; after: string; field: { key: string; label: string; required: boolean } | null }
+/** `AM-390`: a check finding Legal kept as written, from the audit trail */
+export interface KeptItem { code: string; detail: string; reason: string; by: string | null; at: string }
 
 /** One recorded version of a clause (`GET …/clauses/{key}/versions`), newest first. */
 export interface ClauseVersionRow {
@@ -94,7 +100,7 @@ export interface ClauseVersionRow {
 /** One line of a clause as the renderer will number it (`…/replace` with `dry_run`). */
 export interface OutlineLine { number: string | null; level: number; kind: string; text: string }
 
-export interface TemplateVariable { key: string; type: string; group?: string; help?: string }
+export interface TemplateVariable { key: string; type: string; group?: string; help?: string; role?: string; locked_value?: unknown; label?: string }
 
 export interface TemplateDetail extends TemplateSummary {
   variables: TemplateVariable[];
@@ -104,6 +110,8 @@ export interface TemplateDetail extends TemplateSummary {
   published?: { id: string; version: number } | null;
   /** who approved the text outside LegalMind, as recorded with the publish (`AM-302` r6) */
   approval_reference?: string | null;
+  kept?: KeptItem[];
+  front_blanks?: { preamble: TemplateBlank[]; recitals: TemplateBlank[] };
 }
 
 export interface SpecialConditionsReadiness { ready: boolean; missing: { code: string; detail: string }[] }
@@ -330,9 +338,21 @@ export const ENGINE_WORDS: Record<string, string> = {
 };
 export const engineWords = (c: string) => ENGINE_WORDS[c] ?? c;
 
+/** `AM-390`: the server's keepable codes (it refuses any other) — about the approved words,
+ *  never about the generated file. Mirrors `publish.KEEPABLE`; the server decides. */
+export const KEEPABLE = ["UNDEFINED_TERM"];
+export type ProblemLine = { text: string; clauseKey?: string; keep?: { code: string; detail: string } };
+
+/** An import note ("MSA_LS.DEFINITIONS: has a blank to fill") with the clause by its title. */
+export function noteWords(flag: string, clauses: TemplateClause[]): string {
+  const [key = "", ...rest] = flag.split(": ");
+  const clause = clauses.find((c) => c.clause_key === key);
+  return clause && rest.length ? `${displayTitle(clause.title)}: ${flagWords(rest.join(": "))}` : flagWords(flag);
+}
+
 /** A gate problem in plain words, with the clause it concerns when it names one. */
 export function problemWords(problem: string, clauses: TemplateClause[],
-                             check: TemplateCheck | null): { text: string; clauseKey?: string } {
+                             check: TemplateCheck | null): ProblemLine {
   const [head = "", ...rest] = problem.split(": ");
   const tail = rest.join(": ");
   if (head === "CLAUSE_NOT_APPROVED") {
@@ -359,7 +379,9 @@ export function problemWords(problem: string, clauses: TemplateClause[],
     // a term "used in quotes and never defined": the clause that uses it is where to fix it
     const term = /\u201c([^\u201d]+)\u201d/.exec(tail)?.[1];
     const at = term ? clauses.find((c) => plainText(c.body).includes(`\u201c${term}\u201d`)) : undefined;
-    return { text: tail, ...(at ? { clauseKey: at.clause_key } : {}) };
+    const code = head.slice("PREFLIGHT ".length);
+    return { text: tail, ...(at ? { clauseKey: at.clause_key } : {}),
+             ...(KEEPABLE.includes(code) ? { keep: { code, detail: tail } } : {}) };
   }
   return { text: tail || head };
 }
@@ -417,7 +439,7 @@ export function clauseNumbers(clauses: TemplateClause[]): Map<string, string> {
 /** A gate problem list in plain words: a model problem names several clauses in one
  *  string ("CLAUSE_A@2: uses …; CLAUSE_C@2: …") — one line each, the clause by its title. */
 export function problemLines(problems: string[], clauses: TemplateClause[],
-                             check: TemplateCheck | null): { text: string; clauseKey?: string }[] {
+                             check: TemplateCheck | null): ProblemLine[] {
   return problems.flatMap((p) => {
     if (!p.startsWith("MODEL: ")) return [problemWords(p, clauses, check)];
     return p.slice(7).split("; ").map((part) => {

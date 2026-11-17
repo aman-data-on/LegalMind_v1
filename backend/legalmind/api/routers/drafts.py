@@ -409,7 +409,7 @@ def create_from_draft(draft_id: UUID, body: DraftCreateContract,
                                   version_number=1, model_hash=digest)
     # AM-293 r2: no LibreOffice in this request — the worker makes the client PDF from
     # the stored DOCX (its page totals filled, the PDF checks run there, fail closed)
-    found = preflight.check(docx, model=model)
+    found = publish.unkept(guard.db, tv.id, preflight.check(docx, model=model))
     if found:                # our own rendering is wrong: nothing is stored (rule 15)
         raise DraftInvalid([{"field": f"preflight {p.code}", "problem": p.detail}
                             for p in found])

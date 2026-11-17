@@ -17,12 +17,11 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ApiError, api, describeError } from "@/lib/api";
-import { blockerText } from "@/lib/package";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import {
   actionProblem, approved, approvedLine, blockers, canPublish, changedSincePublished, clauseLine, clauseNumbers, displayTitle,
-  failingOn, fieldLabel, flagWords, fromEditor, groupClauses, listOrder, outlineDiff, placed, plainText,
+  failingOn, fieldLabel, flagWords, fromEditor, noteWords, groupClauses, listOrder, outlineDiff, placed, plainText,
   problemLines, shortWhy, topicWords, statusWords, stopCount, structureChanges, templateName, toEditor, unchecked, within,
   blankPath, reviewCopyPath,
   type CheckStandard, type ClauseVersionRow, type OutlineLine, type TemplateCheck, type TemplateClause,
@@ -35,6 +34,8 @@ import { shortDate } from "@/components/workspace/model";
 import { PageHeader } from "@/components/page/PageHeader";
 
 import { ClauseSheet, Runs } from "./TemplateClause";
+import { BlanksGroup, KeepAsWritten, KeptGroup, OurSignatory, SpecialConditionsSetup } from "./TemplateLegalChoices";
+export { SpecialConditionsSetup };
 import { CheckStatus } from "./TemplateList";
 import { PreviewButton } from "@/components/PreviewPanel";
 import "./templates.css";
@@ -249,7 +250,8 @@ export function TemplateApproval({ id }: { id: string }) {
             ) : view.kind !== "clause" || !clause ? (
               <PublishView detail={detail} check={check} checking={checking} positions={positions} onRetry={runCheck}
                            onSelect={(key) => select({ kind: "clause", key })} onReplace={openReplace}
-                           onPublished={async () => { await reload(); setSaid("Published."); }} />
+                           onPublished={async () => { await reload(); setSaid("Published."); }}
+                           onChanged={async () => { await reload(); runCheck(); }} />
             ) : editing ? (
               <PreviewSheet clause={clause} number={numbers.get(clause.clause_key) ?? ""} numbers={numbers}
                             outline={preview?.outline ?? null} changed={preview?.diff.changed ?? null}
@@ -578,9 +580,10 @@ function ChangesView({ detail, changed, numbers, onSelect }: {
   );
 }
 
-function PublishView({ detail, check, checking, positions, onRetry, onSelect, onReplace, onPublished }: {
+function PublishView({ detail, check, checking, positions, onRetry, onSelect, onReplace, onPublished, onChanged }: {
   detail: TemplateDetail; check: TemplateCheck | null; checking: boolean; positions: boolean; onRetry: () => void;
   onSelect: (key: string) => void; onReplace: (key: string) => void; onPublished: () => Promise<void>;
+  onChanged: () => Promise<void>;
 }) {
   const [refused, setRefused] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -670,8 +673,9 @@ function PublishView({ detail, check, checking, positions, onRetry, onSelect, on
         <div className="tpl-pubgroup"><h3>Problems in the file <span>{lines.length}</span></h3>
           <ul>{lines.map((w) => (
             <li key={w.text}><span className="tpl-pubrow__what">{w.text}</span>
-              {w.clauseKey ? <span className="tpl-pubrow__where"><button type="button" className="tpl-link"
-                onClick={() => onReplace(w.clauseKey!)}>Replace in {title(w.clauseKey)}</button></span> : null}</li>
+              {w.clauseKey || w.keep ? <span className="tpl-pubrow__where">{w.clauseKey ? <button type="button" className="tpl-link"
+                onClick={() => onReplace(w.clauseKey!)}>Replace in {title(w.clauseKey)}</button> : null}
+                {w.keep ? <KeepAsWritten templateId={detail.id} keep={w.keep} onDone={onChanged} /> : null}</span> : null}</li>
           ))}</ul></div>
       ) : null}
       {unapproved.length ? (
@@ -680,11 +684,14 @@ function PublishView({ detail, check, checking, positions, onRetry, onSelect, on
             <li key={c.clause_key}><button type="button" className="tpl-link" onClick={() => onSelect(c.clause_key)}>{displayTitle(c.title)}</button></li>
           ))}</ul></div>
       ) : null}
+      <KeptGroup kept={detail.kept} />
+      <OurSignatory detail={detail} onDone={onChanged} />
+      <BlanksGroup detail={detail} onDone={onChanged} />
       <SpecialConditionsSetup readiness={detail.special_conditions} />
       {detail.flags?.length ? (
         <div className="tpl-pubgroup"><h3>Notes from the import <span>{detail.flags.length}</span></h3>
           <p className="tpl-help">About the front of the agreement (parties and recitals). They do not stop publishing. Read them before you do.</p>
-          <ul>{detail.flags.map((f) => <li key={f}><span className="tpl-pubrow__what">{flagWords(f)}</span></li>)}</ul></div>
+          <ul>{detail.flags.map((f) => <li key={f}><span className="tpl-pubrow__what">{noteWords(f, detail.clauses)}</span></li>)}</ul></div>
       ) : null}
 
       {ready || refused ? (
@@ -711,33 +718,5 @@ function PublishView({ detail, check, checking, positions, onRetry, onSelect, on
       ) : null}
       {error ? <p className="tpl-error" role="alert">{error}</p> : null}
     </section>
-  );
-}
-
-/** U1 (`AM-307`): whether agreed changes to a contract made from this template can go out
- *  as Special Conditions (Annexure A) — the server's readiness, in words. It never stops
- *  publishing; without it a deal goes back as a reply with tracked changes. */
-export function SpecialConditionsSetup({ readiness }: { readiness?: SpecialConditionsReadiness | undefined }) {
-  if (!readiness) return null;
-  return (
-    <div className="tpl-pubgroup" data-sc={readiness.ready ? "ready" : "not-set-up"}>
-      <h3>Special Conditions (Annexure A)</h3>
-      {readiness.ready ? (
-        <p className="tpl-help"><strong>Set up.</strong> When a client&rsquo;s changes are agreed, a contract made from
-          this template goes out as a final contract: this text unchanged, with each agreed change in Annexure A, and a
-          clause saying Annexure A wins.</p>
-      ) : (
-        <>
-          <p className="tpl-help"><strong>Not set up.</strong> Agreed changes go back to the client as tracked changes
-            instead of a final contract. It does not stop publishing. An administrator sets it up when the template is
-            imported; it cannot be set up from this page yet.</p>
-          {readiness.missing.some((m) => m.code !== "NOT_CONFIGURED") ? (
-            <ul>{readiness.missing.map((m) => (
-              <li key={m.code}><span className="tpl-pubrow__what">{blockerText({ code: `SC_${m.code}`, detail: m.detail })}</span></li>
-            ))}</ul>
-          ) : null}
-        </>
-      )}
-    </div>
   );
 }

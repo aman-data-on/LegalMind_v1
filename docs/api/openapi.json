@@ -143,6 +143,41 @@
     "title": "AskRequest",
     "type": "object"
    },
+   "BlankField": {
+    "additionalProperties": false,
+    "properties": {
+     "label": {
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Label",
+      "type": "string"
+     },
+     "n": {
+      "maximum": 100.0,
+      "minimum": 1.0,
+      "title": "N",
+      "type": "integer"
+     },
+     "required": {
+      "default": true,
+      "title": "Required",
+      "type": "boolean"
+     },
+     "where": {
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Where",
+      "type": "string"
+     }
+    },
+    "required": [
+     "where",
+     "n",
+     "label"
+    ],
+    "title": "BlankField",
+    "type": "object"
+   },
    "CollaboratorAdd": {
     "additionalProperties": false,
     "properties": {
@@ -1938,6 +1973,36 @@
     "title": "HTTPValidationError",
     "type": "object"
    },
+   "KeepAsWritten": {
+    "additionalProperties": false,
+    "properties": {
+     "code": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Code",
+      "type": "string"
+     },
+     "detail": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Detail",
+      "type": "string"
+     },
+     "reason": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Reason",
+      "type": "string"
+     }
+    },
+    "required": [
+     "reason",
+     "code",
+     "detail"
+    ],
+    "title": "KeepAsWritten",
+    "type": "object"
+   },
    "LegalRuleDraft": {
     "additionalProperties": false,
     "description": "Optional per Requirement \u2014 locked Step 20 r4: not every Clause requires a\nPre-approved Legal Rule.",
@@ -2088,6 +2153,36 @@
      "expected_version"
     ],
     "title": "NegotiationAnswer",
+    "type": "object"
+   },
+   "OurSignatory": {
+    "additionalProperties": false,
+    "properties": {
+     "designation": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Designation",
+      "type": "string"
+     },
+     "email": {
+      "maxLength": 254,
+      "minLength": 3,
+      "title": "Email",
+      "type": "string"
+     },
+     "name": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+     }
+    },
+    "required": [
+     "name",
+     "designation",
+     "email"
+    ],
+    "title": "OurSignatory",
     "type": "object"
    },
    "PackageRequest": {
@@ -9578,6 +9673,62 @@
     ]
    }
   },
+  "/api/v1/templates/{template_id}/blank-fields": {
+   "post": {
+    "description": "`AM-392`: a blank in the approved words becomes a fill-in field for sales \u2014 the\nwords are never changed; the deal's answer takes the blank's place when the\ncontract is made (`model._fill_blanks`), and a blank left empty blocks Final.",
+    "operationId": "make_blank_field_api_v1_templates__template_id__blank_fields_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "template_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Template Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/BlankField"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Make Blank Field Api V1 Templates  Template Id  Blank Fields Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Make Blank Field",
+    "tags": [
+     "templates"
+    ]
+   }
+  },
   "/api/v1/templates/{template_id}/check": {
    "get": {
     "description": "What the publish gate would say of the text AS IT STANDS \u2014 every clause taken as\napproved, the file rendered, preflighted and read by the engine exactly as\n`drafting.publish` does \u2014 run inside a savepoint that is always rolled back, so\nnothing is approved, recorded or kept. Unlike the gate it does not stop at the\nfirst failing step: the lawyer sees the preflight problems AND each standard the\nengine finds not met, placed on the clause its evidence is read from.\nNothing here decides: the engine classifies; this only reports (rule 13).",
@@ -9857,6 +10008,118 @@
      }
     },
     "summary": "Clause Versions",
+    "tags": [
+     "templates"
+    ]
+   }
+  },
+  "/api/v1/templates/{template_id}/keep-as-written": {
+   "post": {
+    "description": "`AM-390`: Legal keeps the approved words as written although the check finds\nsomething about the words themselves (``publish.KEEPABLE`` \u2014 a quoted term never\ndefined). Recorded with the reason in the append-only audit trail, for this version\nonly; the check and publish then pass over it. A problem that breaks the generated\nfile is never keepable.",
+    "operationId": "keep_as_written_api_v1_templates__template_id__keep_as_written_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "template_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Template Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/KeepAsWritten"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Keep As Written Api V1 Templates  Template Id  Keep As Written Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Keep As Written",
+    "tags": [
+     "templates"
+    ]
+   }
+  },
+  "/api/v1/templates/{template_id}/our-signatory": {
+   "post": {
+    "description": "`AM-391`: who signs for us on every contract from this version \u2014 the three\n``our_signatory_*`` fields become fixed by our standard (``locked_value``, as our\nname and office already are), so sales does not type them per deal. Set before\npublishing; a different signatory is a new version. Audited.",
+    "operationId": "set_our_signatory_api_v1_templates__template_id__our_signatory_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "template_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Template Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/OurSignatory"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Set Our Signatory Api V1 Templates  Template Id  Our Signatory Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Set Our Signatory",
     "tags": [
      "templates"
     ]

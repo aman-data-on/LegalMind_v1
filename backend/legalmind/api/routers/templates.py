@@ -133,7 +133,10 @@ def list_templates(guard: Guard = Depends(get_guard)) -> dict:
 
 @router.get("/templates/{template_id}")
 def get_template(template_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
-    tv = _visible(guard, template_id)
+    return data(_detail(guard, _visible(guard, template_id)))
+
+
+def _detail(guard: Guard, tv: M.TemplateVersion) -> dict[str, Any]:
     rows = publish.pinned_clauses(guard.db, tv)
     approver = _approver(guard)
     live = _published(guard, tv) if approver else None
@@ -163,7 +166,9 @@ def get_template(template_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
                          "approval_ref": source.get("approval_ref"),
                          "reason": source.get("reason")},
                      # the version the published template uses (None: not in it)
-                     "published_version": live_pins.get(row.clause_key)}
+                     "published_version": live_pins.get(row.clause_key),
+                     # AM-392: each underscore blank, with the field Legal made of it
+                     "blanks": _blanks(tv, row.clause_key, row.body)}
         clauses.append(item)
     body = _summary(guard, tv) | {"variables": tv.variables, "clauses": clauses}
     if approver:
@@ -175,7 +180,20 @@ def get_template(template_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
             M.AuditEvent.action == publish.TEMPLATE_PUBLISHED,
             M.AuditEvent.entity_id == tv.id)).scalars().first()
         body["approval_reference"] = (said or {}).get("approval_reference")
-    return data(body)
+        body["kept"] = publish.kept(guard.db, tv.id)                       # AM-390
+        body["front_blanks"] = {w: _blanks(tv, w, (tv.layout or {}).get(w))
+                                for w in ("preamble", "recitals")}       # AM-392
+    return body
+
+
+def _blanks(tv: M.TemplateVersion, where: str, node: Any) -> list[dict[str, Any]]:
+    fields = {v["blank"]["n"]: v for v in tv.variables
+              if (v.get("blank") or {}).get("in") == where}
+    return [{"n": n, **near,
+             "field": None if n not in fields else {
+                 "key": fields[n]["key"], "label": fields[n]["label"],
+                 "required": fields[n].get("class") == "M"}}
+            for n, near in enumerate(model_.blank_runs(node or []), 1)]
 
 
 def _published(guard: Guard, tv: M.TemplateVersion) -> M.TemplateVersion | None:
@@ -298,6 +316,141 @@ def publish_template(template_id: UUID, body: PublishRequest | None = None,
                  "pdf_checked": done.pdf_checked})
 
 
+def _editable(guard: Guard, template_id: UUID) -> M.TemplateVersion:
+    """A version Legal may still change before publishing — the approver's alone."""
+    tv = _visible(guard, template_id, lock=True)
+    guard.additional_permission(P.LEGAL_APPROVE_CUSTOMIZATION,
+                                entity_type="template_version", entity_id=tv.id)
+    if tv.status not in ("DRAFT", "APPROVED"):
+        raise Conflict("only a version not yet published can be changed; "
+                       "start a new version")
+    return tv
+
+
+class KeepAsWritten(Reasoned):
+    #: the problem's code and words exactly as the check reported them
+    code: str = Field(min_length=1, max_length=64)
+    detail: str = Field(min_length=1, max_length=2000)
+
+
+@router.post("/templates/{template_id}/keep-as-written")
+def keep_as_written(template_id: UUID, body: KeepAsWritten,
+                    guard: Guard = Depends(get_guard)) -> dict:
+    """`AM-390`: Legal keeps the approved words as written although the check finds
+    something about the words themselves (``publish.KEEPABLE`` — a quoted term never
+    defined). Recorded with the reason in the append-only audit trail, for this version
+    only; the check and publish then pass over it. A problem that breaks the generated
+    file is never keepable."""
+    tv = _editable(guard, template_id)
+    if body.code not in publish.KEEPABLE:
+        raise Conflict("this problem breaks the generated contract and must be fixed; "
+                       "only a finding about the approved words can be kept as written")
+    A.record(guard.db, action=publish.TEXT_KEPT, entity_type="template_version",
+             entity_id=tv.id, actor_id=guard.user_id, request_id=guard.request_id,
+             after={"code": body.code, "detail": body.detail,
+                    "reason": " ".join(body.reason.split())})
+    return data({"kept": publish.kept(guard.db, tv.id)})
+
+
+SIGNATORY_SET = "template.signatory_set"
+#: the form's field → the variable's ROLE (the importer's keys are roles)
+_SIGNATORY = {"name": "our_signatory_name", "designation": "our_signatory_designation",
+              "email": "our_signatory_email"}
+
+
+class OurSignatory(Body):
+    name: str = Field(min_length=1, max_length=200)
+    designation: str = Field(min_length=1, max_length=200)
+    email: str = Field(min_length=3, max_length=254)
+
+
+def _set_variables(guard: Guard, tv: M.TemplateVersion, variables: list[dict],
+                   layout: dict) -> None:
+    tv.variables, tv.layout = variables, layout          # new objects: JSONB is saved
+    library._rehash(guard.db, tv)
+    guard.db.flush()
+
+
+@router.post("/templates/{template_id}/our-signatory")
+def set_our_signatory(template_id: UUID, body: OurSignatory,
+                      guard: Guard = Depends(get_guard)) -> dict:
+    """`AM-391`: who signs for us on every contract from this version — the three
+    ``our_signatory_*`` fields become fixed by our standard (``locked_value``, as our
+    name and office already are), so sales does not type them per deal. Set before
+    publishing; a different signatory is a new version. Audited."""
+    tv = _editable(guard, template_id)
+    by_role = {model_.role(v): v for v in tv.variables}
+    if any(k not in by_role for k in _SIGNATORY.values()):
+        raise Conflict("this template has no fields for our signatory; import a version "
+                       "with them")
+    given = body.model_dump()
+    try:
+        fixed = {by_role[r]["key"]: model_._coerce(by_role[r], given[f])
+                 for f, r in _SIGNATORY.items()}
+    except ValueError as exc:
+        raise Conflict(f"our signatory's details: {exc}") from exc
+    layout = dict(tv.layout or {})
+    layout["check_values"] = {k: v for k, v in (layout.get("check_values") or {}).items()
+                              if k not in fixed}
+    _set_variables(guard, tv, [{**v, "locked_value": fixed[v["key"]]} if v["key"] in fixed
+                               else v for v in tv.variables], layout)
+    A.record(guard.db, action=SIGNATORY_SET, entity_type="template_version",
+             entity_id=tv.id, actor_id=guard.user_id, request_id=guard.request_id,
+             after={"template_key": tv.template_key, "version": tv.version,
+                    "fields": sorted(fixed)})        # never the details (personal data)
+    return data(_detail(guard, tv))
+
+
+BLANK_FIELD_MADE = "template.blank_field_made"
+
+
+class BlankField(Body):
+    #: a clause key, or "preamble" / "recitals"
+    where: str = Field(min_length=1, max_length=120)
+    #: which blank there, counted from 1
+    n: int = Field(ge=1, le=100)
+    #: what sales is asked, e.g. "Place where banks are open"
+    label: str = Field(min_length=1, max_length=120)
+    #: true: sales must fill it to create the contract; false: may stay empty until
+    #: Final, which is refused while it is
+    required: bool = True
+
+
+@router.post("/templates/{template_id}/blank-fields")
+def make_blank_field(template_id: UUID, body: BlankField,
+                     guard: Guard = Depends(get_guard)) -> dict:
+    """`AM-392`: a blank in the approved words becomes a fill-in field for sales — the
+    words are never changed; the deal's answer takes the blank's place when the
+    contract is made (`model._fill_blanks`), and a blank left empty blocks Final."""
+    tv = _editable(guard, template_id)
+    if "_" in body.label or "{" in body.label:
+        raise Conflict("give the field a label a person can read")
+    rows = {k: r for (k, _), r in publish.pinned_clauses(guard.db, tv).items()}
+    layout = dict(tv.layout or {})
+    source = (layout.get(body.where) if body.where in ("preamble", "recitals")
+              else getattr(rows.get(body.where), "body", None))
+    if source is None:
+        raise NotVisible("clause not found")
+    if body.n > len(model_.blank_runs(source)):
+        raise Conflict("there is no such blank in that text")
+    if any(v.get("blank") == {"in": body.where, "n": body.n} for v in tv.variables):
+        raise Conflict("this blank is already a fill-in field")
+    taken = {v["key"] for v in tv.variables}
+    key = next(f"blank_{i}" for i in range(1, len(taken) + 2)
+               if f"blank_{i}" not in taken)
+    var = {"key": key, "label": " ".join(body.label.split()), "type": "text",
+           "group": "Deal", "class": "M" if body.required else "O", "prefill": False,
+           "blank": {"in": body.where, "n": body.n}}
+    if body.required:          # the publish check renders with a value, like every field
+        checks = layout.get("check_values") or {}
+        layout["check_values"] = {**checks, key: "Check value"}
+    _set_variables(guard, tv, [*tv.variables, var], layout)
+    A.record(guard.db, action=BLANK_FIELD_MADE, entity_type="template_version",
+             entity_id=tv.id, actor_id=guard.user_id, request_id=guard.request_id,
+             after={"template_key": tv.template_key, "version": tv.version, **var})
+    return data(_detail(guard, tv))
+
+
 TEMPLATE_WITHDRAWN = "template.withdrawn"
 
 
@@ -407,8 +560,8 @@ def check_template(template_id: UUID, guard: Guard = Depends(get_guard)) -> dict
         if os.environ.get("LEGALMIND_SOFFICE"):
             docx, result = pdf.convert_contract(docx)
             pdf_bytes = result.pdf
-        problems = [f"PREFLIGHT {p.code}: {p.detail}"
-                    for p in preflight.check(docx, model=model, pdf=pdf_bytes)]
+        problems = [f"PREFLIGHT {p.code}: {p.detail}" for p in publish.unkept(
+            guard.db, tv.id, preflight.check(docx, model=model, pdf=pdf_bytes))]
         standards = _engine_check(guard, tv, docx, texts, positions)
         if standards is None:
             problems.append("ANALYSIS: the engine could not analyse the file")
