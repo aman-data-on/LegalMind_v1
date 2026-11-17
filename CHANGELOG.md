@@ -27,6 +27,10 @@ No version has been released. The V1 specification is complete and implementatio
 - **S9**: internal review table `GET/POST /contracts/{id}/changes/review-table[/export]` (preview, then DOCX; audited, rate-limited); undecided rows "Not decided yet".
 - **S1**: `tools/lawyer_benchmark.py` scores points against a lawyer review read only from `LEGALMIND_SOURCE_MATERIAL_DIR` (skips when absent). Nothing decides (rules 10/13); no lock touched; no model call.
 
+### 2026-11-16 — MSA standards follow our MSA point to point (AB-205: AM-380, AM-381)
+
+Owner ruling 2026-11-16 ("Sayan's MSA is the final verdict for now — point to point"). Nine MSA standards now quote `MSA.pdf` (17.2, 9.9, 7.6.6, 19.1/19.3/19.4 Mumbai, 8.3, 16.1, 11.5, 11.4, 12.3); six on which it is silent are suspended for MSA (`not_applicable_to`); twelve unchanged. Engine: a WORKING_DAYS numeric standard; `customer_indemnity_only`; the §13 retrieval limb no longer applies to the MSA. Generator `generate_section31_standards.py` carries the MSA overrides. Our own MSA: 15 → 3 points needing a person (liability 17.2 vs 17.7 CONFLICT; residency and sub-processors person-read by AM-322 r11). Constitution text not edited. **Deploy needs** re-import + publish (new snapshot) + `chunk_standards`.
+
 ### 2026-11-16 — pdfjs-dist 6.2.108; dashboard menu e2e race; convert preselects the client
 
 - `pdfjs-dist` 5.7.284 → **6.2.108** (high advisory affects >=5.6.83 <6.2.108; lowest fixed release, published 2026-07-28). Approved by `AM-278` for the page view; it now also draws the PDF on the S6 Final card (`PdfPages.tsx`, the loading task is destroyed instead of the document). `npm audit --audit-level=high` clean.

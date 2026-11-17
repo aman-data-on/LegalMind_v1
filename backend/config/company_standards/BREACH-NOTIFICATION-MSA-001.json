@@ -32,7 +32,8 @@
     "not_applicable_to": [
       "PRIVACY_POLICY",
       "AUP",
-      "DPA"
+      "DPA",
+      "MSA"
     ]
   },
   "evaluator_type": "PRESENCE",
@@ -78,5 +79,28 @@
       "favourable_outcome": "ACCEPTABLE",
       "effect_rule": "GOOD_AND_NEUTRAL_ACCEPTED_2026_11_16"
     }
+  },
+  "_history": [
+    {
+      "date": "2026-11-16",
+      "record": "AM-380",
+      "source_document_before": "Legal Constitution, Lawyer Review Version L1.16 — docs/02-legal-domain/LEGAL_CONSTITUTION_L1.16.md",
+      "source_clause_before": "§12",
+      "source_quote_before": "A vendor or client-facing document that commits to India data residency (for India-designated services) and a defined breach-notification timeline.",
+      "configuration_before": {
+        "not_applicable_to": [
+          "PRIVACY_POLICY",
+          "AUP",
+          "DPA"
+        ]
+      }
+    }
+  ],
+  "msa_alignment": {
+    "record": "AM-380",
+    "date": "2026-11-16",
+    "ruling": "owner, 2026-11-16: \"Do not change the whole Constitution. Only change the points that differ from Sayan's MSA. Sayan's MSA is the final verdict for now — point to point use Sayan's MSA.\" (rule 6 approval for these lock changes; AB-205)",
+    "kind": "SUSPENDED FOR MSA — Sayan's MSA is silent on this point",
+    "note": "Constitution §12's defined breach-notification timeline has no counterpart in MSA.pdf: nothing is raised on a document declared MSA until the new MSA states one. Not deleted; the TOS copy is unchanged; no text is authored (rule 7)."
   }
 }

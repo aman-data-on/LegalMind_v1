@@ -97,13 +97,14 @@ def test_every_class_has_an_action_and_none_rejects_or_approves():
                    for w in ("reject", "is approved", "are approved", "approved by"))
 
 
-# --------------------------- item 3: §13's export window is checkable (AM-159)
-def test_an_export_window_under_30_days_is_the_section_13_unacceptable_position():
+# --------------------------- item 3: §13's export window (AM-159; withdrawn for MSA by AM-380)
+def test_an_export_window_under_30_days_is_no_longer_prohibited_on_the_msa():
+    """AM-380 (owner 2026-11-16): the MSA purge period is our MSA 7.6.6 (15 days), so
+    the §13 "shorter than 30 days" limb no longer applies to DATA-PURGE-MSA-001."""
     from legalmind.domain.constitution_boundaries import constitution_prohibition_for as p
-    assert p("DATA-PURGE-MSA-001", {"cap_value": 15, "cap_unit": "DAYS"}) == {
-        "section": "13",
-        "quote": "A post-termination data-export window shorter than 30 days […]"}
-    for actual in ({"cap_value": 30, "cap_unit": "DAYS"},      # the position itself
+    for actual in ({"cap_value": 15, "cap_unit": "DAYS"},      # the MSA position now
+                   {"cap_value": 10, "cap_unit": "DAYS"},      # a deviation, not prohibited
+                   {"cap_value": 30, "cap_unit": "DAYS"},
                    {"cap_value": 1, "cap_unit": "MONTHS"},     # never converted
                    {"cap_status": "ABSENT"}):                  # MISSING never fires
         assert p("DATA-PURGE-MSA-001", actual) is None, actual

@@ -26,9 +26,8 @@ from tests.conftest import (
     sign_in,
 )
 from tests.legal_regression.test_effect_for_us import AFFECTED, ONE_PARTY, OURS
-from tests.legal_regression.test_legal_regression import _docx
+from tests.legal_regression.test_legal_regression import _docx, _ratified_before_am380
 from tests.test_analysis import DOCX_MIME, build, storage  # noqa: F401 — fixtures
-from tests.test_hard_test_fixes import _ratified
 from tests.test_version_comparison import V1
 
 CAP, PAY = "LIABILITY-MSA-001", "PAYMENT-PERIOD-MSA-001"
@@ -53,8 +52,10 @@ def _version(build, db, contract, cap, paid, account=ACCOUNT):
 
 
 def _contract(build, db):
-    _ratified(build, CAP)
-    _ratified(build, PAY)
+    # the playbook mechanism on the Constitution configurations: AM-380 moved the MSA cap to
+    # our MSA 17.2 (no favour form) and suspended the payment period on a declared MSA
+    _ratified_before_am380(build, CAP)
+    _ratified_before_am380(build, PAY)
     contract = M.Contract(owner_id=build.owner.id, name="Negotiated MSA",
                           contract_type="MSA", status=E.ContractStatus.ACTIVE)
     db.add(contract); db.flush()

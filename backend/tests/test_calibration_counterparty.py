@@ -188,15 +188,20 @@ def test_a_cap_naming_two_bases_states_neither():
 
 
 def test_one_position_reads_its_basis_with_every_copys_terminology():
-    """The TOS copy alone has no affected-services terms; measured as the SAME
-    position as the MSA copy it reads with both copies' terms and fails closed."""
+    """Two copies of the SAME position read with both copies' terms. Since AM-380 the
+    MSA cap is our MSA 17.2 (6 months, affected services) and the TOS cap stays 12
+    months of total fees: no longer one position, so each reads with its own terms."""
     items = [SimpleNamespace(company_standard=SimpleNamespace(configuration=json.loads(
         (RATIFIED_STANDARDS_DIR / f"{code}.json").read_text())["configuration"]))
         for code in ("LIABILITY-MSA-001", "LIABILITY-TOS-001")]
+    assert _position_signature(items[0]) != _position_signature(items[1])
     tos = replace(_ratified("LIABILITY-TOS-001")[1],
                   bases=_position_bases(items)[_position_signature(items[1])])
-    facts = extract_liability_facts([_clause(AFFECTED_SERVICES_CAP)], tos)
-    assert facts.caps[0].cap_basis is None
+    # the MSA copy reads the affected-services basis with its own terms
+    _, msa = _map_and_extract("LIABILITY-MSA-001", "Liability shall not exceed the amount "
+                              "paid for the specific services giving rise to the claim in "
+                              "the six (6) months preceding the claim.")
+    assert msa.caps[0].cap_basis == "FEES_PAID_FOR_AFFECTED_SERVICES"
     # The ratified source sentence itself still reads as its own position.
     quote = json.loads((RATIFIED_STANDARDS_DIR / "LIABILITY-TOS-001.json")
                        .read_text())["source_quote"]

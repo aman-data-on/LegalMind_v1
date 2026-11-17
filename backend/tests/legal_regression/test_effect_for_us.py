@@ -13,9 +13,13 @@ from legalmind.analysis.service import run_analysis
 from legalmind.db import models as M
 from legalmind.domain import enums as E
 from legalmind.ingestion.service import ingest_document
-from tests.legal_regression.test_legal_regression import CAP, _docx, _findings
+from tests.legal_regression.test_legal_regression import (
+    CAP,
+    _docx,
+    _findings,
+    _ratified_before_am380,
+)
 from tests.test_analysis import DOCX_MIME, build, storage  # noqa: F401 — fixtures
-from tests.test_hard_test_fixes import _ratified
 
 OURS = ("17.2 The total aggregate liability of each party shall not exceed the total fees "
         "paid by the Customer in the twelve (12) months preceding the claim.")
@@ -42,7 +46,9 @@ def _version(build, db, contract, sentence):
 
 
 def _returned(build, db, sentence, kind="MSA"):
-    _ratified(build, CAP)
+    # the AM-303 favour form on the Constitution §9 cap (mutual, 12 months, LOWER); AM-380
+    # withdrew it from the MSA copy (our MSA 17.2 binds Leapswitch only, AM-239 r2)
+    _ratified_before_am380(build, CAP)
     contract = M.Contract(owner_id=build.owner.id, name="Negotiated MSA", contract_type=kind,
                           status=E.ContractStatus.ACTIVE)
     db.add(contract); db.flush()

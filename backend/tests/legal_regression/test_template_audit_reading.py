@@ -66,7 +66,8 @@ GST_NOTICE = ("8.6 The Customer shall inform Leapswitch at least 10 days prior t
 def test_a_gst_notice_before_the_invoice_is_never_the_payment_period(build, db):
     review, _ = _review(build, db, [PAYMENT], [
         "8. Payment and Invoicing",
-        "8.2 Payment terms shall be set out in the Service Order Form.", GST_NOTICE])
+        "8.2 Payment terms shall be set out in the Service Order Form.", GST_NOTICE],
+        kind="OTHER")  # AM-380 r2: suspended on a declared MSA; the reading is the point
     found = _findings(db, review)[PAYMENT]
     assert found["classification"] != "MATCH"
     assert found["actual"].get("cap_value") is None
@@ -77,9 +78,18 @@ def test_the_payment_sentence_beside_the_gst_notice_is_still_read(build, db):
     review, _ = _review(build, db, [PAYMENT], [
         "8. Payment and Invoicing", GST_NOTICE,
         "8.7 The Customer shall pay all undisputed invoices within twenty-one (21) days of "
-        "the invoice date."])
+        "the invoice date."], kind="OTHER")
     found = _findings(db, review)[PAYMENT]
     assert found["classification"] == "MATCH", found
+
+
+def test_the_payment_period_is_not_measured_on_a_declared_msa(build, db):
+    """AM-380 r2: our MSA 8.2 defers payment terms to the Service Order Form and states no
+    period, so the §16 standard raises nothing on a document declared MSA."""
+    review, _ = _review(build, db, [PAYMENT], [
+        "8. Payment and Invoicing", "8.7 The Customer shall pay all undisputed invoices "
+        "within forty-five (45) days of the invoice date."])
+    assert PAYMENT not in _findings(db, review)
 
 
 # ------------------- a period whose subject is named only in its (a), (b) items (NDA 10)

@@ -363,12 +363,21 @@ def test_the_reading_module_stays_off_the_findings_path():
 
 
 # ------------------------------------------------ late interest on an MSA (AM-166, §16)
-def _late_interest(build, db, text):
-    _ratified(build, "LATE-INTEREST-MSA-001")
-    review = build.review(["6. Payment", text])
-    run_analysis(db, review)
+# AM-380 r2: suspended on a document declared MSA (our MSA is silent on late interest);
+# the reading is still exercised on an Other Agreement, where §16 still applies.
+def _late_interest(build, db, text, kind="OTHER"):
+    from tests.legal_regression.test_legal_regression import _review
+    review, _ = _review(build, db, ["LATE-INTEREST-MSA-001"], ["6. Payment", text], kind=kind)
     classification, actual = _finding(db, review, "LATE-INTEREST-MSA-001")
     return classification, actual
+
+
+def test_late_interest_is_not_measured_on_a_declared_msa(build, db):
+    """AM-380 r2: our MSA states no late-interest position, so nothing is raised on an MSA."""
+    from tests.legal_regression.test_legal_regression import _findings, _review
+    review, _ = _review(build, db, ["LATE-INTEREST-MSA-001"], [
+        "6. Payment", "6.3 Overdue amounts shall carry interest at 3% per month."])
+    assert "LATE-INTEREST-MSA-001" not in _findings(db, review)
 
 
 def test_late_interest_at_the_constitutions_two_percent_a_month_matches(build, db):
@@ -392,5 +401,5 @@ def test_a_rate_stated_per_annum_is_not_converted_it_goes_to_a_person(build, db)
 
 def test_the_published_tos_is_never_measured_against_the_msa_late_interest():
     std = _standard("LATE-INTEREST-MSA-001")["configuration"]
-    assert std["not_applicable_to"] == ["TOS"] and std["preferred"] == 2
+    assert std["not_applicable_to"] == ["TOS", "MSA"] and std["preferred"] == 2
     assert _standard("LATE-FEE-TOS-001")["configuration"]["preferred"] == 5

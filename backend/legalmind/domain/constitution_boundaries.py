@@ -33,7 +33,9 @@ _LIABILITY_CODES = {"LIABILITY-MSA-001", "LIABILITY-TOS-001"}
 # data"), the §13 "shorter than 30 days" limb AM-63 r1 named. For a TOS the published
 # Terms of Service govern (§13 Applicability): DATA-RETRIEVAL-TOS-001 (7 days) is not
 # here, and DATA-PURGE-MSA-001 is not applicable to a TOS.
-_RETRIEVAL_CODES = {"DATA-PURGE-MSA-001"}
+# AM-380 (owner 2026-11-16): the MSA's purge period is our MSA's 7.6.6 (15 days), so the
+# §13 "shorter than 30 days" limb no longer applies to the MSA — no code carries it now.
+_RETRIEVAL_CODES: set[str] = set()
 
 # Each paragraph has two limbs. The citation shows the limb that fired, with the
 # elision marked, so a reader is never told the other limb applied. §13's second limb

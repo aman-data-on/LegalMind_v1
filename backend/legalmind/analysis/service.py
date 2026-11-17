@@ -1491,6 +1491,15 @@ def our_indemnity_beyond(clauses: list[Clause]) -> str | None:
     return None
 
 
+def our_indemnity_given(clauses: list[Clause]) -> str | None:
+    """`AM-380` (our MSA 16.1: only the Customer indemnifies): the first indemnity WE,
+    each party or an indemnifying role gives, whatever it covers — or None."""
+    givers = [_WE_INDEMNIFY] + ([_ROLE_INDEMNIFIES] if not fixed_roles(clauses) else [])
+    text = (" ".join((c.content or "").split()) for c in clauses)
+    return next((m.group(0).strip()[:160] for t in text for p in givers
+                 if (m := p.search(t))), None)
+
+
 #: AM-212 — §10: the customer's indemnity covers its content, unlawful use, customer and
 #: end-user conduct, AUP violations and breach of law. One that names neither the AUP nor
 #: its end users' conduct is narrower than §10 — read only where the customer indemnifies.
@@ -2108,9 +2117,10 @@ def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
                          + _titled_for(clauses, standard_configuration),
                          standard_configuration)
              if mapping.state is MappingState.CONFIRMED else None)
+    only_theirs = standard_configuration.get("customer_indemnity_only")
     if broad is None and standard_configuration.get("scope_key") == "INDEMNIFICATION" \
             and mapping.state is MappingState.CONFIRMED:
-        broad = our_indemnity_beyond(clauses)
+        broad = (our_indemnity_given if only_theirs else our_indemnity_beyond)(clauses)
     if broad:
         outcome.diagnostics.append(f"breadth: {broad!r} (AM-154)")
     narrow = (narrowing_hit(list(mapping.confirmed_clauses), standard_configuration)
@@ -2126,6 +2136,7 @@ def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
     # or Other ("TERMS OF SERVICE", "ACCEPTABLE USE POLICY")
     one_way = (one_way_indemnity(_with_continuations(clauses, mapping), clauses)
                if standard_configuration.get("scope_key") == "INDEMNIFICATION"
+               and not only_theirs
                and mapping.state is MappingState.CONFIRMED
                and (document_type or "") in parties.CUSTOMER_TYPES - {"TOS"}
                and title_type(clauses) not in ("TOS", "AUP") else None)

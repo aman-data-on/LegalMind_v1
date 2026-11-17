@@ -61,14 +61,30 @@ def _evaluate(text: str | None, state=S.CONFIRMED, *, required=True):
     return out.evaluations[0]
 
 
-def test_the_constitutions_own_wording_matches():
-    # §22's drafting note, Bombay High Court on appeal included: one phrase, so the
-    # "Bombay" inside it is not read as Mumbai.
-    e = _evaluate("The seat and venue of arbitration shall be Pune, India. Subject to the "
-                  "foregoing, the courts at Pune, and the Bombay High Court on appeal, "
-                  "shall have exclusive jurisdiction.")
+def test_our_msas_own_wording_matches():
+    # AM-380 (owner 2026-11-16): the MSA venue is our MSA 19.3/19.4 — Mumbai.
+    e = _evaluate("in the event of no consensus, then the High Court of Mumbai shall appoint "
+                  "an Arbitrator. The arbitration shall take place in Mumbai, India unless "
+                  "otherwise mutually agreed by the Parties and shall be conducted in the "
+                  "English language.")
     assert e.classification is C.MATCH and e.rule_outcome is O.ACCEPTABLE
-    assert e.actual_value == {"values": ["Pune", "Bombay High Court"]}
+    assert e.actual_value == {"values": ["Mumbai"]}
+
+
+def test_the_bombay_high_court_is_one_phrase_and_allowed():
+    # 19.3's court by the name Constitution §22 prescribes; "Bombay" inside it is not
+    # read as a separate place.
+    e = _evaluate("Arbitration shall take place in Mumbai, India, and the Bombay High Court "
+                  "shall appoint the arbitrator on no consensus.")
+    assert e.classification is C.MATCH
+    assert e.actual_value == {"values": ["Mumbai", "Bombay High Court"]}
+
+
+def test_a_pune_seat_is_a_deviation_on_an_msa():
+    # AM-380 r5: Pune (AM-150) is superseded for the MSA venue.
+    e = _evaluate("The seat and venue of arbitration shall be Pune, India.")
+    assert e.classification is C.DEVIATION and e.rule_outcome is O.UNACCEPTABLE
+    assert "PUNE is not among the allowed" in e.explanation[0]
 
 
 def test_a_customer_moving_the_seat_to_bengaluru_is_a_deviation_for_legal():
@@ -77,7 +93,7 @@ def test_a_customer_moving_the_seat_to_bengaluru_is_a_deviation_for_legal():
                   "Bengaluru, and the courts at Bengaluru shall have exclusive jurisdiction.")
     assert e.classification is C.DEVIATION and e.rule_outcome is O.UNACCEPTABLE
     assert e.actual_value == {"values": ["Bangalore", "Bengaluru"]}
-    assert e.expected_value == {"allowed_values": ["PUNE", "BOMBAY_HIGH_COURT"]}
+    assert e.expected_value == {"allowed_values": ["MUMBAI", "BOMBAY_HIGH_COURT"]}
     assert "BENGALURU is not among the allowed" in e.explanation[0]
 
 
@@ -100,29 +116,26 @@ def test_a_place_named_only_to_exclude_it_is_never_a_match(text):
     assert "only to exclude it" in e.explanation[0]
 
 
-#: Constitution L1.15 §22 as the MSA template states it (2026-11-04): the Bombay High
-#: Court appoints the arbitrator "in the event of no consensus" — a different noun's "no".
+#: Our MSA 19.3/19.4 (AM-380): the High Court of Mumbai appoints the arbitrator "in the
+#: event of no consensus" — a different noun's "no", never an exclusion.
 _SECTION_22 = ("The Customer and LeapSwitch shall make every effort to resolve amicably by "
                "direct informal negotiations any dispute between them. Disputes shall be "
                "referred to arbitration by a single arbitrator to be mutually agreed upon "
-               "and in the event of no consensus, then the Bombay High Court shall appoint "
-               "an Arbitrator. The seat and venue of arbitration shall be {seat}, India, and "
-               "the proceedings shall be conducted in the English language. Subject to the "
-               "foregoing, the courts at Pune, and the Bombay High Court on appeal or in "
-               "matters of extraordinary jurisdiction, shall have exclusive jurisdiction "
-               "over any matter not referable to arbitration.")
+               "and in the event of no consensus, then the High Court of Mumbai shall "
+               "appoint an Arbitrator. The arbitration shall take place in {seat}, India "
+               "and shall be conducted in the English language.")
 
 
 def test_the_bombay_high_court_appointing_on_no_consensus_is_not_excluded():
-    e = _evaluate(_SECTION_22.format(seat="Pune"))
+    e = _evaluate(_SECTION_22.format(seat="Mumbai"))
     assert e.classification is C.MATCH and e.rule_outcome is O.ACCEPTABLE
     assert "reason" not in e.actual_value
 
 
-def test_a_mumbai_seat_beside_the_same_wording_still_deviates():
-    e = _evaluate(_SECTION_22.format(seat="Mumbai"))
+def test_a_pune_seat_beside_the_same_wording_still_deviates():
+    e = _evaluate(_SECTION_22.format(seat="Pune"))
     assert e.classification is C.DEVIATION and e.rule_outcome is O.UNACCEPTABLE
-    assert "MUMBAI is not among the allowed" in e.explanation[0]
+    assert "PUNE is not among the allowed" in e.explanation[0]
 
 
 def test_an_exclusion_across_a_comma_free_phrase_still_excludes():
@@ -131,8 +144,8 @@ def test_an_exclusion_across_a_comma_free_phrase_still_excludes():
     assert e.actual_value["reason"] == "VALUE_EXCLUDED"
 
 
-def test_an_exclusive_pune_clause_with_no_other_court_still_matches():
-    e = _evaluate("The courts at Pune shall have exclusive jurisdiction and no other "
+def test_an_exclusive_mumbai_clause_with_no_other_court_still_matches():
+    e = _evaluate("The courts at Mumbai shall have exclusive jurisdiction and no other "
                   "court shall have jurisdiction.")
     assert e.classification is C.MATCH
 

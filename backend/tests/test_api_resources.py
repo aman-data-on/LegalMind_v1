@@ -896,12 +896,12 @@ def test_import_tool_writes_ratified_standards_idempotently(db, seeded):
         select(M.CompanyStandardVersion)
         .where(M.CompanyStandardVersion.requirement_version_id == versions[0].id)
     ).scalars().one()
-    assert cs.configuration["preferred"] == 12       # Constitution §9 (AM-43 r4, 2026-09-08)
+    assert cs.configuration["preferred"] == 6        # our MSA 17.2 (AM-380, 2026-11-16)
     assert cs.configuration["document_type"] == "MSA"
     # The plain-English description (owner, 2026-09-09) comes from the file.
     assert versions[0].description == (
-        "Each party's total liability is capped at the fees paid over a set "
-        "period before the claim.")
+        "LeapSwitch's total liability is capped at the amount paid for the specific "
+        "Services giving rise to the claim in the six months before it.")
 
     # The terminology of 2026-08-19 makes the Requirement publishable: mapping
     # rules with a usable confirm_threshold (D-1) and an evaluation rule version.

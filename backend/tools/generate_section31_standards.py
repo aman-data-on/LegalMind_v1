@@ -419,8 +419,10 @@ _S12_POSITION = "Data residency is maintained within India for all India-designa
 _ASSIGN = ["assignment"]
 
 
-def _s12(code_stem: str, types: tuple[str, ...], **spec) -> dict[str, dict]:
-    return {f"{code_stem}-{t}-001": {"section": "12", "document_type": t,
+def _s12(code_stem: str, types: tuple[str, ...], msa: dict | None = None,
+         **spec) -> dict[str, dict]:
+    return {f"{code_stem}-{t}-001": {**({"msa": msa} if msa and t == "MSA" else {}),
+                                     "section": "12", "document_type": t,
                                      "topic": "Data Protection & Privacy",
                                      "basis": "STAKEHOLDER_CONFIRMED",
                                      "unacceptable": _S12_UNACCEPTABLE,
@@ -457,6 +459,44 @@ def _provenance(spec: dict, mapping: dict, plain: str) -> str:
             f"on 2026-11-11 from our own paper, AM-322 r13 ({'; '.join(approved)})")
 
 
+# AM-380 (AB-205, owner 2026-11-16: "Sayan's MSA is the final verdict for now — point to
+# point use Sayan's MSA"): an MSA copy either states MSA.pdf's own clause (DIFFERS) or, where
+# MSA.pdf is silent or the point is measured by another standard, is suspended for a
+# document declared MSA (`not_applicable_to`). The Constitution quote moves to `_history`.
+_AM380_RULING = ("owner, 2026-11-16: \"Do not change the whole Constitution. Only change the "
+                 "points that differ from Sayan's MSA. Sayan's MSA is the final verdict for now "
+                 "\u2014 point to point use Sayan's MSA.\" (rule 6 approval for these lock "
+                 "changes; AB-205)")
+_MSA_DOC = ("Leapswitch Master Services Agreement, Version 2 (July 2025) \u2014 MSA.pdf at "
+            "LEGALMIND_SOURCE_MATERIAL_DIR (Sayan's MSA; same text as the approved July 2025 "
+            "docx, all_lock.md AM-316)")
+
+
+def _align_to_msa(payload: dict, msa: dict) -> dict:
+    cfg = payload["configuration"]
+    history = {"date": "2026-11-16", "record": "AM-380",
+               "source_document_before": payload["source_document"],
+               "source_clause_before": payload["source_clause"],
+               "source_quote_before": payload["source_quote"]}
+    if msa.get("quote"):
+        history["configuration_before"] = {
+            k: cfg[k] for k in ("position_statement", "unacceptable_position") if k in cfg}
+        cfg.pop("unacceptable_position", None)
+        cfg["position_statement"] = msa["quote"]
+        payload.update(source_document=_MSA_DOC, source_clause=msa["clause"],
+                       source_quote=msa["quote"], source_file="MSA.pdf")
+        kind = "DIFFERS \u2014 the MSA standard now states Sayan's MSA"
+    else:
+        history["configuration_before"] = {"not_applicable_to":
+                                           cfg.get("not_applicable_to")}
+        cfg["not_applicable_to"] = [*(cfg.get("not_applicable_to") or []), "MSA"]
+        kind = "SUSPENDED FOR MSA \u2014 " + msa["why"]
+    payload["_history"] = [history]
+    payload["msa_alignment"] = {"record": "AM-380", "date": "2026-11-16",
+                                "ruling": _AM380_RULING, "kind": kind, "note": msa["note"]}
+    return payload
+
+
 POSITIONS: dict[str, dict] = {
     # §12 Company Position + Unacceptable Position: "no data-residency commitment for
     # India-designated services". A client-facing MSA or a vendor; the published TOS is
@@ -476,7 +516,17 @@ POSITIONS: dict[str, dict] = {
                     "section_heading_terms": ["data residency",
                                               "cross-border data transfers"]},
            approved_terms=["cross-border transfers", "cross-border data transfers",
-                           "transferred outside + india"]),
+                           "transferred outside + india"],
+           msa={"clause": "11.5 Cross-Border Data Transfers", "quote": (
+               "If Personal Data is transferred outside the jurisdiction in which it was "
+               "originally collected (including cross-border transfers from India or the "
+               "European Economic Area), LeapSwitch shall ensure such transfers are lawful "
+               "under applicable regulations, including through the use of standard "
+               "contractual clauses, adequacy decisions, or other recognized mechanisms."),
+                "note": ("No India-residency commitment: 11.5 permits a lawful transfer. A "
+                         "clause found is still read by a person (AM-322 r11 unchanged); the "
+                         "'no data-residency commitment' Unacceptable limb is withdrawn for "
+                         "the MSA.")}),
     # §12 Acceptable / Unacceptable: "a defined breach-notification timeline". §12.3: no
     # contractual deadline is assumed, so no figure — but a timeline must be STATED, so
     # no single term confirms: the breach and a timeline ("without undue delay", the
@@ -498,7 +548,12 @@ POSITIONS: dict[str, dict] = {
                     "section_heading_terms": ["breach notification",
                                               "data breach notification"]},
            approved_terms=["data breach + notify", "breach notification",
-                           "data breach notification"]),
+                           "data breach notification"],
+           msa={"why": "Sayan's MSA is silent on this point",
+                "note": ("Constitution \u00a712's defined breach-notification timeline has no "
+                         "counterpart in MSA.pdf: nothing is raised on a document declared "
+                         "MSA until the new MSA states one. Not deleted; the TOS copy is "
+                         "unchanged; no text is authored (rule 7).")}),
     # §12 Company Position (and §19's row): sub-processors disclosed and bound.
     **_s12("SUB-PROCESSORS", ("MSA", "TOS"), starts=[_S12_POSITION],
            scope_key="SUB_PROCESSORS", unacceptable=None,
@@ -515,7 +570,20 @@ POSITIONS: dict[str, dict] = {
                     "keyword_groups": [], "negative_patterns": [],
                     "section_heading_terms": ["sub-processors", "third-party processors"]},
            approved_terms=["engage a subcontractor", "third-party service providers",
-                           "third-party processors"]),
+                           "third-party processors"],
+           msa={"clause": "11.4 Sharing with Affiliates, Business Partners and Third-Party "
+                          "Processors", "quote": (
+               "LeapSwitch may disclose Personal Data to its affiliates, group companies, "
+               "subcontractors, and service providers strictly for the purpose of "
+               "delivering, customizing, or improving the Services. Any such sharing shall "
+               "be subject to confidentiality obligations and data protection safeguards "
+               "that are no less stringent than those imposed under Applicable Law. The "
+               "Customer is deemed to have consented to such disclosures by availing the "
+               "Services. LeapSwitch may also share Personal Data with its business partners "
+               "to perform data analysis, service optimization, or customer communications, "
+               "provided such partners follow equivalent standards of data protection."),
+                "note": ("No disclosure list; deemed consent. A clause found is still read "
+                         "by a person (AM-322 r11 unchanged).")}),
     # §15: "except that obligations relating to trade secrets survive for as long as the
     # information remains a trade secret" — entity-wide; the NDA copy exists, the MSA's
     # did not. Same position, so the same scope key and terminology as the NDA copy.
@@ -529,6 +597,12 @@ POSITIONS: dict[str, dict] = {
         "description": ("Confidentiality obligations for trade secrets continue for as "
                         "long as the information remains a trade secret."),
         "copy_from": "TRADE-SECRET-CARVEOUT-NDA-001",
+        "msa": {"why": ("Sayan's MSA 12.3 has no trade-secret carve-out: \"Obligations under "
+                        "this Clause shall survive for a period of three (3) years "
+                        "post-termination.\""),
+                "note": ("12.3's flat three years is CONF-SURVIVAL-MSA-001's position, "
+                         "which measures it; this carve-out is not raised on a document "
+                         "declared MSA. The NDA copy is unchanged.")},
     },
     # §31.14 Change of Ownership / Control.
     "CHANGE-OF-CONTROL-TERMINATION-PARTNER_AGREEMENT-001": {
@@ -702,6 +776,8 @@ def build() -> dict[str, dict]:
     canonical = CANONICAL.read_text()
     for code, spec in POSITIONS.items():
         built[code] = _position(code, spec, canonical)
+        if spec.get("msa"):
+            built[code] = _align_to_msa(built[code], spec["msa"])
     for section, spec in SECTIONS.items():
         if section in _SKIP_SECTIONS:
             continue

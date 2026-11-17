@@ -62,7 +62,10 @@
     },
     "commercial_pillar": true,
     "favourable_direction": "LOWER",
-    "_favourable_direction_note": "AM-239 (AB-139, owner 2026-10-30): Constitution §16 Unacceptable Position: 'payment/dispute terms materially less favorable to the company than the confirmed position' — so a shorter figure is in LeapSwitch's favour; the customer pays sooner."
+    "_favourable_direction_note": "AM-239 (AB-139, owner 2026-10-30): Constitution §16 Unacceptable Position: 'payment/dispute terms materially less favorable to the company than the confirmed position' — so a shorter figure is in LeapSwitch's favour; the customer pays sooner.",
+    "not_applicable_to": [
+      "MSA"
+    ]
   },
   "evaluation_rules": {
     "evaluator": "NUMERIC_COMPARISON",
@@ -115,5 +118,21 @@
   "_terminology": [
     "2026-10-16 (owner directive, AM-152): the five commercial pillars are always measured on a customer service contract; waiver phrases are configured terminology (35.4), each a generic contract wording, never a position.",
     "days from the date of an invoice - 2026-10-16 (AM-153, Drive stress test): generic contract wording a real counterparty paper used and the reader missed or misread; terms and scoping only, never a position."
-  ]
+  ],
+  "_history": [
+    {
+      "date": "2026-11-16",
+      "record": "AM-380",
+      "configuration_before": {
+        "not_applicable_to": null
+      }
+    }
+  ],
+  "msa_alignment": {
+    "record": "AM-380",
+    "date": "2026-11-16",
+    "ruling": "owner, 2026-11-16: \"Do not change the whole Constitution. Only change the points that differ from Sayan's MSA. Sayan's MSA is the final verdict for now — point to point use Sayan's MSA.\" (rule 6 approval for these lock changes; AB-205)",
+    "kind": "SUSPENDED FOR MSA — Sayan's MSA is silent on this point",
+    "note": "Constitution §16: payments due within 21 days of invoice date (Sayan's 8.2 defers payment terms to the Service Order Form and states no period). Sayan's MSA states no position, so point to point this standard raises nothing on a document declared MSA until the new MSA states one (not deleted; its Constitution position is unchanged for every other type, and for an untyped document it still applies by content, AM-51). No text is authored (rule 7)."
+  }
 }

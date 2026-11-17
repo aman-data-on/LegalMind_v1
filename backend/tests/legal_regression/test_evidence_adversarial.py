@@ -145,8 +145,10 @@ def test_on_a_customers_order_the_buyer_is_the_customer(build, db):
     review, _ = _review(build, db, ["LIABILITY-MSA-001"],
                         ["PURCHASE ORDER", *CAP_BY_BUYER], kind=None)
     cap = _findings(db, review)["LIABILITY-MSA-001"]
+    # the Buyer's payments are read as the Customer's (FEES_PAID); since AM-380 the MSA cap
+    # counts fees for the affected Services (our MSA 17.2), so the bases fail closed (45B.4)
     assert (cap["classification"], cap["actual"].get("cap_basis")) == (
-        "DEVIATION", "FEES_PAID")
+        "UNABLE_TO_EVALUATE", "FEES_PAID")
 
 
 def test_on_a_vendor_agreement_the_buyer_is_never_read_as_the_customer(build, db):

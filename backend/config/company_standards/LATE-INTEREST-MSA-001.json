@@ -26,7 +26,8 @@
       "basis": "STAKEHOLDER_CONFIRMED"
     },
     "not_applicable_to": [
-      "TOS"
+      "TOS",
+      "MSA"
     ],
     "preferred": 2,
     "unit": "PERCENT_PER_MONTH",
@@ -125,5 +126,23 @@
       "effect_rule": "GOOD_AND_NEUTRAL_ACCEPTED_2026_11_16"
     }
   },
-  "_legal_rule_note": "PRIYEN'S RULE (owner 'change and update', 2026-11-16; replaces the zero-tolerance ruling of 2026-08-19/20 for client changes). Better for us or no change for us is accepted without a Legal Decision; only what is worse goes to Legal. MATCH -> ACCEPTABLE; a deviation -> UNACCEPTABLE -> Legal, except a deviation on this standard's declared favourable side (favourable_direction, from a source; never with favourable_counsel_check) -> ACCEPTABLE, still a DEVIATION (AM-239). No tolerance bands. effect_rule lets a client change the engine proves better or unchanged for us be accepted automatically, audited, reopenable by Legal."
+  "_legal_rule_note": "PRIYEN'S RULE (owner 'change and update', 2026-11-16; replaces the zero-tolerance ruling of 2026-08-19/20 for client changes). Better for us or no change for us is accepted without a Legal Decision; only what is worse goes to Legal. MATCH -> ACCEPTABLE; a deviation -> UNACCEPTABLE -> Legal, except a deviation on this standard's declared favourable side (favourable_direction, from a source; never with favourable_counsel_check) -> ACCEPTABLE, still a DEVIATION (AM-239). No tolerance bands. effect_rule lets a client change the engine proves better or unchanged for us be accepted automatically, audited, reopenable by Legal.",
+  "_history": [
+    {
+      "date": "2026-11-16",
+      "record": "AM-380",
+      "configuration_before": {
+        "not_applicable_to": [
+          "TOS"
+        ]
+      }
+    }
+  ],
+  "msa_alignment": {
+    "record": "AM-380",
+    "date": "2026-11-16",
+    "ruling": "owner, 2026-11-16: \"Do not change the whole Constitution. Only change the points that differ from Sayan's MSA. Sayan's MSA is the final verdict for now — point to point use Sayan's MSA.\" (rule 6 approval for these lock changes; AB-205)",
+    "kind": "SUSPENDED FOR MSA — Sayan's MSA is silent on this point",
+    "note": "Constitution §16: late payments accrue interest at 2% per month. Sayan's MSA states no position, so point to point this standard raises nothing on a document declared MSA until the new MSA states one (not deleted; its Constitution position is unchanged for every other type, and for an untyped document it still applies by content, AM-51). No text is authored (rule 7)."
+  }
 }

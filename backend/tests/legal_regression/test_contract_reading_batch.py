@@ -17,9 +17,12 @@ from legalmind.ingestion.service import ingest_document
 from tests.legal_regression.test_legal_regression import _findings, _review
 from tests.test_analysis import build, storage  # noqa: F401 — fixtures
 from tests.test_hard_test_fixes import _ratified
+from tests.test_indemnity_beside_mutual_am311 import section_10_mechanism  # noqa: F401
 
 # ------------------------------------------- R-1: §10 "a defined mutual framework"
 INDEMNITY = "INDEMNITY-MSA-001"
+# the §10 mechanism on a copy without `customer_indemnity_only` (AM-380/AM-381 r2)
+pytestmark = pytest.mark.usefixtures("section_10_mechanism")
 #: the customer's indemnity, carrying every §10 limb, so only its direction is in question
 THEIRS = ("9.1 The Customer shall defend, indemnify and hold harmless Leapswitch against "
           "third-party claims arising from the Customer's content, its end users' conduct, "
@@ -242,8 +245,9 @@ def test_a_page_that_ends_a_sentence_is_not_continued(last):
 
 
 def test_a_cap_split_by_its_page_break_is_one_cap_never_a_conflict(build, db):
-    _ratified(build, "LIABILITY-MSA-001")
-    contract = M.Contract(owner_id=build.owner.id, name="Split cap", contract_type="MSA",
+    # the TOS standard keeps 12 months of total fees; the MSA's is our MSA 17.2 (AM-380)
+    _ratified(build, "LIABILITY-TOS-001")
+    contract = M.Contract(owner_id=build.owner.id, name="Split cap", contract_type="TOS",
                           status=E.ContractStatus.ACTIVE)
     db.add(contract); db.flush()
     result = ingest_document(db, build.storage, contract_id=contract.id,
@@ -255,7 +259,7 @@ def test_a_cap_split_by_its_page_break_is_one_cap_never_a_conflict(build, db):
                       status=E.ReviewStatus.DRAFT, created_by=build.owner.id)
     db.add(review); db.flush()
     run_analysis(db, review)
-    found = _findings(db, review)["LIABILITY-MSA-001"]
+    found = _findings(db, review)["LIABILITY-TOS-001"]
     assert found["classification"] == "MATCH", found
     assert found["cited"] == [("17.1", 1)]
     assert db.execute(select(M.DocumentEvidence.section_number)
@@ -279,7 +283,8 @@ def test_a_liability_cap_that_mentions_fees_is_never_price_change_evidence(build
 def test_a_price_clause_under_its_fees_heading_is_still_found(build, db):
     review, _ = _review(build, db, [PRICE], [
         "8. Fees", "8.4 Prices may be changed with thirty (30) days' written notice to the "
-        "Customer.", "17. Limitation of Liability", CAP_BODY])
+        "Customer.", "17. Limitation of Liability", CAP_BODY], kind="OTHER")
+    # OTHER, not MSA: the price-change notice is suspended for MSA (AM-380 r2)
     found = _findings(db, review)[PRICE]
     assert found["classification"] == "MATCH" and {s for s, _ in found["cited"]} == {"8.4"}
 

@@ -288,7 +288,8 @@ def _evaluate_cap(evaluator_input, cap: Cap, standard: dict, legal_rule,
                            f"Standard scope {standard_scope}",
                            "no cross-scope comparison is performed (45C.5)"))
 
-    if cap.cap_status == WORKING_DAYS and \
+    # `AM-380`: a standard counting working days (our MSA 8.3) compares them as such
+    if cap.cap_status == WORKING_DAYS and standard.get(UNIT) != WORKING_DAYS and \
             rule_config.basis_is_comparable(cap.cap_basis, standard.get(BASIS)):
         # `AM-154` — working days are never calendar days: a period stated in them
         # deviates from a calendar-day standard, and a person decides — once its scope

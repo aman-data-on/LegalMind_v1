@@ -7,7 +7,7 @@
     "section's, none is invented (rule 7/21). Catalogue: docs/00-project/CLAUSE_CATALOGUE.md."
   ],
   "requirement_code": "DISPUTE-WINDOW-MSA-001",
-  "description": "Billing disputes must be raised in writing within a set number of days of the invoice.",
+  "description": "Invoice disputes must reach Leapswitch within a set number of working days of receiving the invoice.",
   "ratified": "2026-09-13",
   "approval": {
     "basis": "CONSTITUTION",
@@ -15,9 +15,9 @@
     "ruling": "owner, 2026-09-13 — rules clearly defined in the current Constitution are approved and final; this standard restates its section without changing its meaning",
     "calibration": "35.10 — verified against the Constitution's own illustrative clause language (tools.verify_terminology); representative counterparty paper still to be run when supplied"
   },
-  "source_document": "Legal Constitution, Lawyer Review Version L1.10 — docs/02-legal-domain/LEGAL_CONSTITUTION_L1.10.md",
-  "source_clause": "§16",
-  "source_quote": "Billing disputes must be raised in writing within 15 days of the invoice date.",
+  "source_document": "Leapswitch Master Services Agreement, Version 2 (July 2025) — MSA.pdf at LEGALMIND_SOURCE_MATERIAL_DIR (Sayan's MSA; same text as the approved July 2025 docx, all_lock.md AM-316)",
+  "source_clause": "8.3",
+  "source_quote": "All invoice(s) dispute claims must be delivered through email to Leapswitch within 5 working days from the date of receipt of invoice, else such invoice(s) shall be deemed not disputed by the Customer",
   "configuration": {
     "document_type": "MSA",
     "constitution": {
@@ -26,8 +26,8 @@
       "topic": "Payment Terms & Taxes",
       "basis": "STAKEHOLDER_CONFIRMED"
     },
-    "preferred": 15,
-    "unit": "DAYS",
+    "preferred": 5,
+    "unit": "WORKING_DAYS",
     "basis": "BILLING_DISPUTE_WINDOW",
     "scope_key": "GENERAL",
     "applicability": "REQUIRED",
@@ -118,5 +118,27 @@
   "_terminology": [
     "negative: arbitration; jurisdiction - a legal dispute-resolution clause is not a billing dispute window - 2026-10-16 (owner: 'read every detail as a lawyer'): generic contract wording a customer's redline used and the reader missed. Terms only - no value, unit, basis or position changes (AM-54 r13, 35.4).",
     "days from the date of receipt of invoice; negative: service credit - 2026-10-16 (AM-153, Drive stress test): generic contract wording a real counterparty paper used and the reader missed or misread; terms and scoping only, never a position."
-  ]
+  ],
+  "_history": [
+    {
+      "date": "2026-11-16",
+      "record": "AM-380",
+      "source_document_before": "Legal Constitution, Lawyer Review Version L1.10 — docs/02-legal-domain/LEGAL_CONSTITUTION_L1.10.md",
+      "source_clause_before": "§16",
+      "source_quote_before": "Billing disputes must be raised in writing within 15 days of the invoice date.",
+      "description_before": "Billing disputes must be raised in writing within a set number of days of the invoice.",
+      "configuration_before": {
+        "preferred": 15,
+        "unit": "DAYS"
+      }
+    }
+  ],
+  "source_file": "MSA.pdf",
+  "msa_alignment": {
+    "record": "AM-380",
+    "date": "2026-11-16",
+    "ruling": "owner, 2026-11-16: \"Do not change the whole Constitution. Only change the points that differ from Sayan's MSA. Sayan's MSA is the final verdict for now — point to point use Sayan's MSA.\" (rule 6 approval for these lock changes; AB-205)",
+    "kind": "DIFFERS — the MSA standard now states Sayan's MSA",
+    "note": "Working days are the clause's own unit; a calendar-day figure is not converted and goes to a person (AM-154, 45C.23)."
+  }
 }
