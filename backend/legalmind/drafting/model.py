@@ -532,6 +532,63 @@ def _pins(r: _Resolver, pins: list[Mapping[str, Any]],
     return out
 
 
+#: a blank in approved text: a run of three or more underscores ("banks at ______")
+UNDERSCORES = re.compile(r"_{3,}")
+
+
+def blank_runs(node: Any) -> list[dict[str, str]]:
+    """Each underscore blank in ``node``'s strings, in order, with the words before and
+    after it — the ``n`` (1-based) a ``blank`` field names."""
+    out: list[dict[str, str]] = []
+
+    def walk(x: Any) -> None:
+        if isinstance(x, str):
+            out.extend({"before": " ".join(x[max(0, m.start() - 40):m.start()].split()),
+                        "after": " ".join(x[m.end():m.end() + 30].split())}
+                       for m in UNDERSCORES.finditer(x))
+        elif isinstance(x, list | dict):
+            for y in x.values() if isinstance(x, dict) else x:
+                walk(y)
+    walk(node)
+    return out
+
+
+def _fill_blanks(template: Mapping[str, Any],
+                 clauses: Mapping[tuple[str, int], Mapping[str, Any]],
+                 values: Mapping[str, Any]) -> tuple[Mapping[str, Any], Mapping]:
+    """`AM-392`: a field Legal made of a blank (``"blank": {"in", "n"}`` — a clause key,
+    or ``preamble``/``recitals``) takes the n-th underscore run's place there, ONLY when
+    the deal answered it. Unanswered, the underscores stay and Final is blocked
+    (`negotiation.blanks`). The approved words (and their hash) never change: only this
+    render's copy is filled."""
+    want: dict[str, dict[int, str]] = {}
+    for v in template.get("variables", []):
+        if (b := v.get("blank")) and values.get(v["key"]) not in (None, ""):
+            want.setdefault(b["in"], {})[int(b["n"])] = v["key"]
+    if not want:
+        return template, clauses
+
+    def fill(node: Any, slots: dict[int, str], seen: list[int]) -> Any:
+        if isinstance(node, str):
+            def one(m: re.Match) -> str:
+                seen[0] += 1
+                key = slots.get(seen[0])
+                return "{" + key + "}" if key else m.group(0)
+            return UNDERSCORES.sub(one, node)
+        if isinstance(node, list):
+            return [fill(x, slots, seen) for x in node]
+        if isinstance(node, dict):
+            return {k: fill(x, slots, seen) for k, x in node.items()}
+        return node
+    clauses = {k: ({**c, "body": fill(c.get("body"), want[c["clause_key"]], [0])}
+                   if c.get("clause_key") in want else c) for k, c in clauses.items()}
+    layout = dict(template.get("layout") or {})
+    for where in ("preamble", "recitals"):
+        if where in want and where in layout:
+            layout[where] = fill(layout[where], want[where], [0])
+    return {**template, "layout": layout}, clauses
+
+
 def resolve(template: Mapping[str, Any],
             clauses: Mapping[tuple[str, int], Mapping[str, Any]],
             answers: Mapping[str, Any], *, mark: bool = False,
@@ -549,6 +606,7 @@ def resolve(template: Mapping[str, Any],
     values = ({v["key"]: v["locked_value"] for v in template.get("variables", [])
                if "locked_value" in v} if blank
               else validate(template.get("variables", []), answers))
+    template, clauses = _fill_blanks(template, clauses, values)
     r = _Resolver(template, values, mark, blank)
     layout = template.get("layout", {})
     body = _pins(r, template.get("clauses", []), clauses, "main")

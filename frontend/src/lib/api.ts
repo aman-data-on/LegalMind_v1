@@ -703,6 +703,13 @@ export const api = {
   noPosition: (id: string, key: string, reason: string) =>
     request<unknown>(p`/templates/${id}/clauses/${key}/no-position`, { method: "POST", body: { reason } }),
   /** `approvalReference`: who approved the text outside LegalMind (`AM-302` r6), optional */
+  /** `AM-390`/`AM-391`/`AM-392`: Legal's choices on a version not yet published */
+  keepAsWritten: (id: string, code: string, detail: string, reason: string) =>
+    request<unknown>(p`/templates/${id}/keep-as-written`, { method: "POST", body: { code, detail, reason } }),
+  setOurSignatory: (id: string, body: { name: string; designation: string; email: string }) =>
+    request<unknown>(p`/templates/${id}/our-signatory`, { method: "POST", body }),
+  makeBlankField: (id: string, body: { where: string; n: number; label: string; required: boolean }) =>
+    request<unknown>(p`/templates/${id}/blank-fields`, { method: "POST", body }),
   publishTemplate: (id: string, approvalReference = "") =>
     request<TemplateSummary>(p`/templates/${id}/publish`, {
       method: "POST", body: { approval_reference: approvalReference } }),

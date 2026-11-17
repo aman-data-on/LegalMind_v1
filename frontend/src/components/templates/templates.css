@@ -211,7 +211,7 @@
 
 /* phone: the list, then a clause as its own screen */
 @media (max-width: 899px) {
-  .tpl:not(.tpl--list):not(.ws-docs) { height: auto; padding-bottom: 96px; }
+  .tpl:not(.tpl--list):not(.ws-docs) { height: auto; padding-bottom: var(--ws-s6); }
   .tpl-head { grid-template-columns: 1fr auto; }
   .tpl-head .tpl-back { grid-column: 1 / -1; }
   .tpl-grid { display: flex; flex-direction: column; overflow: visible; }
@@ -228,9 +228,12 @@
   .tpl-sheet { padding: 32px 24px 24px; }
   .tpl-sheet__title, .tpl-para { padding-left: 1.9em; }
   .tpl-sheet__body > .tpl-para { padding-left: 0; }
-  /* the three actions stay in reach under a long clause */
-  .tpl-actions[data-mode="none"] { position: sticky; bottom: 0; z-index: 2; padding: var(--ws-s3);
-    border-radius: var(--ws-radius-card) var(--ws-radius-card) 0 0; box-shadow: 0 -6px 18px rgba(14, 20, 32, 0.08); }
+  /* the three actions sit straight under the clause, in the flow: a bar pinned to the
+     foot of the screen covered the clause's own lines at 780 and 390 (e2e 2026-11-17) */
+  .tpl-centre { order: 1; }
+  .tpl-actions { order: 2; }
+  .tpl-side > .tpl-panel:not(.tpl-actions) { order: 3; }
+  .tpl-actions[data-mode="none"] { padding: var(--ws-s3); }
   .tpl-actions[data-mode="none"] .tpl-panel__title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
   .tpl-actions[data-mode="none"] .tpl-actions__row .ws-btn { flex: 1 1 40%; }
   .tpl-actions[data-mode="none"] .tpl-actions__row .ws-btn--primary { flex-basis: 100%; }
@@ -304,3 +307,6 @@
   .tpl-lib__none .ws-btn { width: 100%; min-height: 44px; justify-content: center; }
 }
 
+.tpl-check { display: flex; gap: var(--ws-s2); align-items: center; font-size: var(--ws-text-sm); min-height: 24px; }
+.tpl-pubgroup h4 { margin: var(--ws-s3) 0 var(--ws-s1); }
+.tpl-blank { background: var(--ws-accent-soft); color: inherit; padding: 0 var(--ws-s1); border-radius: var(--ws-radius-sm); }

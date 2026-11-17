@@ -10,6 +10,11 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+- Template page fixes from the 2026-11-17 production run (AB-209, `AM-390`–`AM-392`): Legal can keep a
+  finding about the approved words as written (a quoted term never defined) with a reason, so our MSA
+  publishes unedited; Legal sets who signs for us on the template; a blank in approved words becomes a
+  labelled fill-in field for sales; the clause action bar no longer covers clause text at 780/390 px;
+  import notes name clauses by title; the standards check says what it is doing.
 - A carve-out uncaps the party it names (AB-208, `AM-388`, owner 2026-11-17): our MSA 17.3 keeps the
   Customer's indemnity, payment and fraud uncapped and no longer reads as uncapping LeapSwitch's 17.2
   cap. LeapSwitch, mutual or unnamed carve-outs still go to a person. Our MSA: needs a person 1 → 0.

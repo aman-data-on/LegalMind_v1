@@ -17,7 +17,7 @@ import { navItemsFor } from "@/components/workspace/model";
 import * as P from "@/lib/permissions";
 import {
   actionProblem, blockers, CHECK_TIMEOUT_MS, DEMO_WORDS, isDemo, changedSincePublished, clauseLine, clauseNumbers, fromEditor, groupClauses, outlineDiff, plainText,
-  problemLines, listOrder, problemWords, runs, statusWords, stopCount, structureChanges, toEditor, within,
+  noteWords, problemLines, listOrder, problemWords, runs, statusWords, stopCount, structureChanges, toEditor, within,
   type OutlineLine, type TemplateCheck, type TemplateClause, type TemplateSummary,
 } from "@/lib/templates";
 
@@ -129,7 +129,13 @@ describe("publishing", () => {
       .toEqual([{ text: "Exclusions: uses the term \u201cX\u201d, which is never defined", clauseKey: "A" },
                 { text: "Governing law: uses \u201cY\u201d", clauseKey: "C" }]);
     expect(problemWords("PREFLIGHT UNDEFINED_TERM: “Partner” is used in quotes and never defined", clauses, check))
-      .toEqual({ text: "“Partner” is used in quotes and never defined" });
+      .toEqual({ text: "“Partner” is used in quotes and never defined", keep: {
+        code: "UNDEFINED_TERM", detail: "“Partner” is used in quotes and never defined" } });
+    // AM-390: a problem that breaks the generated file is never offered "Keep as written"
+    expect(problemWords("PREFLIGHT REF_NO_BOOKMARK: a cross-reference names X", clauses, check).keep).toBeUndefined();
+    // the import notes name the clause by its title, never its key
+    expect(noteWords("A: has a blank to fill", clauses)).toBe("Exclusions: Has a blank to fill");
+    expect(noteWords("front: a blank to fill in the recitals", clauses)).toBe("A blank to fill in the recitals");
     const uses = [clause("DEF", { body: [{ kind: "p", text: "A \u201cPartner\u201d is one of us." }] })];
     expect(problemWords("PREFLIGHT UNDEFINED_TERM: “Partner” is used in quotes and never defined", uses, check).clauseKey)
       .toBe("DEF");

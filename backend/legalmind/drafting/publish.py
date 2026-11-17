@@ -246,6 +246,30 @@ def recommended_keys(db: DBSession) -> set[str]:
     return {k for k in chosen.values() if k}
 
 
+#: `AM-390`: findings about the approved WORDS themselves, which Legal may keep as written
+#: (a quoted term our MSA never defines). Everything that breaks the generated file —
+#: a dangling cross-reference, a slot left, numbering, the PDF — always blocks.
+KEEPABLE = frozenset({"UNDEFINED_TERM"})
+TEXT_KEPT = "template.text_kept"
+
+
+def kept(db: DBSession, tv_id: UUID) -> list[dict[str, Any]]:
+    """What Legal kept as written for this template version — read back from the
+    append-only audit trail, the one record of it (who, when, why)."""
+    rows = db.execute(select(M.AuditEvent).where(
+        M.AuditEvent.action == TEXT_KEPT, M.AuditEvent.entity_id == tv_id)
+        .order_by(M.AuditEvent.timestamp)).scalars()
+    return [{**e.after_state, "by": getattr(db.get(M.User, e.actor_id), "name", None),
+             "at": e.timestamp.isoformat()} for e in rows]
+
+
+def unkept(db: DBSession, tv_id: UUID,
+           found: list[preflight.Problem]) -> list[preflight.Problem]:
+    """``found`` without what Legal kept as written for ``tv_id`` (code and detail)."""
+    keep = {(k["code"], k["detail"]) for k in kept(db, tv_id)}
+    return [p for p in found if (p.code, p.detail) not in keep]
+
+
 def awaiting_approval(tv: M.TemplateVersion) -> bool:
     """`AM-316` r5: a not-yet-published version Legal marked as awaiting management
     approval (``source.catalogue.awaiting_approval``, frozen with it) — shown to everyone
@@ -307,7 +331,7 @@ def publish_template(db: DBSession, template_version_id: UUID, *, actor_id: UUID
     if os.environ.get("LEGALMIND_SOFFICE"):
         docx_bytes, result = pdf.convert_contract(docx_bytes)
         pdf_bytes = result.pdf
-    found = preflight.check(docx_bytes, model=model, pdf=pdf_bytes)
+    found = unkept(db, tv.id, preflight.check(docx_bytes, model=model, pdf=pdf_bytes))
     if found:
         raise PublishRefused([f"PREFLIGHT {p.code}: {p.detail}" for p in found])
     snapshot = latest_snapshot(db)

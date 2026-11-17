@@ -30,8 +30,22 @@ import "./templates.css";
 
 /** Where the check against our standards stands, with a way to run it again — the list,
  *  the template's header, its side panel and "Before publishing" all say it this way. */
+/** What the check is doing and for how long — it rebuilds the whole contract and reads it
+ *  against every standard, so it takes seconds; past `CHECK_TIMEOUT_MS` it fails with retry. */
+function Checking() {
+  const [seconds, setSeconds] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setSeconds((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <span role="status">Checking against our standards: building the contract and reading each clause
+      {seconds >= 5 ? ` (${seconds} s)` : ""}…</span>
+  );
+}
+
 export function CheckStatus({ state, onRetry }: { state: "checking" | "failed" | "done"; onRetry: () => void }) {
-  if (state === "checking") return <span role="status">Checking against our standards…</span>;
+  if (state === "checking") return <Checking />;
   if (state === "failed") {
     return (
       <span role="alert">
