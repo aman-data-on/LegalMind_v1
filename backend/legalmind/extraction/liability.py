@@ -313,13 +313,59 @@ _PROTECTED_CLASS = re.compile(
     r"cannot be (?:excluded|limited)|by law|intellectual property|confidential)", re.I)
 
 
-def cap_disapplied(clauses: list[Clause]) -> tuple[Clause, ...]:
+#: AM-388 — whose liability a carve-out uncaps. On paper where LeapSwitch serves the
+#: customer (`provider`), "the limitation shall not apply to" a list whose every item is
+#: the customer's OWN act or obligation ("the Customer's indemnity obligations", "damages
+#: resulting from the Customer's fraud, willful misconduct, or gross negligence") keeps
+#: the CUSTOMER uncapped: it protects LeapSwitch and leaves LeapSwitch's cap whole.
+#: Anything else — a LeapSwitch or mutual word, a bare "Customer" (a claimant), the
+#: customer's data or property, a claim, an item with no owner ("any wilful misconduct")
+#: — is read as before.
+_OURS_OR_MUTUAL = re.compile(r"\b(?:leapswitch|cloudpe|provider|supplier|licensor|vendor|"
+                             r"company|we|our|us|you|part(?:y|ies)|both|each|either|"
+                             r"mutual\w*)\b"
+                             r"|\b(?:customer|client)\b(?!['\u2019]s\b)", re.I)
+_NOT_APPLY_TO = re.compile(r"\b(?:shall|will|does|do)\s+not\s+(?:apply|extend)\s+"
+                           r"(?:to|in\s+respect\s+of)\s+(?P<list>.*)$", re.I)
+_LIST_ITEM = re.compile(r"\s*(?:,|;|\bor\b|\band\b|\bnor\b)\s*", re.I)
+_OWNER = re.compile(r"^(?:damages\s+(?:resulting|arising)\s+from\s+)?(?:the\s+)?"
+                    r"(?:(?:customer|client)['\u2019]s|your)\s+(?P<act>.+)$", re.I)
+_OWN_ACT = frozenset({"indemnity", "indemnities", "indemnification", "payment",
+                      "payments",
+                      "fraud", "fraudulent", "wilful", "willful", "misconduct", "gross",
+                      "negligence", "breach", "obligations", "obligation", "of", "under",
+                      "this", "agreement"})
+
+
+#: "breach of this Agreement" with no owner may be LeapSwitch's: a person reads it
+_BARE_ACT = frozenset({"fraud", "fraudulent", "wilful", "willful", "misconduct", "gross",
+                       "negligence"})
+
+
+def _uncaps_only_customer(sentence: str, provider: bool) -> bool:
+    m = _NOT_APPLY_TO.search(sentence) if provider else None
+    if not m or _OURS_OR_MUTUAL.search(sentence):
+        return False
+    items = [i for i in _LIST_ITEM.split(m.group("list").strip(" .")) if i.strip()]
+    for n, item in enumerate(items):
+        owned = _OWNER.match(item)
+        if not owned and n == 0:
+            return False          # the list must open with the customer's own act
+        allowed = _OWN_ACT if owned else _BARE_ACT    # an unowned limb: a bare act only
+        if any(w not in allowed for w in _words(owned.group("act") if owned else item)):
+            return False          # data, property, a claim, "any …": not its own act
+    return bool(items)
+
+
+def cap_disapplied(clauses: list[Clause], provider: bool = False) -> tuple[Clause, ...]:
     """The clauses of the document that disapply the limitation to a breach-wide class of
     claims (AM-164). Read over every clause: the disapplying sentence need not be in the
-    clause that states the cap."""
+    clause that states the cap. Not one that uncaps only the customer (AM-388)."""
     found = []
     for clause in clauses:
         for sentence in re.split(r"(?<=[.;])\s+", normalize(clause.content or "")):
+            if _uncaps_only_customer(sentence, provider):
+                continue
             if _DISAPPLIES.search(sentence) and not _PROTECTED_CLASS.search(sentence):
                 found.append(clause)
                 break
@@ -369,16 +415,17 @@ def _words(text: str) -> list[str]:
     return re.findall(r"[a-z][a-z']*", text.lower().replace("\u2019", "'"))
 
 
-def cap_carved_out(clauses: list[Clause], floor: tuple[str, ...] = ()
-                   ) -> tuple[tuple[Clause, str], ...]:
+def cap_carved_out(clauses: list[Clause], floor: tuple[str, ...] = (),
+                   provider: bool = False) -> tuple[tuple[Clause, str], ...]:
     """The clauses that take a class of claims beyond the lawful floor out of the cap,
     with that class named (AM-195, AM-304). Read over every clause, as `cap_disapplied`
-    is."""
+    is. Not a sentence that uncaps only the customer (AM-388)."""
     found = []
     for clause in clauses:
         text = " ".join((clause.content or "").split())
         for sentence in re.split(r"(?<=\.)\s+", text):   # "9.1" never splits
-            m = _CAP_NOT_FOR.search(sentence)
+            m = (None if _uncaps_only_customer(sentence, provider)
+                 else _CAP_NOT_FOR.search(sentence))
             said = next((g for g in m.groups() if g), "") if m else ""
             if m and m.group("list") and not re.search(r"\bliab", said, re.I):
                 said = ""          # "Nothing in this Agreement limits our right to …"

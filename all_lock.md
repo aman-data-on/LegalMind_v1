@@ -30726,3 +30726,36 @@ r5  Deploy-time publish: import_ratified_standards -> publish_payload -> POST
     /configuration/publish -> chunk_standards (ops/README §standards); a NEW snapshot, no
     existing Review changes (rule 16).
 ```
+
+## AMENDMENT BATCH AB-208 — `AM-388` (2026-11-17): a carve-out uncaps the party it names — our 17.3 protects LeapSwitch
+
+Owner, 2026-11-17: "yes go ahead" (fix the 17.2 vs 17.3 CONFLICT on our own MSA). Standing owner
+rule (2026-11-16): a lock that weakens the lawyer agent → design the best option, amend, proceed.
+Collision scan 2026-11-17 (origin/main, every worktree, every remote branch): AM-388 and AB-208
+free (reserved free by AB-207's scan, unused).
+
+`AM-388` — whose liability a carve-out uncaps (amends `AM-164` and `AM-195`/`AM-304`)
+
+```text
+r1  A sentence that takes a class of claims out of the limitation (AM-164 breach-wide,
+    AM-195/AM-304 named class) is read as UNLIMITED beside the general cap EXCEPT when it uncaps
+    only the customer: the paper is one where LeapSwitch is the provider (document type MSA,
+    TOS, SLA, ORDER_FORM or AMENDMENT — never OTHER or undeclared); the sentence reads "… shall
+    not apply to <list>"; the list opens with the customer as owner ("the Customer's",
+    "the Client's", "your", optionally after "damages resulting/arising from") and every item
+    names only the customer's own act or obligation (indemnity, payment, fraud, wilful/willful
+    misconduct, gross negligence, breach of … obligations); and the sentence names no other
+    party word (LeapSwitch, CloudPe, provider, supplier, licensor, vendor, company,
+    we/our/us/you, party/parties, both, each, either, mutual, or a bare "Customer"/"Client").
+r2  Such a sentence keeps the CUSTOMER's liability uncapped; it protects LeapSwitch and leaves
+    LeapSwitch's cap whole. Example: MSA.pdf 17.3 (the Customer's indemnity, payment and fraud)
+    → LIABILITY-MSA-001 MATCH on 17.2.
+r3  Fail closed: a carve-out naming LeapSwitch, each/either/both parties, a mix of sides, or no
+    party at all is read as before — UNLIMITED beside the cap, for a person. A client markup
+    adding "Leapswitch's liability for gross negligence, data breach … shall be unlimited"
+    still conflicts.
+r4  Fail closed on everything else: the customer's data, content, IP or property, the
+    customer's claims, an item with no owner ("any wilful misconduct"), a "nor to …" limb.
+    Known ceiling: deterministic words only; a list in another sentence shape is read as before.
+r5  No standard JSON changes; no re-publish needed. Applies to new analyses only (rule 16).
+```
