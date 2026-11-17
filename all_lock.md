@@ -30950,3 +30950,6 @@ a later fill — the value is written into that file's own blank (`clean.fill_bl
 words before it; a blank it cannot place still blocks). `AM-395` r6: on an MSA, a standard aligned
 to our MSA (`msa_alignment`) never falls back to the Constitution's drafting notes. `AM-399` r4:
 only a `legal.decision` holder may ask the client (server-checked).
+`AM-395` r7 (2026-11-17, narrowing r5): the deal owner keeps the open points and who has each
+on the Summary; what is Legal-only there is "where it differs from our standard" once every point is
+decided, and the key obligations analysis.

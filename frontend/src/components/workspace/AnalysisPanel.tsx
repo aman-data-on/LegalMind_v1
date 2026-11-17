@@ -244,8 +244,9 @@ export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner
                               refreshKey={state.findings.map((f) => f.status).join()}
                               onRecorded={reload} readOnly={reference} />
             {/* AM-318: a Final deal has nothing open and nothing left to offer. L10: the
-                lawyer's analysis is Legal's — the deal owner's Summary shows their work */}
-            {reference || stage?.stage === "FINAL" || !legal ? null : <LegalAngle reviewId={state.review.id} refreshKey={refreshKey} withRecommendation={false}
+                lawyer's analysis ("where it differs", once all is decided) is Legal's — the deal
+                owner keeps the open points and who has each */}
+            {reference || stage?.stage === "FINAL" || (!legal && counts?.points_open === 0) ? null : <LegalAngle reviewId={state.review.id} refreshKey={refreshKey} withRecommendation={false}
                         allDecided={counts?.points_open === 0}
                         decided={new Set(state.findings.filter((f) => !OPEN_STATES.has(pointState(f)))
                                                       .map((f) => f.id))}
