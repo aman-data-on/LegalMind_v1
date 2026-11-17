@@ -10,6 +10,10 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+- A carve-out uncaps the party it names (AB-208, `AM-388`, owner 2026-11-17): our MSA 17.3 keeps the
+  Customer's indemnity, payment and fraud uncapped and no longer reads as uncapping LeapSwitch's 17.2
+  cap. LeapSwitch, mutual or unnamed carve-outs still go to a person. Our MSA: needs a person 1 → 0.
+
 - Our own MSA wording is recognised (AB-207, `AM-386`–`AM-387`, owner 2026-11-17): data residency
   and sub-processors are MATCH when the clause is our MSA's 11.5/11.4 word for word (any changed,
   added or removed word still goes to a person), and a 17.7 with its months blank no longer

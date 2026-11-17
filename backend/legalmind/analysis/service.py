@@ -2222,6 +2222,7 @@ def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
                        egress=egress, bases=bases,
                        topic=topic_terms(item.mapping_rules.rules),
                        roles=(document_type or "") in parties.CUSTOMER_TYPES,
+                       provider=(document_type or "") in parties.PROVIDER_TYPES,
                        uncertain=_cross_family(item, document_type))
     if (isinstance(facts, LiabilityFacts)
             and all(c.cap_status == ABSENT for c in facts.caps)
@@ -2343,7 +2344,7 @@ def _facts_for(rv: M.RequirementVersion, standard_configuration: dict,
                outcome: RequirementOutcome, egress: semantic.Egress | None = None,
                bases: dict[str, tuple[str, ...]] | None = None,
                topic: tuple[str, ...] = (), roles: bool = False,
-               uncertain: bool = False):
+               provider: bool = False, uncertain: bool = False):
     """Requirement-specific fact extraction — locked 44.11.
 
     `PRESENCE` takes no facts at all: presence is established by the mapping layer
@@ -2459,7 +2460,8 @@ def _facts_for(rv: M.RequirementVersion, standard_configuration: dict,
     if config.cap_context_terms:
         # AM-195 — a §9-named class (confidentiality, data, IP, indemnities) taken out of
         # the cap is uncapped for those claims, as AM-164 reads a breach-wide class.
-        for clause, named in cap_carved_out(clauses, config.lawful_floor):
+        for clause, named in cap_carved_out(clauses, config.lawful_floor,
+                                              provider):
             outcome.diagnostics.append(
                 f"clause {clause.section_number or '?'} takes {named!r} claims out of "
                 "the limitation: Constitution §9 approves no carve-out beyond what "
@@ -2469,7 +2471,7 @@ def _facts_for(rv: M.RequirementVersion, standard_configuration: dict,
                 cap_kind=EvaluationKind.PRIMARY, scope=config.general_scope,
                 scope_label=None, cap_status=UNLIMITED,
                 evidence_refs=(clause.evidence_id,))))
-        for clause in cap_disapplied(clauses):
+        for clause in cap_disapplied(clauses, provider):
             outcome.diagnostics.append(
                 "clause %s takes a breach-wide class of claims out of the limitation: "
                 "read as unlimited for those claims" % (clause.section_number or "?"))

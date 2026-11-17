@@ -775,3 +775,82 @@ def test_a_blank_17_7_duplicates_17_2_and_a_filled_one_conflicts(build, db, mont
                                                                  expected):
     assert _one(build, db, "LIABILITY-MSA-001", "MSA", "17. Limitation of Liability",
                 _CAP_172, _CAP_177.format(months)) == expected
+
+
+# AM-388 (owner, 2026-11-17): a carve-out keeps uncapped the party it names. Our 17.3
+# uncaps only the CUSTOMER (indemnity, payment, fraud) — it protects LeapSwitch and leaves
+# 17.2's LeapSwitch cap whole. One that uncaps LeapSwitch, either party, or names no party
+# is read as before: unlimited beside the cap, for a person.
+_EXCL_173 = ("17.3 Exclusions from Limitation: The foregoing limitations shall not apply to "
+             "the Customer's indemnity obligations under this Agreement, the Customer's "
+             "breach of payment obligations, or damages resulting from the Customer's "
+             "fraud, willful misconduct, or gross negligence.").replace("'", "\u2019")
+
+
+def test_a_carve_out_uncapping_only_the_customer_leaves_our_cap_whole(build, db):
+    assert _one(build, db, "LIABILITY-MSA-001", "MSA", "17. Limitation of Liability",
+                _CAP_172, _EXCL_173) == "MATCH"
+
+
+@pytest.mark.parametrize("carve_out", [
+    # the client's markup kind: LeapSwitch uncapped
+    "17.3 Leapswitch's liability for gross negligence, data breach or breach of "
+    "confidentiality shall be unlimited.",
+    "17.3 The foregoing limitations shall not apply to either Party's indemnity "
+    "obligations.",
+    "17.3 The foregoing limitations shall not apply to the Customer's indemnity "
+    "obligations or Leapswitch's breach of data protection obligations.",
+    # the customer as claimant, not owner: LeapSwitch's liability to it
+    "17.3 The foregoing limitations shall not apply to claims brought by the Customer for "
+    "breach of data protection obligations.",
+    # names no party: ambiguous, a person reads it
+    "17.3 The foregoing limitations shall not apply to indemnity obligations or "
+    "payment obligations.",
+])
+def test_a_carve_out_uncapping_us_both_or_unnamed_goes_to_a_person(build, db, carve_out):
+    assert _one(build, db, "LIABILITY-MSA-001", "MSA", "17. Limitation of Liability",
+                _CAP_172, carve_out) not in ("MATCH", None)
+
+
+def test_customer_only_wording_is_ours_only_where_we_are_the_provider():
+    from legalmind.extraction.liability import cap_carved_out
+    from legalmind.mapping.engine import Clause
+    clause = [Clause(evidence_id="e", section_number="17.3",  # type: ignore[arg-type]
+                     content=_EXCL_173)]
+    assert not cap_carved_out(clause, (), provider=True)
+    assert cap_carved_out(clause, (), provider=False)     # vendor paper: we may be Customer
+
+
+@pytest.mark.parametrize("text", [
+    # the customer's asset or claim: LeapSwitch is the one liable (verifier probes)
+    "The limitation of liability shall not apply to claims arising from loss of the "
+    "Customer's data.",
+    "The cap shall not apply to liability for infringement of the Customer\u2019s "
+    "intellectual property.",
+    "The above limits do not apply to any breach of your data or loss of your content.",
+    "The cap shall not apply to damage to the Customer's premises or property caused by "
+    "gross negligence.",
+    "The limitation shall not apply to the Customer's claims for data breach.",
+    # another party named
+    "The limitation shall not apply to Licensor's indemnity obligations or the Customer's "
+    "fraud.",
+    "The limitation shall not apply to the Company's indemnity obligations or the "
+    "Customer's fraud.",
+    "The limitation shall not apply to the Customer's fraud or to the Vendor's fraud.",
+    # a second carve-out with no owner
+    "The limitation shall not apply to the Customer's fraud and any wilful misconduct.",
+    "The limitation shall not apply to the Customer's fraud; nor to gross negligence.",
+    # an unowned "breach of this Agreement" may be LeapSwitch's (verifier round 2)
+    "The foregoing limitations shall not apply to the Customer's payment obligations or "
+    "breach of this Agreement.",
+])
+def test_a_carve_out_not_wholly_the_customers_own_act_is_still_read(text):
+    from legalmind.extraction.liability import _uncaps_only_customer
+    assert not _uncaps_only_customer(text, True)
+
+
+@pytest.mark.skipif(not (_SRC / "MSA.pdf").is_file(),
+                    reason="source material is gitignored (54.6); present on the server only")
+def test_our_msa_liability_is_a_match(build, db):
+    found = _real(build, db, "MSA.pdf", ["LIABILITY-MSA-001"])
+    assert found["LIABILITY-MSA-001"]["classification"] == "MATCH"
