@@ -31199,9 +31199,9 @@ r3  MSA POSITIONS (Sayan, final) as already measured by AB-205 (AM-380): cap 17.
     of the affected Services' fees, limiting Leapswitch's liability, 17.7 a repeat under
     AM-401; customer-only indemnity 16.1; data purged within fifteen days of termination
     (7.6.6); arbitration in Mumbai (19.4); early termination barred, fees for the rest of
-    the Term payable (7.2); no late fee; precedence per 21.3 /
-    21.9 / 6.1.4 / 6.5.4 with no sentence drafted (owner ruling 2026-11-18 as the MSA-alignment
-    work records it in AB-214, not yet merged; the clause list is that work's reading).
+    the Term payable (7.2); no late fee. Precedence of Annexure 2 over the MSA body: pending
+    owner/Legal confirmation (AB-214 AM-414, PR #321); MSA 21.3 contains only an
+    entire-agreement sentence and states no actual order (open for Legal).
 r4  PUBLISHED POSITIONS per brand: each brand's own TOS, SLA, AUP and Privacy text; the three
     brands' documents are never merged. CloudJiffy is added as a brand (§2.2, §4, §5.1) with
     its Terms of Service (Last updated April 19th, 2018; its AUP and Privacy Policy are
