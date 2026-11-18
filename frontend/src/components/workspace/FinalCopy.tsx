@@ -199,7 +199,7 @@ function FinalFiles({ version, primary }: { version: Pick<DocumentVersion, "id" 
         ) : null}
       </div>
       {wordError ? <p className="cx-error" role="alert">{wordError}</p> : null}
-      <div className="lm-final__preview">
+      <div className="lm-final__preview" tabIndex={0} role="region" aria-label={FINAL_CARD.preview}>
         {shown.kind === "loading" ? <LoadingState label={FEEDBACK_COPY.preparingPreview} /> : null}
         {shown.kind === "ready" ? (
           <PdfPages blob={shown.blob} label={FINAL_CARD.preview} />

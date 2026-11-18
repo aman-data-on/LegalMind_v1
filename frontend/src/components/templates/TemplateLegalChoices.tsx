@@ -238,9 +238,15 @@ export function SpecialConditionsSetup({ readiness }: { readiness?: SpecialCondi
           clause saying Annexure A wins.</p>
       ) : (
         <>
-          <p className="tpl-help"><strong>Not set up.</strong> Agreed changes go back to the client as tracked changes
-            instead of a final contract. It does not stop publishing. An administrator sets it up when the template is
-            imported; it cannot be set up from this page yet.</p>
+          {readiness.missing.some((m) => m.code === "NOT_CONFIGURED") ? (
+            <p className="tpl-help"><strong>Not set up.</strong> Agreed changes go back to the client as tracked changes
+              instead of a final contract. It does not stop publishing. An administrator sets it up when the template is
+              imported; it cannot be set up from this page yet.</p>
+          ) : (
+            // prelaunch U5: attached but incomplete — never "Not set up", and say what it blocks
+            <p className="tpl-help"><strong>Not complete.</strong> Publishing is allowed, but no final contract can be
+              made from this template until the item below is done.</p>
+          )}
           {readiness.missing.some((m) => m.code !== "NOT_CONFIGURED") ? (
             <ul>{readiness.missing.map((m) => (
               <li key={m.code}><span className="tpl-pubrow__what">{blockerText({ code: `SC_${m.code}`, detail: m.detail })}</span></li>

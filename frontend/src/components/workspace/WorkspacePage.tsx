@@ -431,6 +431,13 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
                     onCompany={() => setCompanyOpen(true)} onView={chooseView} onReload={() => void load()}
                     secondary={<>
                       {copied ? <span className="ws-record__copied" role="status">{copied}</span> : null}
+                      {/* prelaunch U2: while the paper is with the client, the owner's next act
+                          (their reply) is in sight, never only under ⋯; not primary — it is
+                          the client's turn */}
+                      {canUpload && stageCode === "WITH_CLIENT" ? (
+                        <button type="button" className="ws-btn ws-btn--sm" onClick={uploadToggle}>
+                          Upload the client&rsquo;s reply</button>
+                      ) : null}
                       <ClientMenu label="More actions">{overflow}</ClientMenu>
                     </>}>
       {version && !phone && changesFeed.enabled ? (

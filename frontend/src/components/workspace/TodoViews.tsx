@@ -18,6 +18,7 @@ import { taskAction } from "@/lib/nextStep";
 import { useSession } from "@/lib/session";
 import type { Contract, Counterparty, TodoItem } from "@/lib/types";
 import { TemplatesToApprove } from "@/components/templates/TemplateList";
+import { LoadingState } from "@/components/Feedback";
 
 import { contractFacts, oneTaskPerContract, personaFor, relativeTime, todoViews } from "./model";
 
@@ -118,16 +119,17 @@ export function HomeQueue({ companies, todo }: {
   const { can } = useSession();
   const legal = personaFor(can) === "legal";
   const { tasks, contracts } = todo;
-  if (tasks === null) return null;
   return (
     <>
-      <section className="ws-hq" {...(legal ? { "aria-label": "For my review" } : { "aria-labelledby": "ws-home-turn" })}>
+      {/* prelaunch P3: the queue's place is held while it loads — it used to arrive above the
+          list and push it down (CLS 0.32 on a phone) */}
+      <section className="ws-hq" aria-busy={tasks === null} {...(legal ? { "aria-label": "For my review" } : { "aria-labelledby": "ws-home-turn" })}>
         {legal ? null : (
           <h2 id="ws-home-turn" className="ws-home__qtitle">
-            Your turn<span className="ws-home__qn">{tasks.length}</span>
+            Your turn{tasks ? <span className="ws-home__qn">{tasks.length}</span> : null}
           </h2>
         )}
-        {tasks.length ? <TaskList tasks={tasks} contracts={contracts} companies={companies} />
+        {tasks === null ? <LoadingState rows={1} /> : tasks.length ? <TaskList tasks={tasks} contracts={contracts} companies={companies} />
           : <p className="ws-hq__clear">{legal ? "Nothing is waiting for your review." : "Nothing is waiting on you."}</p>}
       </section>
       <TemplatesToApprove />

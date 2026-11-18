@@ -7810,6 +7810,14 @@ a.ws-askglobal > span { position: absolute; width: 1px; height: 1px; overflow: h
   clip-path: inset(50%); white-space: nowrap; }
 
 /* AM-394: fill-in fields — label above value, one per row */
-.lm-fields { display: grid; gap: var(--ws-s2); margin: 0 0 var(--ws-s3); }
+.lm-fields { display: grid; gap: var(--ws-s2) var(--ws-s5); margin: 0 0 var(--ws-s3);
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); }
+/* prelaunch U3: the fill-in fields are one line (title + summary) until opened */
+.lm-fillin__box { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--ws-s1) var(--ws-s3); }
+.lm-fillin__box > .ws-contract__title { margin: 0; }
+.lm-fillin__box > form, .lm-fillin[open] { flex-basis: 100%; }
+.lm-fillin > summary { cursor: pointer; width: fit-content; font-size: var(--ws-text-sm); color: var(--ws-ink-700); }
+.lm-fillin > summary:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+.lm-fillin[open] > summary { margin-bottom: var(--ws-s2); }
 .lm-fields dt { font-size: var(--t-caption); color: var(--ws-ink-700); }
 .lm-fields dd { margin: 0; overflow-wrap: anywhere; }

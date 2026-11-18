@@ -22,6 +22,7 @@ export function FillInFields({ contractId, onSaved }: { contractId: string; onSa
   if (!got?.fields.length) return null;
   // B5: a value filled after the client saw our version waits for the final contract
   const later = new Map((got.filled_since_sent ?? []).map((f) => [f.key, f.value]));
+  const filled = got.fields.filter((f) => later.has(f.key) || f.value || f.default).length;
   const shown = (f: BlankValues["fields"][number]) => later.has(f.key) ? `${later.get(f.key)} (for the final contract)`
     : f.value ?? (f.default ? `${f.default} (template default)` : "Not filled");
 
@@ -45,7 +46,7 @@ export function FillInFields({ contractId, onSaved }: { contractId: string; onSa
   }
 
   return (
-    <section className="ws-contract" aria-labelledby={`${id}-h`}>
+    <section className="ws-contract lm-fillin__box" aria-labelledby={`${id}-h`}>
       <h3 id={`${id}-h`} className="ws-contract__title">Fill-in fields</h3>
       {editing ? (
         <form className="ws-decision__form" onSubmit={save} noValidate>
@@ -67,7 +68,10 @@ export function FillInFields({ contractId, onSaved }: { contractId: string; onSa
           </div>
         </form>
       ) : (
-        <>
+        // prelaunch U3/P1: one line until opened — the full list above the document pushed the
+        // whole workspace down once loaded (CLS 0.13) and filled the first screen
+        <details className="lm-fillin">
+          <summary>{filled} of {got.fields.length} filled — show</summary>
           <dl className="lm-fields">
             {got.fields.map((f) => (
               <div key={f.key}><dt>{f.label}</dt><dd>{shown(f)}</dd></div>
@@ -76,7 +80,7 @@ export function FillInFields({ contractId, onSaved }: { contractId: string; onSa
           {got.can_edit ? (
             <button type="button" className="ws-btn" onClick={() => { setDraft({}); setEditing(true); }}>Edit fill-in fields</button>
           ) : null}
-        </>
+        </details>
       )}
     </section>
   );
