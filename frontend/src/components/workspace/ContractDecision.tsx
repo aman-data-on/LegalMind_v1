@@ -21,8 +21,8 @@ const ORDER: ContractOutcome[] = ["SIGN_AS_IS", "SIGN_WITH_CHANGES", "DO_NOT_SIG
 
 export function ContractDecision({ reviewId, reviewStatus, refreshKey, onRecorded, readOnly = false, withLegal = true }: {
   reviewId: string;
-  /** AB-213 D4: a first decision is offered only while the deal is with Legal — never a
-   *  second main button at the owner's stage. Changing a recorded one stays available */
+  /** AB-213 D4: no first decision at the owner's stage (Client replied, not sent to
+   *  Legal) — never a second main button there. Changing a recorded one stays available */
   withLegal?: boolean;
   reviewStatus: string;
   /** a closed review shown for reference (owner item (b)): the record, never the form */
