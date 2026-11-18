@@ -54,6 +54,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // AB-213 D14: the sign-in page reads no identity on load (it refreshes once signed in),
+    // so it never asks — no 401 logged for a reader who is, by being there, signed out
+    if (window.location.pathname.startsWith("/login")) { setLoading(false); return; }
     void refresh();
   }, [refresh]);
 

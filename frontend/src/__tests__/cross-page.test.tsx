@@ -37,7 +37,7 @@ describe("the stage line agrees with the counts", () => {
     expect(stageLine("INTERNAL_REVIEW", answered, "legal")).toBe("With Legal, 17 points");   // AM-398 r2: one chip
     // Batch 1 (c): open points keep the final contract waiting
     expect(stageLine("CLIENT_RETURNED", answered)).toBe("Client replied");
-    expect(stageLine("CLIENT_RETURNED", { ...answered, points_open: 0, points_waiting: 0 })).toBe("Ready for the final contract"); // N16
+    expect(stageLine("CLIENT_RETURNED", { ...answered, points_open: 0, points_waiting: 0 })).toBe("Client replied"); // AB-213 D4
     expect(stageLine("CLIENT_RETURNED", { ...answered, changes_ours: 5 })).toBe("Client replied");
     expect(stageLine("CLIENT_RETURNED", round)).toBe("Client replied");
     expect(stageLine("INTERNAL_REVIEW", { points_open: 0 }, "legal")).toBe("With Legal");

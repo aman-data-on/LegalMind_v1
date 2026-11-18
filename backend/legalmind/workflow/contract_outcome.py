@@ -45,8 +45,8 @@ def suggest(db: DBSession, review: M.Review) -> ContractOutcome:
     back (a Reject — "this clause must change" — a required standard, our wording, or an
     answer other than accepting theirs) → Sign after our changes; else Sign as is. Do not
     sign stays a person's choice."""
-    if "ask" in _round_answers(db, review):      # AM-399: we wait for the client's answer
-        return ContractOutcome.ON_HOLD
+    # AM-405 (AB-213 D1): "Ask the client" sends the question in our reply — wording goes
+    # back, so the deal moves on (Sign after our changes); never On hold with no action
     return (ContractOutcome.SIGN_WITH_CHANGES if changes_go_back(db, review)
             else ContractOutcome.SIGN_AS_IS)
 

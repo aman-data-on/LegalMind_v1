@@ -125,7 +125,7 @@ def test_ask_the_client_on_an_unmeasured_change(api, db, owner, tmp_path):
         M.ComparisonChoice.row_key == change["row_key"])).one()
     assert (stored.choice, stored.client_note) == ("ask", QUESTION)
     assert db.scalars(select(M.LegalDecision)).all() == []
-    assert contract_outcome.suggest(db, review) is E.ContractOutcome.ON_HOLD
+    assert contract_outcome.suggest(db, review) is E.ContractOutcome.SIGN_WITH_CHANGES  # AM-405
     prepared = api.post(REPLY.format(c.id))
     assert prepared.status_code == 201, prepared.text
     reply = api.get(f"{V1}{prepared.json()['data']['downloads']['docx']}")
@@ -190,3 +190,12 @@ def test_an_msa_point_never_offers_constitution_wording(monkeypatch):
     quote = angles._msa_quote("DISPUTE-WINDOW-MSA-001")
     assert quote and quote["kind"] == "MSA_QUOTE" and "5 working days" in quote["text"]
     assert "Pune" not in quote["text"] and "twenty-one" not in quote["text"]
+
+
+def test_a_changed_point_is_placed_at_the_clause_the_client_changed():
+    """AB-213 D13: a point reading 19.1 and 19.4, the client changed 19.4 → 19.4."""
+    from types import SimpleNamespace as NS
+    clauses = [NS(evidence_id="a", section_number="19.1"),
+               NS(evidence_id="b", section_number="19.4")]
+    assert angles.changed_passage(["a", "b"], {"b"}, clauses) == "b"
+    assert angles.changed_passage(["a"], {"b"}, clauses) is None

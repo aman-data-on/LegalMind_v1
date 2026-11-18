@@ -2429,6 +2429,18 @@
     "additionalProperties": false,
     "description": "Send a Review to one designated reviewer (AB-100) \u2014 the person, nothing else.",
     "properties": {
+     "note": {
+      "anyOf": [
+       {
+        "maxLength": 2000,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Note"
+     },
      "user_id": {
       "format": "uuid",
       "title": "User Id",

@@ -75,6 +75,7 @@ from legalmind.db import models as M
 from legalmind.domain.deal_stage import final_of
 from legalmind.domain.document_types import DOCUMENT_SOURCES
 from legalmind.domain.enums import (
+    ContractOutcome,
     FindingClassification,
     FindingStatus,
     MappingState,
@@ -1164,6 +1165,33 @@ def reply_open_points(db: DBSession, version: M.DocumentVersion) -> dict | None:
         return None
     gate = review_open_points(db, version)
     return {**gate, "final": bool(final_of(meta))} if gate else None
+
+
+def signed_as_is_at(db: DBSession, version: M.DocumentVersion) -> Any:
+    """When ``version``'s current contract decision became Sign as is (its latest Review,
+    not reopened since), or None. AM-407 (AB-213 D6): a final contract whose own Review
+    has no contract decision and no undecided point is the clean copy of text Legal
+    already signed off — it reads the decision on the version it was made from, so Legal
+    is never asked a third time. Presentation of a person's decision, never a new one."""
+    def own(v: M.DocumentVersion) -> tuple[bool, Any]:
+        review = _latest_review(db, v)
+        record = None if review is None else db.execute(
+            select(M.ContractOutcomeRecord).where(
+                M.ContractOutcomeRecord.review_id == review.id)
+            .order_by(M.ContractOutcomeRecord.version_number.desc()).limit(1)).scalar()
+        if record is not None and review is not None and review.reopened_at \
+                and review.reopened_at > record.created_at:
+            record = None
+        if record is None:
+            return False, None
+        return True, (record.created_at
+                      if record.outcome is ContractOutcome.SIGN_AS_IS else None)
+    decided, at = own(version)
+    source = final_of(version.doc_metadata)
+    if decided or not source or review_open_points(db, version) is not None:
+        return at
+    made_from = db.get(M.DocumentVersion, UUID(source))
+    return version.created_at if made_from is not None and own(made_from)[1] else None
 
 
 def review_open_points(db: DBSession, version: M.DocumentVersion) -> dict | None:

@@ -518,7 +518,8 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
         <ReplyNotice version={version} versions={versions} canSend={!!changeList?.can_send && viewer !== "legal"} />
       ) : null}
       {version && view === "document" && stageCode === "FINAL" && isLatest ? (
-        <FinalCard version={version} versions={versions} since={contract.negotiation_stage!.since} />
+        <FinalCard version={version} versions={versions} since={contract.negotiation_stage!.since}
+                   owner={viewer !== "legal" && canAnswer} />
       ) : version && view === "document" && version.package ? (
         <PackageCard version={version} versions={versions}
                      filesOpen={stageCode === "READY_TO_SEND" || stageCode === "READY_TO_SIGN" || stageCode === "SIGNED"} />
@@ -786,6 +787,7 @@ function RecordHeader({
         {holder ? (
           <span className="ws-send">
             With <strong>{holder.name || holder.email}</strong> since {shortDate(holder.assigned_at)}
+            {holder.note ? <span className="lm-sendlegal__said">Note for Legal: “{holder.note}”</span> : null}
             {assign?.can_send && reviewId ? (
               <button type="button" className="ws-linkbtn"
                       onClick={() => void api.withdrawReview(reviewId, holder.user_id)
@@ -828,7 +830,9 @@ function SendToLegal({ reviewId, data, onChange, label, primary = false }: {
   label: string; primary?: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const [pick, setPick] = useState(data.eligible[0]?.user_id ?? "");
+  // AB-213 D3: nobody preselected — the owner picks the lawyer
+  const [pick, setPick] = useState("");
+  const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   useStep("sendToLegal", useCallback(() => setOpen(true), []));
@@ -836,7 +840,7 @@ function SendToLegal({ reviewId, data, onChange, label, primary = false }: {
     setBusy(true);
     setError(null);
     try {
-      const { assigned } = await api.sendForReview(reviewId, pick);
+      const { assigned } = await api.sendForReview(reviewId, pick, note);
       onChange({ ...data, assigned });
       setOpen(false);
     } catch (cause) {
@@ -867,6 +871,10 @@ function SendToLegal({ reviewId, data, onChange, label, primary = false }: {
               </label>
             ))}
           </fieldset>
+          <label className="lm-sendlegal__note">
+            <span>Note for Legal (optional)</span>
+            <textarea rows={3} maxLength={2000} value={note} onChange={(e) => setNote(e.target.value)} />
+          </label>
           {error ? <p className="cx-error" role="alert">{error}</p> : null}
           <div className="lm-sendlegal__foot">
             <button type="button" className="ws-btn ws-btn--sm" onClick={() => setOpen(false)}>Cancel</button>

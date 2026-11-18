@@ -566,3 +566,19 @@ objects. Production was and is correct; the test and scratch databases lost righ
 tooling expects, which surfaced as a failing suite. Ownership of every non-production
 database was returned to `legalmind` and the suite passes. Anyone repeating this should
 scope it deliberately.
+
+## API rate limit per session (AB-213 D7, `AM-410`, 2026-11-18)
+
+The general `/api/v1/` edge limit was 120r/m **per client address**; an office behind one
+NAT address shared it, and a contract page (~40 calls on open) refused the next reader
+with 429 ("could not be opened"). It is now 300r/m, burst 100, keyed on the signed-in
+session cookie (`legalmind_session`), falling back to the address without one. The login
+limit (`legalmind_auth`, 10r/m per address) is unchanged. A forged cookie only buys its
+sender their own bucket; the application limiter stays authoritative (S-5).
+
+**Ops step (owner/ops, not done by the deploy script):**
+
+```bash
+sudo cp ops/production/nginx-legalmind.lsnw.io.conf /etc/nginx/sites-available/legalmind.lsnw.io
+sudo nginx -t && sudo systemctl reload nginx
+```

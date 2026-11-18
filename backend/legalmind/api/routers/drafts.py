@@ -505,6 +505,14 @@ def _blank_context(db, tv: M.TemplateVersion, key: str) -> dict[str, str]:
     return runs[n - 1] if len(runs) >= n else {}
 
 
+def _with_legal(db, contract: M.Contract) -> bool:
+    """AM-408 r2 (AB-213 D10): while the deal is With Legal the text Legal is reading
+    does not change under them — the fill-in fields wait for Legal's decision."""
+    from legalmind.api.routers.contracts import derive_stages  # circular at import
+
+    return derive_stages(db, [contract])[contract.id]["stage"] == "INTERNAL_REVIEW"
+
+
 @router.get("/contracts/{contract_id}/blank-values")
 def list_blank_values(contract_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
     """`AM-394`: the fill-in fields of the contract's latest generated version of ours,
@@ -525,7 +533,7 @@ def list_blank_values(contract_id: UUID, guard: Guard = Depends(get_guard)) -> d
                     and contract.owner_id != guard.user_id)
     may = (bool(fields) and latest is not None and not _made_final(db, contract.id)
            and P.CONTRACT_UPDATE in guard.permissions and contract.archived_at is None
-           and not legal_reader)
+           and not legal_reader and not _with_legal(db, contract))
     return data({"fields": fields, "can_edit": may,
                  # B5: once our version left, a change waits for the final contract
                  "applies_at_final": bool(ours is not None and latest is not None and (
@@ -560,6 +568,9 @@ def fill_blank_values(contract_id: UUID, body: BlankValues,
         raise Conflict("this contract was not made from our template")
     if _made_final(db, contract.id):
         raise Conflict("the final contract is made; its fill-in fields are closed")
+    if _with_legal(db, contract):
+        raise Conflict("the contract is with Legal; change its fill-in fields once Legal "
+                       "has decided")
     tv = must_exist(db.get(M.TemplateVersion, made.template_version_id), "template")
     labels = {v["key"]: model_.label(v) for v in tv.variables if v.get("blank")}
     if set(body.values) - set(labels):

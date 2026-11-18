@@ -200,7 +200,24 @@ export interface NotificationList { unread: number; items: NotificationItem[] }
 export interface Person { id: string; name: string; email: string }
 export interface Collaborators { collaborators: Person[]; candidates: Person[]; can_manage: boolean }
 
-async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+/** AB-213 D7: identical GETs in flight at once share one network call — the contract page's
+ *  panes each ask for the same review, outcome and assignments on open. Only while in flight:
+ *  nothing is cached, so a later read always sees the server's current answer. */
+const inFlight = new Map<string, Promise<unknown>>();
+
+function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  if ((options.method ?? "GET") !== "GET" || options.raw || options.body !== undefined || options.signal) {
+    return send<T>(path, options);
+  }
+  const key = url(path, options.query);
+  const shared = inFlight.get(key);
+  if (shared) return shared as Promise<T>;
+  const made = send<T>(path, options).finally(() => inFlight.delete(key));
+  inFlight.set(key, made);
+  return made;
+}
+
+async function send<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const method = options.method ?? "GET";
   const headers: Record<string, string> = { Accept: "application/json" };
 
@@ -883,9 +900,10 @@ export const api = {
   /** AB-100 — who a Review is with, and (owner only) who it may be sent to. */
   reviewAssignments: (reviewId: string) =>
     request<ReviewAssignments>(p`/reviews/${reviewId}/assignments`),
-  sendForReview: (reviewId: string, userId: string) =>
+  sendForReview: (reviewId: string, userId: string, note?: string) =>
     request<{ assigned: ReviewAssignments["assigned"] }>(
-      p`/reviews/${reviewId}/assignments`, { method: "POST", body: { user_id: userId } }),
+      p`/reviews/${reviewId}/assignments`,
+      { method: "POST", body: { user_id: userId, ...(note?.trim() ? { note: note.trim() } : {}) } }),
   reviewOutcome: (reviewId: string) =>
     request<ContractOutcomeState>(p`/reviews/${reviewId}/outcome`),
   recordOutcome: (reviewId: string, body: { outcome: ContractOutcome; justification: string;

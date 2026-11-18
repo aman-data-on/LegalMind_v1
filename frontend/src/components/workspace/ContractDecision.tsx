@@ -19,8 +19,11 @@ import { formatDate } from "@/lib/dates";
 
 const ORDER: ContractOutcome[] = ["SIGN_AS_IS", "SIGN_WITH_CHANGES", "DO_NOT_SIGN", "ON_HOLD"];
 
-export function ContractDecision({ reviewId, reviewStatus, refreshKey, onRecorded, readOnly = false }: {
+export function ContractDecision({ reviewId, reviewStatus, refreshKey, onRecorded, readOnly = false, withLegal = true }: {
   reviewId: string;
+  /** AB-213 D4: a first decision is offered only while the deal is with Legal — never a
+   *  second main button at the owner's stage. Changing a recorded one stays available */
+  withLegal?: boolean;
   reviewStatus: string;
   /** a closed review shown for reference (owner item (b)): the record, never the form */
   readOnly?: boolean;
@@ -57,7 +60,7 @@ export function ContractDecision({ reviewId, reviewStatus, refreshKey, onRecorde
   // AM-396: the server refuses Sign as is while this round sends changes back
   const options = ORDER.filter((o) => !(closed && o === "ON_HOLD") && !(state.final && o === "SIGN_WITH_CHANGES")
     && !(o === "SIGN_AS_IS" && state.sign_as_is_allowed === false));
-  const showForm = canDecide && state.ready && (editing || current === null);
+  const showForm = canDecide && state.ready && (editing || (current === null && withLegal));
   const preset = current?.outcome !== "ON_HOLD" && current ? current.outcome : state.suggested;
   // a suggestion the final contract cannot take is no default: the reviewer chooses
   const selected: ContractOutcome | null = choice ?? (options.includes(preset) ? preset : null);

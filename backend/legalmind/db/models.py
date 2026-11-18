@@ -822,6 +822,8 @@ class ReviewAssignment(Base):
     assigned_by = fk_uuid("users.id")
     created_at = ts_created()
     revoked_at = ts_nullable()
+    #: AM-408 (AB-213 D3): the owner's "Note for Legal", carried to the lawyer
+    note = mapped_column(Text, nullable=True)
 
     __table_args__ = (
         UniqueConstraint("review_id", "user_id",

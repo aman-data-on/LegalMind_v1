@@ -468,6 +468,8 @@ class ReviewAssign(Body):
     """Send a Review to one designated reviewer (AB-100) — the person, nothing else."""
 
     user_id: UUID
+    #: AM-408: an optional note for the lawyer, shown with the review
+    note: str | None = Field(default=None, max_length=2000)
 
 
 # -------------------------------------------------------------- findings

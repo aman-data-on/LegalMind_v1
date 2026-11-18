@@ -598,7 +598,7 @@ def _assignments(db, review_id: UUID) -> list[dict]:
                M.ReviewAssignment.revoked_at.is_(None))
         .order_by(M.ReviewAssignment.created_at)).all()
     return [{**_reviewer(user), "assigned_by": str(a.assigned_by),
-             "assigned_at": a.created_at.isoformat()} for a, user in rows]
+             "assigned_at": a.created_at.isoformat(), "note": a.note} for a, user in rows]
 
 
 @router.get("/reviews/{review_id}/assignments")
@@ -644,11 +644,12 @@ def assign_review(review_id: UUID, body: ReviewAssign,
         db.add(row)
     else:                                   # sent again after a withdrawal
         row.revoked_at, row.assigned_by = None, guard.user_id
+    row.note = (body.note or "").strip() or None          # AM-408
     db.flush()
     A.record(db, action=A.REVIEW_ASSIGNED, entity_type="review", entity_id=review.id,
              actor_id=guard.user_id, request_id=guard.request_id,
              after={"assigned_to": str(reviewer.id),
-                    "contract_id": str(review.contract_id)})
+                    "contract_id": str(review.contract_id), "note": row.note})
     return data({"assigned": _assignments(db, review.id)})
 
 

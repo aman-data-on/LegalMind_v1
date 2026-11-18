@@ -1555,7 +1555,8 @@ def _package_plan(guard: Guard, contract: M.Contract, form: str = CHANGES_ONLY) 
                              "approved": bool(row and row.status == "APPROVED")}
     if _replied_in(db, after) is not None:
         return stop("ROUND_CLOSED", "Our answer to this version is already prepared.")
-    if (gap := (model_blanks(base) if filled_since_sent(db, draft)
+    if (gap := (model_blanks(base, optional_blanks(db, contract.id))
+                if filled_since_sent(db, draft)
                 else blanks(db, before))) is not None:
         stop("BLANKS", gap)              # verifier item 4: never a final with a blank
     if (gap := _unsigned(base)) is not None:
@@ -2124,10 +2125,45 @@ def _copy_blanks(db, storage: StorageBackend, version: M.DocumentVersion) -> str
     return gap if _BLANK.search(text) else None
 
 
-def model_blanks(model: dict) -> str | None:
+def optional_blanks(db, contract_id: UUID) -> set[str]:
+    """AM-406 (AB-213 D2): where an OPTIONAL fill-in field (class ``O``) the deal left
+    empty keeps its blank — a clause number ("17"), or ``preamble``/``recitals``. Such a
+    blank stays cleanly blank in the final contract and never blocks it; a template
+    default is already written in (`AM-394`)."""
+    draft = db.execute(select(M.ContractDraft).join(
+        M.DocumentVersion, M.DocumentVersion.id == M.ContractDraft.document_version_id)
+        .where(M.ContractDraft.contract_id == contract_id)
+        .order_by(M.DocumentVersion.version_number.desc()).limit(1)).scalar()
+    if draft is None:
+        return set()
+    tv = db.get(M.TemplateVersion, draft.template_version_id)
+    values = filled_values(db, draft)
+    where = {v["blank"]["in"] for v in publish.template_dict(tv).get("variables", [])
+             if v.get("class") == "O" and v.get("blank")
+             and values.get(v["key"]) in (None, "")} if tv else set()
+    if not where:
+        return set()
+    try:
+        numbers = _basis(db, draft)["base"].get("numbers", {})
+    except model_.ModelError:
+        return set()                 # fails closed: every blank keeps blocking
+    return {numbers.get(w, w) for w in where}
+
+
+def _skipped(number: object, skip: set[str] | frozenset[str]) -> bool:
+    # ponytail: a whole clause is skipped, so a required blank sharing a clause with an
+    # optional one is missed; count blanks per field if a template ever does that
+    n = str(number or "")
+    return bool(n) and any(n == s or n.startswith(f"{s}.") for s in skip)
+
+
+def model_blanks(model: dict,
+                 skip: set[str] | frozenset[str] = frozenset()) -> str | None:
     """B5: the blanks a final built from ``model`` would still carry — its text only."""
-    runs = model_.blank_runs([model.get(k) for k in ("preamble", "recitals", "body",
-                                                      "schedules")])
+    runs = model_.blank_runs(
+        [model.get(k) for k in ("preamble", "recitals", "schedules") if k not in skip]
+        + [c for c in model.get("body") or []
+           if not (isinstance(c, dict) and _skipped(c.get("number"), skip))])
     if not runs:
         return None
     return (f"{len(runs)} blank{'s are' if len(runs) != 1 else ' is'} still to fill: "
@@ -2140,9 +2176,11 @@ def blanks(db, version: M.DocumentVersion) -> str | None:
     (banks at ___ are open)", …) — or None. A final contract never keeps one: it is a
     blocker before "Prepare final contract", whichever route makes it."""
     places: list[str] = []
+    skip = optional_blanks(db, version.contract_id)
     for c in load_clauses(db, version.id):
         m = blank_in(c.content)
-        if m is None:
+        if m is None or _skipped(c.section_number, skip) \
+                or (not c.section_number and skip & {"preamble", "recitals"}):
             continue
         near = c.content[max(0, m.start() - 30):m.end() + 20].strip()
         where = f"clause {c.section_number}" if c.section_number else "the opening text"
