@@ -10,6 +10,10 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+- AB-213 (`AM-402`–`AM-410`, 2026-11-18): the MSA's own front words (parties paragraphs, Party
+  sentence, WHEREAS, IN WITNESS WHEREOF) kept verbatim for every PDF template; a deal from our
+  template ends with the body verbatim and agreed changes in Annexure 2; template import makes the
+  next version; E2E defects D1–D14 (PR 2).
 - CI job 14 npm audit (owner 2026-11-18): allows ONLY GHSA-fc5q-39xc-vjpf (picomatch <=4.0.7, no
   patched version) until 2026-12-18, then fails again; every other finding still fails.
 - C-32 resolved (AB-212: `AM-401`, owner 2026-11-18): a duplicate cap clause stating the SAME

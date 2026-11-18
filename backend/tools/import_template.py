@@ -395,7 +395,9 @@ def _party(paragraph: str) -> dict[str, Any]:
     return {"role": terms[0] if terms else None, "name": name,
             "ours": bool(_OURS.search(name)), "office": office.group(1).strip(" ,")
             if office else None, "cin": cin.group(0) if cin else None,
-            "signatories": _SIGNATORY.findall(paragraph)}
+            "signatories": _SIGNATORY.findall(paragraph),
+            # AM-402 r1: the source's own words after the name, kept verbatim
+            "rest": paragraph[len(name):].lstrip(", ")}
 
 
 def _front(paragraphs: list[str], flagged: list[str]
@@ -405,30 +407,57 @@ def _front(paragraphs: list[str], flagged: list[str]
     preamble: list[str] = []
     parties: list[dict[str, Any]] = []
     recitals: list[str] = []
+    front: dict[str, str] = {}             # AM-402: the source's own front words
     part = "preamble"
     for p in paragraphs[1:]:
         bare = p.strip().rstrip(":").upper()
+        if bare == "AND" and parties:
+            front["connector"] = p.strip()
+            continue
         if bare in ("BETWEEN", "AND", "BY AND BETWEEN") or re.fullmatch(r"[A-Z]\.", p):
             continue
         if bare == "WHEREAS":
+            front["recitals_label"] = p.strip()
             part = "recitals"
             continue
         if "registered office" in p.lower():
             parties.append(_party(p))
             part = "after parties"
+        elif part == "recitals" and p.upper().startswith("NOW") and "operative" not in front:
+            front["operative"] = p
+            part = "operative"
         elif part == "recitals":
-            if p.upper().startswith("NOW"):
-                flagged.append("front: the words of agreement are placed as the last "
-                               f"recital — {CHECK.lower()}")
             recitals.append(p)
         elif part == "preamble":
             preamble.append(p)
+        elif part == "after parties" and "parties_close" not in front:
+            front["parties_close"] = p
         else:
-            flagged.append("front: a sentence after the parties is not placed")
+            flagged.append(f"front: a sentence is not placed — {CHECK.lower()}")
     if len(parties) != 2 or sum(p["ours"] for p in parties) != 1:
         flagged.append(f"front: {len(parties)} party blocks found, not one of ours and one "
                        f"counterparty — {CHECK.lower()} (parties)")
-    return {"title": title, "preamble": " ".join(preamble), "recitals": recitals}, parties
+    return {"title": title, "preamble": " ".join(preamble), "recitals": recitals,
+            **front}, parties
+
+
+def _incorporation(party: dict[str, Any], side: str,
+                   rules: list[tuple[re.Pattern[str], str]]) -> str | None:
+    """AM-402 r1: the party paragraph's own words after its name, verbatim, with only
+    its blanks and facts turned into the party's fields (office, CIN). A fact stated in
+    the source (our registered office) stays as written; a blank with no field stays a
+    blank for Legal to fill — never invented."""
+    rest = party.get("rest")
+    if not rest:
+        return None
+    rest = _scrub(rest, rules)
+    rest = re.sub(r"(registered office at\s+)(?:_{3,}|\[\s*●?\s*\])",
+                  rf"\1{{{side}_registered_office}}", rest)
+    if party.get("office") and not _BLANK.search(party["office"]) and side == "our":
+        rest = rest.replace(party["office"], f"{{{side}_registered_office}}", 1)
+    rest = re.sub(r"(CIN(?:\s+number)?\s+)(?:_{3,}|" + _CIN.pattern + ")",
+                  rf"\1{{{side}_cin}}", rest)
+    return rest
 
 
 def _execution(text: str) -> list[str]:
@@ -606,6 +635,11 @@ def from_segments(segments: list[Any], *, source: dict[str, Any], template_key: 
     layout["preamble"] = _scrub(_DATE.sub("{effective_date}", layout["preamble"], count=1),
                                 rules)
     layout["recitals"] = [_scrub(r, rules) for r in layout["recitals"]]
+    for k in ("parties_close", "operative"):
+        if k in layout:
+            layout[k] = _scrub(layout[k], rules)
+    lead = re.match(r"\s*(IN WITNESS WHEREOF[^|]*?\.)[\s\u200b]*(?:\n|\||$)",
+                    "\n".join(execution), re.I | re.S)
     for c in place.clauses:
         flat = " ".join(texts([c["title"], c["body"]]))
         for why, pattern in (("states a date", _DATE), ("has a blank to fill", _BLANK),
@@ -626,12 +660,16 @@ def from_segments(segments: list[Any], *, source: dict[str, Any], template_key: 
         "short_title": layout["title"].title()[:40],
         "parties": [{"role": roles.get(s) or ("LeapSwitch" if s == "our" else "Client"),
                      "name": f"{{{s}_name}}", "office": f"{{{s}_registered_office}}",
-                     "cin": f"{{{s}_cin}}"} for s in sides],
+                     "cin": f"{{{s}_cin}}",
+                     **({"incorporation": inc} if (inc := _incorporation(p, s, rules))
+                        else {})}
+                    for s, p in zip(sides, parties or [{}, {}], strict=False)],
         "execution": {"rows": [{"party": f"{{{s}_name}}", "signatory":
                                 f"{{{s}_signatory_name}}", "designation":
                                 f"{{{s}_signatory_designation}}", "email":
                                 f"{{{s}_signatory_email}}"} for s in sides],
-                      "seal": False, "witness": False},
+                      "seal": False, "witness": False,
+                      **({"lead": " ".join(lead.group(1).split())} if lead else {})},
         "check_values": dict(CHECK_VALUES)})
     ours = next((p for p in parties if p["ours"]), None)
     if brand and ours and brand.replace("_", "").lower() not in \
@@ -679,36 +717,61 @@ def load_pdf(path: Path, *, template_key: str, doc_type: str, brand: str | None,
 # ---------------------------------------------------------------- database
 def import_rows(db: Session, template: dict[str, Any], clauses: dict[tuple[str, int], dict],
                 *, actor_id: Any) -> list[str]:
-    """DRAFT rows for every clause and the template. Idempotent by content hash."""
+    """DRAFT rows for every clause and the template. Idempotent by content hash.
+
+    AM-404: a template key that already has a published (or withdrawn) version gets the
+    NEXT version as a new DRAFT — never an edit of a frozen one. A clause whose text is
+    an existing version's is pinned to that version (Legal's approval stands); a
+    clause with new text becomes that key's next DRAFT version. A DRAFT version already
+    open for the key is refused: change that one on the Template page instead."""
+    from sqlalchemy import func
     lines = []
+    pins = []
     for (key, version), c in clauses.items():
-        existing = db.execute(select(M.ClauseVersion).where(
-            M.ClauseVersion.clause_key == key, M.ClauseVersion.version == version)
-        ).scalar_one_or_none()
-        if existing is not None:
-            if existing.content_hash != c["content_hash"]:
-                raise ImportRefused(f"{key}@{version} exists with different text — "
-                                    "a new version is needed, never an edit")
-            lines.append(f"unchanged clause {key}@{version} ({existing.status})")
+        rows = db.execute(select(M.ClauseVersion).where(
+            M.ClauseVersion.clause_key == key).order_by(M.ClauseVersion.version)
+        ).scalars().all()
+        same = next((r for r in rows if r.content_hash == c["content_hash"]), None)
+        if same is not None:
+            lines.append(f"unchanged clause {key}@{same.version} ({same.status})")
+            pins.append((key, version, same.version, c))
             continue
+        made = (rows[-1].version + 1) if rows else version
         db.add(M.ClauseVersion(**{k: c[k] for k in (
-            "clause_key", "version", "title", "body", "realises", "stance", "source",
-            "content_hash")}, status="DRAFT", created_by=actor_id))
-        lines.append(f"DRAFT clause {key}@{version}")
-    existing_t = db.execute(select(M.TemplateVersion).where(
+            "clause_key", "title", "body", "realises", "stance", "source",
+            "content_hash")}, version=made, status="DRAFT", created_by=actor_id))
+        lines.append(f"DRAFT clause {key}@{made}")
+        pins.append((key, version, made, c))
+    moved = {(k, v): n for k, v, n, _ in pins}
+    template = {**template, "clauses": [
+        {**p, "version": moved.get((p["clause_key"], p["version"]), p["version"])}
+        for p in template["clauses"]]}
+    checked = {(k, n): c for k, _, n, c in pins}
+    taken = db.execute(select(M.TemplateVersion.id).where(
         M.TemplateVersion.template_key == template["template_key"],
-        M.TemplateVersion.version == template["version"])).scalar_one_or_none()
-    if existing_t is not None:
-        if existing_t.content_hash != template["content_hash"]:
-            raise ImportRefused(f"template {template['template_key']}@{template['version']}"
-                                " exists with different content")
-        lines.append(f"unchanged template {template['template_key']}@{template['version']}")
-    else:
-        db.add(M.TemplateVersion(
-            template_key=template["template_key"], version=template["version"],
-            status="DRAFT", content_hash=template["content_hash"], created_by=actor_id,
-            **{k: template.get(k) for k in TEMPLATE_FIELDS}))
-        lines.append(f"DRAFT template {template['template_key']}@{template['version']}")
+        M.TemplateVersion.version == template["version"])).first() is not None
+    latest = db.execute(select(M.TemplateVersion).where(
+        M.TemplateVersion.template_key == template["template_key"])
+        .order_by(M.TemplateVersion.version.desc())).scalars().first()
+    if latest is not None and taken:      # a version named that is free is made as named
+        again = template_hash({**template, "version": latest.version}, checked)
+        if latest.content_hash == again:
+            lines.append(f"unchanged template {template['template_key']}@{latest.version}")
+            db.flush()
+            return lines
+        if latest.status == "DRAFT":
+            raise ImportRefused(f"template {template['template_key']}@{latest.version} "
+                                "is still a DRAFT with different content — change it on "
+                                "the Template page, or withdraw it first")
+        template = {**template, "version": db.execute(select(func.max(
+            M.TemplateVersion.version)).where(M.TemplateVersion.template_key
+                                              == template["template_key"])).scalar_one() + 1}
+    template["content_hash"] = template_hash(template, checked)
+    db.add(M.TemplateVersion(
+        template_key=template["template_key"], version=template["version"],
+        status="DRAFT", content_hash=template["content_hash"], created_by=actor_id,
+        **{k: template.get(k) for k in TEMPLATE_FIELDS}))
+    lines.append(f"DRAFT template {template['template_key']}@{template['version']}")
     db.flush()
     return lines
 
