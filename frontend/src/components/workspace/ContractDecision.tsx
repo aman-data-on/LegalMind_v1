@@ -55,6 +55,8 @@ export function ContractDecision({ reviewId, reviewStatus, refreshKey, onRecorde
   // for reference (a signed contract): the recorded decision, or nothing — never "every point is decided"
   if (readOnly && state.history.length === 0) return null;
   const current = state.history.at(-1) ?? null;
+  // prelaunch U4: nothing recorded and nothing with Legal — no "Legal decides … Nothing for you" card
+  if (!current && !withLegal && !state.read_only && !error) return null;
   const closed = reviewStatus === "CLOSED";
   // AM-318: a final contract is signed as it is, or not — never "after our changes"
   // AM-396: the server refuses Sign as is while this round sends changes back

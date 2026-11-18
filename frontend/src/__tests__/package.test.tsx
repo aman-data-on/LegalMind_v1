@@ -181,7 +181,8 @@ describe("Special Conditions set-up on the template (U1)", () => {
     expect(only).not.toContain("<ul>");
     const html = renderToStaticMarkup(<SpecialConditionsSetup readiness={{ ready: false, missing: [
       { code: "PRECEDENCE_NOT_APPROVED", detail: "the order-of-precedence clause is not approved by Legal" }] }} />);
-    expect(html).toContain("It does not stop publishing.");
+    expect(html).toContain("Publishing is allowed, but no final contract can be made");
+    expect(html).not.toContain("Not set up");
     expect(html).toContain("The clause saying Annexure A wins over the body is not approved yet.");
     expect(html).not.toContain("PRECEDENCE_NOT_APPROVED");
     expect(renderToStaticMarkup(<SpecialConditionsSetup />)).toBe("");

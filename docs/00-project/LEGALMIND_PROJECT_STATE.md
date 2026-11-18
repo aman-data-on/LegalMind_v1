@@ -11,6 +11,15 @@
 
 ---
 
+**2026-11-18 prelaunch QA walk** (local stack, MSA v2, both roles, 1440/390): the full path reached
+Final and the PDF for signature; body verbatim, the agreed change only in Annexure 2, order MSA →
+Annexure 1 → Annexure 2 → signature page. Fixed on `qa/prelaunch-20261118`: two main buttons on one
+deal, a final with no agreed change failing its check, hidden "Upload the client's reply", the
+"… Agreement - C" name in Annexure 2, three layout jumps. Still blocking production finals: Legal's
+precedence sentence and the Annexure 1 words (no screen for Legal to enter them), and C-33 ("Ask
+the client" on a measured change leaves the deal stuck — owner to rule).
+
+
 ## Picking up where we left off
 
 *The short version, kept current so a new session can answer "where are we?" immediately.

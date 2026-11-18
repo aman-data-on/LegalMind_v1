@@ -77,12 +77,14 @@ def _frame_version(db: DBSession, version: M.DocumentVersion
     version itself: its own record (a package's, or an amendment's first version, a
     copy of the agreed final contract — `AM-309`), else the latest earlier one in the
     contract (a later package supersedes an earlier one, `AM-308`)."""
-    if (version.doc_metadata or {}).get("special_conditions"):
+    # prelaunch F2: a final contract with nothing agreed to vary records an annexure with
+    # no entry and draws none — it is read as its body, never refused for a missing one
+    if ((version.doc_metadata or {}).get("special_conditions") or {}).get("entries"):
         return version, True
     D = M.DocumentVersion
     earlier = db.execute(select(D).where(
         D.contract_id == version.contract_id, D.version_number < version.version_number,
-        D.doc_metadata["special_conditions"].isnot(None))
+        D.doc_metadata["special_conditions"]["entries"][0].isnot(None))
         .order_by(D.version_number.desc()).limit(1)).scalar()
     return (earlier, False) if earlier is not None else None
 

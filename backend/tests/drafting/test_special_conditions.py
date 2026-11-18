@@ -967,3 +967,20 @@ def test_the_package_needs_a_signatory_email_field(db, api, without_email, negot
     made = api.post(f"{V1}/contracts/{contract.id}/package",
                     json={"expected_entries_sha256": dry.get("entries_sha256") or "0" * 64})
     assert made.status_code == 409
+
+
+def test_a_final_contract_with_nothing_agreed_to_vary_is_read_as_its_body(
+        db, api, negotiated):
+    """Prelaunch F2 (2026-11-18): every change kept our wording, so the final contract
+    (AM-403 annex route) lists no agreed change and draws no annexure. Its record says
+    so (no entry) — the reader takes the body as it is, never "the Special Conditions
+    are not in this copy" (ANALYSIS_FAILED, the deal stuck with nobody's turn); a later
+    version is not read through it either."""
+    _, v1, v2, _ = negotiated
+    v1.doc_metadata = {**(v1.doc_metadata or {}), "package_of": str(v1.id),
+                       "special_conditions": {"entries": [], "trace": [], "annex": 2,
+                                              "frame": {"clause_key": "SC.FRAME", "version": 2}}}
+    db.flush()
+    for version in (v1, v2):
+        _, status, reason = effective.effective_clauses(db, version.id)
+        assert (status, reason) == (effective.NONE, None)

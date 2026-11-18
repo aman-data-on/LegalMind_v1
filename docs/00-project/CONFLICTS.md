@@ -931,3 +931,26 @@ conflict (legal-engine content: needs the owner/Legal); (c) keep the published v
 default) and fill 17.7 per deal through "Fill-in fields" before our version is sent (AM-394 r3) — a NEW
 version cannot take this, because AM-394 r1 refuses an optional field without a default; a new version
 would make 17.7 required instead. Until ruled, production keeps template v1 (17.7 optional, filled per deal).
+
+## C-33 — "Ask the client" on a measured change (`AM-395` r3 + `AM-399` r2) vs the contract decision's readiness (`AM-178`) and `AM-405` r1
+
+**Registered 2026-11-18 (prelaunch QA walk, local stack, MSA v2).** ⏳ **OPEN — owner/Legal to rule.**
+
+| Source | Says |
+|---|---|
+| **`AM-399` r2 + `AM-395` r3** | "Ask the client" is offered on every change; on a measured one the holder's answer IS the decision — `REQUEST_CLARIFICATION` on each point. |
+| **`AM-178`** | The contract decision is refused while any point is undecided or awaiting clarification ("a late clarification on a finished review must block the contract decision"). |
+| **`AM-405` r1/r2** | "Ask the client" goes to the client in our reply; the suggested decision is Sign after our changes; the deal is never left with no next step. |
+
+**Found:** Legal asked the client on 17.2 (a measured change). The point reads "Waiting for the client"
+(AWAITING_CLARIFICATION), the Review stays LEGAL_REVIEW, `GET /reviews/{id}/outcome` says
+`ready: false`, so no contract decision can be recorded; the stage reads "With Legal" and neither the
+deal owner nor Legal has any next step — the reply that would carry the question cannot be prepared.
+Screens: `audit/prelaunch-20261118/09-changes-answered-*.png`.
+
+**Options (none picked):** (a) an asked point (from an "Ask the client" answer, not an internal
+clarification) does not block Sign after our changes / Do not sign / On hold — still blocks Sign as
+is (amends `AM-178`); (b) "Ask the client" on a measured change records no decision and leaves the
+point for Legal to decide alongside the question (amends `AM-395` r3); (c) offer "Ask the client"
+only on unmeasured changes (amends `AM-399` r2). Until ruled: Legal should not use "Ask the client" on
+a change marked "Needs a decision" — answer it, and write the question in "Sent to the client".

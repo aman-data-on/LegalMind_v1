@@ -69,7 +69,9 @@ export function nextStep(f: StepFacts): Step | null {
       return f.replyReady ? step("sendReply") : f.draftUnsent ? step("sendToClient") : step("prepareReply");
     case "CLIENT_RETURNED":
       if (c.changes_left_for_me && f.answersChanges !== false) return step("answerChanges");
-      if (c.changes_total === undefined || c.changes_left) return null;
+      if (c.changes_total === undefined) return null;
+      // prelaunch U1: changes only Legal may answer, not yet sent — sending them is the step
+      if (c.changes_left) return f.canSendToLegal ? step("sendToLegal") : null;
       // Batch 1 (c): open points go to Legal before the final contract
       if (!c.changes_ours && !finalReady(c)) return f.canSendToLegal ? step("sendToLegal") : null;
       if (f.packageReady) return step("preparePackage", f.amendment ? ACTION.prepareAmendment : undefined);

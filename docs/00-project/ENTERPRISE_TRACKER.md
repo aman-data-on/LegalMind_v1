@@ -34,6 +34,13 @@ Nothing is committed until the owner says "commit".
 
 ---
 
+## Open — prelaunch QA 2026-11-18 (`audit/prelaunch-20261118/REPORT.md`)
+
+- [x] F1 one main button (lawyer decision form only with Legal) · [x] U1 Send to Legal step · [x] U2 upload client's reply in sight · [x] F2 empty-annex final read as body · [x] F11 short name · [x] U5 template wording · [x] CLS P1–P3 — branch `qa/prelaunch-20261118`
+- [ ] C-33 Ask the client on a measured change → stuck (owner to rule)
+- [ ] Legal: precedence sentence (Annexure 2 frame) + Annexure 1 words — every MSA final blocked until supplied; no UI to supply them
+- [ ] Lawyer's contract decision has no header step/"Your turn" (phone: two taps away); final page CLS 0.22 on a phone; whitespace-only tracked change not listed; Annexure 1 title printed twice; targets <24 px in the document view
+
 ## Open — AB-210 (2026-11-17): production E2E fix batch (`audit/E2E-FIX-BATCH-*.md`)
 - 🔧 Batch A+B (deal flow, fill-in fields; AM-393/394/396/398) — PR 1 `fix/e2e-batch-ab-20261117`.
 - ✅ Batch A+B merged (#314, 56cd05b2), not deployed.

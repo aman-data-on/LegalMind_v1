@@ -412,7 +412,8 @@ def effective_text(contract_id: UUID, guard: Guard = Depends(get_guard)) -> dict
                     why = str(exc)
             else:
                 got, status, reason = effective.effective_clauses(db, final.id)
-                if status != effective.APPLIED:
+                # prelaunch F2: NONE — nothing agreed to vary, read as its body
+                if status not in (effective.APPLIED, effective.NONE):
                     why = reason or "its Special Conditions could not be read"
                 else:
                     current = {"read": status, "units": negotiation._units(got)}

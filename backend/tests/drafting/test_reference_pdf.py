@@ -78,3 +78,12 @@ def test_a_brand_the_reference_does_not_name_is_flagged():
     template, _, flagged = load(segments(), brand="CLOUDPE")
     assert any("another of our brands" in f for f in flagged)
     assert template["brand"] == "CLOUDPE"
+
+
+def test_the_short_title_is_never_cut_mid_word():
+    """Prelaunch F11 (2026-11-18): Annexure 2 named the agreement "… Agreement - C"."""
+    from tools.import_template import short_title
+    assert short_title("LEAPSWITCH MASTER SERVICES AGREEMENT - Customer/Partner") \
+        == "Leapswitch Master Services Agreement"
+    assert short_title("Mutual non-disclosure agreement") == "Mutual Non-Disclosure Agreement"
+    assert short_title("word " * 12) == "Word Word Word Word Word Word Word Word"

@@ -10,6 +10,16 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+- Prelaunch QA walk (2026-11-18, local production-mode stack, MSA v2): one main button per stage —
+  the lawyer's first contract-decision form only while the deal is with Legal (F1); "Send to Legal"
+  is the owner's step when only Legal may answer the client's changes (U1); "Upload the client's
+  reply" in sight while the paper is with the client (U2); a final contract with nothing agreed to
+  vary is read as its body, no longer ANALYSIS_FAILED (F2); the template import never cuts the
+  agreement's short name mid-word ("… Agreement - C" in Annexure 2, F11); template page says
+  "Not complete" (not "Not set up") when only Legal's precedence sentence is missing (U5); CLS fixes:
+  Fill-in fields one line, final preview fixed box, home queue held while loading. Conflict C-33
+  registered (Ask the client on a measured change leaves the deal stuck).
+
 - AB-213 (`AM-402`–`AM-410`, 2026-11-18): the MSA's own front words (parties paragraphs, Party
   sentence, WHEREAS, IN WITNESS WHEREOF) kept verbatim for every PDF template; a deal from our
   template ends with the body verbatim and agreed changes in Annexure 2; template import makes the

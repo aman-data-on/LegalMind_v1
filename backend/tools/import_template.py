@@ -441,6 +441,17 @@ def _front(paragraphs: list[str], flagged: list[str]
             **front}, parties
 
 
+def short_title(title: str, limit: int = 40) -> str:
+    """The running header's and Annexure 2's name for the agreement: never cut mid-word
+    (prelaunch F11: "… Agreement - C"). A long title drops its " - suffix", else ends at
+    the last whole word that fits."""
+    t = title.title()
+    if len(t) <= limit:
+        return t
+    head = t.split(" - ")[0].strip()
+    return head if len(head) <= limit else t[:limit + 1].rsplit(" ", 1)[0].rstrip(" -")
+
+
 def _incorporation(party: dict[str, Any], side: str,
                    rules: list[tuple[re.Pattern[str], str]]) -> str | None:
     """AM-402 r1: the party paragraph's own words after its name, verbatim, with only
@@ -657,7 +668,7 @@ def from_segments(segments: list[Any], *, source: dict[str, Any], template_key: 
     sides = [("our" if p["ours"] else "counterparty") for p in parties] or \
         ["our", "counterparty"]
     layout.update({
-        "short_title": layout["title"].title()[:40],
+        "short_title": short_title(layout["title"]),
         "parties": [{"role": roles.get(s) or ("LeapSwitch" if s == "our" else "Client"),
                      "name": f"{{{s}_name}}", "office": f"{{{s}_registered_office}}",
                      "cin": f"{{{s}_cin}}",
