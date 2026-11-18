@@ -57,9 +57,9 @@ const answered = (answer: Answer, over: Record<string, unknown> = {}) => ({
   decided_at: "2026-11-03T10:00:00Z", ...over });
 
 describe("who may answer (AM-250)", () => {
-  it("gives the owner no accept control on a change a holder decides", () => {
+  it("gives the owner no verdict control on a change a holder decides (AB-213 D10)", () => {
     const html = card(change(), list());
-    expect(html).toContain(">Keep our wording</button>");
+    expect(html).not.toContain(">Keep our wording</button>");
     expect(html).toContain("Ask Legal");
     expect(html).not.toContain("Accept their wording");
     expect(html).not.toContain("Your Legal Decision");
@@ -76,8 +76,11 @@ describe("who may answer (AM-250)", () => {
     expect(html).toContain("<span>Accept</span>");
     expect(html).not.toContain("Ask Legal");
     const panel = compose(change(), list({ can_decide: true }), "accept_theirs");
-    expect(panel).toContain("Record your Legal Decision on each point below");
-    expect(panel).not.toContain(">Accept their wording</button>");      // the decision, not the answer
+    // AB-213 D9: one step — Accept with a reason records the Legal Decision and the answer
+    expect(panel).toContain("records your Legal Decision to accept the difference");
+    expect(panel).toContain(">Accept their wording</button>");
+    expect(panel).toContain("(required)");
+    expect(panel).not.toContain("ws-decision");                          // no six-option list
   });
 
   it("never nests the Legal Decision's form inside the answer's (B3)", () => {
@@ -87,8 +90,9 @@ describe("who may answer (AM-250)", () => {
       <AnswerComposer change={change()} list={list({ can_decide: true })} actions={actionsFor(change(), list(LAWYER))}
                       contractId="c" details={details} onAnswered={() => {}} onReload={() => {}}
                       initial="accept_theirs" />);
-    expect(html).toContain("ws-decision");        // the decision is drawn in the panel…
-    expect(html).not.toContain("<form");          // …and no form wraps it to swallow its submit
+    // AB-213 D9: no Legal Decision form is drawn any more, so nothing nests in the answer's
+    expect(html).not.toContain("ws-decision");
+    expect(html.match(/<form/g)?.length ?? 0).toBeLessThanOrEqual(1);
   });
 
   it("lets a holder answer a change no standard measures, reason required (AM-281)", () => {

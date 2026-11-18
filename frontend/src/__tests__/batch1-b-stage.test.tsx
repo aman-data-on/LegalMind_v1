@@ -16,7 +16,8 @@ const owner = { viewer: "owner" as const, canAnswer: true, stage: "CLIENT_RETURN
 describe("the final contract waits on open points", () => {
   it("says Ready only with no point open, and fails closed when points are unknown", () => {
     expect(stageLine("CLIENT_RETURNED", { ...answered, points_open: 3 })).not.toContain("Ready");
-    expect(stageLine("CLIENT_RETURNED", { ...answered, points_open: 0, points_waiting: 0 })).toContain("Ready");
+    // AB-213 D4: the chip is the server's stage; the main button names the next step
+    expect(stageLine("CLIENT_RETURNED", { ...answered, points_open: 0, points_waiting: 0 })).toBe("Client replied");
     expect(finalReady(answered)).toBe(false);                       // absent: closed
     // keep-ours answers still lead to our reply, whatever the points
     expect(stageLine("CLIENT_RETURNED", { ...answered, changes_ours: 1, points_open: 3 }))

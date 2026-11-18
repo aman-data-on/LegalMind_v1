@@ -233,9 +233,11 @@ def test_the_list_holds_a_reply_with_an_undecided_point_back_from_ready_to_send(
     finding = make_finding(db, review, requirement_version)
     assert api.get(url).json()["data"]["negotiation_stage"]["stage"] == "INTERNAL_REVIEW"
     finding.status = E.FindingStatus.RESOLVED
-    review.status = E.ReviewStatus.PROCESSING          # unfinished fails closed too
+    review.status = E.ReviewStatus.PROCESSING
     db.flush()
-    assert api.get(url).json()["data"]["negotiation_stage"]["stage"] == "INTERNAL_REVIEW"
+    # AM-409 (AB-213 D11): still being read, the reply stays Ready to send (no flip);
+    # its send fails closed meanwhile (AM-293 r1, `reply_open_points`)
+    assert api.get(url).json()["data"]["negotiation_stage"]["stage"] == "READY_TO_SEND"
 
 
 def test_out_of_scope_detail_stays_the_byte_identical_404(api, db, seeded):
@@ -250,3 +252,13 @@ def test_out_of_scope_detail_stays_the_byte_identical_404(api, db, seeded):
         return str(sorted(payload.items()))
 
     assert body(f"{V1}/contracts/{theirs.contract_id}") == body(f"{V1}/contracts/{uuid.uuid4()}")
+
+
+# ------------------------------------------------------------------ AB-213 D11 (AM-409)
+def test_our_reply_still_being_read_stays_ready_to_send():
+    reply = VersionFacts(3, _at(3), "COMPANY_DRAFT", None, reply_to=True)
+    vs = [_v(1, "COMPANY_DRAFT", sent=1), _v(2, "CLIENT_MODIFIED"), reply]
+    assert derive_stage(_at(0), vs, ReviewFacts(reading=True))[0] is S.READY_TO_SEND
+    # read, with an undecided point: With Legal (AM-293 r1 unchanged)
+    assert derive_stage(_at(0), vs, ReviewFacts(reply_cleared=False))[0] \
+        is S.INTERNAL_REVIEW

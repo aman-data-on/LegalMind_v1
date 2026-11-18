@@ -357,3 +357,19 @@ def test_an_answer_sending_our_wording_back_counts_in_the_round(db, case):
                               version_number=1))
     db.flush()
     assert changes_go_back(db, review) is True
+
+
+def test_the_note_for_legal_is_carried_to_the_lawyer(api, db, owner, case):
+    """AB-213 D3 (`AM-408`): the owner's note travels with the review, audited."""
+    review, _ = case
+    reviewer = _reviewer(db)
+    sign_in(api, db, owner)
+    sent = api.post(f"{V1}/reviews/{review.id}/assignments",
+                    json={"user_id": str(reviewer.id), "note": "  Please look at 8.3  "})
+    assert sent.status_code == 201, sent.text
+    sign_in(api, db, reviewer)
+    [held] = api.get(f"{V1}/reviews/{review.id}/assignments").json()["data"]["assigned"]
+    assert held["note"] == "Please look at 8.3"
+    event = db.execute(select(M.AuditEvent).where(
+        M.AuditEvent.action == A.REVIEW_ASSIGNED)).scalars().one()
+    assert event.after_state["note"] == "Please look at 8.3"

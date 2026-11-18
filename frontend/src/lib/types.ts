@@ -1425,7 +1425,7 @@ interface ReviewerPerson {
 }
 
 export interface ReviewAssignments {
-  assigned: Array<ReviewerPerson & { assigned_by: string; assigned_at: string }>;
+  assigned: Array<ReviewerPerson & { assigned_by: string; assigned_at: string; note?: string | null }>;
   /** The owner, on a contract not archived — the one who sends and withdraws. */
   can_send: boolean;
   eligible: ReviewerPerson[];

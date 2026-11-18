@@ -306,3 +306,29 @@ def test_what_counts_as_a_blank(text, blank):
     """AM-323 r3 / AM-324 r3: a blank to fill, not a filled-in one or a dot leader."""
     from legalmind.api.routers.negotiation import blank_in
     assert (blank_in(text) is not None) is blank
+
+
+def test_a_clean_final_copy_of_text_signed_as_is_is_final_without_a_third_round(
+        api, db, owner, tmp_path):
+    """AB-213 D6 (`AM-407`): Legal recorded Sign as is on the agreed version; its final
+    copy, read with nothing undecided, is Final — Legal is not asked again."""
+    from legalmind.api.routers.contracts import derive_stages
+    c = _contract(db, owner)
+    ours = _review(db, _ingest(db, tmp_path, c, _docx(*OURS), "ours.docx"), [])
+    ours.status = E.ReviewStatus.RESOLVED
+    db.flush()
+    with mock.patch.object(CO, "has_permission", return_value=True):
+        CO.record(db, ours, actor_id=owner.id, justification="agreed",
+                  outcome=E.ContractOutcome.SIGN_AS_IS)
+    r = api.post(FINAL.format(c.id))
+    assert r.status_code == 201, r.text
+    v = db.get(M.DocumentVersion, uuid.UUID(r.json()["data"]["document_version"]["id"]))
+    final_review = db.execute(select(M.Review).where(
+        M.Review.document_version_id == v.id)).scalar() or _review(db, v, [])
+    final_review.status = E.ReviewStatus.ANALYSIS_COMPLETE
+    db.flush()
+    assert derive_stages(db, [c])[c.id]["stage"] == "FINAL"
+    # an undecided point on the final copy still goes to Legal
+    final_review.status = E.ReviewStatus.PROCESSING
+    db.flush()
+    assert derive_stages(db, [c])[c.id]["stage"] == "INTERNAL_REVIEW"

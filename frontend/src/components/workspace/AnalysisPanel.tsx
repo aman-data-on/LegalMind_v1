@@ -242,7 +242,8 @@ export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner
             {/* AM-174: once every point is decided, a reviewer decides the contract */}
             <ContractDecision reviewId={state.review.id} reviewStatus={state.review.status}
                               refreshKey={state.findings.map((f) => f.status).join()}
-                              onRecorded={reload} readOnly={reference} />
+                              onRecorded={reload} readOnly={reference}
+                              withLegal={stage?.stage !== "CLIENT_RETURNED"} />
             {/* AM-318: a Final deal has nothing open and nothing left to offer. L10: the
                 lawyer's analysis ("where it differs", once all is decided) is Legal's — the deal
                 owner keeps the open points and who has each */}

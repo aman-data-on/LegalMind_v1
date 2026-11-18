@@ -49,7 +49,7 @@ import { AnswerComposer, DiffText } from "./ChangeComposer";
 import { EscalateControl } from "./EscalateControl";
 import { USER_STATUS_LABELS, readerWord as pointWord, requirementTitle } from "./findingLanguage";
 import {
-  IconAlertCircle, IconArrowLeft, IconBetter, IconCheck, IconChevronRight, IconClock, IconFile, IconFileMinus, IconLock, IconSame, IconWorse, IconFallback,
+  IconAlertCircle, IconArrowLeft, IconBetter, IconCheck, IconChevronRight, IconClock, IconDownload, IconFile, IconFileMinus, IconLock, IconSame, IconWorse, IconFallback,
 } from "./icons";
 import { OfferLine } from "./OfferPlaybook";
 import { FromOurStandard, LetteredPoints, NotesForLegal, ReviewTableButton } from "./LawyerView";
@@ -887,7 +887,9 @@ export function AnswerCard({ change, list, contractId, onAnswered, onReload, inP
                         details={details} onAnswered={onAnswered} onReload={onReload} />
       ) : null}
 
-      {!legal && actions.length ? (
+      {/* AB-213 D10: a change Legal answers carries no verdict control for sales until
+          Legal has accepted it — sales sends it to Legal, never answers it first */}
+      {!legal && actions.length && !(holder && !change.holder_accepted) ? (
         <section className="cx-section" aria-label={given ? "Change your answer" : "Your answer"}>
           <h4 className="cx-label">{given ? "Change your answer" : "Your answer"}</h4>
           {change.route === "favour" && change.favour_reason ? <p className="cx-favour">{change.favour_reason}</p> : null}
@@ -1023,6 +1025,13 @@ export function ReplyDownloads({ version, pdf = "reply-pdf", word: hasWord = tru
       <button ref={trigger} type="button" className="ws-btn ws-btn--sm" onClick={() => { setRefused(null); setOpen(true); }}>
         <IconFile size={14} /> {FEEDBACK_COPY.preview}
       </button>
+      {/* AB-213 D8: the file itself, one click from the dialog that says "download it" */}
+      {hasWord ? (
+        <button type="button" className="ws-btn ws-btn--sm" disabled={busy} aria-busy={busy || undefined}
+                onClick={() => void word()}>
+          <IconDownload size={14} /> {FEEDBACK_COPY.downloadWord}
+        </button>
+      ) : null}
       {open ? (
         <PreviewPanel title={`${pdf === "reply-pdf" ? "Our reply" : "The contract"}${version.version_number ? `: version ${version.version_number}` : ""}`}
                       pdfPath={`/document-versions/${encodeURIComponent(version.id)}/${pdf}`}

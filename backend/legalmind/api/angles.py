@@ -797,6 +797,13 @@ def _msa_quote(code: str) -> dict | None:
 WORDING_KINDS = ("OUR_CLAUSE", "MSA_QUOTE", "DRAFTING_LANGUAGE")
 
 
+def changed_passage(evidence_ids, changed: set[str], clauses: list) -> Any:
+    """AB-213 D13: the first clause, in document order, of a point's evidence that the
+    client changed — or None."""
+    ids = {str(e) for e in evidence_ids} & changed
+    return next((c.evidence_id for c in clauses if str(c.evidence_id) in ids), None)
+
+
 def _origins(db: DBSession, review: M.Review, clauses: list,
              actionable: list[dict], document_type: str | None = None
              ) -> tuple[dict[str, str], dict[str, dict]]:
@@ -824,6 +831,15 @@ def _origins(db: DBSession, review: M.Review, clauses: list,
         r for r in actionable
         if origins.get(str(r["finding"].id)) == lawyer_rows.CLIENT_CHANGED],
         document_type) if before is not None and ours else {}
+    # AB-213 D13: a point the client changed is placed at the clause they changed
+    # ("19.4"), not the first clause the point reads ("19.1")
+    for r in actionable:
+        if origins.get(str(r["finding"].id)) != lawyer_rows.CLIENT_CHANGED or not changed:
+            continue
+        hit = changed_passage(r["evidence_ids"], changed, clauses)
+        row = db.get(M.DocumentEvidence, hit) if hit is not None else None
+        if row is not None:
+            r["passage"] = r["evidence"] = row
     return origins, mine
 
 

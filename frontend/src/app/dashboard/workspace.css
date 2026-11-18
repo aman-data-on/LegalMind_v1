@@ -7391,6 +7391,12 @@ button.ws-open__go:hover { background: var(--ws-paper); }
   flex: 1 1 auto; min-width: 0; }
 .lm-sendlegal__who small { color: var(--ws-ink-500); }
 .lm-sendlegal__foot { display: flex; justify-content: flex-end; gap: var(--ws-s2); }
+/* AB-213 D3: the note for Legal — a plain field under the picker, not a radio row */
+.lm-sendlegal__pop label.lm-sendlegal__note { flex-direction: column; align-items: stretch; cursor: auto;
+  min-height: 0; padding: 0; gap: 4px; font-size: var(--t-caption); color: var(--ws-ink-700); }
+.lm-sendlegal__pop label.lm-sendlegal__note:hover { background: none; }
+.lm-sendlegal__note textarea { font: inherit; font-size: var(--ws-text-sm); resize: vertical; }
+.lm-sendlegal__said { display: block; color: var(--ws-ink-700); font-style: italic; }
 
 /* LOW 11: facts as parts with space between them — no "A · B · C" strings, no accent bar on
    every card (a rule means something only where it marks something) */

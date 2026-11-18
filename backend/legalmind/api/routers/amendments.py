@@ -103,16 +103,8 @@ def final_copy(db, contract_id: UUID) -> tuple[M.DocumentVersion, Any] | None:
         .order_by(M.DocumentVersion.version_number.desc()).limit(1)).scalar()
     if latest is None or not negotiation.final_of(latest.doc_metadata):
         return None
-    review = negotiation._latest_review(db, latest)
-    record = None if review is None else db.execute(
-        select(M.ContractOutcomeRecord).where(
-            M.ContractOutcomeRecord.review_id == review.id)
-        .order_by(M.ContractOutcomeRecord.version_number.desc()).limit(1)).scalar()
-    if (review is None or record is None
-            or record.outcome is not E.ContractOutcome.SIGN_AS_IS
-            or (review.reopened_at and review.reopened_at > record.created_at)):
-        return None
-    return latest, record.created_at
+    at = negotiation.signed_as_is_at(db, latest)          # AM-407: the one rule
+    return None if at is None else (latest, at)
 
 
 def _signed_at(db, contract_id: UUID) -> Any:

@@ -53,7 +53,13 @@ export function nextStep(f: StepFacts): Step | null {
   if (!f.canAnswer || f.viewer === "legal") return null;
   switch (f.stage) {
     case "FINAL":
-      return step("downloadFinal");                              // AM-318: the end
+      // AM-318: the end. AB-213 D5: the final card's "PDF for signature" is the one main
+      // button (the owner's); the header adds none
+      return null;
+    case "ON_HOLD":
+      // AB-213 D1 (AM-405): never stuck — our reply (with the question) goes to the client
+      if (f.finalLatest) return null;
+      return f.replyReady ? step("sendReply") : step("prepareReply");
     case "READY_TO_SIGN":
       // AM-318: Legal's decision is on a version that is not final — make the final copy
       return f.finalLatest ? null : step("prepareFinal");

@@ -117,6 +117,7 @@ def test_the_party_cin_blank_never_blocks_the_final(monkeypatch):
              "_________________, hereinafter referred to as “LeapSwitch”")
     rows = [SimpleNamespace(content=party, section_number=None)]
     monkeypatch.setattr(N, "load_clauses", lambda db, vid: rows)
-    assert N.blanks(None, SimpleNamespace(id=1)) is None
+    monkeypatch.setattr(N, "optional_blanks", lambda db, cid: set())
+    assert N.blanks(None, SimpleNamespace(id=1, contract_id=1)) is None
     rows.append(SimpleNamespace(content="banks at ___________ are open", section_number="1.4"))
-    assert "clause 1.4" in N.blanks(None, SimpleNamespace(id=1))
+    assert "clause 1.4" in N.blanks(None, SimpleNamespace(id=1, contract_id=1))

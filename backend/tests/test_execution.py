@@ -420,7 +420,7 @@ def test_a_reviewed_version_is_never_named_the_signed_copy(api, db, owner, tmp_p
     r = api.post(SIGN.format(c.id), json={"document_version_id": str(signed.id),
                                           "expected_version": 1})
     assert r.status_code == 409 and "has been reviewed" in r.json()["error"]["message"]
-    assert signed.doc_metadata.get("version_role") != "FINAL_SIGNED"
+    assert (signed.doc_metadata or {}).get("version_role") != "FINAL_SIGNED"  # None: no role
 
 
 def test_the_signed_copy_is_never_reviewed(api, db, owner, tmp_path):

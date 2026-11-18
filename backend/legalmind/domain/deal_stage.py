@@ -85,6 +85,10 @@ class ReviewFacts:
     # AM-293 r1: the latest version's Review finished with no undecided point. False —
     # the default, and the value without `review.view` — fails closed to With Legal.
     reply_cleared: bool = False
+    # AM-409 (AB-213 D11): the latest version's Review is still being read (none yet, or
+    # queued/processing). Our just-prepared reply then stays Ready to send — the stage
+    # never flips to With Legal and back; the send itself still fails closed (AM-293 r1)
+    reading: bool = False
 
 
 def derive_stage(created_at: datetime, versions: list[VersionFacts],
@@ -125,6 +129,8 @@ def derive_stage(created_at: datetime, versions: list[VersionFacts],
         return NegotiationStage.CLIENT_RETURNED, latest.created_at
     if latest.sent_at is not None:
         return NegotiationStage.WITH_CLIENT, latest.sent_at
+    if latest.reply_to and review.reading and review.in_review_since is None:
+        return NegotiationStage.READY_TO_SEND, latest.created_at
     if review.in_review_since is not None and not review.reply_cleared:
         return NegotiationStage.INTERNAL_REVIEW, review.in_review_since
     if latest.reply_to or review.in_review_since is not None:

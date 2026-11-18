@@ -402,6 +402,10 @@ def negotiation_stages(guard: Guard, contracts: list[M.Contract]) -> dict[UUID, 
     return derive_stages(guard.db, contracts)
 
 
+#: AM-409: a Review still being read
+_READING = {E.ReviewStatus.DRAFT, E.ReviewStatus.UPLOADED, E.ReviewStatus.PROCESSING}
+
+
 def derive_stages(db, contracts: list[M.Contract]) -> dict[UUID, dict]:
     """Each contract's stage payload, whoever asks — the one computation the contract
     pages, the To-do and signing readiness (`execution.blockers`) all read."""
@@ -454,11 +458,22 @@ def derive_stages(db, contracts: list[M.Contract]) -> dict[UUID, dict]:
             o = outcome.get(r.id)
             if o is not None and r.reopened_at and r.reopened_at > o.created_at:
                 o = None                                  # AM-175: reopened since
+            outcome_now = (o.outcome.value, o.created_at) if o else (None, None)
+            latest_v = db.get(M.DocumentVersion, r.document_version_id)
+            if o is None and latest_v is not None and negotiation.final_of(
+                    latest_v.doc_metadata):
+                # AM-407: a clean final copy of text Legal already signed off as is
+                at = negotiation.signed_as_is_at(db, latest_v)
+                if at is not None:
+                    outcome_now = ("SIGN_AS_IS", at)
             facts[cid] = DS.ReviewFacts(in_review_since=since,
-                                        outcome=o.outcome.value if o else None,
-                                        outcome_at=o.created_at if o else None,
+                                        outcome=outcome_now[0],
+                                        outcome_at=outcome_now[1],
                                         reply_cleared=(r.status in negotiation._ANALYSED
-                                                       and r.id not in undecided))
+                                                       and r.id not in undecided),
+                                        reading=r.status in _READING)
+        for cid in latest_id.keys() - facts.keys():
+            facts[cid] = DS.ReviewFacts(reading=True)      # AM-409: no Review yet
     now = datetime.now(UTC)
     return {c.id: DS.stage_payload(*DS.derive_stage(
         c.created_at, versions.get(c.id, []), facts.get(c.id)), now) for c in contracts}

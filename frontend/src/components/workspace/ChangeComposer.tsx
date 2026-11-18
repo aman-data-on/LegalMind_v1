@@ -5,9 +5,9 @@
  * choice of Keep ours · Accept theirs · Use our standard · Write our wording, then that
  * choice's panel, so every answer carries the same reason and notes. The actions offered
  * are `actionsFor`'s — the server's flags — and an action the reader may not take is not
- * drawn. Accepting a point a standard measures is a Legal Decision: its panel places the
- * existing `DecisionControl` (unchanged), and only an effective acceptance lets the
- * answer record. The wording is a person's, typed here; nothing drafts or completes it
+ * drawn. Accepting a point a standard measures is a Legal Decision: since AB-213 D9 the
+ * lawyer's Accept and reason record it (Accept the deviation) and then the answer, in one
+ * step; only an effective acceptance lets the answer record. The wording is a person's, typed here; nothing drafts or completes it
  * (`AM-284` r7). The internal note is offered only to a reader who could read it back
  * (`legal_position.view`, `AM-285` r3) — for anyone else the field does not exist.
  */
@@ -21,7 +21,6 @@ import { VERDICT_COPY, VERDICT_LABELS } from "@/lib/labels";
 import { useSeesLegalPosition } from "@/lib/session";
 import type { Evaluation, Finding } from "@/lib/types";
 
-import { DecisionControl } from "./DecisionControl";
 import { requirementTitle } from "./findingLanguage";
 import { IconArrowLeft, IconLock } from "./icons";
 import { StatusChip, chipStatus } from "@/components/StatusChip";
@@ -155,9 +154,16 @@ export function AnswerComposer({ change, list, actions, contractId, details, onA
   // accepting a point Legal decides is the decision itself until one accepts it (AM-250 r2)
   const decides = choice === "accept_theirs" && change.route === "holder" && !change.holder_accepted
     && !change.unmeasured;
-  const reasonRequired = choice === "write_wording"
+  const reasonRequired = choice === "write_wording" || decides
     || (choice === "accept_theirs" && change.route === "holder" && !!change.unmeasured);
-  const ready = !!choice && !decides && (!reasonRequired || !!reason.trim())
+  // AB-213 D9: the points Accept decides in the same step (each with the same reason)
+  const toDecide = decides ? (details ?? []).flatMap(({ finding, evaluations }) => {
+    const read = change.review.after.find((f) => f.finding_id === finding.id);
+    // a match is no deviation: only the evaluations that differ get a Legal Decision
+    return !read || read.user_status === "ACCEPTABLE" ? []
+      : evaluations.filter((e) => e.classification !== "MATCH");
+  }) : [];
+  const ready = !!choice && (!decides || details !== null) && (!reasonRequired || !!reason.trim())
     && (choice !== "ask_client" || !!clientNote.trim())
     && (choice !== "write_wording" || (!!wording.trim() && wording.trim() !== theirs.trim()));
 
@@ -170,6 +176,20 @@ export function AnswerComposer({ change, list, actions, contractId, details, onA
     const [note, inside] = [clientNote.trim(), [condition, internalNote.trim()].filter(Boolean).join("\n\n")];
     const standard = choice === "use_standard" ? change.anchor?.clause_version_id : null;
     try {
+      // AB-213 D9 (AM-405 r2): one step — the lawyer's Accept, with their reason, is their
+      // Legal Decision to accept each measured point, then the answer. A decision that
+      // waits for a second person stops here; the answer follows once it takes effect.
+      for (const evaluation of toDecide) {
+        const done = await api.recordDecision(evaluation.id, {
+          decision_type: "ACCEPT_DEVIATION", justification: reason.trim(),
+          expected_version: evaluation.current_decision?.version_number ?? 0,
+        });
+        if (!done.is_effective) {
+          setError({ conflict: false, message: "Recorded. It waits for a second Legal approval before their wording is accepted." });
+          onReload();
+          return;
+        }
+      }
       onAnswered(await api.answerChange(contractId, change.row_key, list.to.version_number, {
         answer: choice, expected_version: change.answer?.version_number ?? 0,
         ...(why ? { reason: why } : {}),
@@ -204,25 +224,14 @@ export function AnswerComposer({ change, list, actions, contractId, details, onA
       as a tracked change.</p>,
     accept_theirs: decides ? (
       <>
-        <p className="cx-panel__what">Record your Legal Decision on each point below, then accept their wording.</p>
+        <p className="cx-panel__what">Accepting their wording records your Legal Decision to accept the difference
+          from our standard{several ? " on each point below" : ""}, with your reason.</p>
         {details === null ? <p role="status" className="ws-pane__note">Loading the points…</p> : null}
-        {details?.map(({ finding, evaluations }) => {
-          const read = change.review.after.find((f) => f.finding_id === finding.id);
-          if (!read || read.user_status === "ACCEPTABLE") return null;   // nothing to decide on a match
-          return (
-            <div key={finding.id} className="cx-decide__point">
-              {/* named only when there are several — one point is the card's line 1 */}
-              {several ? (
-                <p className="cx-decide__name">
-                  <StatusChip status={chipStatus(read.user_status, read.in_our_favour)} /> {requirementTitle({ code: read.requirement_code })}
-                </p>
-              ) : null}
-              {evaluations.map((evaluation) => (
-                <DecisionControl key={evaluation.id} evaluation={evaluation} onRecorded={onReload} />
-              ))}
-            </div>
-          );
-        })}
+        {several ? change.review.after.filter((f) => f.user_status !== "ACCEPTABLE").map((read) => (
+          <p key={read.finding_id} className="cx-decide__name">
+            <StatusChip status={chipStatus(read.user_status, read.in_our_favour)} /> {requirementTitle({ code: read.requirement_code })}
+          </p>
+        )) : null}
       </>
     ) : change.route === "holder" && change.unmeasured ? (
       <p className="cx-panel__what">None of our standards covers this clause, so accepting it is recorded as your answer,
@@ -350,10 +359,6 @@ export function AnswerComposer({ change, list, actions, contractId, details, onA
           {panel.write_wording}
           {slot ? createPortal(editor, slot) : editor}
         </>
-      ) : choice && decides ? (
-        // the Legal Decision's own forms: never inside another form, whose submit
-        // would swallow "Record decision"
-        <div className="cx-panel">{panel[choice]}{errorLine}</div>
       ) : choice ? (
         <form className="cx-panel" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
           {panel[choice]}

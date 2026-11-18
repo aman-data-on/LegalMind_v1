@@ -87,7 +87,8 @@ describe("the step (nextStep)", () => {
       .toBe("prepareReply");                                                                 // item 1
   });
   it("ends at Final: download it, and nothing leads to signing (AM-318)", () => {
-    expect(nextStep({ ...base, stage: "FINAL" })?.label).toBe("Download final contract");
+    // AB-213 D5: the final card's "PDF for signature" is the one main button
+    expect(nextStep({ ...base, stage: "FINAL" })).toBeNull();
     expect(nextStep({ ...base, stage: "READY_TO_SIGN" })?.kind).toBe("prepareFinal");
     expect(nextStep({ ...base, stage: "READY_TO_SIGN", finalLatest: true })).toBeNull();
     expect(nextStep({ ...base, stage: "INTERNAL_REVIEW", finalLatest: true, canSendToLegal: true })?.kind)

@@ -110,8 +110,10 @@ export function PrepareFinal({ contractId, nextVersion, onPrepared }: {
 
 /** "Final contract ready for signature" — the version, Legal's decision, the files, what
  *  was agreed, and the one next step (GOV.UK confirmation-page pattern). */
-export function FinalCard({ version, versions, since }: {
+export function FinalCard({ version, versions, since, owner = true }: {
   version: DocumentVersion; versions: DocumentVersion[]; since: string;
+  /** AB-213 D5: only the deal's side has the main button; Legal reads a plain one */
+  owner?: boolean;
 }) {
   const findings = useFindingsStateOptional();
   const reviewId = findings && findings.state.kind === "ready" ? findings.state.review.id : null;
@@ -139,7 +141,7 @@ export function FinalCard({ version, versions, since }: {
         </p>
         <p className="ws-replynote__sub">{NEXT}</p>
       </div>
-      <FinalFiles version={version} />
+      <FinalFiles version={version} primary={owner} />
       {version.package ? (
         <SpecialConditionsTrace versionId={version.id} count={version.package.special_conditions}
                                 instrument={version.package.form === "changes_only"}
@@ -166,7 +168,7 @@ export function FinalCard({ version, versions, since }: {
 
 /** S6 (`FINAL-PACKAGE-SPEC` c4): the PDF itself, shown inline — the very bytes "PDF for
  *  signature" saves — the Word copy for records, and the note for whoever sends it. */
-function FinalFiles({ version }: { version: Pick<DocumentVersion, "id" | "mime_type"> }) {
+function FinalFiles({ version, primary }: { version: Pick<DocumentVersion, "id" | "mime_type">; primary: boolean }) {
   const { shown, retry } = usePdf(`/document-versions/${encodeURIComponent(version.id)}/pdf`);
   const [wordBusy, setWordBusy] = useState(false);
   const [wordError, setWordError] = useState<string | null>(null);
@@ -185,7 +187,7 @@ function FinalFiles({ version }: { version: Pick<DocumentVersion, "id" | "mime_t
   return (
     <div className="lm-final__files">
       <div className="lm-final__acts">
-        <button type="button" className="ws-btn ws-btn--primary" disabled={shown.kind !== "ready"}
+        <button type="button" className={`ws-btn${primary ? " ws-btn--primary" : ""}`} disabled={shown.kind !== "ready"}
                 onClick={() => { if (shown.kind === "ready") saveBlob(shown.blob, shown.name); }}>
           <IconDownload size={16} /> {FINAL_CARD.pdfForSignature}
         </button>

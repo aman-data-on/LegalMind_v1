@@ -94,7 +94,8 @@ LOCKED_SCHEMA: dict[str, tuple[str, ...]] = {
     "requirements": ('code', 'created_at', 'id', 'status', 'updated_at'),
     # AM-174 (2026-10-22, migration c6e2a9d4f1b7): the decision on the whole contract.
     "contract_outcomes": ('created_at', 'decided_by', 'id', 'justification', 'outcome', 'review_id', 'suggested', 'version_number'),
-    "review_assignments": ('assigned_by', 'created_at', 'id', 'review_id', 'revoked_at', 'user_id'),
+    # `note` added by AM-408 (AB-213 D3, 2026-11-18, migration e4b9a2d7c318), nullable.
+    "review_assignments": ('assigned_by', 'created_at', 'id', 'note', 'review_id', 'revoked_at', 'user_id'),
     # `reopened_at` added by AM-175 (2026-10-22, migration d8b3f1a6c4e2), nullable.
     "reviews": ('completed_at', 'configuration_snapshot_id', 'contract_id', 'created_at', 'created_by', 'document_version_id', 'id', 'reopened_at', 'started_at', 'status'),
     "role_permissions": ('permission_id', 'role_id'),
@@ -219,9 +220,10 @@ def test_the_total_locked_column_count_is_unchanged(db):
     355 with `executions.origin` (AM-298, a8d4c2e6f1b9): filed as signed outside LegalMind.
     356 with `contracts.governed_by_contract_id` (AM-267 / AM-309, b4f8e2a6d9c1).
     357 with `draft_answers.brand` (one MSA for every brand, AM-341; f3b8c1d6e2a7).
+    358 with `review_assignments.note` (Note for Legal, AM-408; e4b9a2d7c318).
     """
     live = _live_columns(db)
-    assert sum(len(c) for c in live.values()) == 357
+    assert sum(len(c) for c in live.values()) == 358
 
 
 # --------------------------------------------------------------------------

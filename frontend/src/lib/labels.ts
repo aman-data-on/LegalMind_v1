@@ -401,12 +401,12 @@ export function stageLine(code: string, c: DealCounts | undefined, viewer: Stage
                           final = false): string {
   const points = c?.points_open ?? 0;
   if (code === "INTERNAL_REVIEW" && points) return `With Legal, ${plural(points, "point")}`;
-  if (code === "CLIENT_RETURNED" && c?.changes_total !== undefined && !c.changes_left) {
-    // N16: the primary's own words; the final contract waits on open points too
-    if (c.changes_ours) return "Client replied";   // UX L12: a stage, never a sentence
-    if (finalReady(c)) return "Ready for the final contract";
+  // AB-213 D4/D12: the chip names the SERVER's stage — "Client replied" stays that until
+  // the server moves it (the main button says what comes next)
+  if (code === "INTERNAL_REVIEW" && final) {                                    // AM-318
+    // D6: not "with Legal" before anyone in Legal has it
+    return c?.sent_to_legal === false ? "Final contract, not sent to Legal" : "Final contract, with Legal";
   }
-  if (code === "INTERNAL_REVIEW" && final) return "Final contract, with Legal";   // AM-318
   return stageWords(code, viewer);
 }
 
