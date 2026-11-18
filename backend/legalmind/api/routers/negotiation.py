@@ -2135,6 +2135,10 @@ def model_blanks(model: dict) -> str | None:
             + ". Fill them under “Fill-in fields” on the Document tab.")
 
 
+#: AM-402 r2: the template's party paragraph leaves a CIN nobody stores as its blank
+_PARTY_BLANK = re.compile(r"bearing CIN(?:\s+number)?\s*$")
+
+
 def blanks(db, version: M.DocumentVersion) -> str | None:
     """Every place ``version`` still has a blank to fill, in plain words ("clause 1.4
     (banks at ___ are open)", …) — or None. A final contract never keeps one: it is a
@@ -2142,6 +2146,9 @@ def blanks(db, version: M.DocumentVersion) -> str | None:
     places: list[str] = []
     for c in load_clauses(db, version.id):
         m = blank_in(c.content)
+        if m is not None and _PARTY_BLANK.search(c.content[:m.start()]) \
+                and blank_in(c.content[m.end():]) is None:
+            m = None              # AM-402 r2: the party's own CIN blank, Legal-owed
         if m is None:
             continue
         near = c.content[max(0, m.start() - 30):m.end() + 20].strip()

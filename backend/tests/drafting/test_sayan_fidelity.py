@@ -105,3 +105,18 @@ def test_the_final_body_differs_from_the_msa_only_in_filled_blanks(msa):
         assert re.fullmatch(r"[_\s]*(?:day of[_\s]*)?(?:2025)?|Customer Partner", old), \
             (old, new)
         assert all(w in filled for w in new.split()), (old, new)
+
+
+def test_the_party_cin_blank_never_blocks_the_final(monkeypatch):
+    """AM-402 r2 (verifier defect 1): the CIN blank the parties paragraph keeps for Legal
+    is not a "blank to fill" for the final gate; any other blank still blocks."""
+    from types import SimpleNamespace
+
+    from legalmind.api.routers import negotiation as N
+    party = ("LeapSwitch Networks Private Limited, a company … bearing CIN number "
+             "_________________, hereinafter referred to as “LeapSwitch”")
+    rows = [SimpleNamespace(content=party, section_number=None)]
+    monkeypatch.setattr(N, "load_clauses", lambda db, vid: rows)
+    assert N.blanks(None, SimpleNamespace(id=1)) is None
+    rows.append(SimpleNamespace(content="banks at ___________ are open", section_number="1.4"))
+    assert "clause 1.4" in N.blanks(None, SimpleNamespace(id=1))
