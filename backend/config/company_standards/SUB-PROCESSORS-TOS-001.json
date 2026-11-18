@@ -12,9 +12,9 @@
     "ruling": "owner, 2026-09-18 (AM-73) and 2026-11-09 (AM-322) — this standard restates the cited position without changing it",
     "calibration": "35.10 — NOT calibrated against counterparty paper; the mapping terms are the section's own words (sub-processors; sub-processor) plus terms the owner approved on 2026-11-11 from our own paper, AM-322 r13 (engage a subcontractor; third-party service providers; third-party processors) (rule 21)."
   },
-  "source_document": "Legal Constitution, Lawyer Review Version L1.16 — docs/02-legal-domain/LEGAL_CONSTITUTION_L1.16.md",
-  "source_clause": "§12",
-  "source_quote": "Data residency is maintained within India for all India-designated services, and sub-processors must be disclosed and bound to obligations no less protective than this policy.",
+  "source_document": "Leapswitch Terms of Service — published at https://www.leapswitch.com/terms-of-service, Last Updated 17 August 2026, read 2026-11-18 (the same words in TOS-leapswitch.pdf at LEGALMIND_SOURCE_MATERIAL_DIR)",
+  "source_clause": "10 Data Processing — Sub-Processors",
+  "source_quote": "Leapswitch may engage sub-processors as listed in our Privacy Policy. We will notify you of any changes to sub-processors that directly affect the processing of your data.",
   "configuration": {
     "document_type": "TOS",
     "constitution": {
@@ -26,13 +26,15 @@
     "expected_presence": "PRESENT",
     "scope_key": "SUB_PROCESSORS",
     "applicability": "REQUIRED",
-    "position_statement": "Data residency is maintained within India for all India-designated services, and sub-processors must be disclosed and bound to obligations no less protective than this policy.",
+    "position_statement": "Leapswitch may engage sub-processors as listed in our Privacy Policy. We will notify you of any changes to sub-processors that directly affect the processing of your data.",
     "found_clause_for_a_person": true,
     "not_applicable_to": [
       "PRIVACY_POLICY",
       "AUP",
       "DPA"
-    ]
+    ],
+    "own_wording_match": "Leapswitch may engage sub-processors as listed in our Privacy Policy. We will notify you of any changes to sub-processors that directly affect the processing of your data.",
+    "own_wording_label": "Sub-Processors"
   },
   "evaluator_type": "PRESENCE",
   "evaluation_rules": {
@@ -69,5 +71,24 @@
       "favourable_outcome": "ACCEPTABLE",
       "effect_rule": "GOOD_AND_NEUTRAL_ACCEPTED_2026_11_16"
     }
+  },
+  "source_file": "TOS-leapswitch.pdf",
+  "_history": [
+    {
+      "date": "2026-11-18",
+      "record": "AM-421",
+      "source_document_before": "Legal Constitution, Lawyer Review Version L1.16 — docs/02-legal-domain/LEGAL_CONSTITUTION_L1.16.md",
+      "source_clause_before": "§12",
+      "source_quote_before": "Data residency is maintained within India for all India-designated services, and sub-processors must be disclosed and bound to obligations no less protective than this policy.",
+      "configuration_before": {
+        "position_statement": "Data residency is maintained within India for all India-designated services, and sub-processors must be disclosed and bound to obligations no less protective than this policy."
+      }
+    }
+  ],
+  "tos_alignment": {
+    "record": "AM-421",
+    "date": "2026-11-18",
+    "ruling": "owner, 2026-11-18: \"Sayan's MSA is final for MSA terms. The live website text is final for TOS, SLA, AUP and Privacy, separately for LeapSwitch, CloudPe and CloudJiffy. The Constitution copies both, word for word with clause numbers, and invents nothing.\" (rule 6 approval; AB-215)",
+    "note": "Our published TOS §10 is the position for a TOS: word for word it is MATCH (AM-386's test); any other wording is still read by a person (AM-322 r11)."
   }
 }

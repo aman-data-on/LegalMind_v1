@@ -31168,3 +31168,89 @@ without a sentence stating that Annexure 2 prevails over the MSA body (each Anne
 "Clause X is replaced by the following"; MSA 21.3's text sets no order despite its heading), the
 owner answered "yes, merge and deploy". AM-414 therefore rests on the owner's own words, not on a
 relay. r6 stands: Legal confirms the structure at the next lawyer review of the MSA template.
+
+---
+
+## AMENDMENT BATCH AB-215 — `AM-421`–`AM-423` (2026-11-18): Constitution L1.18 — our own documents quoted (Sayan's MSA final; the live website final per brand)
+
+Owner rule, 2026-11-18 (rule 6 approval for these lock changes): "Sayan's MSA is final for MSA
+terms. The live website text is final for TOS, SLA, AUP and Privacy, separately for LeapSwitch,
+CloudPe and CloudJiffy. The Constitution copies both, word for word with clause numbers, and
+invents nothing." Registered office: confirmed by the company in #proj-legalmind on 2026-11-18.
+Collision scan 2026-11-18 (origin/main, every worktree including code comments, every remote
+branch): main tops out at AB-213 / AM-410; AB-214 is reserved by the MSA-alignment session,
+whose worktree uses AM-411–AM-414. AB-215 and AM-421–AM-430 taken; AM-415–AM-420 left free as
+headroom; AM-424–AM-430 held unused by this batch.
+
+`AM-421` — Constitution L1.18 (amends `AM-325`; supersedes L1.17 as the current version)
+
+```text
+r1  THE VERSION. docs/02-legal-domain/LEGAL_CONSTITUTION_L1.18.md is L1.17 with an "L1.18 —
+    Our Own Documents" block opening §2.2, §4, §8.2, §9, §10, §11, §12, §13, §14, §15, §16,
+    §17, §18 and §22 (one paragraph per quotation, so Ask retrieves each on its own), quoting legal-docs/MSA.pdf (clause numbers as printed) and each brand's
+    published page read on 2026-11-18, word for word. Every quotation is checked against its
+    source. L1.17 stays as history with a SUPERSEDED banner only (rule 22); Ask reads L1.18.
+r2  WHICH TEXT GOVERNS. Where a section's earlier text states a different position, the block
+    governs for a client-facing MSA and for the named published document; the earlier text
+    continues to govern every other agreement and direction (vendor-facing, partner,
+    distribution, NDA, order form, amendment). Nothing in a block is a new position: what no
+    source states is recorded as not stated.
+r3  MSA POSITIONS (Sayan, final) as already measured by AB-205 (AM-380): cap 17.2 six months
+    of the affected Services' fees, limiting Leapswitch's liability, 17.7 a repeat under
+    AM-401; customer-only indemnity 16.1; data purged within fifteen days of termination
+    (7.6.6); arbitration in Mumbai (19.4); early termination barred, fees for the rest of
+    the Term payable (7.2); no late fee; precedence per 21.3 /
+    21.9 / 6.1.4 / 6.5.4 with no sentence drafted (owner ruling 2026-11-18 as the MSA-alignment
+    work records it in AB-214, not yet merged; the clause list is that work's reading).
+r4  PUBLISHED POSITIONS per brand: each brand's own TOS, SLA, AUP and Privacy text; the three
+    brands' documents are never merged. CloudJiffy is added as a brand (§2.2, §4, §5.1) with
+    its Terms of Service (Last updated April 19th, 2018; its AUP and Privacy Policy are
+    sections of that page) and its SLA (99.9%; day credits; seven-day claim window).
+r5  ENTITY FACTS. Registered office: 1/A2/22, Ajantha Avenue, Paud Road, Pune 411038 — the
+    MSA's address, confirmed by the company on 2026-11-18; 410 Spectra is the GST address for
+    Pune; Office 1104, Gokhale Business Bay is the working address, with a stated planned move
+    to it and no date. Incorporating statute: the Companies Act, 1956 (MSA preamble A),
+    matching the CIN's 2010 registration; L1.13's website-derived "2013" is superseded and
+    the CloudPe pages' wording is a website inaccuracy.
+r6  §4.1's notes, §27 item 16, §28.4.2 and Appendices D/E follow r5; Appendix D gains CloudJiffy.
+r7  APPENDIX I lists, without resolving: the MSA's own drafting points for Legal (21.3 states
+    no order; 17.1/17.6 repeat; 17.7 blank; 15.5's cross-reference to 8.4; 6.3's wording; 7.1's
+    unstated tenure; 1.4 blank; the three non-payment notices; the blank CIN) and, for the web
+    team, the published pages' inaccuracies (incorporating statute, the entity names on the
+    CloudPe and CloudJiffy privacy texts, trademark attribution, CloudJiffy's 2018 date and
+    United States references, the live pages calling the working address the registered
+    office). Sayan's MSA is never edited by Legal Mind.
+```
+
+`AM-422` — our published TOS's own §10 wording is the TOS position (amends `AM-322` r11 for the TOS copies; extends `AM-386` to the TOS)
+
+```text
+r1  BREACH-NOTIFICATION-TOS-001 and SUB-PROCESSORS-TOS-001 state our published LeapSwitch TOS
+    §10 ("Breach Notification: …", "Sub-Processors: …") as their position, emitted by
+    tools/generate_section31_standards.py (`tos` alignment); the Constitution quote and the
+    TOS breach copy's "no defined timeline" Unacceptable limb move to `_history`.
+r2  Our TOS §10 clause word for word is MATCH (AM-386's own-wording test); one word added,
+    removed or changed is read by a person (AM-322 r11 stands for every other wording).
+r3  The MSA copies, the duplicate-cap rule (AM-401) and drafting are untouched.
+```
+
+`AM-423` — what this batch does not change
+
+```text
+r1  Every other TOS / SLA standard already quotes the live page word for word (checked
+    2026-11-18: ARBITRATION, AUTORENEW, CLAIM-WINDOW, DATA-RETRIEVAL, GOVLAW, KYC-RETENTION,
+    LATE-FEE, LIABILITY; FORCE-MAJEURE retired) — no change. SLA-CREDIT-REMEDY-SLA-001 still
+    quotes Constitution §11 wording, which only the CloudPe SLA states (case aside) and the
+    LeapSwitch SLA words differently: left unchanged and open (one standard cannot quote two
+    brands' different wording; per-brand copies are a later batch). No AUP or Privacy Policy
+    standard exists.
+r2  KNOWN EFFECT ON ASK: the reader's-figure note ("No company position states N; that figure
+    is the reader's account") fires only when no retrieved position states the figure. L1.18
+    quotes MSA 7.3 (six-month renewals) and 17.2 (six-month cap), so a reader's "6 months" on
+    any topic near them is no longer flagged as their own account (it is still never stated as
+    our policy). The figure match is by words, not by topic — a limitation recorded here, not
+    fixed in this batch. Tests: test_conversation_multi_source.py keeps a 9-month claim for
+    the note and a 6-month case asserting the new behaviour.
+r3  No standard changes because of the address. No MSA standard, template or drafting code
+    changes. Nothing deployed; existing Reviews are not re-run (rule 16).
+```

@@ -420,8 +420,9 @@ _ASSIGN = ["assignment"]
 
 
 def _s12(code_stem: str, types: tuple[str, ...], msa: dict | None = None,
-         **spec) -> dict[str, dict]:
+         tos: dict | None = None, **spec) -> dict[str, dict]:
     return {f"{code_stem}-{t}-001": {**({"msa": msa} if msa and t == "MSA" else {}),
+                                     **({"tos": tos} if tos and t == "TOS" else {}),
                                      "section": "12", "document_type": t,
                                      "topic": "Data Protection & Privacy",
                                      "basis": "STAKEHOLDER_CONFIRMED",
@@ -501,6 +502,40 @@ def _align_to_msa(payload: dict, msa: dict) -> dict:
     return payload
 
 
+# AM-421 (AB-215, owner 2026-11-18): "The live website text is final for TOS, SLA, AUP and
+# Privacy, separately for LeapSwitch, CloudPe and CloudJiffy." A TOS copy states our
+# published Terms' own clause, word for word (AM-386's test); the Constitution quote moves to
+# `_history`.
+_AM421_RULING = ("owner, 2026-11-18: \"Sayan's MSA is final for MSA terms. The live website "
+                 "text is final for TOS, SLA, AUP and Privacy, separately for LeapSwitch, "
+                 "CloudPe and CloudJiffy. The Constitution copies both, word for word with "
+                 "clause numbers, and invents nothing.\" (rule 6 approval; AB-215)")
+_TOS_DOC = ("Leapswitch Terms of Service \u2014 published at "
+            "https://www.leapswitch.com/terms-of-service, Last Updated 17 August 2026, read "
+            "2026-11-18 (the same words in TOS-leapswitch.pdf at LEGALMIND_SOURCE_MATERIAL_DIR)")
+
+
+def _align_to_tos(payload: dict, tos: dict) -> dict:
+    cfg = payload["configuration"]
+    history = {"date": "2026-11-18", "record": "AM-421",
+               "source_document_before": payload["source_document"],
+               "source_clause_before": payload["source_clause"],
+               "source_quote_before": payload["source_quote"],
+               "configuration_before": {k: cfg[k] for k in
+                                        ("position_statement", "unacceptable_position")
+                                        if k in cfg}}
+    cfg.pop("unacceptable_position", None)
+    cfg["position_statement"] = tos["quote"]
+    cfg["own_wording_match"] = tos["quote"]
+    cfg["own_wording_label"] = tos["label"]
+    payload.update(source_document=_TOS_DOC, source_clause=tos["clause"],
+                   source_quote=tos["quote"], source_file="TOS-leapswitch.pdf")
+    payload["_history"] = [history]
+    payload["tos_alignment"] = {"record": "AM-421", "date": "2026-11-18",
+                                "ruling": _AM421_RULING, "note": tos["note"]}
+    return payload
+
+
 POSITIONS: dict[str, dict] = {
     # §12 Company Position + Unacceptable Position: "no data-residency commitment for
     # India-designated services". A client-facing MSA or a vendor; the published TOS is
@@ -555,6 +590,15 @@ POSITIONS: dict[str, dict] = {
                                               "data breach notification"]},
            approved_terms=["data breach + notify", "breach notification",
                            "data breach notification"],
+           tos={"clause": "10 Data Processing \u2014 Breach Notification",
+                "label": "Breach Notification",
+                "quote": ("Leapswitch will notify you without undue delay upon becoming "
+                          "aware of a personal data breach affecting your customer-hosted "
+                          "data."),
+                "note": ("Our published TOS \u00a710 is the position for a TOS: word for word "
+                         "it is MATCH (AM-386's test); any other wording is still read by a "
+                         "person (AM-322 r11). The 'no defined timeline' Unacceptable limb "
+                         "is withdrawn for the TOS.")},
            msa={"why": "Sayan's MSA is silent on this point",
                 "note": ("Constitution \u00a712's defined breach-notification timeline has no "
                          "counterpart in MSA.pdf: nothing is raised on a document declared "
@@ -577,6 +621,13 @@ POSITIONS: dict[str, dict] = {
                     "section_heading_terms": ["sub-processors", "third-party processors"]},
            approved_terms=["engage a subcontractor", "third-party service providers",
                            "third-party processors"],
+           tos={"clause": "10 Data Processing \u2014 Sub-Processors", "label": "Sub-Processors",
+                "quote": ("Leapswitch may engage sub-processors as listed in our Privacy "
+                          "Policy. We will notify you of any changes to sub-processors that "
+                          "directly affect the processing of your data."),
+                "note": ("Our published TOS \u00a710 is the position for a TOS: word for word "
+                         "it is MATCH (AM-386's test); any other wording is still read by a "
+                         "person (AM-322 r11).")},
            msa={"clause": "11.4 Sharing with Affiliates, Business Partners and Third-Party "
                           "Processors", "quote": (
                "LeapSwitch may disclose Personal Data to its affiliates, group companies, "
@@ -786,6 +837,8 @@ def build() -> dict[str, dict]:
         built[code] = _position(code, spec, canonical)
         if spec.get("msa"):
             built[code] = _align_to_msa(built[code], spec["msa"])
+        if spec.get("tos"):
+            built[code] = _align_to_tos(built[code], spec["tos"])
     for section, spec in SECTIONS.items():
         if section in _SKIP_SECTIONS:
             continue

@@ -34,6 +34,11 @@
      the current corporate law in L1.12. The counterparty redaction of L1.10 is carried over
      unchanged.)))) -->
 
+> **📁 SUPERSEDED 2026-11-18 by [LEGAL_CONSTITUTION_L1.18.md](LEGAL_CONSTITUTION_L1.18.md) (`AM-421`, AB-215).**
+> Retained unchanged as history. L1.18 quotes our own documents in each affected section (Sayan's MSA final
+> for MSA terms; the live website final for each brand's TOS, SLA, AUP and Privacy Policy), adds CloudJiffy,
+> records the registered office and incorporating statute per the MSA, and adds Appendix I. Ask searches only the current version.
+
 **LEGAL MIND**
 
 **LEGAL CONSTITUTION**

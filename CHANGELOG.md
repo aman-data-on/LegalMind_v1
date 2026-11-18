@@ -35,6 +35,17 @@ No version has been released. The V1 specification is complete and implementatio
   with "Try again"; targets in the contract view are at least 24 px; phone layout shift fixed on the
   contracts list and the Final page; "Create the contract" cannot be double-submitted.
 
+- Constitution L1.18 (AB-215, `AM-421`–`AM-423`, 2026-11-18; owner rule: Sayan's MSA final for MSA
+  terms, the live website final for each brand's TOS/SLA/AUP/Privacy): each affected section opens
+  with an "Our Own Documents" block quoting MSA.pdf and the live pages word for word (109
+  quotations checked against their sources); CloudJiffy added as a brand; registered office =
+  Ajantha Avenue as the company confirmed (Spectra = GST address, Gokhale Business Bay = working
+  address, move planned); incorporating statute per the MSA (1956, matching the CIN); Appendix I
+  lists the MSA's drafting points for Legal and the web pages' inaccuracies. Ask reads L1.18;
+  L1.17 kept with a banner. BREACH-NOTIFICATION-TOS-001 and SUB-PROCESSORS-TOS-001 now quote our
+  TOS §10 — word for word MATCH, any changed word to a person. Known effect: Ask no longer marks a
+  reader's "6 months" as their own account (our MSA now states six months; figure match is by
+  words, AM-423 r2). Open: SLA-CREDIT-REMEDY-SLA-001 still quotes Constitution §11. Not deployed.
 - Prelaunch QA walk (2026-11-18, local production-mode stack, MSA v2): one main button per stage —
   the lawyer's first contract-decision form only while the deal is with Legal (F1); "Send to Legal"
   is the owner's step when only Legal may answer the client's changes (U1); "Upload the client's

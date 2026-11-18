@@ -86,7 +86,7 @@ def test_ingest_writes_the_version_chain_and_is_idempotent(db):
     rows = dict(db.execute(text(
         f'SELECT s.version, o.version FROM "{schema}".knowledge_sources s '
         f'LEFT JOIN "{schema}".knowledge_sources o ON o.id = s.supersedes_id')).all())
-    assert rows == {"L1.17": "L1.16", "L1.16": "L1.15", "L1.15": "L1.14", "L1.14": "L1.13", "L1.13": "L1.12", "L1.12": "L1.11", "L1.11": "L1.10", "L1.10": "L1.5",
+    assert rows == {"L1.18": "L1.17", "L1.17": "L1.16", "L1.16": "L1.15", "L1.15": "L1.14", "L1.14": "L1.13", "L1.13": "L1.12", "L1.12": "L1.11", "L1.11": "L1.10", "L1.10": "L1.5",
                     "L1.5": None}
     found = constitution.item_for_section(
         db, "14", permissions=frozenset({"assist.ask", "legal_position.view"}))
@@ -103,7 +103,7 @@ def test_every_child_carries_a_breadcrumb_naming_its_place_and_nature():
                     if p.content.startswith("Established Company Position"))
     history = next(p for p in _items("31.2", "PARAGRAPH")
                    if p.content.startswith("Historical exceptions"))
-    assert position.breadcrumb.startswith("Legal Constitution L1.17 · 31.")
+    assert position.breadcrumb.startswith("Legal Constitution L1.18 · 31.")
     assert "31.2 Early Termination" in position.breadcrumb
     assert history.breadcrumb.endswith("historical evidence, not current policy")
     assert all(i.breadcrumb for i in ITEMS if i.kind == "PARAGRAPH")
@@ -205,7 +205,7 @@ def test_l1_10_is_kept_as_history_and_superseded_after_ingest(db):
     constitution.ingest(db)
     rows = dict(db.execute(text(
         f'SELECT version, status FROM "{schema}".knowledge_sources')).all())
-    assert rows == {"L1.17": "CURRENT", "L1.16": "SUPERSEDED", "L1.15": "SUPERSEDED", "L1.14": "SUPERSEDED", "L1.13": "SUPERSEDED", "L1.12": "SUPERSEDED", "L1.11": "SUPERSEDED",
+    assert rows == {"L1.18": "CURRENT", "L1.17": "SUPERSEDED", "L1.16": "SUPERSEDED", "L1.15": "SUPERSEDED", "L1.14": "SUPERSEDED", "L1.13": "SUPERSEDED", "L1.12": "SUPERSEDED", "L1.11": "SUPERSEDED",
                     "L1.10": "SUPERSEDED",
                     "L1.5": "SUPERSEDED"}
     assert constitution.SUPERSEDED_FILES["L1.10"].read_text().count("₹1 lakh") >= 1
@@ -229,10 +229,18 @@ def test_l1_12_states_each_brands_published_sla_and_never_merges_them():
     assert all("superseded" in line for line in BODY.splitlines() if "10/25/50" in line)
 
 
-def test_l1_12_takes_the_registered_office_from_the_published_terms():
+def test_l1_18_records_the_registered_office_the_company_confirmed():
+    """AM-421 (company confirmation, 2026-11-18): the registered office is the MSA's
+    Ajantha Avenue address; 410 Spectra is the GST address and Gokhale Business Bay the
+    working address, with a planned move and no date. L1.12's website-derived position
+    stays in L1.17 as history."""
     office = _section("4.1")
-    assert "Office 1104, 11th Floor, Gokhale Business Bay" in office
-    assert "Ajantha Avenue, Paud Road, Pune) is superseded" in office
+    assert "Registered office (L1.18, confirmed by the company" in office
+    assert "1/A2/22, Ajantha Avenue, Paud Road, Near Krishna Hospital, Pune - 411038" in office
+    assert "is the GST address" in office and "is the working" in office
+    assert "no date was given" in office
+    old = constitution.SUPERSEDED_FILES["L1.17"].read_text()
+    assert "Ajantha Avenue, Paud Road, Pune) is superseded" in old
 
 
 def test_l1_12_keeps_the_msa_positions_and_scopes_the_published_terms_to_themselves():
@@ -366,8 +374,8 @@ def test_l1_16_names_no_counterparty_and_supersedes_l1_15():
 def test_l1_17_takes_payment_obligations_outside_the_cap():
     """AM-313 as AM-325 records it: L1.17 is L1.16 (AM-300) with ONE addition — §9 states
     that a Party's payment obligation is not limited by the cap; nothing else leaves it.
-    L1.16 stays as history under its banner."""
-    current = constitution.CURRENT_FILE.read_text()
+    L1.16 stays as history under its banner. (L1.17 itself is history since L1.18.)"""
+    current = constitution.SUPERSEDED_FILES["L1.17"].read_text()
     l116 = constitution.SUPERSEDED_FILES["L1.16"].read_text()
     nine = current[current.index("# **9\\. Liability**"):current.index("# **10\\.")]
     assert "a Party's obligation to pay fees and charges due under this Agreement" in nine
@@ -377,3 +385,25 @@ def test_l1_17_takes_payment_obligations_outside_the_cap():
     heads = [x for x in current.splitlines() if x.startswith("#")]
     assert [h for h in heads if h not in l116.splitlines()] == [
         "### **Payment Obligations Outside the Cap**"]
+
+
+def test_l1_18_adds_only_our_own_documents_blocks_and_appendix_i():
+    """AM-421 (owner rule 2026-11-18): L1.18 is L1.17 with an "Our Own Documents" block
+    opening each affected section (MSA.pdf and the live pages, quoted) and Appendix I;
+    every L1.17 heading is kept, and L1.17 stays as history under its banner."""
+    current = constitution.CURRENT_FILE.read_text()
+    l117 = constitution.SUPERSEDED_FILES["L1.17"].read_text()
+    assert "SUPERSEDED 2026-11-18 by [LEGAL_CONSTITUTION_L1.18.md]" in l117
+    heads = [x for x in current.splitlines() if x.startswith("#")]
+    old = [x for x in l117.splitlines() if x.startswith("#")]
+    assert set(old) <= set(heads)
+    added = [h for h in heads if h not in old]
+    assert all(h.startswith("### **L1.18 — Our Own Documents: ") for h in added[:-3])
+    assert added[-3:] == ["## **Appendix I — Open for Legal and for the Web Team (L1.18)**",
+                          "### **Open for Legal — the MSA's own drafting (Sayan's MSA is never "
+                          "edited by Legal Mind)**",
+                          "### **For the web team — published pages**"]
+    nine = current[current.index("# **9\\. Liability**"):current.index("# **10\\.")]
+    assert "six (6) month period immediately preceding the event" in nine     # MSA 17.2
+    assert "The cap applies mutually to both parties" in nine     # other agreements
+

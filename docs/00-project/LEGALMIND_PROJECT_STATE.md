@@ -34,6 +34,15 @@ the client" on a measured change leaves the deal stuck — owner to rule).
 *The short version, kept current so a new session can answer "where are we?" immediately.
 Updated at the end of every working session.*
 
+**2026-11-18 — AB-215: the Constitution now copies our own documents (built on
+`legal/constitution-l118-20261118`; not merged, not deployed).** Your rule: Sayan's MSA is final for
+MSA terms, and each brand's live website is final for its Terms, SLA, AUP and Privacy Policy.
+Constitution L1.18 quotes both, word for word, at the top of every affected section, and says which
+document each quote applies to (a signed MSA client vs an online customer). CloudJiffy is now covered.
+Registered office = 1/A2/22 Ajantha Avenue (company's answer in #proj-legalmind); Spectra is the GST
+address and Gokhale Business Bay the working address. A new appendix lists what Legal must still fix
+in the MSA and what the web team must fix on the websites — nothing there is decided by LegalMind.
+
 **2026-11-18 — AB-213: Sayan's MSA kept word for word (built; 2 PRs; not deployed).** A contract
 made from the MSA now keeps his parties paragraphs, the Party sentence, WHEREAS and "IN WITNESS
 WHEREOF" exactly as written; only the blanks are filled (LeapSwitch's CIN stays a blank for Legal).
