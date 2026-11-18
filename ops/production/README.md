@@ -573,8 +573,9 @@ The general `/api/v1/` edge limit was 120r/m **per client address**; an office b
 NAT address shared it, and a contract page (~40 calls on open) refused the next reader
 with 429 ("could not be opened"). It is now 300r/m, burst 100, keyed on the signed-in
 session cookie (`legalmind_session`), falling back to the address without one. The login
-limit (`legalmind_auth`, 10r/m per address) is unchanged. A forged cookie only buys its
-sender their own bucket; the application limiter stays authoritative (S-5).
+limit (`legalmind_auth`, 10r/m per address) is unchanged. Rotating forged cookies
+would buy fresh buckets, so each address also has a 1200r/m ceiling (`legalmind_api_addr`,
+burst 200); the application limiter stays authoritative (S-5).
 
 **Ops step (owner/ops, not done by the deploy script):**
 

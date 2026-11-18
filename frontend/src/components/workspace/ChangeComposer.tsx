@@ -159,7 +159,9 @@ export function AnswerComposer({ change, list, actions, contractId, details, onA
   // AB-213 D9: the points Accept decides in the same step (each with the same reason)
   const toDecide = decides ? (details ?? []).flatMap(({ finding, evaluations }) => {
     const read = change.review.after.find((f) => f.finding_id === finding.id);
-    return !read || read.user_status === "ACCEPTABLE" ? [] : evaluations;
+    // a match is no deviation: only the evaluations that differ get a Legal Decision
+    return !read || read.user_status === "ACCEPTABLE" ? []
+      : evaluations.filter((e) => e.classification !== "MATCH");
   }) : [];
   const ready = !!choice && (!decides || details !== null) && (!reasonRequired || !!reason.trim())
     && (choice !== "ask_client" || !!clientNote.trim())
