@@ -30953,3 +30953,29 @@ only a `legal.decision` holder may ask the client (server-checked).
 `AM-395` r7 (2026-11-17, narrowing r5): the deal owner keeps the open points and who has each
 on the Summary; what is Legal-only there is "where it differs from our standard" once every point is
 decided, and the key obligations analysis.
+
+## AMENDMENT BATCH AB-212 — `AM-401` (2026-11-18): a duplicate cap clause stating the SAME period is a repeat, not a conflict (resolves `C-32`)
+
+Owner ruling, 2026-11-18 (`C-32` option b). Collision scan 2026-11-18 (origin/main, every
+worktree, every remote branch, the CLM ledger): AB-212 free; AM-401 appears only in AB-210's
+"free" note, never taken.
+
+`AM-401` — equal values repeat (amends `AM-387` r3 and `AM-380` r4 as amended by `AM-387`)
+
+```text
+r1  A cap stated ONLY by clauses whose whole text is a configured `duplicate_cap_wording` with
+    its blank FILLED is a repeat of the stated cap beside it, and is dropped, when it is read
+    FINITE and its figure AND unit equal those of another FINITE cap of the same kind and scope
+    (our MSA: a 17.7 reading "six (6) months" beside 17.2's six months). The class is general:
+    any configured duplicate-cap wording, any clause pair; nothing else is compared.
+r2  A blank (UNKNOWN, nothing in the blank) stays a repeat, as AM-387 r2.
+r3  A DIFFERENT figure or unit, an unread filled figure, or no stated cap beside it: kept, so
+    the standard reads CONFLICT / UNKNOWN for a person (fail closed), as before.
+r4  No new legal threshold, tolerance or position: the 17.2 figure governs (AM-380); equality
+    is exact (value and unit as the extractor reads them).
+r5  Consequence: the MSA template may carry 17.7 as an optional field defaulting to "six (6)"
+    (AM-394 r2) and its publish check passes on LIABILITY-MSA-001. Deploy needs no import or
+    snapshot (engine-only change; config unchanged); existing Reviews are not re-run (rule 16).
+r6  Tests: tests/legal_regression/test_constitution_positions_am322.py — blank, "six (6)", "6"
+    MATCH; "twelve (12)", "3" and a carve-out inside the blank CONFLICT.
+```
