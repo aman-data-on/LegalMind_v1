@@ -40,7 +40,7 @@ Nothing is committed until the owner says "commit".
 - 🔧 Batch C (wording to send back = our MSA; one decision per clause; Effect for us + Source columns; Ask the client; sales Summary) — AB-211 AM-395/AM-399, PR 2 `fix/e2e-batch-cd-20261117`.
 - 🔧 Batch D (Annexure 1 from the template page; MSA → Annex 1 → Annex 2 → signatures) — AB-211 AM-397, PR 2.
 - 🔧 A+B leftovers (fill after the client round; one stage for every reader; Legal queue; Mark signed reads the stage) — AB-211 AM-400, PR 2.
-- 🙋 C-32: the 17.7 default "six (6)" makes the template publish check refuse (a filled 17.7 conflicts with 17.2, AM-380 r4/AM-387). Owner/Legal to choose; until then production keeps template v1 and sales fills 17.7 per deal under "Fill-in fields".
+- ✅ C-32 resolved 2026-11-18 (owner option b; AB-212 AM-401): a 17.7 equal to 17.2 is a repeat; template with 17.7 default "six (6)" publishes. Merged, not deployed; after deploy Legal can publish a template version with the 17.7 default.
 - 🙋 Legal: recital A words (until then a sales field); Annexure 1 clause text (L3); 5.3 lines for 10 services.
 
 ## Open — AB-205 (2026-11-16): MSA standards aligned to our MSA

@@ -1309,24 +1309,43 @@ def _own_wording_clause(clauses: list[Clause], mapping: MappingResult,
 
 def _without_duplicate_caps(caps: tuple, clauses: list[Clause], configuration: dict,
                             outcome: RequirementOutcome) -> tuple:
-    """AM-387 — an unread cap (UNKNOWN) stated ONLY by clauses whose whole text is a
-    configured ``duplicate_cap_wording`` (our MSA's 17.7 with its months blank) is a
-    duplicate of the stated cap beside it: dropped while a FINITE cap of the same kind
-    and scope remains. A filled-in figure is other words: kept, CONFLICT (fail closed)."""
-    wording = {_own_words(w) for w in configuration.get("duplicate_cap_wording") or ()}
-    if not wording:
+    """AM-387 / AM-401 — a cap stated ONLY by clauses whose whole text is a configured
+    ``duplicate_cap_wording`` (our MSA's 17.7, its months blank or filled) repeats the
+    stated cap beside it and is dropped while another FINITE cap of the same kind and
+    scope remains, when it is blank (UNKNOWN) or states the SAME figure and unit (AM-401,
+    C-32). A different figure is other words: kept, CONFLICT (fail closed)."""
+    # a fill is a figure only — one word and/or digits ("six 6", "12"); anything longer
+    # (a carve-out inside the blank) is other words and is kept (rule 15)
+    patterns = [re.compile(r"\s*([a-z]*\s?\d*)\s*".join(
+        re.escape(_own_words(part)) for part in re.split(r"_{2,}", w)))
+        for w in configuration.get("duplicate_cap_wording") or ()]
+    if not patterns:
         return caps
     text = {c.evidence_id: _own_words(_OWN_LEAD.sub("", " ".join(
         (c.content or "").split()), count=1)) for c in clauses}
-    stated = {(c.cap_kind, c.scope, c.scope_label)
-              for c in caps if c.cap_status == FINITE}
+
+    def fills(cap: Cap) -> set[str] | None:
+        """The words in the blank of each clause stating the cap; None unless every
+        clause is the configured wording."""
+        found = [next((m for p in patterns if (m := p.fullmatch(text.get(ref) or ""))),
+                      None) for ref in cap.evidence_refs]
+        if not found or None in found:
+            return None
+        return {"".join(m.groups()) for m in found if m}
+
+    stated = [c for c in caps if c.cap_status == FINITE and fills(c) is None]
     keep = []
     for cap in caps:
-        if (cap.cap_status == UNKNOWN and cap.evidence_refs
-                and (cap.cap_kind, cap.scope, cap.scope_label) in stated
-                and all(text.get(ref) in wording for ref in cap.evidence_refs)):
-            outcome.diagnostics.append("a blank cap clause in the configured duplicate "
-                                       "wording restates the stated cap (AM-387)")
+        twins = [c for c in stated
+                 if (c.cap_kind, c.scope, c.scope_label)
+                 == (cap.cap_kind, cap.scope, cap.scope_label)]
+        filled = fills(cap) if twins else None
+        if filled is not None and ((cap.cap_status == UNKNOWN and filled == {""}) or (
+                cap.cap_status == FINITE and any(
+                    (c.cap_value, c.cap_unit) == (cap.cap_value, cap.cap_unit)
+                    for c in twins))):
+            outcome.diagnostics.append("a cap clause in the configured duplicate wording "
+                                       "restates the stated cap (AM-387/AM-401)")
             continue
         keep.append(cap)
     return tuple(keep)

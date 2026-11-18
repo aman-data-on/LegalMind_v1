@@ -10,6 +10,10 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+- C-32 resolved (AB-212: `AM-401`, owner 2026-11-18): a duplicate cap clause stating the SAME
+  period as the stated cap (our MSA 17.7 "six (6) months" beside 17.2) is a repeat, not a conflict;
+  blank stays a repeat; a different period still conflicts. The MSA template with 17.7 defaulting to
+  "six (6)" now passes the publish check. Engine-only; no config publish needed.
 - Production E2E fixes, part 2 (AB-211: `AM-395`, `AM-397`, `AM-399`, `AM-400`): the wording offered to
   send back is our own clause as we sent it (then our MSA's own words, then the Constitution), with a
   test that every MSA standard quote is word for word in MSA.pdf; a lawyer's answer on a change records

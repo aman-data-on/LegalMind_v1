@@ -756,7 +756,8 @@ def test_only_a_signature_block_ends_a_cited_section(row, ends):
 
 
 # AM-387 (owner, 2026-11-17, Prasad's row 42): our MSA's 17.7 with its months blank
-# duplicates 17.2 — the 17.2 figure governs; a 17.7 stating a figure is still a CONFLICT
+# duplicates 17.2 — the 17.2 figure governs. AM-401 (owner, 2026-11-18, C-32 option b): a
+# 17.7 stating 17.2's period is a repeat too; a different period is still a CONFLICT
 _CAP_172 = ("17.2 Notwithstanding anything to the contrary contained in this Agreement, the "
             "total aggregate liability of Leapswitch and its affiliates, whether in contract, "
             "tort (including negligence), strict liability, or otherwise, shall not exceed the "
@@ -769,9 +770,13 @@ _CAP_177 = ("17.7 LeapSwitch\N{RIGHT SINGLE QUOTATION MARK}s total aggregate lia
 
 
 @pytest.mark.parametrize("months,expected", [("__________", "MATCH"),
+                                             ("six (6)", "MATCH"),
+                                             ("6", "MATCH"),
                                              ("twelve (12)", "CONFLICT"),
-                                             ("6", "CONFLICT")])
-def test_a_blank_17_7_duplicates_17_2_and_a_filled_one_conflicts(build, db, months,
+                                             ("3", "CONFLICT"),
+                                             ("six (6) months, save that this cap shall "
+                                              "not apply to data breach, in the", "CONFLICT")])
+def test_a_blank_or_equal_17_7_repeats_17_2_and_a_different_one_conflicts(build, db, months,
                                                                  expected):
     assert _one(build, db, "LIABILITY-MSA-001", "MSA", "17. Limitation of Liability",
                 _CAP_172, _CAP_177.format(months)) == expected

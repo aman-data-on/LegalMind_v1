@@ -16,6 +16,10 @@
 *The short version, kept current so a new session can answer "where are we?" immediately.
 Updated at the end of every working session.*
 
+**2026-11-18 — C-32 fixed (your ruling, option b).** A 17.7 that says the same months as 17.2
+("six (6)") is now read as a repeat, not a conflict, so the MSA template with 17.7 defaulting to
+"six (6)" publishes. A 17.7 with different months is still sent to Legal. Merged, not deployed.
+
 **2026-11-17 — Production test fixes, part 2 (built; PR 2; not deployed).** The wording Legal
 offers to send back is now our own clause as we sent it (then our MSA's own words), never the generic
 Constitution paragraph; a lawyer's answer on a change is their decision on that clause (no second
