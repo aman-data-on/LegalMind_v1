@@ -909,10 +909,29 @@ jobs:
         # image builds below and left the report-only Trivy steps scanning an
         # image that was never built. Same commit passed on the push-triggered
         # run. Retry transport errors; a real finding still blocks immediately.
+        #
+        # Owner decision 2026-11-18: allow ONLY GHSA-fc5q-39xc-vjpf (picomatch
+        # <=4.0.7, no patched version exists) until 2026-12-18; from that date
+        # it fails again. A package passes only if every path leads to that one
+        # advisory; any other finding fails exactly as before.
         run: |
+          allow_filter='
+            const j = JSON.parse(require("fs").readFileSync(0, "utf8"));
+            const allowed = new Date() < new Date("2026-12-18T00:00:00Z")
+              ? "https://github.com/advisories/GHSA-fc5q-39xc-vjpf" : null;
+            const v = j.vulnerabilities || {}, ok = new Set();
+            for (let grew = true; grew;) { grew = false;
+              for (const [n, e] of Object.entries(v))
+                if (!ok.has(n) && e.via.every(x => typeof x === "string" ? ok.has(x) : x.url === allowed)) { ok.add(n); grew = true; } }
+            const left = Object.keys(v).filter(n => !ok.has(n));
+            if (ok.size) console.log("::warning::allowed until 2026-12-18 (GHSA-fc5q-39xc-vjpf): " + [...ok].join(", "));
+            if (left.length) { console.log("blocking: " + left.join(", ")); process.exit(1); }'
           for attempt in 1 2 3; do
             if out=$(npm audit 2>&1); then echo "$out"; exit 0; fi
             echo "$out"
+            if json=$(npm audit --json 2>/dev/null; true) && grep -q '"vulnerabilities"' <<<"$json"; then
+              node -e "$allow_filter" <<<"$json" && exit 0 || exit 1
+            fi
             if grep -qiE 'audit endpoint returned an error|ENETUNREACH|ETIMEDOUT|ECONNRESET|EAI_AGAIN|network|registry error' <<<"$out"; then
               echo "::warning::npm audit registry error (attempt $attempt/3) — retrying"
               sleep $((attempt * 10)); continue

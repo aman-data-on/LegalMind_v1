@@ -10,6 +10,8 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+- CI job 14 npm audit (owner 2026-11-18): allows ONLY GHSA-fc5q-39xc-vjpf (picomatch <=4.0.7, no
+  patched version) until 2026-12-18, then fails again; every other finding still fails.
 - C-32 resolved (AB-212: `AM-401`, owner 2026-11-18): a duplicate cap clause stating the SAME
   period as the stated cap (our MSA 17.7 "six (6) months" beside 17.2) is a repeat, not a conflict;
   blank stays a repeat; a different period still conflicts. The MSA template with 17.7 defaulting to
