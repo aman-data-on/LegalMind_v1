@@ -30979,3 +30979,83 @@ r5  Consequence: the MSA template may carry 17.7 as an optional field defaulting
 r6  Tests: tests/legal_regression/test_constitution_positions_am322.py — blank, "six (6)", "6"
     MATCH; "twelve (12)", "3" and a carve-out inside the blank CONFLICT.
 ```
+
+---
+
+## AMENDMENT BATCH AB-213 — `AM-402`–`AM-410` (2026-11-18): Sayan fidelity, agreed changes in Annexure 2, template versions, E2E defects D1–D14
+
+Owner rulings (2026-11-18, final): the lawyer-reviewed MSA (legal-docs/MSA.pdf) IS the MSA
+template and its body is never edited. Final = MSA + Annexure 1 (order form) + Annexure 2
+(agreed amendments) + the signature page last. The lifecycle ENDS at Final + PDF for
+signature (no Mark signed; `AM-318` stays). One main button, same stage (`AM-398`).
+Scan: AB-213/214 and AM-402–410 free on main, every worktree and every remote branch.
+
+`AM-402` — the template's own front words (extends `AM-282` r2)
+
+```text
+r1  A reference PDF's party paragraphs are kept verbatim after the party's name; only their
+    blanks and facts become the party's fields (registered office, CIN). The "Party/Parties"
+    sentence, the connector ("AND"), "WHEREAS", the words of agreement ("NOW THEREFORE …")
+    and the execution lead ("IN WITNESS WHEREOF …") are the source's own and print as written;
+    no generated heading ("Recitals", "Execution", "Registered office:") replaces them.
+    The class: every template imported from a PDF.
+r2  An optional party field nobody gave (our CIN, which is not stored) prints as the source's
+    blank for Legal to fill — never invented.
+```
+
+`AM-403` — agreed changes never edit the body (extends `AM-307`, `AM-318`; amends the copy
+route of `AM-318` for deals made from our template)
+
+```text
+r1  A deal that began as our generated contract, on a template with an annexure for agreed
+    changes, ends with the template body verbatim and every agreed change (accepted,
+    accepted with changes, agreed client wording, our counter-wording the client agreed) as
+    one Annexure 2 entry in its agreed words verbatim — "Clause X is replaced by the
+    following: <agreed text>" (the frame's own words). Nothing is written into the body.
+r2  Our reply to the client may still carry tracked changes; only the final moves them.
+r3  The entries are derived between our generated version and the agreed version
+    (`special_conditions.derive`); each records the agreed version it was read from — the
+    answers and Legal Decisions stay on the rounds that made it. Any blocker fails closed.
+r4  A template without such an annexure keeps the clean-copy route (AM-316 r7).
+r5  Test: a final rendered from MSA.pdf with agreed changes, word-diffed against MSA.pdf,
+    differs only in filled blanks and page furniture.
+```
+
+`AM-404` — template versions (amends the "version 1" import of `AM-282`)
+
+```text
+r1  Importing a template whose latest version is frozen (approved/published/withdrawn)
+    makes the NEXT version as a DRAFT. A clause whose text equals an existing version is
+    pinned to it (its approval stands); new text is that key's next DRAFT version.
+r2  An open DRAFT version with different content is refused — change it on the Template page.
+```
+
+`AM-405`–`AM-410` — E2E defects (PR 2; supersedes the On hold suggestion of `AM-399`)
+
+```text
+AM-405 r1  "Ask the client" goes to the client in our reply: the suggested contract decision is
+           Sign after our changes, never On hold. r2 At On hold the deal owner always has a
+           next step (Prepare / Send our reply) unless the latest version is final. r3 (D9)
+           Accepting a measured change is one step: the lawyer's Accept + reason records the
+           Legal Decision on each measured point, then the answer; a decision needing a second
+           approver stops the answer until it takes effect.
+AM-406 r1  A blank tied to an optional field (class O) left empty with no default stays blank
+           and never blocks the final; a required blank still blocks. r2 If the model cannot
+           be built, every blank blocks.
+AM-407 r1  The stage label is the server's stage; the main button names the next step. r2 A
+           final contract with no decision of its own and nothing undecided reads the Sign as
+           is recorded on its source: Final, no third Legal round; no decision is written.
+           r3 At Final the only main button is the deal side's "PDF for signature". r4 At
+           Client replied Legal is not offered a first contract decision. r5 A final not sent
+           to Legal reads "Final contract, not sent to Legal".
+AM-408 r1  Send to Legal preselects nobody and carries an optional "Note for Legal"
+           (review_assignments.note, ≤2000 chars), audited, shown to the lawyer. r2 While With
+           Legal, fill-in fields cannot change (409) and sales has no answer controls on a
+           change Legal decides until Legal accepted it.
+AM-409 r1  Our just-prepared reply still being read stays Ready to send; its send still fails
+           closed (AM-293 r1).
+AM-410 r1  Edge limit for the API: per session (cookie, else address) 300/min, burst 100; login
+           stays 10/min per address. r2 Identical in-flight reads share one call; nothing
+           cached. r3 The sign-in page does not check the session. r4 A changed point is placed
+           at the clause the client changed. r5 The Send our reply dialog offers the Word file.
+```

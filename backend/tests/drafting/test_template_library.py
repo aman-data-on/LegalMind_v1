@@ -73,9 +73,29 @@ def test_import_writes_draft_rows_once(db, user, placeholder):
     again = T.import_rows(db, template, clauses, actor_id=user.id)
     assert all(line.startswith("unchanged") for line in again)
     changed = copy.deepcopy(clauses)
-    changed[("CLAUSE_A", 1)]["content_hash"] = "f" * 64
-    with pytest.raises(T.ImportRefused, match="a new version is needed"):
+    key = next(iter(changed))
+    changed[key]["content_hash"] = "f" * 64
+    # AM-404: a DRAFT template still open for the key is refused, never edited
+    with pytest.raises(T.ImportRefused, match="still a DRAFT"):
         T.import_rows(db, template, changed, actor_id=user.id)
+
+
+def test_import_makes_the_next_version_once_one_is_published(db, user, placeholder):
+    """AM-404: re-importing changed text after v1 is published makes template v2 and
+    the changed clause's next version; unchanged clauses keep their approved version."""
+    template, clauses = placeholder
+    T.import_rows(db, template, clauses, actor_id=user.id)
+    _approve_all(db, user, template["template_key"])      # frozen: no longer a DRAFT
+    changed = copy.deepcopy(clauses)
+    key = next(iter(changed))
+    changed[key]["content_hash"] = "f" * 64
+    lines = T.import_rows(db, template, changed, actor_id=user.id)
+    assert f"DRAFT clause {key[0]}@2" in lines
+    assert f"DRAFT template {template['template_key']}@2" in lines
+    assert sum(line.startswith("unchanged clause") for line in lines) == len(clauses) - 1
+    v2 = db.execute(text("SELECT clauses FROM template_versions WHERE template_key=:k "
+                         "AND version=2"), {"k": template["template_key"]}).scalar_one()
+    assert {"clause_key": key[0], "version": 2} in v2
 
 
 # ---------------------------------------------------------------- freeze

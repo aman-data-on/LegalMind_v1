@@ -343,3 +343,44 @@ def test_precedence_blocker(db, api, unsupplied):
 
 
 __all__ = ["test_an_undecided_round_and_another_reader_are_refused"]   # (g)3 keep ours
+
+
+def test_a_redline_deal_ends_with_the_body_verbatim_and_annexure_2(db, api, negotiated,
+                                                                  monkeypatch):
+    """AM-403 (AB-213 item 2): our reply went back with tracked changes and the client
+    agreed it. The final contract keeps the template body exactly as our generated v1
+    had it; every agreed change — accepted, our counter-wording — is one Annexure 2
+    entry in its agreed words verbatim; nothing is written into the body."""
+    from pathlib import Path
+
+    import docx as D
+    contract, v1, v2, storage = negotiated
+    doc = D.Document(io.BytesIO(storage.get(v2.storage_key)))
+    from tests.drafting.test_special_conditions import _paragraph, _set
+    _set(_paragraph(doc, "Clause D conditional text, value Value E."),  # our reply
+         "Clause D text as we agree it.")
+    out = io.BytesIO()
+    doc.save(out)
+    root = Path(storage.root).parent
+    v3 = _ingest(db, root, contract, out.getvalue(), "COMPANY_DRAFT")
+    v3.doc_metadata = {**v3.doc_metadata, "reply_to": str(v2.id)}
+    _ingest(db, root, contract, out.getvalue(), "CLIENT_MODIFIED")    # agreed as sent
+    db.flush()
+    from legalmind.api.routers import negotiation as N  # their reviews are not ours
+    monkeypatch.setattr(N.negotiation, "review_open_points", lambda db, v: None)
+    dry = api.get(f"{V1}/contracts/{contract.id}/final-copy").json()["data"]
+    assert dry["mode"] == "annex" and dry["available"] is True, dry
+    texts = {e["target"]["number"]: e["text"] for e in dry["entries"]}
+    assert texts["4.1"] == "Clause C.1 text with Placeholder Term Two, as the client asks."
+    assert texts["5"].endswith("Clause D text as we agree it.")
+    made = api.post(f"{V1}/contracts/{contract.id}/final-copy")
+    assert made.status_code == 201, made.text
+    final = db.get(M.DocumentVersion,
+                   uuid.UUID(made.json()["data"]["document_version"]["id"]))
+    before, after = _sdts(storage.get(v1.storage_key)), _sdts(storage.get(final.storage_key))
+    body = [k for k in before if k not in ("lm:execution", "lm:parties")]
+    assert body and all(after[k] == before[k] for k in body)
+    segs = [s.content for s in parse_docx(storage.get(final.storage_key)).segments]
+    at = segs.index("Annexure 2 — Agreed Amendments")
+    assert "Clause D text as we agree it." in " ".join(segs[at:])
+    assert final.doc_metadata["package_of"] and final.doc_metadata["special_conditions"]

@@ -41,6 +41,7 @@ Nothing is committed until the owner says "commit".
 - 🔧 Batch D (Annexure 1 from the template page; MSA → Annex 1 → Annex 2 → signatures) — AB-211 AM-397, PR 2.
 - 🔧 A+B leftovers (fill after the client round; one stage for every reader; Legal queue; Mark signed reads the stage) — AB-211 AM-400, PR 2.
 - ✅ C-32 resolved 2026-11-18 (owner option b; AB-212 AM-401): a 17.7 equal to 17.2 is a repeat; template with 17.7 default "six (6)" publishes. Merged, not deployed; after deploy Legal can publish a template version with the 17.7 default.
+- 🔧 AB-213 (AM-402–410, 2026-11-18): Sayan MSA front words verbatim; final = body verbatim + Annexure 2; template v2 import; E2E D1–D14. PR 1 fix/ab213-sayan-fidelity, PR 2 #318. Not deployed; ops: import MSA v2 + Legal publish, nginx reload.
 - 🙋 Legal: recital A words (until then a sales field); Annexure 1 clause text (L3); 5.3 lines for 10 services.
 
 ## Open — AB-205 (2026-11-16): MSA standards aligned to our MSA
