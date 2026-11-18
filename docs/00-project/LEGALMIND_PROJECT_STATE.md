@@ -16,6 +16,13 @@
 *The short version, kept current so a new session can answer "where are we?" immediately.
 Updated at the end of every working session.*
 
+**2026-11-18 — AB-213: Sayan's MSA kept word for word (built; 2 PRs; not deployed).** A contract
+made from the MSA now keeps his parties paragraphs, the Party sentence, WHEREAS and "IN WITNESS
+WHEREOF" exactly as written; only the blanks are filled (LeapSwitch's CIN stays a blank for Legal).
+The final contract keeps the MSA body untouched and lists every agreed change in Annexure 2. The
+import tool can now make template version 2. The production test defects D1–D14 are fixed in PR 2.
+After deploy, ops imports MSA v2 and Legal publishes it (17.7 "six (6)", Annexure 1).
+
 **2026-11-18 — C-32 fixed (your ruling, option b).** A 17.7 that says the same months as 17.2
 ("six (6)") is now read as a repeat, not a conflict, so the MSA template with 17.7 defaulting to
 "six (6)" publishes. A 17.7 with different months is still sent to Legal. Merged, not deployed.

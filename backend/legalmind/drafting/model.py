@@ -62,6 +62,8 @@ TYPES = {"text", "date", "int", "bool", "choice", "email", "rows"}
 MAX_ROWS = 50
 #: an unmapped service's 5.3 cell (S4, rule 21): Legal writes it, never LegalMind
 LEGAL_TO_SUPPLY = "[Legal to supply]"
+#: AM-402 r2: an optional party fact nobody gave (a CIN) prints as the source's blank
+OPEN_BLANK = "_________________"
 #: AM-397: what `legal_to_supply` names for an annexure whose words Legal owes
 ANNEXURE_TEXT = "the Annexure 1 wording"
 #: an email address as a signing tool needs one (S2): local part, @, a dotted domain
@@ -319,6 +321,11 @@ class _Resolver:
                                       f"uses {{{name}}}, which is not a field"})
             elif name not in self.values and self.blank:
                 out.append(placeholder(self.vars[name]))
+            elif name not in self.values and optional:
+                return None
+            elif name not in self.values and self.vars[name].get("class") == "O" \
+                    and where == "parties":
+                out.append({"t": OPEN_BLANK})     # AM-402 r2: for Legal, never made up
             elif name not in self.values:
                 if optional:
                     return None

@@ -2308,6 +2308,60 @@ def _final_plan(guard: Guard, contract: M.Contract, storage: StorageBackend) -> 
     return ready(latest)
 
 
+def _annex_plan(guard: Guard, contract: M.Contract, source: M.DocumentVersion
+                ) -> dict | None:
+    """AM-403: a deal that began as our generated contract ends with the template body
+    verbatim and every agreed change in its Annexure 2 — never written into the body.
+    The agreed text is ``source`` (the copy the final would clean); each change between
+    our generated version and it is listed as "Clause X: <agreed text>" (the agreed
+    words verbatim, `special_conditions.derive`). None where the template has no
+    annexure for agreed changes (the copy route stands, AM-316 r7)."""
+    db = guard.db
+    first = db.execute(
+        select(M.DocumentVersion).join(
+            M.ContractDraft, M.ContractDraft.document_version_id == M.DocumentVersion.id)
+        .where(M.DocumentVersion.contract_id == contract.id)
+        .order_by(M.DocumentVersion.version_number)).scalars().first()
+    if first is None or first.id == source.id \
+            or contract.governed_by_contract_id is not None:
+        return None
+    draft = _generated(db, first)
+    assert draft is not None
+    basis = _basis(db, draft)
+    cfg = special_conditions.config(basis["tv"])
+    if cfg is None:
+        return None
+    out: dict = {"available": False, "blockers": [], "mode": "annex", "entries": []}
+    listed, _, _ = _changes(guard, contract, first.version_number, source.version_number)
+    for change in listed["changes"]:      # the client signed off on this text: agreed
+        change["answer"] = {"answer": "accept_theirs"}
+    derived = _derive(guard, first, source, listed, basis)
+    out["blockers"] = derived["blockers"] + _entry_blanks(derived["entries"])
+    out["blockers"] += [{"message": m["detail"], "code": f"SC_{m['code']}"}
+                        for m in special_conditions.readiness(db, basis["tv"])["missing"]]
+    out["entries"] = [{k: e[k] for k in ("n", "op", "target", "text") if k in e}
+                      for e in derived["entries"]]
+    out["available"] = not out["blockers"]
+    out["_internal"] = {"before": first, "after": source, "draft": draft,
+                        "tv": basis["tv"], "clauses": basis["clauses"], "cfg": cfg,
+                        "changes": listed["changes"], "entries": derived["entries"],
+                        "rows": basis["rows"], "frame": cfg.get("frame") or {},
+                        "shown": derived["entries"], "instrument": None,
+                        "supersedes": None}
+    return out
+
+
+def _annex_trace(plan: dict) -> list[dict]:
+    """AM-403: each entry's record — the agreed version it was read from; the answers
+    and Legal Decisions behind it stay on the rounds that made that version."""
+    after = plan["_internal"]["after"]
+    return [{"n": e["n"], "target_key": (e["target"] or {}).get("key"), "op": e["op"],
+             "row_key": e["row_key"], "choice_id": None, "choice_version": None,
+             "text_sha256": special_conditions.text_sha256(e["text"] or ""),
+             "effect": e.get("effect"), "decision_ids": [],
+             "agreed_in": str(after.id)} for e in plan["_internal"]["entries"]]
+
+
 @router.get("/contracts/{contract_id}/final-copy")
 def final_copy_preview(contract_id: UUID, guard: Guard = Depends(get_guard),
                        storage: StorageBackend = Depends(get_storage)) -> dict:
@@ -2315,7 +2369,12 @@ def final_copy_preview(contract_id: UUID, guard: Guard = Depends(get_guard),
     (`AM-318`): ``available``, ``blockers[{code, message}]``, ``mode`` (copy),
     ``of_version`` and what was ``agreed`` (each change's place and answer)."""
     contract = guard.contract_readable(contract_id, P.DOCUMENT_VIEW)
-    return data(_public_plan(_final_plan(guard, contract, storage)))
+    plan = _final_plan(guard, contract, storage)
+    annex = _annex_plan(guard, contract, plan["_source"]) if plan["available"] else None
+    if annex is not None:                                        # AM-403
+        plan.update(mode="annex", available=annex["available"],
+                    blockers=annex["blockers"], entries=annex["entries"])
+    return data(_public_plan(plan))
 
 
 @router.post("/contracts/{contract_id}/final-copy", status_code=201)
@@ -2333,6 +2392,13 @@ def prepare_final_copy(contract_id: UUID, guard: Guard = Depends(get_guard),
         raise FinalCopyNotReady("The final contract cannot be prepared yet.",
                                 plan["blockers"])
     source: M.DocumentVersion = plan["_source"]
+    annex = _annex_plan(guard, contract, source)
+    if annex is not None:          # AM-403: body verbatim, agreed changes in Annexure 2
+        if annex["blockers"]:
+            raise FinalCopyNotReady("The final contract cannot be prepared yet.",
+                                    annex["blockers"])
+        return _make_package(guard, storage, contract, annex, _annex_trace(annex),
+                             SimpleNamespace(form=None))  # type: ignore[arg-type]
     raw = storage.get(source.storage_key)
     docx = source.mime_type == DOCX_MIME
     # the copy is its own version: its footer names it, not its source (S6)
