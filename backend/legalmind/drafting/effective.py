@@ -161,8 +161,8 @@ def _apply(db: DBSession, raw: list[Clause], package: M.DocumentVersion,
             if any(p.fullmatch(text) for p in leads.values()):
                 break
             lines.append(_flat(c.content or ""))
-        if not precedence or not all(any(p.fullmatch(t) for t in lines)
-                                     for p in precedence):
+        # AM-414: a frame without Legal's sentence expects none; one it has must be there
+        if not all(any(p.fullmatch(t) for t in lines) for p in precedence):
             raise _NotApplied("the frame's precedence sentence is absent or different")
     else:          # the precedence clause must still be in the body, word for word
         pin = next((c for c in base["body"] if c["clause_key"] == cfg.get("precedence")),

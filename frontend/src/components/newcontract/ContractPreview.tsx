@@ -92,7 +92,8 @@ function Blocks({ blocks, ctx }: { blocks: ModelBlock[]; ctx: Ctx }): ReactNode 
 function Clauses({ clauses, ctx }: { clauses: ModelClause[]; ctx: Ctx }) {
   return clauses.map((c) => (
     <section key={c.clause_key} className="nc-clause">
-      <h3 className="tpl-sheet__title nc-clause__title"><span className="tpl-num">{c.number}</span>{c.title}</h3>
+      {/* AM-413: an annexure's only clause carries the annexure's title — printed once */}
+      {c.own_title === false ? null : <h3 className="tpl-sheet__title nc-clause__title"><span className="tpl-num">{c.number}</span>{c.title}</h3>}
       <Blocks blocks={c.body} ctx={ctx} />
     </section>
   ));

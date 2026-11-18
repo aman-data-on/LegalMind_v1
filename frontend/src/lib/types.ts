@@ -280,6 +280,8 @@ export interface DealCounts {
   points_waiting?: number;
   /** the latest version's review is with Legal now — assigned or escalated, at any stage */
   sent_to_legal?: boolean;
+  /** `AM-413`: the contract decision is this reader's to record now */
+  decision_for_me?: boolean;
 }
 
 /** `AM-264` — one thing waiting on the caller: a fixed sentence and a link. */
@@ -471,6 +473,8 @@ export interface ContractOutcomeState {
   final?: boolean;
   /** `AM-396`: false while this round sends changes back — Sign as is is refused */
   sign_as_is_allowed?: boolean;
+  /** `AM-411`: the only open points are questions Legal asked the client */
+  waiting_on_client?: boolean;
   /** oldest first; the last is current */
   history: ContractOutcomeVersion[];
   review_status?: string;
@@ -1536,7 +1540,11 @@ export interface ReportBlock {
 export interface FinalCopyPlan {
   available: boolean;
   blockers: { code: string; message: string }[];
-  mode: "copy" | "reply" | null;
+  mode: "copy" | "reply" | "annex" | null;
+  /** `AM-403`: with ``mode: "annex"`` — the agreed changes that go into Annexure 2 */
+  entries?: unknown[];
+  /** 2 where the annexure is Annexure 2 (our MSA); absent: Annexure A */
+  annex?: 2;
   of_version?: number;
   agreed: { where: string; answer: string }[];
 }

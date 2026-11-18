@@ -32,3 +32,5 @@
   .lm-pdfpages { max-block-size: 480px; }
   .lm-final__acts .ws-btn { min-height: 44px; }
 }
+/* AB-214 (layout shift, phone): Legal's decision line arrives after the card; its three lines are held */
+@media (max-width: 600px) { .ws .ws-replynote.lm-final .ws-replynote__sub:first-of-type { min-block-size: 4.5em; } }

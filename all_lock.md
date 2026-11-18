@@ -31059,3 +31059,106 @@ AM-410 r1  Edge limit for the API: per session (cookie, else address) 300/min, b
            cached. r3 The sign-in page does not check the session. r4 A changed point is placed
            at the clause the client changed. r5 The Send our reply dialog offers the Word file.
 ```
+
+---
+
+## AMENDMENT BATCH AB-214 — `AM-411`–`AM-414` (2026-11-18): "Ask the client" never strands a deal (resolves `C-33`), Legal's own wording on the template page — optional, never a precondition of the final — and the lawyer's contract-decision step
+
+Owner's standing rule "best design over weak locks" (2026-11-16) applied to `C-33`: option (a).
+Owner's bar for the batch: a salesperson and the lawyer are never confused about whose turn it
+is. No legal standard, threshold, tolerance or evaluator outcome changes; no legal text is
+written by LegalMind (rules 7/21). No migration. `AM-414` records the owner's ruling of
+2026-11-18 on the two texts Legal owed (relayed to the build by the batch coordinator).
+Scan: AB-214 and AM-411–416 free on main, every worktree and every remote branch.
+
+`AM-411` — a question to the client does not block the contract decision (amends `AM-178` r1;
+resolves `C-33`; extends `AM-395` r3, `AM-399`, `AM-405` r1, `AM-284` r2 / `AM-293` r1)
+
+```text
+r1  AM-178 r1 stands for every point still to decide and for every clarification EXCEPT one
+    Legal asked of the client: a point whose only open Evaluations hold a clarification
+    recorded by the answer "Ask the client" (AM-399) does not block the contract decision.
+    With at least one such point and nothing else open, the Review — still LEGAL_REVIEW,
+    never RESOLVED or CLOSED by this — takes Sign after our changes, Do not sign or On hold.
+r2  It still blocks Sign as is, on any version.
+r3  The mark is an audit row `decision.asked_client` on that clarification's Legal Decision,
+    written when a `legal.decision` holder answers "Ask the client" on the change (actor,
+    row, Evaluation, Finding). A clarification recorded any other way carries no mark and
+    blocks exactly as AM-178 r1 says; answering "Ask the client" on its change marks it.
+r4  The question reaches the client in our reply (AM-399). Our reply's own Review carries
+    the marked clarification onto the same requirement read on the same words (the carry of
+    AM-284 r2, reply only, audited `decision.carried` + the mark), reads "Waiting for the
+    client", and the reply — never a final contract — may leave with only such points open
+    (amends AM-293 r1 for these points only). Signing readiness still fails closed.
+r5  On the client's next version the point is open to Legal again: a clarification-pending
+    point is never carried forward (AM-317 r7 as locked).
+r6  A clarification recorded by "Ask the client" before this record carries no mark and
+    keeps blocking until Legal answers that change again (fail closed).
+r7  A reply of ours that left a question with the client keeps the client's words where we
+    asked, so it is not the text we stand on: the client's next version is compared with
+    our version before that reply (`reply_asked` on the reply). The asked change is then
+    listed again for Legal to answer — and so is any other difference still standing from
+    that version, including one accepted before.
+```
+
+`AM-412` — wording only Legal can write is entered on the template page (extends `AM-282`,
+`AM-283`, `AM-397`, `AM-307` S3; read with `AM-414`: optional)
+
+```text
+r1  POST /templates/{id}/legal-text {which: annexure_1 | precedence, text} — holders of
+    `legal.approve_customization` only, on a version not yet published. The Annexure 1
+    wording replaces the Legal-to-supply stand-in above the order form's tables; the
+    Annexure 2 precedence sentence is the frame's `precedence` role, right after its
+    opening. Nothing else in either clause changes.
+r2  The words become the NEXT version of the clause that holds them, as a DRAFT pinned in
+    the draft template; Legal approves that clause and publishes, as for any clause. Audited
+    `template.legal_text_supplied` (actor, clause, version, content hash).
+r3  LegalMind never writes, suggests or prefills either text: the fields start empty and
+    the page says "Optional: Legal can add wording here" (AM-414) — never that a final
+    contract is blocked.
+r4  Plain words only (no field slots) until Legal asks for them.
+```
+
+`AM-413` — the lawyer's contract-decision step and prelaunch UX (extends `AM-407`, `AM-291`)
+
+```text
+r1  `counts.decision_for_me`: the latest version's Review is held by this reader, sent to
+    Legal, and its contract decision can be recorded now with none current. The header then
+    offers "Record the decision" with "Your turn", opening the Summary at the form — on a
+    phone too. Never at Final or Signed, never for the deal owner.
+r2  "Prepare final contract" says what it makes by the server's mode: with agreed changes
+    going to Annexure 2 it never says "clean copy".
+r3  The template page names the annexure as the contract does (Annexure 2 where the
+    precedence sentence sits in the frame).
+r4  An annexure whose only clause carries the annexure's own title prints that title once.
+r5  A final contract whose own check failed says so on the Contract tab, with "Try again".
+```
+
+`AM-414` — the annexures stand on the MSA's own clauses; Legal's wording is optional, never a
+precondition of the final (owner ruling 2026-11-18: "use how industry do"; amends `AM-357` r1,
+`AM-358` r5 and `AM-397` r2)
+
+```text
+r1  OWNER RULING (2026-11-18). Asked whether final contracts wait for Legal's Annexure 2
+    precedence sentence and Annexure 1 wording, the owner answered: do it the way the
+    industry does. No legal text was drafted for this record or by this build.
+r2  The annexures rely on the lawyer-reviewed MSA's own clauses (legal-docs/MSA.pdf): 21.9
+    (Amendment — a written instrument signed by the Parties' authorised representatives;
+    Annexure 2 sits before the signature page and is signed in the same execution), 6.1.4
+    and 6.5.4 (changes captured in an addendum or amendment), 21.3 (Entire Agreement and
+    Order of Precedence — the Agreement with the purchase order form) and 8.2 (the Service
+    Order Form). LegalMind prints none of them again and composes no pointer to them.
+r3  ANNEXURE 2 (amends AM-357 r1). The frame's `precedence` role is optional: without it
+    the annexure prints its title, the frame's approved opening and the entries, each under
+    the frame's own lead ("Clause X … is replaced by the following:"). PRECEDENCE_NOT_SUPPLIED
+    no longer exists; FRAME_NOT_APPROVED and the other frame checks stand.
+r4  ANNEXURE 1 (amends AM-358 r5 and AM-397 r2). The annexure is the title "Annexure 1 —
+    Service Order Form" (the MSA's own term) and the services, fees and initial-term tables.
+    The "[Legal to supply]" stand-in is no longer written, prints nothing where an older row
+    holds it, and blocks nothing. The 5.3 delivery text for an unmapped service (L4, AM-358
+    r3) is unchanged: still Legal's, still blocks.
+r5  Legal may add its own wording to either annexure later through AM-412 (draft → approve
+    → publish); when present it prints. Its absence never blocks a final contract.
+r6  OPEN FOR LEGAL: confirmation of this structure is an item of the next lawyer review of
+    the MSA template (ENTERPRISE_TRACKER). Until then nothing here is Legal's ruling.
+```

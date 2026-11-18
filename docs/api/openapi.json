@@ -2061,6 +2061,31 @@
     "title": "LegalRuleDraft",
     "type": "object"
    },
+   "LegalText": {
+    "additionalProperties": false,
+    "properties": {
+     "text": {
+      "maxLength": 20000,
+      "minLength": 1,
+      "title": "Text",
+      "type": "string"
+     },
+     "which": {
+      "enum": [
+       "annexure_1",
+       "precedence"
+      ],
+      "title": "Which",
+      "type": "string"
+     }
+    },
+    "required": [
+     "which",
+     "text"
+    ],
+    "title": "LegalText",
+    "type": "object"
+   },
    "LoginRequest": {
     "additionalProperties": false,
     "description": "Step 47 fallback password path. S-7: the response is identical for an\nunknown account, a wrong credential and a disabled account, so nothing here\ndistinguishes those cases either.",
@@ -10261,6 +10286,62 @@
      }
     },
     "summary": "Keep As Written",
+    "tags": [
+     "templates"
+    ]
+   }
+  },
+  "/api/v1/templates/{template_id}/legal-text": {
+   "post": {
+    "description": "`AM-412`: Legal types the Annexure 1 wording or the Annexure 2 precedence\nsentence. The words become the next DRAFT version of the clause that holds them \u2014\nthe order form's tables and the annexure's other wording untouched \u2014 pinned in this\ndraft template; Legal then approves that clause and publishes, as for any clause.\nThe approver's alone (`legal.approve_customization`); 409 once the version is\npublished, or where the template has no such place. Audited.",
+    "operationId": "supply_legal_text_api_v1_templates__template_id__legal_text_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "template_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Template Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/LegalText"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Supply Legal Text Api V1 Templates  Template Id  Legal Text Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Supply Legal Text",
     "tags": [
      "templates"
     ]

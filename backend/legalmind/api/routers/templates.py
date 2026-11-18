@@ -14,7 +14,7 @@ import hashlib
 import os
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Response
@@ -115,7 +115,11 @@ def _summary(guard: Guard, tv: M.TemplateVersion,
             "progress": f"{done} of {total} clauses approved",
             # AM-307/AM-308: can this template carry Special Conditions — the list's
             # badge and the detail read the same check
-            "special_conditions": special_conditions.readiness(guard.db, tv)}
+            "special_conditions": special_conditions.readiness(guard.db, tv),
+            # AM-413: the annexure's own name — Annexure 2 where the precedence sentence
+            # sits in the frame (our MSA), else absent (Annexure A)
+            **({"agreed_annexure": 2} if (special_conditions.config(tv) or {}).get(
+                "precedence") == special_conditions.IN_FRAME else {})}
 
 
 @router.get("/templates")
@@ -182,6 +186,7 @@ def _detail(guard: Guard, tv: M.TemplateVersion) -> dict[str, Any]:
             M.AuditEvent.entity_id == tv.id)).scalars().first()
         body["approval_reference"] = (said or {}).get("approval_reference")
         body["kept"] = publish.kept(guard.db, tv.id)                       # AM-390
+        body["legal_text"] = _legal_text(guard, tv)                        # AM-412
         body["front_blanks"] = {w: _blanks(tv, w, (tv.layout or {}).get(w))
                                 for w in ("preamble", "recitals")}       # AM-392
     return body
@@ -498,7 +503,7 @@ def add_annexure_1(template_id: UUID, guard: Guard = Depends(get_guard)) -> dict
     delivery = next((k for (k, _), r in rows.items()
                      if all(any(t.startswith(w) for t in subs(r.body)) for w in starts)),
                     None)
-    body: list[dict] = [{"kind": "p", "text": model_.LEGAL_TO_SUPPLY}]
+    body: list[dict] = []        # AM-414: the form only — no wording, no stand-in
     body.append({"kind": "table", "header": ["Service", "Delivery (clause 5.3)"],
                  "rows_from": "services", "cells": ["{item}", "{delivery}"]}
                 if delivery else {"kind": "table", "header": ["Service"],
@@ -515,9 +520,9 @@ def add_annexure_1(template_id: UUID, guard: Guard = Depends(get_guard)) -> dict
               "rows": [["{initial_term_months}"]]}]
     clause = {"clause_key": ANNEX_1["clause_key"], "title": ANNEX_1["title"],
               "body": body, "realises": [], "stance": None,
-              "source": {"kind": "STRUCTURAL_PLACEHOLDER", "label": "Legal to supply",
-                         "supplier": "LegalMind (AM-397): the form's structure only; "
-                                     "the annexure's words are Legal's (L3)",
+              "source": {"kind": "STRUCTURAL_PLACEHOLDER", "label": "Order form",
+                         "supplier": "LegalMind (AM-397, AM-414): the form's structure "
+                                     "only; any wording is Legal's to add",
                          "approval_ref": None}}
     existing = guard.db.execute(select(M.ClauseVersion).where(
         M.ClauseVersion.clause_key == clause["clause_key"])
@@ -561,6 +566,86 @@ def add_annexure_1(template_id: UUID, guard: Guard = Depends(get_guard)) -> dict
                     "clause": f"{ANNEX_1['clause_key']}@{version}",
                     "delivery_clause": delivery,
                     "fields": [v["key"] for v in variables]})
+    return data(_detail(guard, tv))
+
+
+# ------------------------------------------------ `AM-412`: the words only Legal writes
+ANNEXURE_1_WORDS, PRECEDENCE = "annexure_1", "precedence"
+
+
+def _legal_places(guard: Guard, tv: M.TemplateVersion) -> list[dict[str, Any]]:
+    """The places on this version only Legal can fill, each with the clause that holds
+    it and the lines that stand there now (none: still owed — no final contract can be
+    made). Absent where the template has no such place. Nothing here is ever prefilled
+    (rules 7/21)."""
+    rows = publish.pinned_clauses(guard.db, tv)
+    out: list[dict[str, Any]] = []
+    annex = next((a for a in tv.annexures or [] if a.get("key") == ANNEX_1["key"]), None)
+    pin = (annex.get("clauses") or [None])[0] if annex else None
+    row = rows.get((pin["clause_key"], pin["version"])) if pin else None
+    if row is not None:
+        lines = [b["text"] for b in row.body if b.get("kind") == "p"
+                 and b["text"] != model_.LEGAL_TO_SUPPLY]
+        out.append({"which": ANNEXURE_1_WORDS, "row": row, "lines": lines})
+    cfg = special_conditions.config(tv) or {}
+    frame = cfg.get("frame")
+    row = rows.get((frame["clause_key"], frame["version"])) if frame else None
+    if cfg.get("precedence") == special_conditions.IN_FRAME and row is not None:
+        out.append({"which": PRECEDENCE, "row": row,
+                    "lines": special_conditions.roles(row.body).get("precedence", [])})
+    return out
+
+
+def _legal_text(guard: Guard, tv: M.TemplateVersion) -> list[dict[str, Any]]:
+    return [{"which": p["which"], "clause_key": p["row"].clause_key,
+             "supplied": bool(p["lines"]), "text": "\n".join(p["lines"]) or None,
+             "approved": bool(p["lines"]) and p["row"].status == "APPROVED",
+             "editable": tv.status == "DRAFT"} for p in _legal_places(guard, tv)]
+
+
+class LegalText(Body):
+    which: Literal["annexure_1", "precedence"]
+    #: Legal's words, as they should print — one paragraph per line
+    text: str = Field(min_length=1, max_length=20000)
+
+
+@router.post("/templates/{template_id}/legal-text")
+def supply_legal_text(template_id: UUID, body: LegalText,
+                      guard: Guard = Depends(get_guard)) -> dict:
+    """`AM-412`: Legal types the Annexure 1 wording or the Annexure 2 precedence
+    sentence. The words become the next DRAFT version of the clause that holds them —
+    the order form's tables and the annexure's other wording untouched — pinned in this
+    draft template; Legal then approves that clause and publishes, as for any clause.
+    The approver's alone (`legal.approve_customization`); 409 once the version is
+    published, or where the template has no such place. Audited."""
+    tv = _visible(guard, template_id, lock=True)
+    guard.additional_permission(P.LEGAL_APPROVE_CUSTOMIZATION,
+                                entity_type="template_version", entity_id=tv.id)
+    place = next((p for p in _legal_places(guard, tv) if p["which"] == body.which), None)
+    if place is None:
+        raise Conflict("this template has no place for that text")
+    lines = [" ".join(line.split()) for line in body.text.splitlines() if line.strip()]
+    if not lines or model_.LEGAL_TO_SUPPLY in lines:
+        raise Conflict("type the words as they should print")
+    if any(c in line for line in lines for c in "{}"):
+        # ponytail: plain words only; fields in Legal's own text when Legal asks for them
+        raise Conflict("curly brackets cannot be used in this text")
+    old = place["row"].body
+    if body.which == ANNEXURE_1_WORDS:      # the words first, the form's tables after
+        new = [*({"kind": "p", "text": t} for t in lines),
+               *(b for b in old if b.get("kind") != "p")]
+    else:                                   # right after the frame's opening lines
+        kept = [b for b in old if b.get("role") != "precedence"]
+        at = max((i for i, b in enumerate(kept) if b.get("role") == "opening"),
+                 default=-1) + 1
+        new = [*kept[:at], *({"kind": "p", "role": "precedence", "text": t}
+                             for t in lines), *kept[at:]]
+    try:
+        library.supply(guard.db, tv, place["row"].clause_key, new,
+                       actor_id=guard.user_id, text=body.text, place=body.which,
+                       request_id=guard.request_id)
+    except library.LibraryRefused as exc:
+        raise Conflict(str(exc)) from exc
     return data(_detail(guard, tv))
 
 

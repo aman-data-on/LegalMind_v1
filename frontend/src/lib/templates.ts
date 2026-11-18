@@ -30,6 +30,8 @@ export interface TemplateSummary {
   published_at: string | null;
   /** `AM-308`: whether a contract made from it can go out as a final contract with Annexure A */
   special_conditions?: SpecialConditionsReadiness;
+  /** `AM-413`: 2 where agreed changes go into Annexure 2 (our MSA); absent: Annexure A */
+  agreed_annexure?: 2;
 }
 
 /** A point the template sends to Legal on every deal (`AM-316`): declared by Legal,
@@ -112,6 +114,18 @@ export interface TemplateDetail extends TemplateSummary {
   approval_reference?: string | null;
   kept?: KeptItem[];
   front_blanks?: { preamble: TemplateBlank[]; recitals: TemplateBlank[] };
+  /** `AM-412`: the places only Legal can fill on this version (approvers only) */
+  legal_text?: LegalTextPlace[];
+}
+
+/** `AM-412`: one text only Legal can write — never prefilled, never suggested. */
+export interface LegalTextPlace {
+  which: "annexure_1" | "precedence";
+  clause_key: string;
+  supplied: boolean;
+  text: string | null;
+  approved: boolean;
+  editable: boolean;
 }
 
 export interface SpecialConditionsReadiness { ready: boolean; missing: { code: string; detail: string }[] }

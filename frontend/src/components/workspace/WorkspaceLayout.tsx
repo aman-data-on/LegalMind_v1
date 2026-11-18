@@ -22,6 +22,7 @@ import { FileText, GitCompareArrows, LayoutList, ListChecks, PanelLeftClose, Pan
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { KeyboardShortcutsHelp } from "@/components/KeyboardShortcuts";
 
+import { CONTRACT_DECISION_ID } from "./ContractDecision";
 import { useHighlight } from "./highlight";
 import { IconSparkle } from "./icons";
 import { useWorkspaceShortcuts } from "./useWorkspaceShortcuts";
@@ -278,6 +279,16 @@ export function WorkspaceLayout({
   }, [chooseSideTab, setTab]);
   // the header's "Decide N points" (`nextStep`): the open points, on the Points tab
   useStep("decide", useCallback(() => openFindings({ state: "to_decide" }), [openFindings]));
+  // AM-413: the header's "Record the decision" — the Summary tab (the phone's too), at the form
+  useStep("recordDecision", useCallback(() => {
+    chooseSideTab("analysis");
+    setTab("analysis");
+    window.setTimeout(() => {
+      const form = window.document.getElementById(CONTRACT_DECISION_ID);
+      form?.scrollIntoView({ block: "start" });
+      form?.querySelector<HTMLElement>("input, button")?.focus({ preventScroll: true });
+    }, 80);
+  }, [chooseSideTab, setTab]));
   const sideCtx = useMemo(
     () => ({ openFindings, findingsPoint, closeAskSeq,
              ...(askInTabs ? { askOpen: askTabOpen, setAskOpen, askFocusSeq } : {}),

@@ -14,7 +14,7 @@ import { ACTION, finalReady, type StageViewer } from "./labels";
 import type { DealCounts, NegotiationStageCode, ReviewAssignments, TodoItem } from "./types";
 
 export type StepKind =
-  | "decide" | "answerChanges" | "prepareReply" | "sendReply" | "sendToLegal" | "sendToClient"
+  | "decide" | "recordDecision" | "answerChanges" | "prepareReply" | "sendReply" | "sendToLegal" | "sendToClient"
   | "preparePackage" | "prepareFinal" | "downloadFinal" | "startAmendment";
 
 export interface Step { kind: StepKind; label: string }
@@ -49,6 +49,11 @@ export function nextStep(f: StepFacts): Step | null {
   const c = f.counts ?? {};
   const step = (kind: StepKind, label: string = ACTION[kind] as string): Step => ({ kind, label });
   if (f.viewer === "legal" && c.points_for_me) return step("decide", ACTION.decide(c.points_for_me));
+  // AM-413: every point is answered (or waits only on the client) — the contract decision
+  // is this lawyer's to record now (the server's `decision_for_me`)
+  if (f.viewer === "legal" && c.decision_for_me && f.stage !== "FINAL" && f.stage !== "SIGNED") {
+    return step("recordDecision");
+  }
   // UX L1/S4: Legal's only primary is deciding — sending, preparing and signing are sales acts
   if (!f.canAnswer || f.viewer === "legal") return null;
   switch (f.stage) {

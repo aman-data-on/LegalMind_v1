@@ -58,7 +58,7 @@ import { FindingsProvider, primeReviews, useFindingsState, useFindingsStateOptio
 import { HighlightProvider } from "./highlight";
 import { contractHref, contractTabFromPath, pickVersion, shortDate, stageViewer, versionRoleLabel } from "./model";
 import { RecordSigning } from "./SigningSheet";
-import { FinalCard, PrepareFinal, ClosedPanel } from "./FinalCopy";
+import { FinalCard, FinalCheckFailed, PrepareFinal, ClosedPanel } from "./FinalCopy";
 import { StageBadge } from "./StageBadge";
 import { UploadDocument } from "./UploadDocument";
 import { VersionComparison } from "./VersionComparison";
@@ -530,7 +530,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
       ) : version && view === "document" && version.package ? (
         <PackageCard version={version} versions={versions}
                      filesOpen={stageCode === "READY_TO_SEND" || stageCode === "READY_TO_SIGN" || stageCode === "SIGNED"} />
-      ) : null}
+      ) : null}{version && view === "document" && isLatest ? <FinalCheckFailed version={version} /> : null}
       {view === "document" ? <AmendmentsPanel contract={contract} canStart={canAmend} /> : null}
       {view === "document" ? <FillInFields contractId={contract.id} onSaved={() => { openVersion(null); void load(); }} /> : null}
       {/* B3 page 1: an old Markdown reading keeps its marks; a pinned reading is never re-read
@@ -750,7 +750,7 @@ function RecordHeader({
     primary = <SendOut version={latest} label={step.label} onSent={onReload} />;
   } else if (step) {
     // preparePackage: Changes; prepareFinal: the dialog on either tab
-    const tab = step.kind === "decide" ? "document" : step.kind === "prepareFinal" ? view : "changes";
+    const tab = step.kind === "decide" || step.kind === "recordDecision" ? "document" : step.kind === "prepareFinal" ? view : "changes";
     primary = (
       <button type="button" className="ws-btn ws-btn--sm ws-btn--primary" onClick={() => go(step.kind, tab)}>
         {step.label}
@@ -783,8 +783,8 @@ function RecordHeader({
         {/* AB-13 r7 — the LINKED company wins; linked, it opens every document for it */}
         {company ? (
           <button type="button" className="ws-linkbtn" onClick={onCompany}>{company.name}</button>
-        ) : version?.counterparty ? (
-          <span title="Client, as declared for this version">{version.counterparty}</span>
+        ) : version?.counterparty || contract.counterparty_id ? (   /* held while the client's name loads */
+          <span title="Client, as declared for this version">{version?.counterparty ?? <span className="ws-record__hold" aria-hidden="true" />}</span>
         ) : null}
         {/* AB-13: the declared effective date, said where the reader reads (absent when undeclared) */}
         {version?.effective_date ? (

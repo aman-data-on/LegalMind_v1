@@ -32,6 +32,7 @@ from legalmind.domain.enums import DecisionType, FindingStatus
 from legalmind.evaluation import workflow as _workflow
 from legalmind.evaluation.workflow import (
     DECISION_CARRIED_FORWARD,
+    asked_client,
     carried_forward,
     derive_finding_status,
     effective_decision,
@@ -405,13 +406,16 @@ def carry_decisions(db: DBSession, review: M.Review, *,
     origin: dict[tuple[UUID, ...], M.DocumentVersion] = {}
     anywhere = bool(meta.get("package_of") or meta.get("copy_of"))
     for theirs, prior, client in found_in:
-        _sources(db, theirs, prior, client, anywhere, sources, chains, origin)
+        _sources(db, theirs, prior, client, anywhere, sources, chains, origin,
+                 asked=client and bool(meta.get("reply_to")))
     carried = 0
     for ev, requirement_id, text in _evaluated(db, review.id, anywhere):
         found = sources.get((requirement_id, text), set())
         finding = db.get(M.Finding, ev.finding_id)
         if (len(found) != 1 or finding is None
-                or finding.status is not FindingStatus.DECISION_REQUIRED
+                # AWAITING: a question just carried onto another Evaluation of it (AM-411)
+                or finding.status not in (FindingStatus.DECISION_REQUIRED,
+                                          FindingStatus.AWAITING_CLARIFICATION)
                 or _next_version(db, ev.id) > 1
                 or not evaluation_requires_decision(
                     classification=ev.classification, rule_outcome=ev.rule_outcome,
@@ -424,13 +428,22 @@ def carry_decisions(db: DBSession, review: M.Review, *,
                 or has_permission(db, x.decided_by, extra)) for x in chain):
             continue
         for n, original in enumerate(chain, start=1):
-            db.add(M.LegalDecision(
+            row = M.LegalDecision(
                 finding_id=finding.id, evaluation_id=ev.id,
                 decision_type=original.decision_type, decided_by=original.decided_by,
                 version_number=n, created_at=datetime.now(UTC),
                 justification=(f"Carried from version {origin[key].version_number} — "
-                               f"same wording: {original.justification}")))
+                               f"same wording: {original.justification}"))
+            db.add(row)
             db.flush()
+            if original.decision_type is DecisionType.REQUEST_CLARIFICATION:
+                # AM-411 r4: the same question, still with the client — our reply's
+                # point reads "Waiting for the client", never a new point for Legal
+                A.record(db, action=A.DECISION_ASKED_CLIENT, entity_type="legal_decision",
+                         entity_id=row.id, actor_id=None, request_id=request_id,
+                         after={"carried_from_decision_id": str(original.id),
+                                "evaluation_id": str(ev.id),
+                                "finding_id": str(finding.id)})
             A.record(db, action=A.DECISION_CARRIED, entity_type="evaluation",
                      entity_id=ev.id, actor_id=None, request_id=request_id,
                      after={"decision_type": original.decision_type.value,
@@ -447,17 +460,23 @@ def carry_decisions(db: DBSession, review: M.Review, *,
 def _sources(db: DBSession, theirs: M.DocumentVersion, prior: M.Review, client: bool,
              anywhere: bool, sources: dict[tuple[UUID, str], set[tuple[UUID, ...]]],
              chains: dict[tuple[UUID, ...], list[M.LegalDecision]],
-             origin: dict[tuple[UUID, ...], M.DocumentVersion]) -> None:
+             origin: dict[tuple[UUID, ...], M.DocumentVersion], *,
+             asked: bool = False) -> None:
     """The decisions ``prior`` (the Review of ``theirs``) can carry, by (requirement,
     text read). On the client's version our wording is matched by its hash; on our own
-    final contract the wording IS the text its Evaluation read."""
+    final contract the wording IS the text its Evaluation read. ``asked`` (`AM-411` r4,
+    our reply only): a clarification Legal asked of the client is carried too — the
+    question travels with the client's unchanged words."""
     read = _read(db, prior.id)
     for ev, requirement_id, text in _evaluated(db, prior.id, anywhere):
         d = effective_decision(db, ev, escalated=is_escalated(db, ev.finding_id))
-        if d is None or d.decision_type not in _CARRIED:
+        question = (asked and d is not None
+                    and d.decision_type is DecisionType.REQUEST_CLARIFICATION
+                    and asked_client(db, d.id))
+        if d is None or not (d.decision_type in _CARRIED or question):
             continue
         chain = [d]
-        if second_person_needed(db, ev, d.decided_by):
+        if not question and second_person_needed(db, ev, d.decided_by):
             chain = [decision_history(db, ev.id)[d.version_number - 2], d]
         if client and d.decision_type is DecisionType.APPROVE_CUSTOMIZATION:
             digests = {m for x in chain for m in _WORDING_TAG.findall(x.justification)}

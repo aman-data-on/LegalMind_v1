@@ -37,9 +37,14 @@ Nothing is committed until the owner says "commit".
 ## Open — prelaunch QA 2026-11-18 (`audit/prelaunch-20261118/REPORT.md`)
 
 - [x] F1 one main button (lawyer decision form only with Legal) · [x] U1 Send to Legal step · [x] U2 upload client's reply in sight · [x] F2 empty-annex final read as body · [x] F11 short name · [x] U5 template wording · [x] CLS P1–P3 — branch `qa/prelaunch-20261118`
-- [ ] C-33 Ask the client on a measured change → stuck (owner to rule)
-- [ ] Legal: precedence sentence (Annexure 2 frame) + Annexure 1 words — every MSA final blocked until supplied; no UI to supply them
-- [ ] Lawyer's contract decision has no header step/"Your turn" (phone: two taps away); final page CLS 0.22 on a phone; whitespace-only tracked change not listed; Annexure 1 title printed twice; targets <24 px in the document view
+- [x] C-33 Ask the client on a measured change → resolved, option (a): AB-214 `AM-411`
+- [x] Legal's precedence sentence + Annexure 1 words no longer block a final (owner ruling 2026-11-18, AB-214 `AM-414`); optional wording screen on the template page (`AM-412`)
+- [x] Lawyer's "Record the decision" header step + "Your turn" (`AM-413`); phone CLS on the list and the Final page; Annexure 1 title once; targets ≥ 24 px in the contract view
+- [ ] Whitespace-only tracked change not listed
+- [ ] 🙋 **Next lawyer review of the MSA template — confirm the annexure structure (`AM-414` r6):** Annexure 2 = title + opening + "Clause X is replaced by the following: …" with no separate precedence sentence, relying on MSA 21.9, 6.1.4, 6.5.4 and 21.3; Annexure 1 = "Annexure 1 — Service Order Form" + the services, fees and initial-term tables with no clause text. Legal may add its own wording on the template page if it wants any.
+- [ ] After a question to the client, the next round lists every difference from our last full version again, including changes accepted before (`AM-411` r7) — carry the earlier answers (later batch)
+- [ ] Changes tab still says "Annexure A" on an Annexure 2 deal ("Goes into Annexure A…")
+- [ ] The 20–30 s waits (create, upload, reply, final): timings in `audit/ab214-20261118/REPORT.md`; speed-up is a later batch
 
 ## Open — AB-210 (2026-11-17): production E2E fix batch (`audit/E2E-FIX-BATCH-*.md`)
 - 🔧 Batch A+B (deal flow, fill-in fields; AM-393/394/396/398) — PR 1 `fix/e2e-batch-ab-20261117`.
@@ -49,7 +54,7 @@ Nothing is committed until the owner says "commit".
 - 🔧 A+B leftovers (fill after the client round; one stage for every reader; Legal queue; Mark signed reads the stage) — AB-211 AM-400, PR 2.
 - ✅ C-32 resolved 2026-11-18 (owner option b; AB-212 AM-401): a 17.7 equal to 17.2 is a repeat; template with 17.7 default "six (6)" publishes. Merged, not deployed; after deploy Legal can publish a template version with the 17.7 default.
 - 🔧 AB-213 (AM-402–410, 2026-11-18): Sayan MSA front words verbatim; final = body verbatim + Annexure 2; template v2 import; E2E D1–D14. PR 1 fix/ab213-sayan-fidelity, PR 2 #318. Not deployed; ops: import MSA v2 + Legal publish, nginx reload.
-- 🙋 Legal: recital A words (until then a sales field); Annexure 1 clause text (L3); 5.3 lines for 10 services.
+- 🙋 Legal: recital A words (until then a sales field); 5.3 lines for 10 services. (Annexure 1 clause text, L3: no longer owed — `AM-414`.)
 
 ## Open — AB-205 (2026-11-16): MSA standards aligned to our MSA
 - ✅ 2026-11-17 Deploy: standards imported and published on production, snapshot `179b29e4` (Mumbai, own_wording verified live).

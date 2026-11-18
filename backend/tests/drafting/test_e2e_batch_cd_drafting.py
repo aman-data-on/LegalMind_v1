@@ -33,7 +33,7 @@ V1 = "/api/v1"
 # ---------------------------------------------------------------- AM-397: the action
 def test_the_template_page_adds_annexure_1_once_and_writes_no_wording(db, api, ready):
     """E1: the annexure, three Order form questions, the signature page last; a second
-    call is 409. The clause carries only the stand-in, so Final stays blocked."""
+    call is 409. The clause carries the form's tables and no wording (`AM-414`)."""
     made = api.post(_url(ready, "/annexure-1"))
     assert made.status_code == 200, made.text
     db.refresh(ready)
@@ -45,8 +45,8 @@ def test_the_template_page_adds_annexure_1_once_and_writes_no_wording(db, api, r
     assert ready.layout["execution"]["last"] is True
     row = db.query(M.ClauseVersion).filter_by(clause_key="ANNEX1.ORDER_FORM").one()
     assert row.status == "DRAFT"
-    words = [b["text"] for b in row.body if b["kind"] == "p"]
-    assert words == [model_.LEGAL_TO_SUPPLY]            # never our wording (L3)
+    # AM-414: the form only — no wording of ours, and no stand-in either
+    assert [b["kind"] for b in row.body] == ["table", "table", "table"]
     assert db.query(M.AuditEvent).filter_by(action="template.annexure_1_added").count() == 1
     again = api.post(_url(ready, "/annexure-1"))
     assert again.status_code == 409
@@ -63,8 +63,7 @@ def test_the_template_page_adds_annexure_1_once_and_writes_no_wording(db, api, r
     tables = [b for b in sched["clauses"][0]["body"] if b["kind"] == "table"]
     assert [model_.text_of(r[0]) for r in tables[1]["rows"][1:]] == ["VPS",
                                                                      "Dedicated Servers"]
-    assert model_.legal_to_supply(m) == [model_.ANNEXURE_TEXT]
-    assert "Annexure 1 has no wording yet" in N.legal_gap(model_.ANNEXURE_TEXT)
+    assert model_.legal_to_supply(m) == []              # AM-414: nothing blocks the final
 
 
 def test_a_sales_user_cannot_add_annexure_1(db, api, template, staff):

@@ -102,6 +102,7 @@ from legalmind.drafting import model as model_
 from legalmind.drafting.reply_docx import ReplyError, apply_reply, placeable, unplaceable
 from legalmind.drafting.reply_plan import Answer, clause_text, reply_rows, sha256
 from legalmind.evaluation.workflow import (
+    asked_client,
     carried_forward,
     current_decision,
     effective_decision,
@@ -117,6 +118,7 @@ from legalmind.security.authorization import require_contract_negotiable
 from legalmind.security.errors import NotVisible, SecurityError
 from legalmind.security.resolver import has_permission
 from legalmind.worker.dispatch import dispatch_analysis, dispatch_indexing, dispatch_pdf
+from legalmind.workflow import contract_outcome as CO
 from legalmind.workflow.decisions import record_decision, standing_decision, wording_tag
 from legalmind.workflow.escalation import is_escalated
 from legalmind.workflow.review_progress import review_progress
@@ -420,7 +422,10 @@ def deal_counts(guard: Guard, contracts: list[M.Contract]) -> dict[UUID, dict]:
                 # is with Legal now (any stage) — one fact for the header and the To-do
                 counts.update(points_open=n, points_for_me=n if holds else 0,
                               points_waiting=progress["clarification"],
-                              sent_to_legal=sent)
+                              sent_to_legal=sent,
+                              # AM-413: the contract decision is this reader's to
+                              # record now — the header's step and "Your turn"
+                              decision_for_me=holds and sent and CO.due(db, review))
         theirs = (client_version(versions)
                   if P.DOCUMENT_VIEW in guard.permissions else None)
         if theirs is not None:
@@ -556,15 +561,30 @@ def _decide_by_answer(guard: Guard, change: dict, kind: DecisionType,
                      if kind is DecisionType.REQUEST_CLARIFICATION
                      else "Answered on the change: keep our wording.")
     reviews: dict[UUID, M.Review] = {}
+    asks = kind is DecisionType.REQUEST_CLARIFICATION
+
+    def mark_asked(decision: M.LegalDecision) -> None:
+        # AM-411 r3: the clarification was asked of the client — the mark the contract
+        # decision reads; one already on record is not marked twice
+        if asks and not asked_client(db, decision.id):
+            audit.record(db, action=audit.DECISION_ASKED_CLIENT,
+                         entity_type="legal_decision", entity_id=decision.id,
+                         actor_id=guard.user_id, request_id=guard.request_id,
+                         after={"row_key": change["row_key"],
+                                "evaluation_id": str(decision.evaluation_id),
+                                "finding_id": str(decision.finding_id)})
+
     for ev in _their_evaluations(db, change):
         cur = current_decision(db, ev.id)
         if cur is not None and cur.decision_type is kind:
+            mark_asked(cur)
             continue
         try:
             with db.begin_nested():
-                record_decision(db, actor_id=guard.user_id, evaluation_id=ev.id,
-                                decision_type=kind, justification=why,
-                                request_id=guard.request_id)
+                mark_asked(record_decision(
+                    db, actor_id=guard.user_id, evaluation_id=ev.id,
+                    decision_type=kind, justification=why,
+                    request_id=guard.request_id).decision)
         except SecurityError:
             continue
         finding = db.get(M.Finding, ev.finding_id)
@@ -1165,6 +1185,9 @@ def prepare_reply(contract_id: UUID, body: ReplyRequest | None = Body(None),
     version.doc_metadata = {**(version.doc_metadata or {}), **carried,
                             "version_role": "COMPANY_DRAFT", "reply_to": str(after.id),
                             "reply_tracked": kept + wording + standard,
+                            # AM-411 r7: questions left with the client in this reply
+                            "reply_asked": sum(a.kind == "ask_client"
+                                               for a in answers.values()),
                             "reply_by_hand": [m["clause"] for m in manual]}
     guard.db.flush()
     accepted = sum(a.kind == "accept_theirs" for a in answers.values())
@@ -1530,9 +1553,7 @@ def _package_plan(guard: Guard, contract: M.Contract, form: str = CHANGES_ONLY) 
         return stop("NO_ANNEXURE", "This contract's template has no annexure for "
                     "agreed changes — "
                     "prepare our reply with tracked changes.")
-    # S3: the precedence blocker keeps its spec name; every one says its words
-    out["blockers"] += [{"message": m["detail"], "code": m["code"] if m["code"]
-                         == "PRECEDENCE_NOT_SUPPLIED" else f"SC_{m['code']}"}
+    out["blockers"] += [{"message": m["detail"], "code": f"SC_{m['code']}"}
                         for m in ready["missing"]]
     if tv.published_at is None:
         stop("TEMPLATE_NOT_PUBLISHED", "The template this contract was made from was "
@@ -1546,8 +1567,8 @@ def _package_plan(guard: Guard, contract: M.Contract, form: str = CHANGES_ONLY) 
         stop("BODY_CHANGED", "Our version no longer rebuilds from its template "
              "byte for byte; a person must look at it.")
     if cfg.get("precedence") == special_conditions.IN_FRAME:   # S3: Legal's sentence
-        out["precedence"] = {"in_frame": True, "supplied": not any(
-            m["code"] == "PRECEDENCE_NOT_SUPPLIED" for m in ready["missing"])}
+        out["precedence"] = {
+            "in_frame": True, "supplied": special_conditions.precedence_supplied(db, tv)}
     elif cfg.get("precedence"):
         row = next((r for (k, _), r in rows.items() if k == cfg["precedence"]), None)
         out["precedence"] = {"clause_key": cfg["precedence"],
@@ -1681,12 +1702,11 @@ def _convert_plan(guard: Guard, contract: M.Contract, body: ConvertRequest) -> d
         return stop("NO_ANNEXURE", "This template has no Annexure 2 for agreed "
                     "changes, so their accepted points have nowhere to go.")
     ready = special_conditions.readiness(db, tv)
-    out["blockers"] += [{"message": m["detail"], "code": m["code"] if m["code"]
-                         == "PRECEDENCE_NOT_SUPPLIED" else f"SC_{m['code']}"}
+    out["blockers"] += [{"message": m["detail"], "code": f"SC_{m['code']}"}
                         for m in ready["missing"]]
     if cfg.get("precedence") == special_conditions.IN_FRAME:
-        out["precedence"] = {"in_frame": True, "supplied": not any(
-            m["code"] == "PRECEDENCE_NOT_SUPPLIED" for m in ready["missing"])}
+        out["precedence"] = {
+            "in_frame": True, "supplied": special_conditions.precedence_supplied(db, tv)}
     if (gap := _unsigned(base)) is not None:
         stop("SIGNATORY_EMAIL", gap)
     for service in model_.legal_to_supply(base):
@@ -2220,11 +2240,7 @@ def _unsigned(base: dict) -> str | None:
 
 
 def legal_gap(service: str) -> str:
-    """S4 (spec d2): a service taken whose clause 5.3 delivery cell waits for Legal;
-    AM-397: or the Annexure 1 wording itself."""
-    if service == model_.ANNEXURE_TEXT:
-        return ("Annexure 1 has no wording yet. Legal supplies it; LegalMind never "
-                "writes it.")
+    """S4 (spec d2): a service taken whose clause 5.3 delivery cell waits for Legal."""
     return (f"Clause 5.3 has no delivery wording for {service}. Legal supplies it; "
             "LegalMind never writes it.")
 
@@ -2418,7 +2434,9 @@ def final_copy_preview(contract_id: UUID, guard: Guard = Depends(get_guard),
     annex = _annex_plan(guard, contract, plan["_source"]) if plan["available"] else None
     if annex is not None:                                        # AM-403
         plan.update(mode="annex", available=annex["available"],
-                    blockers=annex["blockers"], entries=annex["entries"])
+                    blockers=annex["blockers"], entries=annex["entries"],
+                    **({"annex": 2} if annex["_internal"]["cfg"].get("precedence")
+                       == special_conditions.IN_FRAME else {}))
     return data(_public_plan(plan))
 
 

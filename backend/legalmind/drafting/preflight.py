@@ -123,7 +123,8 @@ def _expected(model: Mapping[str, Any]) -> dict[str, list[str]]:
             if b["kind"] == "sub":
                 out += [b["number"], *subs(b["body"])]
         return out
-    out = {f"lm:{c['clause_key']}@{c['version']}": [c["number"], *subs(c["body"])]
+    out = {f"lm:{c['clause_key']}@{c['version']}": [
+               *([c["number"]] if c.get("own_title", True) else []), *subs(c["body"])]
            for c in [*model["body"],
                      *(c for s in model["schedules"] for c in s["clauses"])]}
     if model.get("special_conditions"):            # `AM-307`: entries 1, 2, …

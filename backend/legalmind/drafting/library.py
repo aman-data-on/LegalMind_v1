@@ -36,6 +36,9 @@ from legalmind.drafting.model import SLOT, clause_hash, content_hash
 from legalmind.drafting.publish import pin_list, pinned_clauses
 from legalmind.security import audit as A
 
+#: `AM-412`: a DRAFT row holding words Legal typed for a place only Legal can fill
+LEGAL_TEXT = "legal_text"
+LEGAL_TEXT_SUPPLIED = "template.legal_text_supplied"
 DRAFT_LABEL = "Reference text — not approved by Legal"
 SUGGESTED_LABEL = "Suggested — not approved"      # a DRAFT pre-filled from our standard
 
@@ -47,6 +50,8 @@ def label(row: Any) -> str | None:
     kind = (row.source or {}).get("kind")
     if kind == "model":                 # `AM-307`: reference text for management
         return f"{special_conditions.FOR_APPROVAL} — {DRAFT_LABEL}"
+    if kind == LEGAL_TEXT:              # `AM-412`: Legal typed it; not approved yet
+        return "Supplied by Legal — not approved yet"
     return SUGGESTED_LABEL if kind == "prefill" else DRAFT_LABEL
 TEMPLATE_FIELDS = ("doc_type", "brand", "layout", "clauses", "variables", "annexures",
                    "assets", "source")
@@ -364,20 +369,62 @@ def decide(db: DBSession, tv: M.TemplateVersion, clause_key: str, decision: str,
                           approved_at=datetime.now(UTC))
     db.add(row)
     db.flush()
-    repinned = [{**p, "version": row.version} if p["clause_key"] == clause_key else p
-                for p in tv.clauses]
-    tv.clauses = repinned
-    tv.annexures = [{**a, "clauses": [{**p, "version": row.version}
+    _repin(db, tv, clause_key, row.version)
+    return row
+
+
+def _repin(db: DBSession, tv: M.TemplateVersion, clause_key: str, version: int) -> None:
+    """Point this draft template at ``version`` of the clause, wherever it is pinned —
+    the body, an annexure, the Special Conditions frame."""
+    tv.clauses = [{**p, "version": version} if p["clause_key"] == clause_key else p
+                  for p in tv.clauses]
+    tv.annexures = [{**a, "clauses": [{**p, "version": version}
                                       if p["clause_key"] == clause_key else p
                                       for p in a.get("clauses", [])]}
                     for a in tv.annexures]
     sc = (tv.layout or {}).get("special_conditions") or {}
     if (sc.get("frame") or {}).get("clause_key") == clause_key:
         tv.layout = {**tv.layout, "special_conditions": {
-            **sc, "frame": {**sc["frame"], "version": row.version}}}
+            **sc, "frame": {**sc["frame"], "version": version}}}
     db.flush()
     _rehash(db, tv)
     db.flush()
+
+
+def supply(db: DBSession, tv: M.TemplateVersion, clause_key: str,
+           body: list[dict[str, Any]], *, actor_id: UUID, text: str, place: str,
+           request_id: str | None = None) -> M.ClauseVersion:
+    """`AM-412`: words only Legal can write (the Annexure 1 wording, the Annexure 2
+    precedence sentence), typed by a holder of ``legal.approve_customization`` — the
+    NEXT version of that clause as a DRAFT, pinned in this draft template, then approved
+    and published like any clause. ``body`` is the clause as it stood with Legal's lines
+    in their place; ``text`` is what was typed. Audited with the actor and the hash.
+
+    The caller has checked ``legal.approve_customization`` and locked ``tv``."""
+    pin, current = _pinned(db, tv, clause_key)
+    clause = {"title": current.title, "body": body, "realises": current.realises,
+              "stance": current.stance}
+    digest = clause_hash(clause)
+    if digest == current.content_hash:
+        raise LibraryRefused("these are the words already on this template")
+    latest = db.execute(select(func.max(M.ClauseVersion.version)).where(
+        M.ClauseVersion.clause_key == clause_key)).scalar_one()
+    row = M.ClauseVersion(
+        id=uuid.uuid4(), clause_key=clause_key, version=latest + 1, status="DRAFT",
+        title=current.title, body=body, realises=current.realises, stance=current.stance,
+        source={"kind": LEGAL_TEXT, "supplier": f"lawyer:{actor_id}", "place": place,
+                "approval_ref": None, "text": text, "sha256": digest,
+                "based_on": {"version": current.version,
+                             "content_hash": current.content_hash}},
+        content_hash=digest, created_by=actor_id)
+    db.add(row)
+    db.flush()
+    A.record(db, action=LEGAL_TEXT_SUPPLIED, entity_type="clause_version",
+             entity_id=row.id, actor_id=actor_id, request_id=request_id,
+             after={"template_key": tv.template_key, "template_version": tv.version,
+                    "clause_key": clause_key, "version": row.version, "place": place,
+                    "based_on": pin["version"], "content_hash": digest})
+    _repin(db, tv, clause_key, row.version)
     return row
 
 

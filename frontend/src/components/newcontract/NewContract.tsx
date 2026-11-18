@@ -413,11 +413,11 @@ function Drafting({ draftId, step, published, setStep, convertFor = null }: {
   const check = checked && checked.version === savedVersion ? checked : null;
 
   async function create() {
+    setCreating(true); setFailure(null); setCreateProblems([]);   // first: a second click finds it disabled
     if (timer.current) clearTimeout(timer.current);
-    await flush();
-    if (conflict.current || !draft) return;
-    setCreating(true); setFailure(null); setCreateProblems([]);
     try {
+      await flush();
+      if (conflict.current || !draft) { setCreating(false); return; }
       if (convertFor) {        // S5: the deal's Changes tab makes our paper from these answers
         router.push(`/contracts/${encodeURIComponent(convertFor)}/changes?convert_draft=${encodeURIComponent(draftId)}`);
         return;

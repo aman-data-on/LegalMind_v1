@@ -80,11 +80,12 @@ export function useTasks(): { tasks: TodoItem[] | null; contracts: Map<string, C
     void (async () => {
       try {
         const list = oneTaskPerContract((await api.todo()).items);
-        if (cancelled) return;
-        setTasks(list);
         // ponytail: one detail request per task; a by-ids list endpoint if queues grow
         const got = await Promise.all(list.map((i) => api.contract(i.contract_id).catch(() => null)));
-        if (!cancelled) setContracts(new Map(got.filter((c): c is Contract => !!c).map((c) => [c.id, c])));
+        if (cancelled) return;
+        // AB-214: the rows and their facts in ONE paint — a row never grows after it is shown
+        setContracts(new Map(got.filter((c): c is Contract => !!c).map((c) => [c.id, c])));
+        setTasks(list);
       } catch (cause) {
         if (!cancelled) setError(cause);
       }
@@ -123,7 +124,7 @@ export function HomeQueue({ companies, todo }: {
     <>
       {/* prelaunch P3: the queue's place is held while it loads — it used to arrive above the
           list and push it down (CLS 0.32 on a phone) */}
-      <section className="ws-hq" aria-busy={tasks === null} {...(legal ? { "aria-label": "For my review" } : { "aria-labelledby": "ws-home-turn" })}>
+      <section className="ws-hq" aria-busy={tasks === null && !todo.error} {...(legal ? { "aria-label": "For my review" } : { "aria-labelledby": "ws-home-turn" })}>
         {legal ? null : (
           <h2 id="ws-home-turn" className="ws-home__qtitle">
             Your turn{tasks ? <span className="ws-home__qn">{tasks.length}</span> : null}

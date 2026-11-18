@@ -34,7 +34,7 @@ import { shortDate } from "@/components/workspace/model";
 import { PageHeader } from "@/components/page/PageHeader";
 
 import { ClauseSheet, Runs } from "./TemplateClause";
-import { BlanksGroup, KeepAsWritten, KeptGroup, OrderForm, OurSignatory, SpecialConditionsSetup } from "./TemplateLegalChoices";
+import { AnnexureSetup, BlanksGroup, KeepAsWritten, KeptGroup, LegalText, OurSignatory, SpecialConditionsSetup } from "./TemplateLegalChoices";
 export { SpecialConditionsSetup };
 import { CheckStatus } from "./TemplateList";
 import { PreviewButton } from "@/components/PreviewPanel";
@@ -639,7 +639,8 @@ function PublishView({ ask, detail, check, checking, positions, onRetry, onSelec
         {detail.approval_reference ? (
           <p className="tpl-quiet">Approved outside LegalMind: {detail.approval_reference}</p>
         ) : null}
-        <SpecialConditionsSetup readiness={detail.special_conditions} />
+        <LegalText detail={detail} onDone={onChanged} onSelect={onSelect} />
+        <SpecialConditionsSetup readiness={detail.special_conditions} two={detail.agreed_annexure === 2} />
       </section>
     );
   }
@@ -719,8 +720,7 @@ function PublishView({ ask, detail, check, checking, positions, onRetry, onSelec
       <KeptGroup kept={detail.kept} />
       <OurSignatory detail={detail} onDone={onChanged} />
       <BlanksGroup detail={detail} onDone={onChanged} />
-      <OrderForm detail={detail} onDone={onChanged} />
-      <SpecialConditionsSetup readiness={detail.special_conditions} />
+      <AnnexureSetup detail={detail} onDone={onChanged} onSelect={onSelect} />
       {detail.flags?.length ? (
         <div className="tpl-pubgroup"><h3>Notes from the import <span>{detail.flags.length}</span></h3>
           <p className="tpl-help">About the front of the agreement (parties and recitals). They do not stop publishing. Read them before you do.</p>

@@ -727,6 +727,9 @@ export const api = {
     request<unknown>(p`/templates/${id}/our-signatory`, { method: "POST", body }),
   /** `AM-397`: Annexure 1 — Service Order Form on a draft template version */
   addAnnexure1: (id: string) => request<unknown>(p`/templates/${id}/annexure-1`, { method: "POST" }),
+  /** `AM-412`: Legal's own words for Annexure 1 or the Annexure 2 precedence sentence */
+  supplyLegalText: (id: string, which: "annexure_1" | "precedence", text: string) =>
+    request<unknown>(p`/templates/${id}/legal-text`, { method: "POST", body: { which, text } }),
   /** `AM-394`: the contract's fill-in fields and their values */
   blankValues: (contractId: string) => request<BlankValues>(p`/contracts/${contractId}/blank-values`),
   fillBlankValues: (contractId: string, body: { values: Record<string, string>; expected_version: number }) =>

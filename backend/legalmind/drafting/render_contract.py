@@ -563,10 +563,11 @@ def render(model: Mapping[str, Any], assets: Mapping[str, Any], *, contract_ref:
     def clauses(items: list[dict], num: int, main: bool = False) -> None:
         for i, clause in enumerate(items):
             start = b.mark()
-            p = b.para("LM Heading 1", [{"t": clause["title"]}], num=(num, 0),
-                       bookmark_key=clause["clause_key"])
-            if main and not i and (model["preamble"] or model["parties"]):
-                gap_before(p)
+            if clause.get("own_title", True):     # AM-413 r4: else the schedule's title
+                p = b.para("LM Heading 1", [{"t": clause["title"]}], num=(num, 0),
+                           bookmark_key=clause["clause_key"])
+                if main and not i and (model["preamble"] or model["parties"]):
+                    gap_before(p)
             if clause.get("note"):
                 b.para("LM Body 1", [{"t": clause["note"], "ph": True}])
             b.blocks(clause["body"], 1, num)

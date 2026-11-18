@@ -101,7 +101,7 @@ function DraftRows({ rows, checks, runCheck }: {
             <div className="tpl-card__what">
               <h4><Link href={`/templates/${t.id}`}>{cardName(t)}</Link></h4>
               {t.title ? <p className="tpl-card__title">{displayTitle(t.title)}</p> : null}
-              <ScBadge readiness={t.special_conditions} />
+              <ScBadge readiness={t.special_conditions} two={t.agreed_annexure === 2} />
             </div>
             <div className="tpl-card__state">
               <p className="tpl-card__status">{statusWords(t, check)}</p>
@@ -175,7 +175,7 @@ export function TemplateLibrary() {
                                     {t.recommended ? "Stop recommending" : "Recommend"}
                                   </button>
                                   <Link className="ws-btn" href={`/templates/${t.id}`} aria-label={`${ACTION.open}: ${cardName(t)}`}>{ACTION.open}</Link>
-                                  <ScBadge readiness={t.special_conditions} />
+                                  <ScBadge readiness={t.special_conditions} two={t.agreed_annexure === 2} />
                                 </> : null}
                               </>} />
                             ))}
@@ -229,11 +229,12 @@ export function TemplateLibrary() {
 
 /** U8: whether agreed changes on a contract made from it can go out as a final contract
  *  with Annexure A. Not set up never stops publishing, so it is said quietly. */
-export function ScBadge({ readiness }: { readiness?: TemplateSummary["special_conditions"] }) {
+export function ScBadge({ readiness, two = false }: { readiness?: TemplateSummary["special_conditions"]; two?: boolean }) {
   if (!readiness) return null;
+  const annex = two ? "Annexure 2" : "Annexure A";      // AM-413 r3: the contract's own name for it
   return (
     <p className="tpl-card__sc" data-ready={readiness.ready || undefined}>
-      {readiness.ready ? <><IconCheck size={11} />Annexure A set up</> : "Annexure A not set up"}
+      {readiness.ready ? <><IconCheck size={11} />{annex} set up</> : `${annex} not set up`}
     </p>
   );
 }

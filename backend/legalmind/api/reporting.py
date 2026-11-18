@@ -198,14 +198,18 @@ def outcome_payload(db: DBSession, review: M.Review) -> dict[str, Any]:
         read_only = None
     except ReviewReadOnly as exc:
         read_only = str(exc)
+    kind = CO.decidable(db, review)
     return {
         # the code's suggestion from the point decisions now; a person chooses
         "suggested": CO.suggest(db, review).value,
         # AM-396: Sign as is is refused while the round sends changes back
-        "sign_as_is_allowed": (CO.is_final_copy(db, review)
-                               or not CO.changes_go_back(db, review)),
-        "ready": read_only is None
-                 and review.status in {E.ReviewStatus.RESOLVED, E.ReviewStatus.CLOSED},
+        # AM-411 r2: nor while a question to the client is open
+        "sign_as_is_allowed": kind != CO.ASKED and (
+            CO.is_final_copy(db, review) or not CO.changes_go_back(db, review)),
+        # AM-178 / AM-411: the write's own check, so the form is never offered in vain
+        "ready": read_only is None and kind is not None,
+        # AM-411 r1: Legal asked the client — said on the form, never a status
+        "waiting_on_client": kind == CO.ASKED,
         "read_only": read_only,
         # AM-318: on a final contract only Sign as is / Do not sign / On hold
         "final": CO.is_final_copy(db, review),

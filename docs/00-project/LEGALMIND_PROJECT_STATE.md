@@ -11,6 +11,15 @@
 
 ---
 
+**2026-11-18 — AB-214 (built, walked in a browser, not deployed).** A lawyer can now ask the client
+a question on a change without freezing the deal: the contract decision stays open (never "Sign as
+is" while the question is open), the question goes out in our reply, and the point comes back to
+Legal with the client's next version. The lawyer's page shows "Record the decision" and "Your turn"
+when the contract decision is theirs, on a phone too. Final contracts no longer wait for extra text
+from Legal (owner ruling 2026-11-18): Annexure 1 is the order form, Annexure 2 lists the agreed
+changes, and Legal may add its own wording to either later from the template page. Legal's
+confirmation of that structure is on the list for the next lawyer review of the template.
+
 **2026-11-18 prelaunch QA walk** (local stack, MSA v2, both roles, 1440/390): the full path reached
 Final and the PDF for signature; body verbatim, the agreed change only in Annexure 2, order MSA →
 Annexure 1 → Annexure 2 → signature page. Fixed on `qa/prelaunch-20261118`: two main buttons on one

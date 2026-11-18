@@ -11,11 +11,14 @@
 import { useCallback, useEffect, useId, useState } from "react";
 
 import { ApiError, api, describeError } from "@/lib/api";
-import { CONTRACT_OUTCOME_LABELS, contractOutcomeLabel } from "@/lib/labels";
+import { CONTRACT_DECISION_COPY, CONTRACT_OUTCOME_LABELS, contractOutcomeLabel } from "@/lib/labels";
 import { LEGAL_DECISION } from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { ContractOutcome, ContractOutcomeState } from "@/lib/types";
 import { formatDate } from "@/lib/dates";
+
+/** where the header's "Record the decision" lands (`AM-413`) */
+export const CONTRACT_DECISION_ID = "ws-contract-decision";
 
 const ORDER: ContractOutcome[] = ["SIGN_AS_IS", "SIGN_WITH_CHANGES", "DO_NOT_SIGN", "ON_HOLD"];
 
@@ -103,7 +106,7 @@ export function ContractDecision({ reviewId, reviewStatus, refreshKey, onRecorde
   }
 
   return (
-    <section className="ws-contract" aria-labelledby={`${id}-h`}>
+    <section className="ws-contract" id={CONTRACT_DECISION_ID} aria-labelledby={`${id}-h`}>
       <h3 id={`${id}-h`} className="ws-contract__title">Decision on this contract</h3>
       {current ? (
         <p className="ws-decision__done">
@@ -121,6 +124,9 @@ export function ContractDecision({ reviewId, reviewStatus, refreshKey, onRecorde
         <button type="button" className="ws-btn" onClick={() => setEditing(true)}>
           Change the decision on the contract
         </button>
+      ) : null}
+      {state.waiting_on_client && showForm ? (
+        <p className="ws-pane__note">{CONTRACT_DECISION_COPY.waitingOnClient}</p>
       ) : null}
       {showForm ? (
         <form className="ws-decision__form" onSubmit={submit} noValidate>
