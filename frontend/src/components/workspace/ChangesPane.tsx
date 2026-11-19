@@ -27,7 +27,7 @@ import { EmptyState, ErrorState, LoadingState, NoticeState } from "@/components/
 import { SegmentedFilter } from "@/components/SegmentedFilter";
 import { PreviewPanel } from "@/components/PreviewPanel";
 import { StatusChip, chipStatus } from "@/components/StatusChip";
-import { FEEDBACK_COPY } from "@/lib/labels";
+import { CHANGES_COPY, FEEDBACK_COPY } from "@/lib/labels";
 import { PointStatusIcon } from "./PointStatus";
 import { ApiError, api, describeError } from "@/lib/api";
 import * as P from "@/lib/permissions";
@@ -1245,7 +1245,7 @@ export function ReplyBar({ contractId, versions, list, onVersionCreated, onPick 
         </button>
       ) : null}
       {/* the act is the header's one primary ("Prepare our reply", `nextStep`) */}
-      {busy ? <span className="cx-bar__count" role="status">Preparing our reply…</span> : null}
+      {busy ? <span className="cx-bar__count" role="status" aria-live="polite">{CHANGES_COPY.preparingReply}</span> : null}
       {blocked && showOpen ? (
         <div className="cx-blocked cx-blocked--pop" id="cx-blocked"
              onKeyDown={(event) => { if (event.key === "Escape") setShowOpen(false); }}>

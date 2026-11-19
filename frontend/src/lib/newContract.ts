@@ -71,7 +71,7 @@ export interface ModelBlock {
   rows?: (ModelRun[] | null)[][];
   alt?: string;
 }
-export interface ModelClause { clause_key: string; number: string; title: string; body: ModelBlock[] }
+export interface ModelClause { clause_key: string; number: string; title: string; body: ModelBlock[]; own_title?: false }
 export interface ContractModel {
   title: string;
   preamble: ModelRun[] | null;

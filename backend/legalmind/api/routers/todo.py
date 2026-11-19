@@ -49,6 +49,7 @@ from legalmind.domain import enums as E
 from legalmind.evaluation.workflow import current_decision, second_person_needed
 from legalmind.security import permissions as P
 from legalmind.security.authorization import can_read_contract
+from legalmind.workflow import contract_outcome as CO
 from legalmind.workflow.decisions import refresh_carried
 from legalmind.workflow.review_lifecycle import is_superseded
 from legalmind.workflow.review_progress import review_progress
@@ -59,6 +60,8 @@ KINDS = ("decide", "second_approval", "client_returned", "changes_to_answer",
          "reply_ready", "answered", "contract_decision", "prepare_final")
 #: AM-318: the two closing sentences, said the same way wherever they appear
 DECIDE_CONTRACT = "Every point is decided. Record the decision on the contract."
+DECIDE_CONTRACT_ASKED = ("Your question goes to the client in our reply. Record the "
+                         "decision on the contract.")
 PREPARE_FINAL = "Every change is answered. Prepare the final contract."
 #: ponytail: no "seen" state exists, so an answer leaves the list after a fixed window;
 #: a read marker (the notifications table, `AM-273`) is the upgrade.
@@ -165,9 +168,13 @@ def _contract_decisions(guard: Guard) -> list[dict]:
     for review in db.execute(
             _visible_reviews(guard)
             .join(M.Contract, M.Contract.id == M.Review.contract_id)
-            .where(M.Review.status == E.ReviewStatus.RESOLVED,
+            # AM-411: or still with Legal only because Legal asked the client
+            .where(M.Review.status.in_((E.ReviewStatus.RESOLVED,
+                                        E.ReviewStatus.LEGAL_REVIEW)),
                    M.Contract.archived_at.is_(None), held_by(me))).scalars():
-        if is_superseded(db, review) or contract_signed(db, review.contract_id):
+        if is_superseded(db, review) or contract_signed(db, review.contract_id) or (
+                review.status is E.ReviewStatus.LEGAL_REVIEW
+                and CO.decidable(db, review) != CO.ASKED):
             continue
         latest = db.execute(select(Rec).where(Rec.review_id == review.id)
                             .order_by(Rec.version_number.desc()).limit(1)).scalar()
@@ -176,7 +183,9 @@ def _contract_decisions(guard: Guard) -> list[dict]:
             continue
         contract = db.get(M.Contract, review.contract_id)
         assert contract is not None
-        out.append(_item("contract_decision", contract, DECIDE_CONTRACT,
+        out.append(_item("contract_decision", contract,
+                         DECIDE_CONTRACT if review.status is E.ReviewStatus.RESOLVED
+                         else DECIDE_CONTRACT_ASKED,
                          contract_link(contract.id),
                          review.reopened_at or review.completed_at or review.created_at,
                          review_id=str(review.id)))

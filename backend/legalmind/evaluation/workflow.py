@@ -250,6 +250,41 @@ def owner_accepted(db: DBSession, finding_id: UUID) -> bool:
         M.AuditEvent.entity_id == finding_id).limit(1)).first() is not None
 
 
+#: `AM-411` (C-33, option a): Legal's "Ask the client" on a change — the question goes to
+#: the client in our reply. The audit row on the clarification IS the mark (append-only,
+#: attributed); a clarification without it is internal and blocks as `AM-178` says.
+DECISION_ASKED_CLIENT = "decision.asked_client"
+
+
+def asked_client(db: DBSession, decision_id: UUID) -> bool:
+    return db.execute(select(M.AuditEvent.id).where(
+        M.AuditEvent.action == DECISION_ASKED_CLIENT,
+        M.AuditEvent.entity_type == "legal_decision",
+        M.AuditEvent.entity_id == decision_id).limit(1)).first() is not None
+
+
+def waits_on_client_only(db: DBSession, finding: M.Finding, *,
+                         escalated: bool = False) -> bool:
+    """`AM-411` r1: every Evaluation of ``finding`` that needs a decision has one in
+    effect, and each clarification among them was asked of the client — nothing here is
+    left for Legal until the client answers. Anything else is False (rule 15)."""
+    asked = False
+    for ev in db.execute(select(M.Evaluation).where(
+            M.Evaluation.finding_id == finding.id)).scalars():
+        if not evaluation_requires_decision(
+                classification=ev.classification, rule_outcome=ev.rule_outcome,
+                requirement_required=True, escalated=escalated):
+            continue
+        decision = effective_decision(db, ev, escalated)
+        if decision is None:
+            return False
+        if decision.decision_type is DecisionType.REQUEST_CLARIFICATION:
+            if not asked_client(db, decision.id):
+                return False
+            asked = True
+    return asked
+
+
 #: `AM-326` r1: whether a carried decision's chain still stands NOW — set by
 #: `workflow.decisions` (this layer imports no workflow code); unset, the carry record
 #: alone is read, as before.

@@ -450,9 +450,8 @@ def derive_stages(db, contracts: list[M.Contract]) -> dict[UUID, dict]:
                               ).scalars():
             outcome.setdefault(rec.review_id, rec)
         # AM-293 r1: a review with an undecided point — our reply then cannot leave
-        undecided = set(db.execute(select(M.Finding.review_id).where(
-            M.Finding.review_id.in_(rids),
-            M.Finding.status.in_(negotiation._UNDECIDED))).scalars())
+        # (AM-411 r4: a question Legal asked the client goes out WITH the reply)
+        undecided = negotiation.holds_reply(db, rids)
         for cid, r in latest_review.items():
             since = assigned.get(r.id)          # "Send for review" (AM-167), as AM-179
             o = outcome.get(r.id)

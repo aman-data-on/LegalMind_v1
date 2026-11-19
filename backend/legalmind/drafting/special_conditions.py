@@ -51,35 +51,6 @@ FOR_APPROVAL = "For management approval"
 POSITIONS = ("after_execution", "before_execution")
 #: ``precedence`` naming the frame's own role, not a body clause (S3)
 IN_FRAME = "frame"
-#: the blocker while the frame has no precedence sentence (`FINAL-PACKAGE-SPEC` d4)
-PRECEDENCE_NOT_SUPPLIED = (
-    "{where} does not say which document wins in a conflict. Legal must supply the "
-    "sentence that says {annexure} prevails. Final is blocked until then.")
-
-
-def _precedence_where(db: DBSession, tv: M.TemplateVersion) -> str | None:
-    """The MSA's own "… Order of Precedence" sub-clause number (21.3), read from the
-    template's pinned body — None for any other template, or where there is none.
-    ponytail: counts pins and top-level subs in order; a conditional body clause before
-    it would shift the number — resolve the model if a template ever has one."""
-    if tv.doc_type != "MSA":
-        return None
-    for n, pin in enumerate(tv.clauses, 1):
-        row = db.execute(select(M.ClauseVersion).where(
-            M.ClauseVersion.clause_key == pin["clause_key"],
-            M.ClauseVersion.version == pin["version"])).scalar_one_or_none()
-        subs = [b for b in (row.body if row else []) if b.get("kind") == "sub"]
-        for k, b in enumerate(subs, 1):
-            if "precedence" in (b.get("title") or "").lower():
-                return f"{n}.{k}"
-    return None
-
-
-def precedence_not_supplied(db: DBSession, tv: M.TemplateVersion) -> str:
-    where = _precedence_where(db, tv)
-    return PRECEDENCE_NOT_SUPPLIED.format(
-        where=f"Clause {where} of the MSA" if where else "This template",
-        annexure="Annexure 2" if where else "the annexure")
 _LEADING_NUMBER = re.compile(r"^\W*\d+(?:\.\d+)*[A-Z]?\.?\s+")
 
 
@@ -108,7 +79,7 @@ def readiness(db: DBSession, tv: M.TemplateVersion) -> dict[str, Any]:
     carry a Special Conditions annexure: configured, its frame pinned, APPROVED and
     complete, its precedence clause a pinned body clause and APPROVED (`AM-307`, R-3) —
     or, with ``precedence: "frame"`` (S3), a ``precedence`` role in that approved frame
-    (`PRECEDENCE_NOT_SUPPLIED` until Legal writes it). Whether the template is
+    (optional since `AM-414`: printed when Legal adds it). Whether the template is
     published is the package gate's own check."""
     cfg = config(tv)
     if cfg is None:
@@ -127,10 +98,10 @@ def readiness(db: DBSession, tv: M.TemplateVersion) -> dict[str, Any]:
     missing += frame_missing(frame)
     pin = next((p for p in tv.clauses if p["clause_key"] == cfg.get("precedence")), None)
     precedence = row(pin)
-    if cfg.get("precedence") == IN_FRAME:      # S3: Legal's sentence, in the frame
-        if frame is not None and "precedence" not in roles(frame.body):
-            missing.append({"code": "PRECEDENCE_NOT_SUPPLIED",
-                            "detail": precedence_not_supplied(db, tv)})
+    if cfg.get("precedence") == IN_FRAME:
+        # S3 as amended by AM-414 (owner, 2026-11-18): Legal's own sentence in the frame
+        # is OPTIONAL — printed when Legal adds it, never a precondition of the final
+        pass
     elif precedence is None:
         missing.append({"code": "PRECEDENCE_NOT_PINNED", "detail":
                         "no order-of-precedence clause in the body names the annexure"})
@@ -141,6 +112,16 @@ def readiness(db: DBSession, tv: M.TemplateVersion) -> dict[str, Any]:
         missing.append({"code": "POSITION", "detail": "position is not one of "
                         f"{', '.join(POSITIONS)}"})
     return {"ready": not missing, "missing": missing}
+
+
+def precedence_supplied(db: DBSession, tv: M.TemplateVersion) -> bool:
+    """Whether the pinned frame carries Legal's own precedence sentence (optional,
+    `AM-414`)."""
+    pin = (config(tv) or {}).get("frame") or {}
+    frame = db.execute(select(M.ClauseVersion).where(
+        M.ClauseVersion.clause_key == pin.get("clause_key"),
+        M.ClauseVersion.version == pin.get("version"))).scalar_one_or_none()
+    return frame is not None and "precedence" in roles(frame.body)
 
 
 def frame_missing(frame: M.ClauseVersion | None) -> list[dict[str, str]]:

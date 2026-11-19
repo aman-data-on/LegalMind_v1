@@ -130,8 +130,9 @@ def test_sc_target_resolves(placeholder, answers):
 # ---------------------------------------------------------------- DB: readiness
 def test_readiness_without_and_with_the_precedence_role(db, api, user, seeded,
                                                         placeholder, lawyer):
-    """PRECEDENCE_NOT_SUPPLIED while the frame has no precedence role; no body clause
-    is pinned or versioned for it; with Legal's role in an approved frame it is ready."""
+    """`AM-414`: the frame's precedence role is optional — an approved frame without it
+    is ready; no body clause is pinned or versioned for it; a frame with Legal's role is
+    ready too."""
     tv = _imported(db, user, placeholder)
     clauses_before = copy.deepcopy(tv.clauses)
     T.attach_special_conditions(db, tv, actor_id=user.id, precedence_into="frame",
@@ -141,16 +142,13 @@ def test_readiness_without_and_with_the_precedence_role(db, api, user, seeded,
     assert not db.execute(select(M.ClauseVersion).where(
         M.ClauseVersion.clause_key == "SC.PRECEDENCE")).scalars().all()
     assert [m["code"] for m in special_conditions.readiness(db, tv)["missing"]] == [
-        "FRAME_NOT_APPROVED", "PRECEDENCE_NOT_SUPPLIED"]
+        "FRAME_NOT_APPROVED"]
     sign_in(api, db, lawyer)
     for pin in library.pins(tv):
         assert api.post(f"{V1}/templates/{tv.id}/clauses/{pin['clause_key']}/approve"
                         ).status_code == 200
     db.refresh(tv)
-    missing = special_conditions.readiness(db, tv)["missing"]
-    assert missing == [{"code": "PRECEDENCE_NOT_SUPPLIED", "detail": (
-        "This template does not say which document wins in a conflict. Legal must supply "
-        "the sentence that says the annexure prevails. Final is blocked until then.")}]
+    assert special_conditions.readiness(db, tv) == {"ready": True, "missing": []}
     # the role, in a frame Legal approved (here a test-only frame)
     frame = _test_frame()
     db.add(M.ClauseVersion(**{k: frame[k] for k in (
@@ -324,22 +322,17 @@ def unsupplied(db, api, user, seeded, placeholder, lawyer, monkeypatch, tmp_path
     api.app.dependency_overrides.pop(get_storage, None)
 
 
-def test_precedence_blocker(db, api, unsupplied):
-    """(g)4: no precedence sentence in the frame → the dry run names
-    PRECEDENCE_NOT_SUPPLIED in plain words, and Prepare is refused (409)."""
+def test_no_precedence_sentence_never_blocks_the_final(db, api, unsupplied):
+    """(g)4 as amended by `AM-414` (owner, 2026-11-18): a frame without Legal's own
+    sentence is not a blocker — the dry run says it is absent and names no precedence
+    blocker; the final contract prints the title, the opening and the entries only."""
     url = f"{V1}/contracts/{unsupplied.id}/package"
     dry = api.get(url).json()["data"]
-    said = special_conditions.readiness(db, db.get(M.TemplateVersion, db.execute(
-        select(M.ContractDraft.template_version_id)).scalars().first()))["missing"]
-    assert {"code": "PRECEDENCE_NOT_SUPPLIED", "message": said[0]["detail"]} \
-        in dry["blockers"]
-    assert said[0]["detail"].startswith("This template does not say which document "
-                                        "wins in a conflict.")
+    assert special_conditions.readiness(db, db.get(M.TemplateVersion, db.execute(
+        select(M.ContractDraft.template_version_id)).scalars().first())) == {
+            "ready": True, "missing": []}
+    assert not [b for b in dry["blockers"] if "PRECEDENCE" in b["code"]]
     assert dry["precedence"] == {"in_frame": True, "supplied": False}
-    made = api.post(url, json={"expected_entries_sha256": dry.get("entries_sha256")
-                               or "0" * 64})
-    assert made.status_code == 409
-    assert made.json()["error"]["code"] == "PACKAGE_NOT_READY"
 
 
 __all__ = ["test_an_undecided_round_and_another_reader_are_refused"]   # (g)3 keep ours

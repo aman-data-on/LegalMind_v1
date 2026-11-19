@@ -7821,3 +7821,12 @@ a.ws-askglobal > span { position: absolute; width: 1px; height: 1px; overflow: h
 .lm-fillin[open] > summary { margin-bottom: var(--ws-s2); }
 .lm-fields dt { font-size: var(--t-caption); color: var(--ws-ink-700); }
 .lm-fields dd { margin: 0; overflow-wrap: anywhere; }
+
+/* AB-214 (WCAG 2.2 SC 2.5.8): every target in the contract view is at least 24 by 24 */
+.ws-outline__twist, .ws-outline__twist--none { min-inline-size: 24px; }
+.ws-escalate__link, .ws-record .ws-linkbtn, .lm-ph .ws-linkbtn { display: inline-flex; align-items: center; min-block-size: 24px; }
+.lm-fillin > summary, .lm-pkgtrace > summary { min-block-size: 24px; line-height: 24px; }
+/* AB-214 (layout shift, phone): the list stays out of sight until the queue above it has its
+   final height, so it is never pushed down; the client's name holds its place in the header */
+.ws-hq[aria-busy="true"] ~ .ws-home__list, .ws-hq[aria-busy="true"] ~ .ws-home__all { visibility: hidden; }
+.ws-record__hold { display: inline-block; inline-size: 14em; }

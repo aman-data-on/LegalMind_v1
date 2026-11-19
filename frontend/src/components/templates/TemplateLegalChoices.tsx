@@ -10,25 +10,16 @@
 
 import { useState } from "react";
 
-import { api, describeError } from "@/lib/api";
+import { api } from "@/lib/api";
 import { formatDate } from "@/lib/dates";
-import { blockerText } from "@/lib/package";
+import { annexName, blockerText } from "@/lib/package";
 import {
   displayTitle, type KeptItem, type SpecialConditionsReadiness, type TemplateBlank, type TemplateDetail,
 } from "@/lib/templates";
 
-/** Send ``run``; on failure keep the form open with the server's words. */
-function useSend(onDone: () => Promise<void>) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const send = async (run: () => Promise<unknown>) => {
-    setBusy(true); setError(null);
-    try { await run(); await onDone(); return true; }
-    catch (e) { setError(describeError(e)); return false; }
-    finally { setBusy(false); }
-  };
-  return { busy, error, send };
-}
+import { LegalText, useSend } from "./TemplateLegalText";
+
+export { LegalText };
 
 /** `AM-397`: Annexure 1 — Service Order Form on this version: the services, fees and
  *  initial term sales answers, and the signature page after the annexures. The annexure's
@@ -225,17 +216,22 @@ export function BlanksGroup({ detail, onDone }: { detail: TemplateDetail; onDone
 
 
 /** U1 (`AM-307`): whether agreed changes to a contract made from this template can go out
- *  as Special Conditions (Annexure A) — the server's readiness, in words. It never stops
- *  publishing; without it a deal goes back as a reply with tracked changes. */
-export function SpecialConditionsSetup({ readiness }: { readiness?: SpecialConditionsReadiness | undefined }) {
+ *  in the annexure for them — the server's readiness, in words. ``two`` (`AM-413`): the
+ *  contract calls it Annexure 2 (our MSA), so this page does too. It never stops publishing. */
+export function SpecialConditionsSetup({ readiness, two = false }: {
+  readiness?: SpecialConditionsReadiness | undefined; two?: boolean;
+}) {
   if (!readiness) return null;
+  const annex = two ? "Annexure 2" : "Annexure A";
+  const said = (text: string) => (two
+    ? text.replaceAll("Special Conditions (Annexure A)", annexName(true)).replaceAll("Annexure A", annex) : text);
   return (
     <div className="tpl-pubgroup" data-sc={readiness.ready ? "ready" : "not-set-up"}>
-      <h3>Special Conditions (Annexure A)</h3>
+      <h3>{annexName(two)}</h3>
       {readiness.ready ? (
         <p className="tpl-help"><strong>Set up.</strong> When a client&rsquo;s changes are agreed, a contract made from
-          this template goes out as a final contract: this text unchanged, with each agreed change in Annexure A, and a
-          clause saying Annexure A wins.</p>
+          this template goes out as a final contract: this text unchanged, with each agreed change in {annex}
+          {two ? "." : ", and a clause saying Annexure A wins."}</p>
       ) : (
         <>
           {readiness.missing.some((m) => m.code === "NOT_CONFIGURED") ? (
@@ -249,11 +245,25 @@ export function SpecialConditionsSetup({ readiness }: { readiness?: SpecialCondi
           )}
           {readiness.missing.some((m) => m.code !== "NOT_CONFIGURED") ? (
             <ul>{readiness.missing.map((m) => (
-              <li key={m.code}><span className="tpl-pubrow__what">{blockerText({ code: `SC_${m.code}`, detail: m.detail })}</span></li>
+              <li key={m.code}><span className="tpl-pubrow__what">{said(blockerText({ code: `SC_${m.code}`, detail: m.detail }))}</span></li>
             ))}</ul>
           ) : null}
         </>
       )}
     </div>
+  );
+}
+
+/** The annexure choices of a draft version, in reading order: the order form, the two
+ *  texts only Legal can write (`AM-412`), then whether Annexure 2 is ready. */
+export function AnnexureSetup({ detail, onDone, onSelect }: {
+  detail: TemplateDetail; onDone: () => Promise<void>; onSelect: (clauseKey: string) => void;
+}) {
+  return (
+    <>
+      <OrderForm detail={detail} onDone={onDone} />
+      <LegalText detail={detail} onDone={onDone} onSelect={onSelect} />
+      <SpecialConditionsSetup readiness={detail.special_conditions} two={detail.agreed_annexure === 2} />
+    </>
   );
 }

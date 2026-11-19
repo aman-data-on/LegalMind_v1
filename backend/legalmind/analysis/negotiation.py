@@ -85,7 +85,7 @@ from legalmind.domain.user_status import in_our_favour
 from legalmind.evaluation.constitution_boundaries import constitution_prohibition_for
 from legalmind.evaluation.rule_config import accepts_good_and_neutral
 from legalmind.evaluation.user_status import ACCEPTABLE, by_finding
-from legalmind.evaluation.workflow import derive_finding_status
+from legalmind.evaluation.workflow import derive_finding_status, waits_on_client_only
 from legalmind.extraction.parties import PROVIDER_TYPES
 from legalmind.mapping.engine import Clause
 from legalmind.mapping.service import load_clauses
@@ -292,13 +292,18 @@ def our_previous(versions: list[M.DocumentVersion],
                  after: M.DocumentVersion) -> M.DocumentVersion | None:
     """The latest version before ``after`` that is ours — what the client changed.
     Raises `VersionRoleUndeclared` for an undeclared ``after`` or one between it and
-    ours: which pair the client changed is then unknown, never guessed (P1)."""
+    ours: which pair the client changed is then unknown, never guessed (P1).
+
+    `AM-411` r7: a reply of ours that left a question with the client (``reply_asked``)
+    keeps the client's words where we asked, so it is not what we stand on — the round
+    is read against our version before it, and the asked change is listed again."""
     for v in sorted(versions, key=lambda v: -v.version_number):
         if v.version_number > after.version_number:
             continue
         if not is_declared(v):
             raise VersionRoleUndeclared(v)
-        if v.version_number < after.version_number and is_ours(v):
+        if v.version_number < after.version_number and is_ours(v) \
+                and not (v.doc_metadata or {}).get("reply_asked"):
             return v
     return None
 
@@ -1154,6 +1159,23 @@ _ANALYSED = (ReviewStatus.ANALYSIS_COMPLETE, ReviewStatus.LEGAL_REVIEW,
 _UNDECIDED = (FindingStatus.DECISION_REQUIRED, FindingStatus.AWAITING_CLARIFICATION)
 
 
+def holds_reply(db: DBSession, review_ids: list[UUID]) -> set[UUID]:
+    """The Reviews holding a point that stops our reply leaving (`AM-293` r1): one still
+    to decide, or an internal clarification. A point waiting only on a question Legal
+    asked the client does not — the reply carries that question (`AM-411` r4)."""
+    from legalmind.workflow.escalation import is_escalated  # workflow imports analysis
+
+    out: set[UUID] = set()
+    for f in db.execute(select(M.Finding).where(
+            M.Finding.review_id.in_(review_ids),
+            M.Finding.status.in_(_UNDECIDED))).scalars():
+        if f.review_id not in out and not (
+                f.status is FindingStatus.AWAITING_CLARIFICATION
+                and waits_on_client_only(db, f, escalated=is_escalated(db, f.id))):
+            out.add(f.review_id)
+    return out
+
+
 def reply_open_points(db: DBSession, version: M.DocumentVersion) -> dict | None:
     """Why our prepared reply may not be downloaded or sent yet (`AM-293` r1), or None.
     Only a COMPANY_DRAFT reply (``reply_to`` set) is gated — an ordinary upload never.
@@ -1163,8 +1185,14 @@ def reply_open_points(db: DBSession, version: M.DocumentVersion) -> dict | None:
     ours = meta.get("version_role") == "COMPANY_DRAFT"
     if not (answers(meta) or final_of(meta)) or not ours:
         return None
+    final = bool(final_of(meta))
     gate = review_open_points(db, version)
-    return {**gate, "final": bool(final_of(meta))} if gate else None
+    if gate and not final and gate["reason"] == "UNDECIDED_POINTS":
+        # AM-411 r4: a reply leaves with a question Legal asked the client still open
+        review = _latest_review(db, version)
+        if review is not None and not holds_reply(db, [review.id]):
+            return None
+    return {**gate, "final": final} if gate else None
 
 
 def signed_as_is_at(db: DBSession, version: M.DocumentVersion) -> Any:

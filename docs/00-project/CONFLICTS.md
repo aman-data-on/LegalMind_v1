@@ -44,6 +44,7 @@ Project rule: when two authoritative statements conflict, the conflict is report
 | C-28 | Constitution §13 Company Position: termination for cause needs a 30-day cure "except for non-payment, security threats, or illegal use, which permit immediate suspension"; §16 Unacceptable Position: "Suspension for non-payment with no prior written notice or cure opportunity". Found 2026-10-17 while building the non-payment observation (`AM-159` r6) | ⏳ **OPEN — recommended reading recorded, for the owner to ratify:** read together, §13 gives the right to suspend for non-payment and §16 fixes how (prior written notice and a cure opportunity); immediate suspension with no notice is the risky reading. Until ratified, a document with no non-payment remedy reads "Legal decides (§23.4)" — the observation asserts only that a remedy exists, never anything about notice (`AM-159` r6; owner-delegated, AB-95) |
 | C-29 | Constitution L1.14 §11 (from the website, `AM-129`) gives the Leapswitch SLA's minimum uptime as **99.95%** for Power (Dual Power Servers) and Private Network; the Leapswitch site moved to `www.leapswitch.com` on 2026-10-31 and its live SLA now states **99.9%** for every category, the 99.95% footnote gone. Found 2026-11-02 when the daily refresh (`AM-130`) failed on the redirect | ✅ **RESOLVED 2026-11-02 by the owner (`AM-243`):** "whatever is on the live website, take it from there" — the live 99.9% governs; Constitution L1.15 §11 states it, L1.14 stays as history |
 | C-31 | Constitution §12.2: DPA-type provisions are "evaluated directly against" the DPDP Act and "the Data Protection & Privacy position above … wherever it appears". `AM-73` r1 lists DPA among the types the Constitution states no position for (refused), and `AM-244` says a DPA attachment is never measured | ⏳ Open (LOW) — registered 2026-11-09 (`AM-322`). Until ruled, the new §12 standards list `DPA` under `not_applicable_to` (today's behaviour: a standalone DPA is not measured); a DPA-type clause inside an MSA or TOS is measured by content, as before |
+| C-33 | "Ask the client" on a measured change records a clarification on each point (`AM-395` r3, `AM-399` r2); `AM-178` then refuses every contract decision, so the reply that would carry the question cannot be prepared and the deal waits on nobody | ✅ RESOLVED 2026-11-18 — option (a): `AM-411` (AB-214), a question to the client does not block Sign after our changes / Do not sign / On hold |
 | C-32 | Owner 2026-11-17: the MSA 17.7 blank defaults to "six (6)" (`AM-394` r2). `AM-380` r4 / `AM-387`: a blank 17.7 duplicates 17.2, but a FILLED 17.7 still CONFLICTs with 17.2 on LIABILITY-MSA-001 — so the template's publish check refuses a version whose 17.7 is filled | ✅ RESOLVED 2026-11-18 — owner ruled option (b): `AM-401` (AB-212), a 17.7 stating 17.2's period is a repeat |
 | C-30 | `AM-25` (all_lock.md:15737) calls the V1 exclusion list ("Automatic legal clause rewriting · Automatic modified DOCX/PDF generation · Automatic redlining · AI negotiation · AI legal advice") **Step 38**; the list is in **Step 37** / `PROD-07` (all_lock.md:5159-5171). Found while drafting AB-150 (`AM-251` notes it). | ⏳ Open (LOW) — **blocks nothing**: AB-150 amends the list by its Step 37 location; no record is edited (rule 22) |
 
@@ -934,7 +935,7 @@ would make 17.7 required instead. Until ruled, production keeps template v1 (17.
 
 ## C-33 — "Ask the client" on a measured change (`AM-395` r3 + `AM-399` r2) vs the contract decision's readiness (`AM-178`) and `AM-405` r1
 
-**Registered 2026-11-18 (prelaunch QA walk, local stack, MSA v2).** ⏳ **OPEN — owner/Legal to rule.**
+**Registered 2026-11-18 (prelaunch QA walk, local stack, MSA v2).** ✅ **RESOLVED 2026-11-18 — option (a) under the owner's "best design over weak locks" rule (2026-11-16): `AM-411` (AB-214).** A point waiting on the client because Legal answered "Ask the client" does not block Sign after our changes / Do not sign / On hold; it still blocks Sign as is; an internal clarification blocks as `AM-178` says; the question goes out in our reply and the point is open to Legal again on the client's next version. Walked in a real browser: `audit/ab214-20261118/REPORT.md` (local notes).
 
 | Source | Says |
 |---|---|
@@ -948,9 +949,8 @@ would make 17.7 required instead. Until ruled, production keeps template v1 (17.
 deal owner nor Legal has any next step — the reply that would carry the question cannot be prepared.
 Screens: `audit/prelaunch-20261118/09-changes-answered-*.png`.
 
-**Options (none picked):** (a) an asked point (from an "Ask the client" answer, not an internal
+**Options (as registered; (a) taken):** (a) an asked point (from an "Ask the client" answer, not an internal
 clarification) does not block Sign after our changes / Do not sign / On hold — still blocks Sign as
 is (amends `AM-178`); (b) "Ask the client" on a measured change records no decision and leaves the
 point for Legal to decide alongside the question (amends `AM-395` r3); (c) offer "Ask the client"
-only on unmeasured changes (amends `AM-399` r2). Until ruled: Legal should not use "Ask the client" on
-a change marked "Needs a decision" — answer it, and write the question in "Sent to the client".
+only on unmeasured changes (amends `AM-399` r2).

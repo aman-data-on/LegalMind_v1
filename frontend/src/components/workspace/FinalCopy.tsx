@@ -20,10 +20,11 @@ import { ErrorState, LoadingState } from "@/components/Feedback";
 import { PdfPages } from "@/components/PdfPages";
 import { usePdf } from "@/components/PreviewPanel";
 import { toast } from "@/components/Toast";
+import { analyseVersion } from "@/lib/analysisChain";
 import { ApiError, api, describeError } from "@/lib/api";
 import { ANSWER_LABEL, type Answer } from "@/lib/changes";
 import { formatDate } from "@/lib/dates";
-import { ACTION, FEEDBACK_COPY, FINAL_CARD, contractOutcomeLabel, signingNoteText } from "@/lib/labels";
+import { ACTION, FEEDBACK_COPY, FINAL_CARD, contractOutcomeLabel, finalPlanText, signingNoteText } from "@/lib/labels";
 import { annexName } from "@/lib/package";
 import { saveBlob } from "@/lib/pdfDownload";
 import { useStep } from "@/lib/nextStep";
@@ -80,14 +81,7 @@ export function PrepareFinal({ contractId, nextVersion, onPrepared }: {
       <h2 id="lm-final-title">{ACTION.prepareFinal}</h2>
       {plan === null && !error ? <p className="ws-pane__note" role="status">Checking…</p> : null}
       {plan?.available && !blockers.length ? (
-        <p className="lm-pkg__body">
-          This makes version {nextVersion}: a clean copy of version {plan.of_version}
-          {plan.mode === "reply" ? " with every answer applied" : ""}, every tracked change accepted and every
-          comment removed. It is reviewed like any upload; then Legal records the decision on the contract.
-          {plan.mode === "copy" && plan.agreed.length === 0
-            ? " Use this when the client accepted the version as it is. If they sent changes, upload their version instead."
-            : ""}
-        </p>
+        <p className="lm-pkg__body">{finalPlanText(plan, nextVersion)}</p>
       ) : null}
       {shown.length ? (
         <div className="cx-blocked" role="alert">
@@ -105,6 +99,24 @@ export function PrepareFinal({ contractId, nextVersion, onPrepared }: {
         ) : null}
       </div>
     </Dialog>
+  );
+}
+
+/** `AM-413` r5: the final contract's own check failed. Said on the Contract tab, where the
+ *  deal owner looks, with the way out — never only a stage that reads "with Legal". */
+export function FinalCheckFailed({ version }: { version: Pick<DocumentVersion, "id" | "package" | "final_copy"> }) {
+  const findings = useFindingsStateOptional();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(undefined);
+  if (!(version.package || version.final_copy) || findings?.state.kind !== "failed") return null;
+  const again = () => {
+    if (busy) return;
+    setBusy(true);
+    setError(undefined);
+    analyseVersion(version.id).then(() => findings.reload(), setError).finally(() => setBusy(false));
+  };
+  return busy ? <LoadingState label={FINAL_CARD.checking} /> : (
+    <ErrorState heading="h2" title={FINAL_CARD.checkFailed} fix={FINAL_CARD.checkFailedFix} error={error} onRetry={again} />
   );
 }
 

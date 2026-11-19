@@ -64,8 +64,6 @@ MAX_ROWS = 50
 LEGAL_TO_SUPPLY = "[Legal to supply]"
 #: AM-402 r2: an optional party fact nobody gave (a CIN) prints as the source's blank
 OPEN_BLANK = "_________________"
-#: AM-397: what `legal_to_supply` names for an annexure whose words Legal owes
-ANNEXURE_TEXT = "the Annexure 1 wording"
 #: an email address as a signing tool needs one (S2): local part, @, a dotted domain
 EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 #: ``{name}`` · ``{xref:CLAUSE.KEY}`` · ``{term:Defined Term}``
@@ -365,10 +363,7 @@ class _Resolver:
                             "body": self.blocks(block.get("body", []), where,
                                                 [*prefix, sub], level + 1)})
             elif kind == "p" and block["text"] == LEGAL_TO_SUPPLY:
-                # AM-397: an annexure whose words Legal has not supplied yet (L3) —
-                # a stand-in that blocks Final (`legal_to_supply`), never our text
-                out.append({"kind": kind, "runs": [{"t": LEGAL_TO_SUPPLY, "ph": True,
-                                                    "legal": ANNEXURE_TEXT}]})
+                continue    # AM-414: an AM-397 stand-in on an older row prints nothing
             elif kind in ("p", "heading"):
                 self.defined |= defined_terms(block["text"])
                 out.append({"kind": kind, "runs": self.runs(block["text"], where)})
@@ -636,9 +631,13 @@ def resolve(template: Mapping[str, Any],
     schedules = []
     for annex in template.get("annexures", []):
         if blank or conditions.evaluate(annex.get("when", True), values):
+            pinned = _pins(r, annex.get("clauses", []), clauses, annex["key"])
+            if len(pinned) == 1 and pinned[0]["title"] == annex["title"]:
+                # AM-413 r4: an annexure's only clause carrying the annexure's own title
+                # IS that annexure — the title prints once, as the schedule's
+                pinned[0]["own_title"] = False
             schedules.append({"key": annex["key"], "title": annex["title"],
-                              "clauses": _pins(r, annex.get("clauses", []), clauses,
-                                               annex["key"]),
+                              "clauses": pinned,
                               **({"note": note(annex["when"], r.vars)}
                                  if blank and annex.get("when", True) is not True
                                  else {})})

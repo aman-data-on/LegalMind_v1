@@ -198,6 +198,34 @@ export const CONTRACT_OUTCOME_LABELS: Record<string, string> = {
 };
 export const contractOutcomeLabel = (v?: string | null) => look(CONTRACT_OUTCOME_LABELS, v);
 
+/** AB-214: a long step names what it is doing (never a bare "…" for 20 seconds). */
+export const CHANGES_COPY = {
+  preparingReply: "Preparing our reply. Step 1 of 2: writing the answers into the client's file. Step 2: checking it. About 20 seconds.",
+};
+
+/** `AM-411`: said on the contract-decision form while a question to the client is open. */
+export const CONTRACT_DECISION_COPY = {
+  waitingOnClient: "Your question to the client is still open. It goes out in our reply, so you can decide the "
+    + "contract now. Sign as is opens once the client has answered.",
+};
+
+/** `AM-413`: what "Prepare final contract" makes, by the server's mode. Labels only. */
+export function finalPlanText(plan: { mode: string | null; of_version?: number; agreed: unknown[]; entries?: unknown[]; annex?: 2 },
+                              nextVersion: number): string {
+  const checked = "It is checked like any upload. Then Legal records the decision on the contract.";
+  if (plan.mode === "annex") {
+    const n = plan.entries?.length ?? 0;
+    return `This makes version ${nextVersion}: our contract as approved, word for word, with `
+      + `${n === 1 ? "the 1 agreed change" : n ? `the ${n} agreed changes` : "no agreed changes"}`
+      + `${n ? ` listed in ${plan.annex === 2 ? "Annexure 2" : "Annexure A"}` : ""}. Nothing in the body is edited. ${checked}`;
+  }
+  return `This makes version ${nextVersion}: a clean copy of version ${plan.of_version}`
+    + `${plan.mode === "reply" ? " with every answer applied" : ""}, every tracked change accepted and every `
+    + `comment removed. ${checked}`
+    + (plan.mode === "copy" && plan.agreed.length === 0
+      ? " Use this when the client accepted the version as it is. If they sent changes, upload their version instead." : "");
+}
+
 /** What each choice does, said before it is recorded (owner, 2026-10-22). */
 export const DECISION_EFFECTS: Record<string, string> = {
   ACCEPT_DEVIATION: "Closes this point for this contract only. Our standard does not change.",
@@ -335,6 +363,7 @@ export const ACTION = {
   prepareFinal: "Prepare final contract",
   downloadFinal: "Download final contract",
   recordContractDecision: "Record the decision",
+  recordDecision: "Record the decision",
   startAmendment: "Start an amendment",
   sendReply: "Send our reply",
   sendToLegal: "Send to Legal",
@@ -456,6 +485,9 @@ export const READER_OUTDATED = {
  *  Word copy for records, and a note for whoever sends it. Labels, never contract text. */
 export const FINAL_CARD = {
   pdfForSignature: "PDF for signature",
+  checking: "Checking the final contract…",
+  checkFailed: "The final contract could not be checked",
+  checkFailedFix: "Legal cannot record the decision until the check finishes. Try again. If it fails again, tell Legal.",
   wordCopy: "Word copy (not for signing)",
   noteTitle: "Note for whoever sends it to sign",
   copy: "Copy note",

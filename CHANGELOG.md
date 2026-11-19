@@ -10,6 +10,22 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+- AB-214 (2026-11-18, `AM-411`–`AM-414`; not deployed). **"Ask the client" never strands a deal**
+  (C-33 resolved, option a): a point waiting on a question Legal asked the client no longer blocks
+  Sign after our changes / Do not sign / On hold (still blocks Sign as is; any other clarification
+  blocks as before); the question goes out in our reply, the reply may leave with it open, and the
+  client's next version is read against our version before that reply, so the asked change comes
+  back to Legal. **Annexures never wait for Legal's text** (owner ruling 2026-11-18, `AM-414`):
+  Annexure 2 prints its title, the approved opening and the entries; Annexure 1 is the Service Order
+  Form tables with no "[Legal to supply]" stand-in; `PRECEDENCE_NOT_SUPPLIED` is gone. Legal can
+  still add its own wording to either annexure on the template page (`POST
+  /templates/{id}/legal-text`, draft → approve → publish) — optional. **Whose turn**: the lawyer's
+  header offers "Record the decision" with "Your turn" (`counts.decision_for_me`), on a phone too.
+  Also: the final dialog says what it makes (no "clean copy" for an Annexure 2 final); the template
+  page says Annexure 2; an annexure title prints once; a final contract whose check failed says so
+  with "Try again"; targets in the contract view are at least 24 px; phone layout shift fixed on the
+  contracts list and the Final page; "Create the contract" cannot be double-submitted.
+
 - Prelaunch QA walk (2026-11-18, local production-mode stack, MSA v2): one main button per stage —
   the lawyer's first contract-decision form only while the deal is with Legal (F1); "Send to Legal"
   is the owner's step when only Legal may answer the client's changes (U1); "Upload the client's

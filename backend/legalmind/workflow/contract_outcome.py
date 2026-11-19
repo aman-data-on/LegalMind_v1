@@ -28,6 +28,7 @@ from legalmind.security.resolver import has_permission
 from legalmind.workflow.errors import InvalidTransition, VersionConflict
 from legalmind.workflow.review_lifecycle import (
     all_required_decisions_complete,
+    only_client_questions_open,
     require_writable,
     transition,
 )
@@ -98,6 +99,34 @@ def current_types(db: DBSession, review_id: UUID) -> set[DecisionType]:
               & (latest.c.v == M.LegalDecision.version_number))).scalars())
 
 
+#: `decidable`: every point decided (`AM-178`) · only client questions open (`AM-411`)
+COMPLETE, ASKED = "complete", "asked"
+
+
+def decidable(db: DBSession, review: M.Review) -> str | None:
+    """Whether the contract decision may be recorded NOW, read from the points at write
+    time — the one check the write, the form (`ready`), the header and the To-do share.
+    COMPLETE: `AM-178` r1 as locked. ASKED (`AM-411` r1, C-33 option a): the Review is
+    still with Legal only because Legal asked the client — it stays LEGAL_REVIEW (never
+    RESOLVED: not every point is decided) and takes any decision but Sign as is."""
+    if review.status in {ReviewStatus.RESOLVED, ReviewStatus.CLOSED}:
+        return COMPLETE if all_required_decisions_complete(db, review) else None
+    if review.status is ReviewStatus.LEGAL_REVIEW \
+            and only_client_questions_open(db, review):
+        return ASKED
+    return None
+
+
+def due(db: DBSession, review: M.Review) -> bool:
+    """The contract decision can be recorded and none is current (none yet, or the Review
+    was reopened since the last one, `AM-175`)."""
+    if decidable(db, review) is None:
+        return False
+    chain = history(db, review.id)
+    return not chain or bool(review.reopened_at
+                             and review.reopened_at > chain[-1].created_at)
+
+
 def history(db: DBSession, review_id: UUID) -> list[M.ContractOutcomeRecord]:
     return list(db.execute(
         select(M.ContractOutcomeRecord)
@@ -116,9 +145,13 @@ def record(db: DBSession, review: M.Review, *, actor_id: UUID,
     require_writable(db, review)                   # AM-178: archived / superseded → 409
     # AM-178: checked against the points themselves at write time, not the status alone
     # — a late clarification on a finished review must block the contract decision
-    if (review.status not in {ReviewStatus.RESOLVED, ReviewStatus.CLOSED}
-            or not all_required_decisions_complete(db, review)):
+    kind = decidable(db, review)
+    if kind is None:
         raise InvalidTransition("every point must be decided before the contract is")
+    if kind == ASKED and outcome is ContractOutcome.SIGN_AS_IS:
+        # AM-411 r2: a question to the client is open — the contract is not agreed as is
+        raise InvalidTransition("a question to the client is open — choose Sign after "
+                                "our changes, Do not sign or On hold")
     if outcome is ContractOutcome.SIGN_WITH_CHANGES and is_final_copy(db, review):
         # AM-318: the final contract IS the agreed text — signed as is, or not at all
         raise InvalidTransition("a final contract is signed as it is, or not signed — "

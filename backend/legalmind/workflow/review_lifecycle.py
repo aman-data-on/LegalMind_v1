@@ -29,7 +29,7 @@ from sqlalchemy.orm import Session as DBSession
 from legalmind.db import models as M
 from legalmind.domain.client_profile import FINAL_SIGNED
 from legalmind.domain.enums import DecisionType, FindingStatus, ReviewStatus
-from legalmind.evaluation.workflow import derive_finding_status
+from legalmind.evaluation.workflow import derive_finding_status, waits_on_client_only
 from legalmind.security import audit as A
 from legalmind.workflow.errors import InvalidTransition, ReviewReadOnly
 
@@ -108,6 +108,23 @@ def all_required_decisions_complete(db: DBSession, review: M.Review) -> bool:
                       FindingStatus.AWAITING_CLARIFICATION}:
             return False
     return True
+
+
+def only_client_questions_open(db: DBSession, review: M.Review) -> bool:
+    """`AM-411` r1 (amends `AM-178` r1): at least one point is open, and every open point
+    waits only on a question Legal asked the client (`waits_on_client_only`). A point to
+    decide, or an internal clarification, is False — `AM-178` blocks as before."""
+    waiting = False
+    for finding in _findings(db, review):
+        escalated = _escalated(db, finding.id)
+        status = derive_finding_status(db, finding, escalated=escalated)
+        if status is FindingStatus.DECISION_REQUIRED:
+            return False
+        if status is FindingStatus.AWAITING_CLARIFICATION:
+            if not waits_on_client_only(db, finding, escalated=escalated):
+                return False
+            waiting = True
+    return waiting
 
 
 def advance_after_analysis(db: DBSession, review: M.Review, *,

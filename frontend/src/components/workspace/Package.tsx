@@ -194,7 +194,7 @@ export function PackageBar({ contractId, plan: changesOnly, canPrepare, canResta
               A short amendment listing only {changes}, in our amendment template. The signed contract stays in force.
             </> : <>
               Our contract as we sent it, with {changes} in {annexName(inFrame)}.
-              {" "}{inFrame ? "The annexure's own precedence sentence, supplied by Legal, says how it ranks against the body." : <>
+              {" "}{inFrame ? (rule.supplied ? "The annexure's own precedence sentence, added by Legal, says how it ranks against the body." : "") : <>
                 {precedence ? `Clause ${precedence}` : "The order-of-precedence clause"} says Annexure A wins where
                 the two differ.</>}
             </>}
