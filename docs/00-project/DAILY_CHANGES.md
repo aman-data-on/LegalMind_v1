@@ -49,6 +49,9 @@ working day gets one entry, newest first, with these headings (omit an empty one
 - **#323** (`44290f60`): a new contract is always analysed (ids read before the after-commit
   publish); deploy notices a refused nginx reload.
 - **#321** (`f6ba1912`): AB-214 + `AM-414` r7 (owner's direct confirmation).
+- **AB-217 batch 2 "cited passage"** (`AM-435`–`AM-438`): independent verifier 3 rounds
+  (round 1: an R-3 change could hide "two weeks'" notice; round 2: "one hundred (100) days";
+  round 3 SHIP with a rule-15 guard). Production-copy probe: 0 of 12 answered keys lost.
 - Case-by-case plan approved after a strict three-reviewer team review: 5 batches (redline truth →
   cited passage → what we told the client → one-minute brief → "our contract came back marked up").
 
@@ -60,10 +63,6 @@ working day gets one entry, newest first, with these headings (omit an empty one
   limit from 14 Nov is now live.
 
 ### In progress
-- **Batch 2 "cited passage"** — `/root/legalmind-worktrees/cited-passage`, branch
-  `fix/cited-passage` (stacked on batch 1): points on their own passage (F6), full counter-wording
-  (F8), our signature-block entity (F4), why the NDA notice rule measured the MSA (F7, diagnosis
-  first). Next step: builder report → independent verifier → PR → production-copy probe → merge.
 - **PR #322** (Constitution L1.18, AB-215; other session) — waiting for the owner's merge OK.
 
 ### Next
