@@ -124,8 +124,22 @@ if [ -f "$NGINX_SITE" ] && ! cmp -s ops/production/nginx-legalmind.lsnw.io.conf 
     echo "nginx config from the repository is invalid; /etc restored, nothing reloaded." >&2
     exit 1
   fi
+  # `nginx -t` passing does not mean the running master accepts the reload: some
+  # changes (a limit_req_zone's key, 2026-11-19) are refused at reload time, logged
+  # as [emerg], and the OLD config keeps serving while systemd reports success. A
+  # reload that took starts new workers, so compare their PIDs; if none changed,
+  # restart (about a second of refused connections) and say so.
+  before=$(pgrep -P "$(cat /run/nginx.pid)" | sort | tr '\n' ' ')
   systemctl reload nginx
-  say "Edge: nginx reloaded"
+  sleep 3
+  after=$(pgrep -P "$(cat /run/nginx.pid)" | sort | tr '\n' ' ')
+  if [ "$before" = "$after" ]; then
+    echo "nginx refused the reload (see /var/log/nginx/error.log); restarting it." >&2
+    systemctl restart nginx
+    say "Edge: nginx restarted (reload was refused)"
+  else
+    say "Edge: nginx reloaded"
+  fi
 else
   say "Edge: nginx config already current"
 fi
