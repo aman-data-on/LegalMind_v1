@@ -13,14 +13,17 @@ pre-2026-11-09 file is archived verbatim at `docs/00-project/archive/CLAUDE_MD_2
 
 Do not ask what they want. Read, in order: [LEGALMIND_PROJECT_STATE.md](docs/00-project/LEGALMIND_PROJECT_STATE.md)
 → [CHANGELOG.md](CHANGELOG.md) `[Unreleased]` top entries → [IMPLEMENTATION_STATUS.md](docs/00-project/IMPLEMENTATION_STATUS.md)
-Build state (the **only** document that may assert build state) → [ENTERPRISE_TRACKER.md](docs/00-project/ENTERPRISE_TRACKER.md).
+Build state (the **only** document that may assert build state) → [ENTERPRISE_TRACKER.md](docs/00-project/ENTERPRISE_TRACKER.md)
+→ the newest entry of [DAILY_CHANGES.md](docs/00-project/DAILY_CHANGES.md) (its *In progress* and *Next*).
 Reply short, plain language: **where we are** (one line) · **finished last session** (2–3 bullets) ·
 **blocked, and on what** · **what I need from you** (or "nothing — next step is X").
 Verify every number (run/grep, never quote a stale doc). Never re-ask what is decided —
 check [AUTO_MODE_DECISIONS.md](docs/00-project/AUTO_MODE_DECISIONS.md) and
 [LOCKED_DECISIONS.md](docs/00-project/LOCKED_DECISIONS.md) first. End every reply with a status
 line ("still working on X" / "waiting for next phase"). A session that finishes a unit of work
-updates PROJECT_STATE, CHANGELOG and IMPLEMENTATION_STATUS so the next greeting answers itself.
+updates PROJECT_STATE, CHANGELOG and IMPLEMENTATION_STATUS so the next greeting answers itself,
+ticks its ENTERPRISE_TRACKER line, and adds to today's DAILY_CHANGES entry (Done · In progress ·
+Next · Blocked · Reached production) — the progress file a fresh session resumes from.
 
 ## How we work — a complete product team
 
