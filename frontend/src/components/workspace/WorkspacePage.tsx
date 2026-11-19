@@ -813,12 +813,6 @@ function RecordHeader({
         <CollaboratorsControl contractId={contract.id} />
         {signedAt ? <RecordSigning contractId={contract.id} label="Signing record" onSigned={onReload}
                                    versions={contract.document_versions} /> : null}
-        {/* Batch 1 (e): the changes Legal holds, beside "Decide N points" (the To-do says both) */}
-        {viewer === "legal" && changesForMe > 0 && step?.kind !== "answerChanges" ? (
-          <button type="button" className="ws-btn ws-btn--sm" onClick={() => go("answerChanges", "changes")}>
-            Answer {changesForMe === 1 ? "1 change" : `${changesForMe} changes`}
-          </button>
-        ) : null}
         {canSendToLegal && reviewId && assign && step?.kind !== "sendToLegal" ? (
           <SendToLegal reviewId={reviewId} data={assign} onChange={assigned} label={ACTION.sendToLegal} />
         ) : null}

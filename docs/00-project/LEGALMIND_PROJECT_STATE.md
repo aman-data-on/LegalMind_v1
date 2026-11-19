@@ -11,6 +11,11 @@
 
 ---
 
+**2026-11-19 — AB-216 (built, verified, not deployed).** Case-by-case round, batch 1 of 5 (plan:
+redline truth → cited passage → what we told the client → one-minute brief → "our contract came
+back marked up"). A returned markup now reads true: no false "unmarked", right pairing, comments on
+rows, one count, no "Sign after" while Legal has changes.
+
 **2026-11-18 — AB-214 (built, walked in a browser, not deployed).** A lawyer can now ask the client
 a question on a change without freezing the deal: the contract decision stays open (never "Sign as
 is" while the question is open), the question goes out in our reply, and the point comes back to

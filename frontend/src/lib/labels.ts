@@ -200,6 +200,23 @@ export const contractOutcomeLabel = (v?: string | null) => look(CONTRACT_OUTCOME
 
 /** AB-214: a long step names what it is doing (never a bare "…" for 20 seconds). */
 export const CHANGES_COPY = {
+  /** a Word comment's label, on a passage, a change and its answer card */
+  commentFrom: (author: string) => (author ? `Comment from ${author}` : "Comment"),
+  commentsLabel: "Comments on this passage",
+  /** the client's comments on clauses they did not change (the list's own details) */
+  commentsElsewhere: (n: number) => `Comments not tied to a change (${n})`,
+  /** the Summary's detail on a marked-up copy: the tracked edits in the file, never a
+   *  headline count (one change can carry many edits) */
+  trackedEdits: (c: { changes: number; clauses: number; notes?: number; onto?: number; unmeasured: number }) =>
+    `The client's file has ${plural(c.changes, "tracked edit")} in ${plural(c.clauses, "clause")}`
+    + (c.notes ? ` and ${plural(c.notes, "comment")}` : "") + ". "
+    + (c.onto ? `${c.onto} of the changed clauses ${c.onto === 1 ? "moves" : "move"} risk onto LeapSwitch; the report says how. ` : "")
+    + `${c.unmeasured} of those clauses are not checked by our standard terms.`,
+  /** the Changes tab's base: which of our versions the client's is compared with */
+  comparedWith: (n: number) => `Compared with version ${n} (what we sent).`,
+  /** ground rule 1: an answer kept from an earlier reading of the same clause */
+  earlierAnswer: "Answered on an earlier reading:",
+  earlierAnswerHint: "The clause was paired differently then. Answer it again to confirm.",
   preparingReply: "Preparing our reply. Step 1 of 2: writing the answers into the client's file. Step 2: checking it. About 20 seconds.",
 };
 
@@ -356,6 +373,8 @@ export const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n ==
 export const ACTION = {
   decide: (points?: number) => (points ? `Decide ${plural(points, "point")}` : "Decide"),
   answerChanges: "Answer changes",
+  /** Legal's one header action while changes wait for them (one queue, batch 1) */
+  answerChangesN: (n: number) => `Answer ${plural(n, "change")}`,
   prepareReply: "Prepare our reply",
   preparePackage: "Prepare final contract",
   prepareAmendment: "Prepare amendment",
@@ -429,7 +448,9 @@ export function waitingWords(n: number | undefined): string | null {
 export function stageLine(code: string, c: DealCounts | undefined, viewer: StageViewer = "owner",
                           final = false): string {
   const points = c?.points_open ?? 0;
-  if (code === "INTERNAL_REVIEW" && points) return `With Legal, ${plural(points, "point")}`;
+  // batch 1 (one queue): while the client's changes wait, the header's one action names
+  // them ("Answer N changes"), so the chip names no second count — points stay in Summary
+  if (code === "INTERNAL_REVIEW" && points && !c?.changes_left) return `With Legal, ${plural(points, "point")}`;
   // AB-213 D4/D12: the chip names the SERVER's stage — "Client replied" stays that until
   // the server moves it (the main button says what comes next)
   if (code === "INTERNAL_REVIEW" && final) {                                    // AM-318

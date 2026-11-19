@@ -446,9 +446,27 @@ def deal_counts(guard: Guard, contracts: list[M.Contract]) -> dict[UUID, dict]:
                                      != "accept_theirs" for c in rows),
                     changes_left_for_me=sum(_mine(
                         c, can_decide=can_decide, holds=holds,
-                        can_answer=writer and replied_in is None) for c in rows))
+                        can_answer=writer and replied_in is None) for c in rows),
+                    # F5: the changes only Legal may answer, not answered yet — a change
+                    # answered "Ask the client" is answered (AM-411 r1)
+                    changes_left_legal=sum(
+                        c.get("answer") is None and c["route"] == negotiation.HOLDER
+                        and not c.get("holder_accepted") for c in rows))
         out[contract.id] = counts
     return out
+
+
+def round_counts(guard: Guard, review: M.Review) -> dict:
+    """`deal_counts` for the Review's contract when the Review is of the client's version
+    the open round answers — the recommendation's ``changes_left_legal`` (F5) and the
+    report's change count are then the Changes tab's own, from one change list; ``{}``
+    for any other version (no round, our own version, an older one)."""
+    contract = guard.db.get(M.Contract, review.contract_id)
+    theirs = client_version(list(guard.db.execute(select(M.DocumentVersion).where(
+        M.DocumentVersion.contract_id == review.contract_id)).scalars()))
+    if contract is None or theirs is None or theirs.id != review.document_version_id:
+        return {}
+    return deal_counts(guard, [contract])[contract.id]
 
 
 _FROM = Query(None, ge=1, description="our version number (default: the one before)")

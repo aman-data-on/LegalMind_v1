@@ -67,6 +67,7 @@ import {
   type StatusBucket,
 } from "./model";
 import { ErrorState } from "@/components/Feedback";
+import { CommentLines } from "./WordComments";
 
 const CONTENTS_KEY = "legalmind.workspace.contentsOpen";
 const ZOOM_KEY = "legalmind.workspace.zoom";
@@ -1213,11 +1214,7 @@ function RowText({ row, line, marks, annotations, onOpen }: {
               ))}
             </p>
           ) : null}
-          {row.comments?.map((n, i) => (
-            <p key={`n${i}`}>
-              <span className="ws-row__noteskind">Note{n.author ? ` · ${n.author}` : ""}</span> {n.text}
-            </p>
-          ))}
+          {row.comments?.length ? <CommentLines comments={row.comments} /> : null}
         </div>
       ) : null}
     </>

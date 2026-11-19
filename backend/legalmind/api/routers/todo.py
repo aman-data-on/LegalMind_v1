@@ -145,11 +145,13 @@ def _decisions(guard: Guard) -> list[dict]:
             "changes_left_for_me", 0) if review.id in held else 0
         if (progress["to_decide"] or changes) and review.id in held:
             points = _plural(progress["to_decide"], "point", "points")
+            # one lawyer queue (batch 1): the changes lead, as the contract header's one
+            # primary "Answer N changes" does; the points follow
             sentence = (_plural(changes, "change awaits your answer.",
                                 "changes await your answer.")
                         if not progress["to_decide"] else
-                        f"{points} and {_plural(changes, 'change', 'changes')} await "
-                        "your decision." if changes else _plural(
+                        f"{_plural(changes, 'change', 'changes')} to answer, then "
+                        f"{points} to decide." if changes else _plural(
                             progress["to_decide"], "point awaits your decision.",
                             "points await your decision."))
             out.append(_item("decide", contract, sentence, link,

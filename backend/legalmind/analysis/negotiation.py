@@ -373,6 +373,10 @@ def _units(clauses: list[Clause]) -> list[dict[str, Any]]:
         unit["original"] = "\n".join(r.content or "" if (r.marks or {}).get("original")
                                      is None else r.marks["original"] for r in rows)
         unit["changes"] = [c for r in rows for c in (r.marks or {}).get("changes") or ()]
+        # the Word comments made on its rows — a reader's notes, never its text
+        unit["comments"] = [{"author": c.get("author") or "", "text": c["text"]}
+                            for r in rows for c in (r.marks or {}).get("comments") or ()
+                            if c.get("text")]
     numbers = Counter(_num(u["number"]) for u in units if u["number"])
     parents: dict[str, int] = {}
     for at, unit in enumerate(units):
@@ -452,17 +456,131 @@ def _same_subject(a: dict, b: dict) -> bool:
     return not (ha and hb and not ha & hb)
 
 
+def _whole_deletions(unit: dict) -> list[str]:
+    """The unit's own deletions with nothing inserted in their place, comparison text
+    (`dc._norm`), longest first. A block deleted whole leaves no row, so the reader keeps
+    its change — and its words in ``original`` — on the row before it (`parsing.drop`):
+    those words are that row's change, never that row's text."""
+    return sorted((g for c in unit["changes"] if not c.get("inserted")
+                   and (g := dc._norm(c.get("deleted") or ""))), key=len, reverse=True)
+
+
+def _less(text: str, deletions: list[str]) -> str:
+    """``text`` (comparison text) with each of ``deletions`` taken out once."""
+    for gone in deletions:
+        text = text.replace(gone, "", 1)
+    return text
+
+
+def _own(unit: dict) -> str:
+    """The unit's own wording before the markup, its whole deletions taken out once: ""
+    for a clause moved in or inserted under a mark."""
+    return _less(dc._norm(unit["original"]), _whole_deletions(unit))
+
+
+#: a line of nothing but these is no text (a zero-width paragraph); inside a line every
+#: character counts — a symbol font's private-use glyph (a ticked box) included
+_EMPTY_LINE = re.compile(r"[\s\u200b\u200c\u200d\u2060\ufeff\u00ad]*")
+#: a line that starts with a TYPED clause number ("1.12.", "15.1.4."), never a figure
+_TYPED_NUMBER = re.compile(r"^\W*\d+(?:\.\d+)*\.(?!\d)")
+
+
+def _lines(text: str) -> list[str]:
+    """``text`` line by line in R2's comparison text — spacing only, as `_spacing` reads
+    it (case, punctuation, figures, numbers and every visible or private-use character
+    kept); a line made entirely of invisible characters is no text."""
+    return [_spacing(line) for line in (text or "").split("\n")
+            if not _EMPTY_LINE.fullmatch(line)]
+
+
+def _less_lines(lines: list[str], deletions: list[str]) -> list[str]:
+    """``lines`` with each whole deletion taken out once — only as the TRAILING run of
+    whole lines, where `parsing.drop` appends a block deleted whole to the row before it
+    (a line break inside the block is a w:br); never from anywhere else, never a fragment
+    of a line. Repeated, so blocks deleted one after another come off last first."""
+    lines, left = list(lines), list(deletions)
+    while left and lines:
+        for gone in left:
+            seen = ""
+            for a in range(len(lines) - 1, -1, -1):     # grow the run backwards
+                seen = dc._norm(" ".join(lines[a:]))
+                if seen == gone or len(seen) > len(gone):
+                    break
+            if seen == gone:
+                del lines[a:]
+                left.remove(gone)
+                break
+        else:
+            break
+    return lines
+
+
+def _same_lines(old: list[dict], new: list[dict], i: int | None, j: int | None,
+                pairs: dict[int, int]) -> bool:
+    """R2's one exemption, for two papers that cut a clause into units differently (a
+    number read on one side only): a window of at most four neighbouring units on each
+    side, holding this row's units, closed under the pairing, at least one of the
+    returned copy's units in it carrying tracked changes, where our text and the
+    returned copy's wording before its marks are the SAME lines in the same order. Then
+    nothing in it changed without a mark — only the grouping differs. A sentence moved
+    across clauses, a line deleted or added, a figure changed: the lines differ, and
+    the row stays flagged. And every unit boundary the two papers draw differently falls
+    on a line that starts with a TYPED clause number — the number the reader saw on one
+    side only; with Word's automatic numbering a paragraph moved from one clause to the
+    next leaves the lines the same, so that regrouping is never exempt."""
+    back = {b: a for a, b in pairs.items()}
+
+    def cuts(units: list[dict], span: range, key: str) -> tuple[list[str], set[int]]:
+        lines: list[str] = []
+        starts: set[int] = set()
+        for k in span:
+            if lines:
+                starts.add(len(lines))
+            lines += _lines(units[k][key])
+        return lines, starts
+
+    def spans(at: int | None, other: int | None, mapping: dict[int, int],
+              size: int) -> list[range]:
+        if at is not None:
+            return [range(a, b) for a in range(max(0, at - 3), at + 1)
+                    for b in range(at + 1, min(size, at + 4) + 1)]
+        # this side has no unit: around where the nearest paired unit before it maps
+        ref = other if other is not None else 0
+        c = next((mapping[q] + 1 for q in range(ref, -1, -1) if q in mapping), 0)
+        return [range(a, b) for a in range(max(0, c - 3), c + 1)
+                for b in range(a, min(size, c + 3) + 1)]
+
+    olds = spans(i, j, back, len(old))
+    news = spans(j, i, pairs, len(new))
+    for o_span in olds:
+        for n_span in news:
+            if not any(new[k]["changes"] for k in n_span):
+                continue
+            if any(k in pairs and pairs[k] not in n_span for k in o_span) \
+                    or any(k in back and back[k] not in o_span for k in n_span):
+                continue
+            ours, ours_cuts = cuts(old, o_span, "text")
+            theirs, their_cuts = cuts(new, n_span, "original")
+            if ours == theirs and all(_TYPED_NUMBER.match(ours[k])
+                                      for k in ours_cuts ^ their_cuts if k < len(ours)):
+                return True
+    return False
+
+
 def _align(old: list[dict], new: list[dict]) -> list[tuple[int | None, int | None, bool]]:
     """(before index, after index, moved) per row in the returned copy's order; a clause
     only ours sits where we had it. Paired by exact text first (a renumbered clause is
-    the same clause), then by a definition's term, then by Diff-Talk's similarity, and
-    by number LAST and only where nothing says the two are on different subjects
-    (`AM-317` r3, audit N2: a client who adds a definition shifts every later number).
-    A clause none of these pairs is shown on one side only, never set beside another."""
+    the same clause), then by the returned clause's own wording BEFORE its tracked
+    changes (a clause the client rewrote under marks is the clause it was), then by a
+    definition's term, then by Diff-Talk's similarity, and by number LAST and only
+    where nothing says the two are on different subjects (`AM-317` r3, audit N2: a
+    client who adds a definition shifts every later number). A clause none of these
+    pairs is shown on one side only, never set beside another."""
     pair: dict[int, int] = {}                                   # after -> before
     by_text: dict[str, list[int]] = {}
-    for i, u in enumerate(old):
-        by_text.setdefault(dc._norm(u["text"]), []).append(i)
+    norms = [dc._norm(u["text"]) for u in old]
+    for i, norm in enumerate(norms):
+        by_text.setdefault(norm, []).append(i)
     taken: set[int] = set()
     for j, u in enumerate(new):
         free = [i for i in by_text.get(dc._norm(u["text"]), ()) if i not in taken]
@@ -470,6 +588,21 @@ def _align(old: list[dict], new: list[dict]) -> list[tuple[int | None, int | Non
             i = next((i for i in free if old[i]["number"] == u["number"]), free[0])
             pair[j] = i
             taken.add(i)
+    # F3 (client case 2026-11-19): the wording the returned clause had before its marks
+    # is ours word for word — that clause, whatever its new words resemble; its whole
+    # deletions (a block deleted after it) out of both sides; no number tie-break
+    for j, u in enumerate(new):
+        if j in pair or not u["changes"]:
+            continue
+        gone = _whole_deletions(u)
+        if not (want := _less(dc._norm(u["original"]), gone)):
+            continue
+        hit = next((i for i in (by_text.get(want, ()) if not gone else (
+            i for i, norm in enumerate(norms) if _less(norm, gone) == want))
+            if i not in taken), None)
+        if hit is not None:
+            pair[j] = hit
+            taken.add(hit)
     terms: dict[str, list[int]] = {}
     for i, u in enumerate(old):
         if i not in taken and (t := _term(u)):
@@ -504,8 +637,9 @@ def _align(old: list[dict], new: list[dict]) -> list[tuple[int | None, int | Non
     # the markup) is the move, whatever else kept its place — never the order's tie.
     # Text already inserted the same way on OUR side (our reply's own tracked insertion,
     # compared with a copy of itself) was not moved in by the returned copy.
-    moved_in = {j for j in pair if new[j]["changes"] and not dc._norm(new[j]["original"])
-                and dc._norm(old[pair[j]]["original"])}
+    # A block deleted whole after it is not text that stood there (`_own`).
+    moved_in = {j for j in pair if new[j]["changes"] and not _own(new[j])
+                and _own(old[pair[j]])}
     in_order = dc._longest_increasing([pair[j] for j in range(len(new))
                                        if j in pair and j not in moved_in])
     rows: list[tuple[int | None, int | None, bool]] = []
@@ -690,23 +824,37 @@ def _kind(old: dict | None, new: dict | None, moved: bool) -> str | None:
     return "MODIFIED"
 
 
-def _tracked(kind: str, old: dict | None, new: dict | None,
-             deleted: str) -> tuple[bool, bool]:
+def _tracked(kind: str, i: int | None, j: int | None, old: list[dict],
+             new: list[dict], pairs: dict[int, int], deleted: str) -> tuple[bool, bool]:
     """(tracked, untracked) — whether the returned copy MARKED the change, and whether
-    it changed our wording WITHOUT a mark (R2): its own wording before its tracked
-    changes is not what we sent. A clean returned copy marks nothing, so every one of
-    its changes is untracked."""
+    it changed our wording WITHOUT a mark (R2): its wording before its tracked changes
+    is not what we sent. The test is the one it always was, unit against unit, with one
+    correction and one exemption, each never weaker than before (batch 1):
+    a block deleted whole after the unit (`parsing.drop` keeps it on the row before) is
+    taken out of both sides first; and a flag only falls where `_same_lines` proves the
+    two papers merely cut the clause into units differently — the row is then tracked.
+    A clean returned copy marks nothing, so every one of its changes is untracked."""
+    o = old[i] if i is not None else None
+    n = new[j] if j is not None else None
     if kind == "DELETED":
-        assert old is not None
-        tracked = bool(dc._norm(old["text"])) and dc._norm(old["text"]) in deleted
-        return tracked, not tracked
-    assert new is not None
-    tracked = bool(new["changes"])
-    if kind in ("ADDED", "NEW_ANNEXURE", "MOVED"):
-        # moved in or inserted under a mark: none of it stood there before the markup
-        return tracked, bool(dc._norm(new["original"]))
-    assert old is not None
-    return tracked, _spacing(new["original"]) != _spacing(old["text"])
+        assert o is not None
+        tracked = bool(dc._norm(o["text"])) and dc._norm(o["text"]) in deleted
+        flagged = not tracked
+    else:
+        assert n is not None
+        tracked = bool(n["changes"])
+        gone = _whole_deletions(n)
+        theirs = _less_lines(_lines(n["original"]), gone)
+        if kind in ("ADDED", "NEW_ANNEXURE", "MOVED"):
+            # moved in or inserted under a mark: none of it stood there before the markup
+            flagged = bool(theirs)
+        else:
+            assert o is not None
+            # ours never carries the client's appended deletion: strip it from theirs only
+            flagged = " ".join(theirs) != " ".join(_lines(o["text"]))
+    if flagged and kind != "MOVED" and _same_lines(old, new, i, j, pairs):
+        return True, False
+    return tracked, flagged
 
 
 def _clause(unit: dict) -> dict:
@@ -768,8 +916,14 @@ def _measured(effect: str, kind: str, before: list[dict], after: list[dict],
     return {"measured": NOT_MEASURED}
 
 
-def _side(unit: dict | None) -> dict | None:
-    return {"evidence_ids": unit["evidence_ids"], "text": unit["text"]} if unit else None
+def _side(unit: dict | None, comments: bool = True) -> dict | None:
+    """One side of a row; its Word comments (``{author, text}``) only with ``comments``
+    and only where there are some — omitted, never nulled (SEC-07)."""
+    if unit is None:
+        return None
+    return {"evidence_ids": unit["evidence_ids"], "text": unit["text"],
+            **({"comments": unit["comments"]} if comments and unit.get("comments")
+               else {})}
 
 
 def _row_key(kind: str, old: dict | None, new: dict | None) -> str:
@@ -847,15 +1001,17 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
                             provider=contract.contract_type in PROVIDER_TYPES)
     directions = _directions(db, after_review)
     auto = auto_rule(db, after_review)
-    deleted = dc._norm(" ".join(c.get("deleted") or ""
-                                for u in new for c in u["changes"]))
     vendor = contract.contract_type == "VENDOR_AGREEMENT"
     aliases = reading._aliases(theirs)
     readings = change_triage.read_back(db, after.id) \
         if any(u["changes"] for u in new) else {}
-    answers = answer_lines(db, contract, before, after, legal_position=legal_position)
+    answered: set[str] = set()
+    answers = answer_lines(db, contract, before, after, legal_position=legal_position,
+                           answered=answered)
     out: list[dict[str, Any]] = []
     aligned = _align(old, new)
+    deleted = dc._norm(" ".join(c.get("deleted") or ""
+                                for u in new for c in u["changes"]))
     twin = {i: j for i, j, _ in aligned if i is not None and j is not None}
     for i, j, moved in aligned:
         o, n = (old[i] if i is not None else None), (new[j] if j is not None else None)
@@ -877,7 +1033,7 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
                 if not legal_position:
                     triage["topics"] = [{k: v for k, v in t.items() if k != "position"}
                                         for t in triage["topics"]]
-        tracked, untracked = _tracked(kind, o, n, deleted)
+        tracked, untracked = _tracked(kind, i, j, old, new, twin, deleted)
         route, why = _route(kind, o, n, f_before, f_after, triage, found_after)
         if unapplied:                          # fail closed: a person reads it
             route, why = HOLDER, SPECIAL_NOT_APPLIED
@@ -896,7 +1052,9 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
             "moved": moved and kind == "MODIFIED",
             "clause": row_clause(o, n, old, new, twin),
             "page": here["page"],
-            "before": _side(o), "after": _side(n),
+            # the client's comments on their side; ours (our own notes) only for a reader
+            # of positions (LEGAL-02) — omitted otherwise
+            "before": _side(o, legal_position), "after": _side(n),
             "tracked": tracked, "untracked": untracked,
             "review": {"before": _public(f_before), "after": _public(f_after)},
             "review_delta": _delta(f_before, f_after),
@@ -913,6 +1071,10 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
         # what a lawyer reads off the change: lettered points, standards, mutuality —
         # display only, never a decision (owner 2026-11-16, R2 D1/D2/D6)
         out[-1]["lawyer"] = lawyer_rows.lawyer_view(out[-1], vendor, aliases)
+    earlier = _earlier(answered - {c["row_key"] for c in out}, out, answers)
+    rowed = {c["after"]["evidence_ids"][0] for c in out if c["after"]}
+    elsewhere = [{"clause": _clause(u), **c} for u in new if u["comments"]
+                 and u["evidence_ids"][0] not in rowed for c in u["comments"]]
     return {
         "contract_id": str(contract.id),
         "from": {"document_version_id": str(before.id),
@@ -929,9 +1091,37 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
                     "auto_accepted": sum(bool((c["answer"] or {}).get("auto"))
                                          for c in out)},
         "changes": out,
+        # the client's comments on a clause they did not change (omitted when none)
+        **({"comments_elsewhere": elsewhere} if elsewhere else {}),
+        # answers to a row this reading no longer lists (omitted when none)
+        **({"answered_earlier": earlier} if earlier else {}),
         # R2 D4/D5: notes across clauses for Legal — never findings
         "notes_for_legal": lawyer_rows.notes_for_legal(ours, theirs),
     }
+
+
+def _earlier(keys: set[str], rows: list[dict], line: Callable[[str], dict]) -> list[dict]:
+    """Ground rule 1 (`AM-253`): an answer is bound to its row's exact key; when a reading
+    pairs a clause differently, the answer given to the old row is never dropped — it is
+    shown "answered on an earlier reading" on the row that now holds either of its sides
+    (``earlier_answers``), and returned here when no row does. The row itself stays
+    unanswered: a person confirms it on the new reading."""
+    left = []
+    for key in sorted(keys):
+        said = line(key)["answer"]
+        if said is None:
+            continue
+        entry = {"row_key": key, **said}
+        _, _, ours, theirs = key.split("|")
+        row = next((c for c in rows if (theirs and c["after"]
+                                       and theirs in c["after"]["evidence_ids"])
+                    or (ours and c["before"] and ours in c["before"]["evidence_ids"])),
+                   None)
+        if row is None:
+            left.append(entry)
+        else:
+            row.setdefault("earlier_answers", []).append(entry)
+    return left
 
 
 # ------------------------------------------- `AM-302`: a blank template comes back
@@ -964,8 +1154,8 @@ def _effects(rows: list[dict]) -> dict[str, int]:
 
 
 def answer_lines(db: DBSession, contract: M.Contract, before: M.DocumentVersion | None,
-                 after: M.DocumentVersion, *,
-                 legal_position: bool = False) -> Callable[[str], dict]:
+                 after: M.DocumentVersion, *, legal_position: bool = False,
+                 answered: set[str] | None = None) -> Callable[[str], dict]:
     """Each change's answer and its line across rounds (`AM-253` r2'): this pair's
     choices, preceded by the earlier rounds' answers to the same clause — found by the
     clause's evidence row: the after side of an earlier pair's row key is the before
@@ -1005,6 +1195,9 @@ def answer_lines(db: DBSession, contract: M.Contract, before: M.DocumentVersion 
         if legal_position:
             entry["internal_note"] = r.internal_note
         by_clause.setdefault(clause, []).append(entry)
+        if answered is not None and r.right_version_id == after.id \
+                and r.left_version_id == (before.id if before else None):
+            answered.add(r.row_key)            # this pair's own answered rows
 
     def line(key: str) -> dict:
         _, _, ours, theirs = key.split("|")

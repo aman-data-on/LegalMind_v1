@@ -415,3 +415,10 @@ button.cx-bar__open[aria-expanded="true"] svg { transform: rotate(-90deg); }
 
 /* Legal reopens a change accepted automatically under the owner's rule of 2026-11-16 */
 .cx-reopen { display: grid; gap: var(--s-2); margin-block-start: var(--s-3); }
+
+/* batch 1 (redline truth): the client's comments on clauses they did not change, and an
+   answer kept from an earlier reading of a clause — quiet lines, the notes' own type */
+.cx-elsewhere summary { cursor: pointer; font-weight: 500; color: var(--ws-ink-900); }
+.cx-elsewhere .ws-row__notes { margin-top: var(--ws-s2); }
+.cx-earlier { display: grid; gap: var(--ws-s1); font-size: var(--ws-text-sm); }
+.cx-earlier p { margin: 0; }
