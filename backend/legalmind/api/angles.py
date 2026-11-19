@@ -42,7 +42,7 @@ from legalmind.assist.knowledge import constitution
 from legalmind.db import models as M
 from legalmind.domain.document_types import DOCUMENT_TYPES
 from legalmind.domain.enforceability import note_for
-from legalmind.domain.enums import FindingStatus
+from legalmind.domain.enums import EvidenceRelationshipType, FindingStatus
 from legalmind.domain.user_status import in_our_favour as favoured_word
 from legalmind.evaluation.constitution_boundaries import constitution_prohibition_for
 from legalmind.evaluation.rule_config import FAVOURABLE_COUNSEL_CHECK, in_our_favour
@@ -161,17 +161,27 @@ def _rows(db: DBSession, review: M.Review) -> list[dict[str, Any]]:
     sections: dict = defaultdict(list)     # every clause a finding read, in order
     body: dict = {}             # the first passage that is a sentence, not a title
     linked: dict = defaultdict(list)
+    cited: dict = defaultdict(list)     # the rows it cites — never a SUPPORTING row
     fe, de = M.FindingEvidence, M.DocumentEvidence
-    for fid, e in db.execute(
-            select(fe.finding_id, de).join(de, de.id == fe.evidence_id)
-            .where(fe.finding_id.in_(ids))
-            .order_by(de.page_number, de.start_offset, de.id)):
-        first.setdefault(fid, e)
+    rows = db.execute(
+        select(fe.finding_id, de, fe.relationship_type).join(de, de.id == fe.evidence_id)
+        .where(fe.finding_id.in_(ids))
+        .order_by(de.page_number, de.start_offset, de.id)).all()
+    for fid, e, rel in rows:
         if e.section_number and e.section_number not in sections[fid]:
             sections[fid].append(e.section_number)
-        if len((e.content or "").split()) >= 8:        # a sentence, never a title line
-            body.setdefault(fid, e)
         linked[fid].append(str(e.id))
+        if rel != EvidenceRelationshipType.SUPPORTING:
+            cited[fid].append(str(e.id))
+    sentence: dict = {}         # else the first sentence it read (a short cited title)
+    for fid, e, _ in rows:
+        # AM-322 r17: placed on a row it cites; a Review that cites every row (made
+        # before r17, or all CONFLICTING) reads as before
+        quoted = str(e.id) in (cited[fid] or linked[fid])
+        if quoted:
+            first.setdefault(fid, e)
+        if len((e.content or "").split()) >= 8:        # a sentence, never a title line
+            (body if quoted else sentence).setdefault(fid, e)
     out = []
     for f in findings:
         rv, req = versions.get(f.requirement_version_id, (None, None))
@@ -185,6 +195,7 @@ def _rows(db: DBSession, review: M.Review) -> list[dict[str, Any]]:
         out.append({"finding": f, "code": code,
                     "in_our_favour": favoured_word(f.classification, word),
                     "evidence_ids": linked[f.id],
+                    "cited_ids": cited[f.id] or linked[f.id],
                     "title": ((rv.description if rv else None)
                               or (req.code if req else "")),
                     "standard": standards.get(f.requirement_version_id) or {},
@@ -193,7 +204,7 @@ def _rows(db: DBSession, review: M.Review) -> list[dict[str, Any]]:
                     "actual": (ev.actual_value if ev else None) or {},
                     "expected": (ev.expected_value if ev else None) or {},
                     "evidence": first.get(f.id),
-                    "passage": body.get(f.id) or first.get(f.id),
+                    "passage": body.get(f.id) or sentence.get(f.id) or first.get(f.id),
                     "sections": sections[f.id]})
     return out
 
@@ -759,22 +770,38 @@ _TYPES = {t.upper() for t in DOCUMENT_TYPES}
 def _our_clauses(before: M.DocumentVersion, ours: list, clauses: list,
                  changed: list[dict], document_type: str | None) -> dict[str, dict]:
     """AM-395 (a): finding id -> our own words of the clause the client changed — the
-    unit of our previous version aligned with the client's unit the finding read
-    (`negotiation._align`, the change list's own alignment). Quoted, never composed."""
+    units of our previous version aligned with the client's units the finding CITES
+    (`negotiation._align`, the change list's own alignment), in our order, each with its
+    own sub-clauses (16.1 → 16.1.1); a heading-only unit ("16. INDEMNIFICATION") is
+    left out, so a heading never pulls in its section (AB-217 F8). Quoted, never
+    composed."""
     old, new = negotiation._units(ours), negotiation._units(clauses)
-    ours_of = {e: old[i] for i, j, _ in negotiation._align(old, new)
+    ours_of = {e: i for i, j, _ in negotiation._align(old, new)
                if i is not None and j is not None for e in new[j]["evidence_ids"]}
+    heading = {str(c.evidence_id) for c in ours if c.is_heading}
+    titles = {i for i, u in enumerate(old) if set(u["evidence_ids"]) <= heading}
     out: dict[str, dict] = {}
     for r in changed:
-        unit = next((ours_of[e] for e in map(str, r["evidence_ids"]) if e in ours_of),
-                    None)
-        if unit is None or not unit["text"].strip():
+        cites = map(str, r.get("cited_ids") or r["evidence_ids"])
+        hit = sorted({ours_of[e] for e in cites if e in ours_of} - titles)
+        under: set[int] = set()
+        for i in hit:           # the sub-clauses that follow it (16.1 → 16.1.1, 16.1.2)
+            stem = f"{(old[i]['number'] or '').rstrip('.')}."
+            for k in range(i + 1, len(old)):
+                if not (old[i]["number"] and (old[k]["number"] or "").startswith(stem)):
+                    break
+                under.add(k)
+        text = "\n\n".join(t for k in sorted((set(hit) | under) - titles)
+                            if (t := old[k]["text"].strip()))
+        if not text:
             continue
-        where = f", clause {unit['number']}" if unit["number"] else ""
+        numbers = [old[i]["number"] for i in hit if old[i]["number"] and i not in under]
+        where = (f", clause {numbers[0]}" if len(numbers) == 1 else
+                 f", clauses {', '.join(numbers)}" if numbers else "")
         out[str(r["finding"].id)] = {
-            "kind": "OUR_CLAUSE", "section": unit["number"] or "",
+            "kind": "OUR_CLAUSE", "section": numbers[0] if numbers else "",
             "label": f"Our {document_type or 'contract'} as we sent it (version "
-                     f"{before.version_number}){where}", "text": unit["text"].strip()}
+                     f"{before.version_number}){where}", "text": text}
     return out
 
 
@@ -837,7 +864,7 @@ def _origins(db: DBSession, review: M.Review, clauses: list,
     if before is not None and (our_review := negotiation._latest_review(db, before)):
         ours_result = {r["code"]: r["classification"] for r in _rows(db, our_review)}
     origins = {str(r["finding"].id): got for r in actionable
-               if (got := lawyer_rows.origin([str(e) for e in r["evidence_ids"]],
+               if (got := lawyer_rows.origin(r.get("cited_ids") or r["evidence_ids"],
                                              r["code"], r["classification"], changed,
                                              ours_result))}
     mine = _our_clauses(before, ours, clauses, [
@@ -849,7 +876,7 @@ def _origins(db: DBSession, review: M.Review, clauses: list,
     for r in actionable:
         if origins.get(str(r["finding"].id)) != lawyer_rows.CLIENT_CHANGED or not changed:
             continue
-        hit = changed_passage(r["evidence_ids"], changed, clauses)
+        hit = changed_passage(r.get("cited_ids") or r["evidence_ids"], changed, clauses)
         row = db.get(M.DocumentEvidence, hit) if hit is not None else None
         if row is not None:
             r["passage"] = r["evidence"] = row

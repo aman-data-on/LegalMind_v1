@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session as DBSession
 
 from legalmind.db import models as M
 from legalmind.domain.enums import (
+    EvidenceRelationshipType,
     FindingClassification,
     FindingStatus,
     MappingState,
@@ -133,18 +134,22 @@ def persist_evaluation(
                 relationship_type=result.evidence_relationships.get(
                     evidence_id, "PRIMARY"),
             ))
-        # Finding-level roll-up of evidence is retained alongside (42.16).
+        # Finding-level roll-up of evidence is retained alongside (42.16); a row one
+        # scope cites is never left SUPPORTING by another (AM-322 r17)
         for evidence_id in result.evidence_refs:
+            relationship = result.evidence_relationships.get(evidence_id, "PRIMARY")
             exists = db.execute(
                 select(M.FindingEvidence).where(
                     M.FindingEvidence.finding_id == finding.id,
                     M.FindingEvidence.evidence_id == evidence_id)
-            ).first()
-            if not exists:
+            ).scalars().first()
+            if exists is None:
                 db.add(M.FindingEvidence(
                     finding_id=finding.id, evidence_id=evidence_id,
-                    relationship_type=result.evidence_relationships.get(
-                        evidence_id, "PRIMARY")))
+                    relationship_type=relationship))
+            elif (exists.relationship_type is EvidenceRelationshipType.SUPPORTING
+                  and relationship != "SUPPORTING"):
+                exists.relationship_type = EvidenceRelationshipType(relationship)
         persisted.append(evaluation)
 
     db.flush()

@@ -9,8 +9,16 @@ No version has been released. The V1 specification is complete and implementatio
 ---
 
 ## [Unreleased]
-- AB-216 (2026-11-19, `AM-431`–`AM-434`; case-by-case round, batch 1 "redline truth"; not
-  deployed). Trigger: a client returned our MSA with tracked changes. **No false "changed without
+- AB-217 (2026-11-19, `AM-435`–`AM-438`; case-by-case batch 2 "cited passage"; not deployed).
+  A point is placed, labelled and quoted from the clause it cites (widened section rows are kept as
+  supporting evidence); our counter-wording is the cited clauses with their sub-clauses (Indemnity
+  on the client's MSA: "16" → 16.1–16.2); the our-entity check reads the version we sent (the
+  client had tracked-deleted our wrong signature-block name); R-3 drops an NDA notice standard
+  measured on an MSA only when its clause states no figure in any form and an MSA position reads
+  every clause it confirmed — never hiding a figure (43 adversarial cases). No migration, no API
+  change, no standard edited. Tests: `tests/test_cited_passage.py`.
+- AB-216 (2026-11-19, `AM-431`–`AM-434`; case-by-case round, batch 1 "redline truth"; PR #324,
+  DEPLOYED 2026-11-19 as ab8250b1). Trigger: a client returned our MSA with tracked changes. **No false "changed without
   marking it"** (9 → 0 on that file; a paragraph deleted whole no longer flags its neighbour; 27
   adversarial silent-edit cases, never weaker than before), **15.1.x pair with their own clauses**
   (exact pass on the client's pre-markup text), **the client's Word comments on their change rows**
