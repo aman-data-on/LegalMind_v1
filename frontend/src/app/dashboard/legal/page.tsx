@@ -72,8 +72,12 @@ const WORDS = {
 /** The header's one line: what waits on this reader, never "nothing" over a full list. */
 function waiting(total: number, mine: Mine | null): string {
   if (!mine) return `${plural(total, "point")} wait for a decision`;
+  // this page lists POINTS, so its line counts points; the client's changes held by this
+  // reader are said after it, where they are answered (the contract's Changes tab)
   if (mine.points || mine.changes) {
-    return `${plural(mine.points, "point")}${mine.changes ? ` and ${plural(mine.changes, "change")}` : ""} wait for your decision`;
+    const points = mine.points ? `${plural(mine.points, "point")} ${mine.points === 1 ? "waits" : "wait"}` : "No points wait";
+    return `${points} for your decision`
+      + (mine.changes ? `. You also have ${plural(mine.changes, "change")} to answer, on the contract's Changes tab.` : ".");
   }
   return total ? `${plural(total, "point")} wait for Legal. None are assigned to you.` : "Nothing waits for your decision";
 }

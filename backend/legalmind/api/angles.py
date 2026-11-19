@@ -652,7 +652,7 @@ _OBSERVATION_ACTION = {
 
 
 def recommendation(items: list[dict], observed: dict, measured: int,
-                   decided: int = 0) -> str | None:
+                   decided: int = 0, legal_open: int = 0) -> str | None:
     """AM-160 — one line, computed from the actions above and nothing else: a
     recommendation an authorised person decides on (§24.3, §25.1), never a score, a level
     or a decision of the system's own. With nothing measured there is nothing to
@@ -662,14 +662,21 @@ def recommendation(items: list[dict], observed: dict, measured: int,
     (the Summary's "Open points (N)"). Of them, a point "needs Legal" unless the approved
     rule already accepts it (ACCEPT/ACCEPT_FAVOURABLE) — the same set `review_progress`
     counts as `required`. Things the document says twice or about us (`observed`) are
-    counted apart, never mixed into the points."""
+    counted apart, never mixed into the points.
+
+    F5 (client case 2026-11-19): ``legal_open`` — the client's changes in the open round
+    still waiting for Legal (`deal_counts`' ``changes_left_legal``; 0 where there is no
+    round, as in Ask). While any wait, the line never says "Sign after": a change and a
+    point are two nouns, each counted once (AM-291) — points one per group (`group_ids`),
+    so a point read on several passages is one point. A change answered "Ask the client"
+    is not waiting for Legal (AM-411 r1)."""
     if not measured:
         return None
     def n(count: int, word: str) -> str:
         return f"{count} {word}{'s' * (count != 1)}"
     checks = sum(o.get("action") is not None for o in observed["structural"])
     also = f" Also check {n(checks, 'thing')} in the contract." if checks else ""
-    if decided and not items:
+    if decided and not items and not legal_open:
         # AM-179 (2026-10-22): every point a person had to act on is decided — the
         # recommendation no longer counts them; what follows is the contract decision
         return (f"Every point is decided ({n(decided, 'point')}) — the decision on the "
@@ -680,6 +687,12 @@ def recommendation(items: list[dict], observed: dict, measured: int,
     decide = len(items) - must - change - accepted
     kept = (f" {n(accepted, 'point')} {'differs' if accepted == 1 else 'differ'} in our "
             "favour and can stay." if accepted else "")
+    if legal_open:
+        left = len(items) - accepted
+        points = (f", and {n(left, 'point')} {'is' if left == 1 else 'are'} still to "
+                  "decide" if left else "")
+        return (f"Not ready to sign: {legal_open} of the client's changes "
+                f"wait{'s' * (legal_open == 1)} for Legal{points}.{kept}{also}")
     tail = f" and Legal must look at {decide} more" if decide else ""
     if must:
         more = f", {n(change, 'more')} to ask them to change" if change else ""
@@ -843,7 +856,8 @@ def _origins(db: DBSession, review: M.Review, clauses: list,
     return origins, mine
 
 
-def review_angles(db: DBSession, review: M.Review, *, legal_position: bool) -> dict:
+def review_angles(db: DBSession, review: M.Review, *, legal_position: bool,
+                  legal_open: int = 0) -> dict:
     rows = _rows(db, review)
     document_type = _review_document_type(db, review)
     for r in rows:
@@ -968,7 +982,8 @@ def review_angles(db: DBSession, review: M.Review, *, legal_position: bool) -> d
         "observations": observed,
         "recommendation": recommendation([i for i in items if not i["decided"]], observed,
                                          len(rows),
-                                         decided=sum(i["decided"] for i in items)),
+                                         decided=sum(i["decided"] for i in items),
+                                         legal_open=legal_open),
         # the lawyer's second read, its own label, never a Finding (AM-162); absent
         # when the document was never read
         **({"reading": got} if (got := reading.read(

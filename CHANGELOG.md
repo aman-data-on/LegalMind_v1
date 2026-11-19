@@ -9,6 +9,17 @@ No version has been released. The V1 specification is complete and implementatio
 ---
 
 ## [Unreleased]
+- AB-216 (2026-11-19, `AM-431`–`AM-434`; case-by-case round, batch 1 "redline truth"; not
+  deployed). Trigger: a client returned our MSA with tracked changes. **No false "changed without
+  marking it"** (9 → 0 on that file; a paragraph deleted whole no longer flags its neighbour; 27
+  adversarial silent-edit cases, never weaker than before), **15.1.x pair with their own clauses**
+  (exact pass on the client's pre-markup text), **the client's Word comments on their change rows**
+  (ours only for `legal_position`), **one count** on header, To-do, Legal queue, Changes tab,
+  recommendation and report, **never "Sign after" while changes wait for Legal**, one primary action
+  for the lawyer, and "Compared with version 1 (what we sent)". An answer under a key a new reading
+  no longer produces shows as "answered on an earlier reading", never dropped. No migration, no API
+  schema change. Tests: `tests/test_redline_truth.py` (incl. a golden of routes/effects/automatic
+  answers recorded on main). Local notes: `audit/batch1-redline-truth/`.
 
 - Fix (2026-11-19, production E2E): **a new contract was sometimes never analysed.** The
   after-commit publish thread read `review.id` / `version.id` after the request's session had

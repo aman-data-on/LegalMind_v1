@@ -48,6 +48,9 @@ export interface StepFacts {
 export function nextStep(f: StepFacts): Step | null {
   const c = f.counts ?? {};
   const step = (kind: StepKind, label: string = ACTION[kind] as string): Step => ({ kind, label });
+  // batch 1 (one lawyer queue): the client's changes Legal holds lead — ONE primary,
+  // "Answer N changes"; the points stay one tab away, never a second primary beside it
+  if (f.viewer === "legal" && c.changes_left_for_me) return step("answerChanges", ACTION.answerChangesN(c.changes_left_for_me));
   if (f.viewer === "legal" && c.points_for_me) return step("decide", ACTION.decide(c.points_for_me));
   // AM-413: every point is answered (or waits only on the client) — the contract decision
   // is this lawyer's to record now (the server's `decision_for_me`)
@@ -112,9 +115,10 @@ export function canSendToLegalFor({ stage, counts, finalLatest, assign }: {
 }
 
 /** A To-do item's action, in the same words as the header's step. */
-export function taskAction(item: Pick<TodoItem, "kind" | "count" | "counts">): string {
+export function taskAction(item: Pick<TodoItem, "kind" | "count" | "counts" | "changes">): string {
   switch (item.kind) {
-    case "decide": return ACTION.decide(item.count);
+    // one lawyer queue: the changes lead, as the contract header's one primary does
+    case "decide": return item.changes ? ACTION.answerChangesN(item.changes) : ACTION.decide(item.count);
     case "second_approval": return ACTION.reviewDecision;
     case "answered": return ACTION.seeAnswer;
     case "reply_ready": return ACTION.sendReply;
