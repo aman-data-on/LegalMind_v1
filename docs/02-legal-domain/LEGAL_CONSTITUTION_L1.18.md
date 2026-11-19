@@ -385,7 +385,7 @@ A document becomes an authoritative Level 3 Source of Truth (Section 7\) only wh
 
 **MSA, cl. 6.5.4:** “Upon mutual approval, the change shall be incorporated into the Agreement as an addendum or amendment, with full contractual effect.”
 
-**Precedence of Annexure 2 over the MSA body:** pending owner/Legal confirmation (AB-214 AM-414, PR #321). MSA 21.3 contains only an entire-agreement sentence and states no actual order of precedence — open for Legal (Appendix I).
+**Precedence of Annexure 2 over the MSA body:** each Annexure 2 entry replaces the named clause (“Clause X is replaced by the following”); no separate precedence sentence is printed (owner ruling 2026-11-18, confirmed by the owner 2026-11-19 — AB-214 `AM-414` r1, r7). Legal confirms this structure at the next lawyer review of the MSA template (`AM-414` r6). MSA 21.3 contains only an entire-agreement sentence and sets no order of its own — open for Legal (Appendix I).
 
 **Published — LeapSwitch Service Level Agreement:** “Should there be any discrepancies between the stipulations of this SLA and the Terms of Service ("Terms of Service"), the provisions of this SLA shall prevail, but solely to the degree of the discrepancy.”
 
@@ -2371,7 +2371,7 @@ Recorded by `AM-421` (2026-11-18). Nothing here is resolved by this Constitution
 
 | Item | MSA text |
 | :---- | :---- |
-| 21.3 states no order | Titled “Entire Agreement and Order of Precedence”; no order is stated — open for Legal. Precedence of Annexure 2 over the MSA body: pending owner/Legal confirmation (AB-214 AM-414, PR #321). |
+| 21.3 states no order | Titled “Entire Agreement and Order of Precedence”; no order is stated — open for Legal. Annexure 2 over the MSA body: each entry replaces the named clause, no separate sentence (owner 2026-11-18, confirmed 2026-11-19, `AM-414` r7); Legal to confirm at the next MSA template review. |
 | 17.1 and 17.6 repeat | Both exclude indirect and consequential damages and loss of data. |
 | 17.7 blank | “… in the __________ months preceding the claim” — a repeat of 17.2 under `AM-401` (C-32). |
 | 15.5 cross-reference | “No refunds or credits apply unless under Clause 8.4.” — 8.4 is not a refund clause. |

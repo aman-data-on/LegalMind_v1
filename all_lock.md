@@ -31268,3 +31268,17 @@ r7  On 2026-11-18 the company answered the follow-up in #proj-legalmind: the reg
     "Corporate office: Office 1104, 11th Floor, Gokhale Business Bay, Kothrud, Pune 411038".
     L1.18 §4.1 and Appendix H C-08 record this. No standard, template or MSA change.
 ```
+
+AB-215 addendum, appended 2026-11-19 — Annexure 2 precedence, after AB-214 merged (the lines
+above stand; this records how L1.18 now reads):
+
+```
+AM-421 r8 — precedence of Annexure 2: the owner's ruling, as AB-214 records it
+r8  AB-214 (PR #321) merged 2026-11-19. Its AM-414 r1 (owner ruling 2026-11-18) and r7 (owner
+    confirmation 2026-11-19) settle the structure: each Annexure 2 entry replaces the named
+    clause ("Clause X is replaced by the following"), and no separate precedence sentence is
+    printed. L1.18 §8.2 and Appendix I now state this in place of "pending owner/Legal
+    confirmation". AM-414 r6 stands: Legal confirms the structure at the next lawyer review of
+    the MSA template; MSA 21.3 sets no order of its own and stays open for Legal. No legal text
+    drafted; no standard, template or MSA change.
+```
