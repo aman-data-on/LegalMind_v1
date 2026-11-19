@@ -31254,3 +31254,17 @@ r2  KNOWN EFFECT ON ASK: the reader's-figure note ("No company position states N
 r3  No standard changes because of the address. No MSA standard, template or drafting code
     changes. Nothing deployed; existing Reviews are not re-run (rule 16).
 ```
+
+AB-215 addendum, appended 2026-11-19 — `AM-421` r5 follow-up, the company's answer on the
+registered-office move (the lines above stand; this adds to them):
+
+```
+AM-421 r7 — registered office: timing and how both addresses are shown
+r7  On 2026-11-18 the company answered the follow-up in #proj-legalmind: the registered office
+    is expected to move to Office 1104, Gokhale Business Bay "probably next quarter" (no fixed
+    date); until that move is recorded the registered office stays 1/A2/22, Ajantha Avenue.
+    Meanwhile the company approved showing both addresses on our documents:
+    "Registered office: 1/A2/22, Ajantha Avenue, Paud Road, Pune 411038" and
+    "Corporate office: Office 1104, 11th Floor, Gokhale Business Bay, Kothrud, Pune 411038".
+    L1.18 §4.1 and Appendix H C-08 record this. No standard, template or MSA change.
+```

@@ -232,13 +232,15 @@ def test_l1_12_states_each_brands_published_sla_and_never_merges_them():
 def test_l1_18_records_the_registered_office_the_company_confirmed():
     """AM-421 (company confirmation, 2026-11-18): the registered office is the MSA's
     Ajantha Avenue address; 410 Spectra is the GST address and Gokhale Business Bay the
-    working address, with a planned move and no date. L1.12's website-derived position
+    working address, shown as "Corporate office"; the move is expected
+    "probably next quarter" (AM-421 r7). L1.12's website-derived position
     stays in L1.17 as history."""
     office = _section("4.1")
     assert "Registered office (L1.18, confirmed by the company" in office
     assert "1/A2/22, Ajantha Avenue, Paud Road, Near Krishna Hospital, Pune - 411038" in office
     assert "is the GST address" in office and "is the working" in office
-    assert "no date was given" in office
+    assert "probably next quarter" in office
+    assert "Corporate office: Office 1104, 11th Floor, Gokhale Business Bay" in office
     old = constitution.SUPERSEDED_FILES["L1.17"].read_text()
     assert "Ajantha Avenue, Paud Road, Pune) is superseded" in old
 
