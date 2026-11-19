@@ -31168,3 +31168,62 @@ without a sentence stating that Annexure 2 prevails over the MSA body (each Anne
 "Clause X is replaced by the following"; MSA 21.3's text sets no order despite its heading), the
 owner answered "yes, merge and deploy". AM-414 therefore rests on the owner's own words, not on a
 relay. r6 stands: Legal confirms the structure at the next lawyer review of the MSA template.
+
+---
+
+## AMENDMENT BATCH AB-216 — `AM-431`–`AM-434` (2026-11-19): a returned markup reads true
+
+Owner instructions (2026-11-19), quoted: "work as legal assistent pass through the legalmind see how
+it help the org to take decison"; "it is not just tracked bas only analysis to"; "sales team also see
+the summary and findign with layman term … i see and understand the status into 1 min"; plan
+approved after a strict team review ("again review strictly as team"). Trigger: the client's outside
+counsel returned our MSA with tracked changes and 3 comments; on production the change list showed 9
+false "changed without marking it" rows, mispaired 15.1.x, five different counts and "Sign after 2
+changes" while 55 changes waited for Legal. No legal content, standard, threshold or position is
+added or changed by this batch. IDs scanned: AB-216–217, AM-431–436 on origin/main, every worktree
+and every remote branch (AB-215 and AM-421–430 are held by PR #322).
+
+`AM-431` — UNMARKED MEANS UNMARKED (extends `AM-146`/`AM-157` two-text reading; R2).
+```text
+r1  A change row reads "changed without marking it" when the client's text before its own marks
+    differs from ours, compared row by row with every character and figure kept (as before).
+r2  Two corrections only: (a) a block the client deleted whole is removed from the client's side
+    only as the trailing run of whole lines where the reader appends it; (b) a line made entirely
+    of invisible characters counts as no text. Nothing is removed from our side.
+r3  A flag is cleared only when a window of at most 4 neighbouring units, closed under the
+    pairing, holding at least one client unit with tracked marks, has our lines identical to the
+    client's pre-markup lines in order, and every unit boundary that differs between the two
+    papers falls on a line that starts with a typed clause number.
+r4  Never weaker than before: a silent edit the earlier reading flagged is still flagged
+    (regression suite of 27 adversarial cases, incl. figures, cross-references, moves across
+    clauses, auto-numbered regrouping, symbol-font characters).
+```
+
+`AM-432` — PAIRING ON THE CLIENT'S OWN STARTING TEXT (rider on `AM-317` r3).
+```text
+r1  Before term, similarity and number pairing, a client unit whose text before its marks equals
+    one of ours pairs with it exactly. Diff-Talk and the shared pairing are unchanged; no number
+    tie-break is added.
+```
+
+`AM-433` — ANSWERS NEVER DETACH; COMMENTS ON ROWS (rider on `AM-253`; LEGAL-02).
+```text
+r1  An answer recorded under a row key that a later reading no longer produces is shown on the
+    row holding that clause as "answered on an earlier reading" (or listed apart), never dropped
+    and never moved onto a different row; the row stays open until answered again.
+r2  The client's Word comments ride on the change row they are attached to (author and text).
+    Our own comments (on our version) appear on a change row only for a reader with
+    `legal_position`; otherwise the key is omitted, never null.
+```
+
+`AM-434` — ONE COUNT, NO "SIGN AFTER" WHILE LEGAL HAS CHANGES (rider on `AM-291`, `AM-160`; reads `AM-411`).
+```text
+r1  Headline numbers come only from the change rows (changes left, changes left for Legal) and
+    from `review_progress` (points to decide). The per-mark tally of the client's file is a detail
+    line ("N tracked edits in M clauses"), never a headline.
+r2  While any client change waits for Legal, the recommendation reads "Not ready to sign: N of the
+    client's changes wait for Legal …" and never "Sign after". A change answered "Ask the client"
+    does not wait for Legal (`AM-411`). The Ask file review passes none and is unchanged.
+r3  The lawyer's contract header carries one primary action ("Answer N changes") while changes
+    are left; points stay reachable and counted, never as a second competing primary button.
+```

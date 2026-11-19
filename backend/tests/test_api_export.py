@@ -10,6 +10,7 @@ ABSENT — exactly as the API omits them on the wire.
 from __future__ import annotations
 
 import io
+import re
 import zipfile
 
 from sqlalchemy import select
@@ -343,7 +344,7 @@ def _marked_blocks():
 def test_a_marked_up_contract_lists_every_change_in_plain_words():
     blocks = _marked_blocks()
     heads = [b.text for b in blocks if b.kind in ("h2", "h3")]
-    assert "The client's changes (2 clauses)" in heads
+    assert "Tracked edits in the client's file (2 clauses)" in heads
     assert "§7 Term and termination" in heads and "§11" in heads   # sentence case
     changes = [b for b in blocks if b.kind == "change"]
     assert [b.rows[0][:2] for b in changes] == [("7.2", "Changed"), ("7.5", "Added"),
@@ -354,7 +355,9 @@ def test_a_marked_up_contract_lists_every_change_in_plain_words():
     note = next(b for b in blocks if b.kind == "quote" and "data location" in b.text)
     assert note.label == "Their note on 11.2 (Their counsel)"
     said = " ".join(b.text for b in blocks)
-    assert "172" not in said and "3 changes to 2 clauses" in said
+    # batch 1 "one count": the tracked edits are a detail, never "N changes to M clauses"
+    assert "172" not in said and "3 tracked edits in 2 clauses" in said
+    assert not re.search(r"changes to \d+ clauses", said)
     assert "§25.1" not in said                       # no rulebook numbers for a reader
 
 

@@ -11,7 +11,7 @@
 import { useEffect, useState } from "react";
 
 import { api } from "@/lib/api";
-import { ORIGIN_LABELS, ORIGIN_RANK, withoutSectionRefs } from "@/lib/labels";
+import { CHANGES_COPY, ORIGIN_LABELS, ORIGIN_RANK, withoutSectionRefs } from "@/lib/labels";
 import { requirementTitle } from "./findingLanguage";
 import type {
   BusinessPoint, CounterProposal, LegalItem, Observation, ReviewAngles,
@@ -228,20 +228,9 @@ export function LegalAngleView({ angles, onOpen, decided, words, withRecommendat
         <p className="ws-angle__recommendation">{withoutSectionRefs(angles.recommendation)}</p>
       ) : null}
       {withRecommendation && angles.client_changes?.changes ? (
-        // a marked-up copy: the client's own changes, counted; each is in the document
-        // under its passage and listed in the report (owner, 2026-10-27)
-        <p className="ws-angle__marked">
-          The client marked {angles.client_changes.changes} changes to{" "}
-          {angles.client_changes.clauses} clauses
-          {angles.client_changes.notes
-            ? ` and left ${angles.client_changes.notes} note${angles.client_changes.notes === 1 ? "" : "s"}`
-            : ""}.{" "}
-          {angles.client_changes.onto
-            ? `${angles.client_changes.onto} of the changed clauses ${angles.client_changes.onto === 1 ? "moves" : "move"} risk onto LeapSwitch — the report says how for each, beside our position. `
-            : ""}
-          {angles.client_changes.unmeasured} of those clauses are not checked by
-          any of our standard terms — they are shown in the document and in the report.
-        </p>
+        // a detail, never a headline: one change on the Changes tab can carry many
+        // tracked edits — the change count is the Changes tab's (AM-291, batch 1)
+        <p className="ws-angle__marked">{CHANGES_COPY.trackedEdits(angles.client_changes)}</p>
       ) : null}
       {shown.length > 0 ? (
         <>

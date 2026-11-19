@@ -46,6 +46,8 @@ import type { DocumentVersion, Evaluation, Finding } from "@/lib/types";
 
 import "./changes.css";
 import { AnswerComposer, DiffText } from "./ChangeComposer";
+import { ChangesBanners, EarlierAnswers } from "./ChangesBanners";
+import { WordComments } from "./WordComments";
 import { EscalateControl } from "./EscalateControl";
 import { USER_STATUS_LABELS, readerWord as pointWord, requirementTitle } from "./findingLanguage";
 import {
@@ -320,36 +322,7 @@ export function ChangesPane({
       {!data.can_decide && data.changes.length ? <p className="cx-banner cx-sales-status" data-testid="sales-status">{salesStatus(data.changes, data.sent_to_legal ?? true)}</p> : null}
       <p className="ws-visually-hidden" role="status" aria-live="polite">{said}</p>
       {packageBar?.(pick)}
-      {data.special_conditions_not_applied?.length ? (
-        <div className="cx-banner cx-banner--strong" role="note">
-          <strong>Annexure A could not be read on this copy, so each change is compared with the contract text as
-            written, and every change goes to Legal.</strong>
-          <ul>{data.special_conditions_not_applied.map((why) => <li key={why}>{why.charAt(0).toUpperCase() + why.slice(1)}.</li>)}</ul>
-        </div>
-      ) : null}
-      {data.template ? (
-        <p className="cx-banner" role="note">
-          Made from our blank template{data.template.title
-            ? <> &ldquo;{displayTitle(data.template.title)}&rdquo;</> : null}, version {data.template.version}.
-          {" "}Filling in the details is not a change;{" "}
-          {data.summary.total ? "every other difference from the template is listed here."
-            : "nothing else differs from it."}
-          {data.template.message ? <><br /><strong>{data.template.message}</strong></> : null}
-        </p>
-      ) : null}
-      {data.summary.untracked > 0 ? (
-        <p className="cx-banner" role="note">
-          {allUntracked ? (
-            <>{data.summary.total === 1 ? <>This change is not</> : <>None of these <strong>{data.summary.total}</strong> changes is</>} marked in the
-              client&rsquo;s file — {data.summary.total === 1 ? "it was" : "they were"} made without tracking. LegalMind found each one
-              by comparing the text.</>
-          ) : (
-            <><strong>{data.summary.untracked}</strong> of {data.summary.total} changes are not
-              marked in the client&rsquo;s file (made without tracking). Each is tagged
-              &ldquo;Untracked&rdquo; in the list.</>
-          )}
-        </p>
-      ) : null}
+      <ChangesBanners data={data} allUntracked={allUntracked} />
       {ACCEPTABLE_EFFECTS.some((e) => together[e].length) ? (
         <div className="cx-together" role="group" aria-label="Accept without Legal">
           {ACCEPTABLE_EFFECTS.map((e) => together[e].length ? (
@@ -381,8 +354,7 @@ export function ChangesPane({
           <p className="cx-legend">
             {data.from || data.template ? (
               <>{data.template ? <>Our template (version {data.template.version}) against this copy
-                (version {data.to.version_number}).</> : <>Version {data.from!.version_number} (ours) → version {data.to.version_number} (the
-                client&rsquo;s).</>} <ins>Underlined</ins>: the client added. <del>Struck</del>: the client
+                (version {data.to.version_number}).{" "}</> : null}<ins>Underlined</ins>: the client added. <del>Struck</del>: the client
                 removed.</>
             ) : (
               // PLAIN-LANGUAGE §2.4's own replacement wording
@@ -398,6 +370,7 @@ export function ChangesPane({
               <h3>{where(c)}{formattingOnly(c) ? <span className="cx-tag">Formatting only</span>
                 : c.kind !== "MODIFIED" && !wholeClause(c) ? <span className="cx-tag">{KIND_LABEL[c.kind]}</span> : null}</h3>
               <Marked change={c} list={data} />
+              <WordComments comments={[...(c.after?.comments ?? []), ...(c.before?.comments ?? [])]} />
             </article>
           ))}
         </section>
@@ -829,7 +802,11 @@ export function AnswerCard({ change, list, contractId, onAnswered, onReload, inP
       )}
 
       {/* On a narrow screen the passage column is not shown, so the card carries it. */}
-      <div className="cx-answer__passage" tabIndex={0} role="region" aria-label="The changed passage"><Marked change={change} list={list} /></div>
+      {/* the passage and its comments: the phone's copy (the passage column shows them on a
+          wide screen), so a comment is drawn once at any width */}
+      <div className="cx-answer__passage" tabIndex={0} role="region" aria-label="The changed passage"><Marked change={change} list={list} />
+        <WordComments comments={[...(change.after?.comments ?? []), ...(change.before?.comments ?? [])]} /></div>
+      <EarlierAnswers change={change} />
 
       {given ? <GivenAnswer change={change} waiting={waiting} /> : null}
       {given?.auto && list.can_decide && list.replied_in == null ? (

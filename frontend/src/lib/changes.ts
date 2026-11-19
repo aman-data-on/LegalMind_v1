@@ -9,6 +9,7 @@ import { USER_STATUS_LABELS, readerWord as pointWord, requirementTitle, type Use
 import { clauseName } from "@/lib/documentTypes";
 import { formatDate } from "@/lib/dates";
 import { SALES_LINE, VERDICT_LABELS } from "@/lib/labels";
+import type { WordComment } from "@/lib/types";
 
 /** THEIRS: the client's paper came first (`AM-290`) — one row per point the review
  *  found, with no wording of ours before it. */
@@ -86,6 +87,10 @@ export interface LawyerView {
 /** R2 D4/D5: a note across clauses for Legal — never a point. */
 export interface NoteForLegal { kind: string; clauses: string[]; text: string }
 
+/** One side of a change. `comments`: the client's Word comments on their side; on our
+ *  side our own, sent only to a reader of positions — absent otherwise, never empty. */
+export interface ChangeSide { evidence_ids: string[]; text: string; comments?: WordComment[] }
+
 export interface ClientChange {
   /** R2: lettered points, standards touched, who is bound (absent on client paper first) */
   lawyer?: LawyerView;
@@ -98,8 +103,8 @@ export interface ClientChange {
   /** client paper first, nothing confirmed: the clauses that MAY hold it — unranked */
   candidates?: ClauseName[];
   page: number | null;
-  before: { evidence_ids: string[]; text: string } | null;
-  after: { evidence_ids: string[]; text: string } | null;
+  before: ChangeSide | null;
+  after: ChangeSide | null;
   tracked: boolean;
   untracked: boolean;
   review: { before: ChangeFinding[]; after: ChangeFinding[] };
@@ -131,6 +136,9 @@ export interface ClientChange {
    *  it — both keys absent where no final contract can be made from this pair */
   target?: { key: string; number: string | null; heading: string | null } | null;
   in_package?: "replace" | "delete" | "insert" | "none" | "cannot";
+  /** ground rule 1: answers given to this clause on an earlier reading (another pairing)
+   *  — shown, never dropped; this row itself is still to answer */
+  earlier_answers?: (AnswerEntry & { row_key: string })[];
 }
 
 export interface TemplateLink {
@@ -173,6 +181,10 @@ export interface ChangeList {
   replied_in?: number | null;
   /** R2 D4/D5: notes across clauses for Legal (absent on client paper first) */
   notes_for_legal?: NoteForLegal[];
+  /** the client's comments on a clause they did not change (absent when none) */
+  comments_elsewhere?: (WordComment & { clause: ClauseName })[];
+  /** answers to a row this reading no longer lists, with no row holding its clause */
+  answered_earlier?: (AnswerEntry & { row_key: string })[];
   /** holds `legal.approve_customization` and may answer: "Write our wording" (`AM-284` r1) */
   can_write_wording?: boolean;
 }

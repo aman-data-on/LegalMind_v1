@@ -69,7 +69,7 @@ export interface EvidenceRow {
   /** What the client's lawyer marked on this row (tracked changes), in order. */
   changes?: { deleted: string; inserted: string }[];
   /** The reviewer's comments made on this row — notes, never the row's text. */
-  comments?: { author: string; text: string }[];
+  comments?: WordComment[];
   /** A contract LegalMind generated: the paragraph's house style ("LM Heading 2") and
    *  the file's own bold/underlined words as [start, end, kind] offsets into `content`.
    *  Presentation only; a client's paper carries neither. */
@@ -266,12 +266,17 @@ export interface NegotiationStage {
   days: number;
 }
 
+/** A Word comment on a passage: the reader's note, never its text. */
+export interface WordComment { author: string; text: string }
+
 /** `AM-291` — CHANGES are the client's edits in the open round; POINTS the gaps against
  *  our standard still undecided on the latest version. */
 export interface DealCounts {
   changes_total?: number;
   changes_left?: number;
   changes_left_for_me?: number;
+  /** the changes only Legal may answer, not answered yet (F5: never "Sign after" then) */
+  changes_left_legal?: number;
   /** answered changes our reply carries back to the client (anything but "accept theirs") */
   changes_ours?: number;
   points_open?: number;

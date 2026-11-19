@@ -101,6 +101,8 @@ def document_blocks(guard: Guard, review: M.Review) -> list[Block]:
     assert contract is not None and version is not None  # FK-guaranteed
 
     exported_at = datetime.now(UTC).isoformat()
+    from legalmind.api.routers.negotiation import round_counts  # circular at import
+    round_ = round_counts(guard, review)            # AM-291: the Changes tab's numbers
     groups = group_ids(guard.db, [review.id], legal_position=guard.sees_legal_position)
     names = review_unit_names(guard.db, review.id)
     blocks = build_export_model(
@@ -124,7 +126,9 @@ def document_blocks(guard: Guard, review: M.Review) -> list[Block]:
         exported_at=exported_at,
         # the same plain statements the workspace shows (AB-103): the clause, our
         # standard and its source, the difference, the recommended action
-        angles=review_angles(guard.db, review, legal_position=guard.sees_legal_position),
+        angles=review_angles(guard.db, review, legal_position=guard.sees_legal_position,
+                             legal_open=round_.get("changes_left_legal", 0)),
+        changes=round_,
     )
     return blocks
 

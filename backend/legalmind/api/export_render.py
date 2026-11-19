@@ -290,9 +290,21 @@ def _title(finding: dict[str, Any]) -> str:
 
 
 def _next_steps(stage: str | None, outcome: str | None, progress: dict[str, Any],
-                owner: str, reviewer: str, to_send: int) -> list[str]:
+                owner: str, reviewer: str, to_send: int, legal: int = 0) -> list[str]:
     """What happens next and who does it — derived from where the review stands, never
-    a legal judgement of its own (rule 13)."""
+    a legal judgement of its own (rule 13). ``legal``: the client's changes waiting for
+    Legal in the open round (`deal_counts`) — named beside the points, the same two
+    nouns as every other screen (AM-291)."""
+    steps = _review_steps(stage, outcome, progress, owner, reviewer, to_send, legal)
+    if legal and stage in ("CONTRACT_DECISION_PENDING", "WAITING_FOR_CLARIFICATION"):
+        steps.insert(0, f"{reviewer} answers the {legal} change{'s' * (legal != 1)} "
+                        "from the client that wait for Legal.")
+    return steps
+
+
+def _review_steps(stage: str | None, outcome: str | None, progress: dict[str, Any],
+                  owner: str, reviewer: str, to_send: int, legal: int) -> list[str]:
+    changes = f"{legal} change{'s' * (legal != 1)} from the client" if legal else ""
     open_points = progress.get("to_decide", 0)
     asked = progress.get("clarification", 0)
     if stage == "COMPLETE" and outcome == "SIGN_WITH_CHANGES":
@@ -316,13 +328,17 @@ def _next_steps(stage: str | None, outcome: str | None, progress: dict[str, Any]
         return [f"{owner} obtains the client's answer on {asked} point"
                 f"{'s' * (asked != 1)}.", f"{reviewer} then decides."]
     if stage in ("WITH_LEGAL", "REOPENED"):
-        steps = [f"{reviewer} decides the {open_points} open point"
+        steps = [(f"{reviewer} answers the {changes} and decides the " if changes
+                  else f"{reviewer} decides the ") + f"{open_points} open point"
                  f"{'s' * (open_points != 1)}."]
         if asked:
             steps.append(f"{owner} obtains the client's answer on {asked} point"
                          f"{'s' * (asked != 1)}.")
         return steps
     if stage == "NOT_SENT":
+        if changes:
+            return [f"{owner} sends the contract to a reviewer: {changes} and "
+                    f"{open_points} point{'s' * (open_points != 1)} need Legal."]
         return [f"{owner} sends the contract to a reviewer — {open_points} point"
                 f"{'s' * (open_points != 1)} need{'s' * (open_points == 1)} a decision."]
     if stage == "SUPERSEDED":
@@ -334,13 +350,17 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
                        review: dict[str, Any], report: dict[str, Any],
                        findings: list[dict[str, Any]],
                        exported_at: str,
-                       angles: dict[str, Any] | None = None) -> list[Block]:
+                       angles: dict[str, Any] | None = None,
+                       changes: dict[str, Any] | None = None) -> list[Block]:
     """The review as a reader needs it (owner, 2026-10-22; second research round): a
     short summary and the decision, what happens next and who does it, the money, the
     changes to send in order of importance, what is still open, what was accepted and
     why, the detail of what still needs action, then the appendices and the audit record.
     Every field comes from payloads serialized under the caller's own permissions, so
-    what the API omits for this caller (LEGAL-02) is absent here too — never blanked."""
+    what the API omits for this caller (LEGAL-02) is absent here too — never blanked.
+    ``changes``: the open round's `deal_counts` (the Changes tab's own numbers, AM-291)
+    when this is the client's version that round answers — the only change count the
+    summary leads with; the tracked edits in the file are a detail line."""
     progress = report.get("progress") or {}
     outcome = report.get("contract_outcome") or {}
     current = (outcome.get("history") or [None])[-1]
@@ -428,16 +448,26 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
     marked = (angles or {}).get("client_changes")
     changed_clauses = {c["clause"] for g in (marked or {}).get("sections", ())
                        for c in g["changes"] if c["clause"]}
+    if changes and changes.get("changes_total"):
+        total, left = changes["changes_total"], changes.get("changes_left", 0)
+        legal = changes.get("changes_left_legal", 0)
+        blocks.append(Block("p", f"The client made {total} change{'s' * (total != 1)} to "
+                                 f"what we sent: {left} still to answer"
+                                 + (f", {legal} of them by Legal" if legal else "")
+                                 + " (the Changes tab lists each one)."))
     if marked and marked["changes"]:
         onto = marked.get("onto") or 0
-        blocks.append(Block("p", f"This copy carries the client's tracked changes: "
-                                 f"{marked['changes']} changes to {marked['clauses']} "
-                                 f"clauses. {marked['unmeasured']} of those clauses "
-                                 "are not checked by any of our standard terms"
+        # a detail line, never the headline: one change can carry many tracked edits
+        blocks.append(Block("p", f"The client's file has {marked['changes']} tracked "
+                                 f"edits in {marked['clauses']} clauses. "
+                                 f"{marked['unmeasured']} "
+                                 "of those clauses are not checked by any of our "
+                                 "standard terms"
                                  + (f", and {onto} of the changed clauses "
                                     f"move{'s' * (onto == 1)} risk onto LeapSwitch"
                                     if onto else "")
-                                 + " — read them under “The client's changes”."))
+                                 + ". Read them under “Tracked edits in the client's "
+                                 "file”."))
     counts = report.get("user_status_counts") or {}
     total = sum(counts.values())
     if total:
@@ -469,7 +499,7 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
                                  + (f"; {open_} still open" if open_ else "") + "."))
     decision_shown = current and stage in ("COMPLETE", "CONTRACT_DECISION_PENDING")
     steps = _next_steps(stage, (current or {}).get("outcome"), progress, owner, reviewer,
-                        len(to_send))
+                        len(to_send), (changes or {}).get("changes_left_legal", 0))
     if stage and not decision_shown and not steps:   # the next step already says it
         blocks.append(Block("p", _STAGE.get(stage, stage) + "."))
     if decision_shown:
@@ -591,10 +621,11 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
     if marked:
         changed = marked["clauses"]
         plural = "s" * (changed != 1)
-        blocks.append(Block("h2", f"The client's changes ({changed} clause{plural})"))
+        blocks.append(Block("h2", f"Tracked edits in the client's file ({changed} "
+                                  f"clause{plural})"))
         noted = marked.get("notes") or 0
-        blocks.append(Block("p", f"The client's lawyers made {marked['changes']} "
-                                 f"changes to {changed} clauses"
+        blocks.append(Block("p", f"The client's file has {marked['changes']} "
+                                 f"tracked edits in {changed} clauses"
                                  + (f" and left {noted} note{'s' * (noted != 1)}"
                                     if noted else "") + ". Our standard terms "
                                  f"checked {marked['measured']} of those clauses (the "
@@ -691,7 +722,7 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
                          if str(e.get("section_number")) in changed_clauses})
         if theirs:          # the client's change is why this point reads as it does
             blocks.append(Block("kv", "the client changed " + ", ".join(theirs)
-                                      + " — see “The client's changes”",
+                                      + " — see “Tracked edits in the client's file”",
                                 label="Changed by the client"))
         if case.get("recommendation") and not d:
             blocks.append(Block("kv", _no_refs(case["recommendation"]),
