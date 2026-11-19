@@ -20,6 +20,79 @@ credential, a permission — including the things that leave no commit behind.
 
 ---
 
+## How an entry is kept (from 2026-11-19)
+
+The practice coding-agent teams use for long work across sessions (Anthropic, *Effective harnesses
+for long-running agents*): a progress file a fresh session reads first, a task list with a done
+flag, and a commit per finished unit. Here: **this file is the progress file**,
+[ENTERPRISE_TRACKER.md](ENTERPRISE_TRACKER.md) is the task list, and every batch is a PR. Each
+working day gets one entry, newest first, with these headings (omit an empty one):
+
+- **Done** — finished units: PR, commit, verifier verdict.
+- **Reached production** — deploys (commit) and what was checked live.
+- **Changed on the server (no commit)** — env, data, permissions.
+- **In progress** — branch / worktree and the exact next step, so another session can pick it up.
+- **Next** — the following unit in the agreed order.
+- **Blocked** — on whom, and what is needed (owner, Legal, external).
+
+---
+
+## 2026-11-19
+
+### Done
+- **AB-216 batch 1 "redline truth"** (`AM-431`–`AM-434`), PR #324 merged `ab8250b1`. Trigger: a
+  client returned our MSA with tracked changes (case notes outside the repo,
+  `legalmind-clm-local/audit/client-msa-case-20261119/`). Independent verifier: 3 rounds, 27
+  adversarial silent-edit cases, final SHIP after a one-line fix. CI 23/23.
+- **Answered-keys probe on a private copy of production** (owner OK): 4 pairs, 12 answered keys,
+  0 lost.
+- **#323** (`44290f60`): a new contract is always analysed (ids read before the after-commit
+  publish); deploy notices a refused nginx reload.
+- **#321** (`f6ba1912`): AB-214 + `AM-414` r7 (owner's direct confirmation).
+- Case-by-case plan approved after a strict three-reviewer team review: 5 batches (redline truth →
+  cited passage → what we told the client → one-minute brief → "our contract came back marked up").
+
+### Reached production
+- **`44290f60`** (#323) and **`ab8250b1`** (#324). Live check on the test contract as sales and as
+  the lawyer: no false "changed without marking it", "Compared with version 1 (what we sent)", the
+  client's 3 comments on their rows, no "Sign after", one primary button for the lawyer.
+- **nginx restarted 13:16** after a reload was silently refused (`limit_req` key change); the rate
+  limit from 14 Nov is now live.
+
+### In progress
+- **Batch 2 "cited passage"** — `/root/legalmind-worktrees/cited-passage`, branch
+  `fix/cited-passage` (stacked on batch 1): points on their own passage (F6), full counter-wording
+  (F8), our signature-block entity (F4), why the NDA notice rule measured the MSA (F7, diagnosis
+  first). Next step: builder report → independent verifier → PR → production-copy probe → merge.
+- **PR #322** (Constitution L1.18, AB-215; other session) — waiting for the owner's merge OK.
+
+### Next
+- Batch 3 "what we told the client" (Legal-only deal positions), batch 4 one-minute brief,
+  batch 5 returned-markup start option.
+
+### Blocked
+- **Legal:** confirm the case baseline; this deal's positions; the never-concede list; whether
+  TERM-NOTICE-NDA-001 should never apply to an MSA (only if the code fix is not enough).
+
+---
+
+## 2026-11-04 → 2026-11-18 (back-filled from git on 2026-11-19; deploy details in CHANGELOG)
+
+- **11-18:** #316 (C-32, 17.7 "six (6)", `AM-401`), #317 (CI picomatch allowlist to 2026-12-18),
+  #318/#319 (AB-213: template keeps Sayan's MSA verbatim), #320 (pre-launch QA records).
+- **11-17:** #305 (MSA standards aligned to Sayan's MSA), #310 (Next.js advisory), #311 (MSA
+  own-wording check), #312 (liability carve-out subject), #313 (template publish), #314/#315
+  (production E2E fixes A–D).
+- **11-16:** #297/#299/#302 (final package S3–S6), #298 follow-ups, #300/#301/#303 records,
+  #304 (lawyer agent S0–S4), #306 (real-question regression), #307/#309 (Priyen's rule, reopen),
+  #308 (legal verdicts in the sales view).
+- **11-12:** #294 (CLM UX integration), #295 records, #296 (menu scroll flake).
+- **11-11:** #292 (decision form no preselect), #293 (Constitution standards `AM-322`).
+- **11-09:** #284 (statute marks, L1.16), #288 (agent instructions), #289 (structural check),
+  #290 (CI repair), #291 (Ask lawyer batch 1).
+
+---
+
 ## 2026-11-03
 
 ### Reached production
