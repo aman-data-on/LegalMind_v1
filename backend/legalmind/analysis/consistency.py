@@ -458,14 +458,18 @@ def _entity(name: str) -> str:
 def _our_entity(clauses: list[Clause]) -> list[dict[str, Any]]:
     """Our company named as an entity the Constitution does not record (§4.1) — a
     signature block for "Leapswitch Data Services Private Limited" under a preamble for
-    LeapSwitch Networks. CloudPe is a brand, never a company."""
+    LeapSwitch Networks. CloudPe is a brand, never a company. A returned copy is read
+    as we sent it too (the row's wording before the client's tracked changes): the
+    client deleting our wrong name does not make it right in what we sent."""
     for clause in clauses:
-        for m in _OUR_NAME.finditer(" ".join((clause.content or "").split())):
-            if _entity(m.group(0)) != "leapswitch networks private limited":
-                return [{"kind": OUR_ENTITY, "clauses": [], "basis": _ENTITY_BASIS,
-                         "evidence_ids": [str(clause.evidence_id)],
-                         "text": f"Our company is named “{m.group(0)}”, which is not the "
-                                 "contracting entity."}]
+        sent = (clause.marks or {}).get("original")
+        for text, where in ((clause.content, ""), (sent, " in the version we sent")):
+            for m in _OUR_NAME.finditer(" ".join((text or "").split())):
+                if _entity(m.group(0)) != "leapswitch networks private limited":
+                    return [{"kind": OUR_ENTITY, "clauses": [], "basis": _ENTITY_BASIS,
+                             "evidence_ids": [str(clause.evidence_id)],
+                             "text": f"Our company is named “{m.group(0)}”{where}, which "
+                                     "is not the contracting entity."}]
     return []
 
 

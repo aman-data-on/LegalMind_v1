@@ -35,12 +35,12 @@ Nothing is committed until the owner says "commit".
 ---
 
 ## Open — case-by-case round 2026-11-19 (client MSA markup; plan in `audit/client-msa-case-20261119/`)
-- [x] Batch 1 redline truth — AB-216 `AM-431`–`AM-434` (built, verified; not deployed)
-- [ ] Batch 2 cited passage — F6 points on their own passage, F8 full counter-wording, F4 sign-block entity (`OUR_ENTITY` diagnosis), F7 NDA rule on MSA (R-3 diagnosis first)
+- [x] Batch 1 redline truth — AB-216 `AM-431`–`AM-434` (DEPLOYED 2026-11-19 ab8250b1; live check as sales + lawyer passed)
+- [x] Batch 2 cited passage — AB-217 `AM-435`–`AM-438` (built, verified; not deployed). Open product decision: where to place a point whose mapping cites no clause (the 7.3 notice point)
 - [ ] Batch 3 what we told the client — Legal-only deal positions, row labels, theme map
 - [ ] Batch 4 one-minute brief — sales + lawyer brief above the tabs, "your turn" notice
 - [ ] Batch 5 "our contract came back marked up" start option
-- [ ] Owner: production answered-keys probe before merge (copy of the live DB was refused by the permission check)
+- [x] Production-copy answered-keys probe (owner OK): 0 of 12 answered keys lost
 - [ ] Legal: confirm BASELINE for this case; this deal's positions; never-concede list
 
 ## Open — prelaunch QA 2026-11-18 (`audit/prelaunch-20261118/REPORT.md`)

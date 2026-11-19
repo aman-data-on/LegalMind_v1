@@ -11,7 +11,11 @@
 
 ---
 
-**2026-11-19 — AB-216 (built, verified, not deployed).** Case-by-case round, batch 1 of 5 (plan:
+**2026-11-19 — AB-217 (built, verified, not deployed).** Batch 2 "cited passage": points sit on
+the clause they cite, our counter-wording is the whole cited clause, our wrong signature-block
+entity is caught in the version we sent, and the NDA notice rule no longer measures the MSA.
+
+**2026-11-19 — AB-216 (DEPLOYED 2026-11-19, ab8250b1).** Case-by-case round, batch 1 of 5 (plan:
 redline truth → cited passage → what we told the client → one-minute brief → "our contract came
 back marked up"). A returned markup now reads true: no false "unmarked", right pairing, comments on
 rows, one count, no "Sign after" while Legal has changes.

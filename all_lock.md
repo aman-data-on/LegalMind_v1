@@ -31227,3 +31227,51 @@ r2  While any client change waits for Legal, the recommendation reads "Not ready
 r3  The lawyer's contract header carries one primary action ("Answer N changes") while changes
     are left; points stay reachable and counted, never as a second competing primary button.
 ```
+
+---
+
+## AMENDMENT BATCH AB-217 — `AM-435`–`AM-438` (2026-11-19): a point reads from the clause it cites
+
+Owner instruction (2026-11-19): the case-by-case plan, batch 2 ("cited passage"), approved after a
+strict team review; trigger as in AB-216 (the client's MSA markup). No legal content, standard,
+threshold or position is added or changed; no standard file is edited; no evaluator version moves.
+IDs scanned: AB-217, AM-435–438 on origin/main and every remote branch.
+
+`AM-435` — CITED ROWS PLACE THE POINT (rider `AM-322` r17 on r12/r15/r16; touches AB-213 D13).
+```text
+r1  When a standard's evidence is widened to its whole section (r12), the rows the reading
+    cited stay PRIMARY and the rows added by the widening are stored as SUPPORTING evidence
+    (rule 11: still stored, still shown). CONFLICTING is never changed. A finding-level roll-up
+    never leaves a cited row SUPPORTING.
+r2  A point's place ("where") and its origin ("the client changed this") read the cited rows
+    only; a point never says the client changed a clause the client did not change. A change to
+    a supporting row stays a change row in the change list with its finding (negotiation reads
+    every evidence row).
+r3  The quote shown for a point is the first cited row of a sentence's length; when the cited
+    row is only a title, the first such row the point read.
+r4  A Review stored before this rider (every row PRIMARY) reads exactly as before.
+```
+
+`AM-436` — OUR COUNTER-WORDING IS THE CITED CLAUSES (rider on `AM-395`).
+```text
+r1  Our own wording offered for a point is our version's units aligned with the cited rows, in
+    order, each with its own sub-clauses, without heading-only units; never the client's text and
+    never the whole section. When nothing is left, the next AM-395 source applies.
+```
+
+`AM-437` — OUR ENTITY IN THE VERSION WE SENT (rider on `AM-241`).
+```text
+r1  The our-entity check also reads a returned copy's text before the client's tracked changes,
+    and says "in the version we sent" when the wrong name is only there. It stays an observation,
+    never a Finding.
+```
+
+`AM-438` — R-3 NEVER HIDES A FIGURE (rider on R-3 / `AM-322` r7, `AM-147`; rule 15).
+```text
+r1  R-3 first drops exactly as before.
+r2  Otherwise an other-family standard's stating clause with no figure in any form (digits,
+    number words, any period unit, per cent, currency) is set aside only when every clause that
+    standard confirmed is read or cited by a declared-family position; else the standard stays
+    as before (e.g. Needs a decision citing the clause). A clause is never left in front of no
+    one.
+```

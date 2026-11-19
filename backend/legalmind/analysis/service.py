@@ -84,6 +84,7 @@ from legalmind.evaluation.service import (
 from legalmind.extraction import commercial, parties
 from legalmind.extraction.categorical import read_values
 from legalmind.extraction.liability import (
+    _NUMBER_WORD,
     ABSENT,
     APPLICABILITY_UNCERTAIN,
     FIGURE_NOT_READ,
@@ -351,7 +352,8 @@ def run_analysis(db: DBSession, review: M.Review, *,
     brand = _review_brand(db, review)
     items, families, run.applicability = applicable_by_content(
         items, mappings, document_type,
-        fixed_term=commercial.states_fixed_term(clauses) or deal_fixed_term, brand=brand)
+        fixed_term=commercial.states_fixed_term(clauses) or deal_fixed_term, brand=brand,
+        clauses=clauses)
     if brand is None:
         # AM-287 r3: a brand-scoped standard never silently applies to a contract whose
         # brand nobody recorded — its clause fails closed to a person ("Needs a decision")
@@ -1881,10 +1883,22 @@ def _states_commitment(mapping: MappingResult | str, cfg: dict | None) -> bool:
                for c in mapping.confirmed_clauses for sentence in _sentences(c.content))
 
 
+#: AB-217 F7 (R-3) — a figure in ANY form: digits or a number word, or "a"/"an", with a
+#: period, a percentage or a currency ("15 days", "two weeks'", "one month's", "a
+#: fortnight", "12%", "Rs. 5,000"). A stating clause with none states no figure of its
+#: own; any figure, read by the standard's configuration or not, keeps it (rule 15).
+_ANY_FIGURE = re.compile(
+    rf"(?:\b(?:\d[\d,.]*\s*\)?|{_NUMBER_WORD}|an?)\s*(?:\([^)]{{0,20}}\)\s*)?-?\s*"
+    r"(?:(?:consecutive|calendar|business|working|clear)\s+)?"
+    r"(?:days?|weeks?|months?|years?|quarters?|hours?|hrs?|minutes?|mos?|fortnights?|"
+    r"per\s*cent|percent)\b"
+    r"|\d\s*%|\bfortnight|\b(?:rs\.?|inr|usd)\s*\d|[$\u20b9]\s*\d)", re.I)
+
+
 def applicable_by_content(items: list[_SnapshotItem],
                           mappings: dict[str, MappingResult | str],
                           declared_type: str | None, *, fixed_term: bool = False,
-                          brand: str | None = None,
+                          brand: str | None = None, clauses: list[Clause],
                           ) -> tuple[list[_SnapshotItem], set[str], list[dict]]:
     """Which pinned Requirements this document is measured against, and WHY each
     one was or was not — AM-51 (2026-09-09, r2 corrected same day) as amended by
@@ -2098,9 +2112,25 @@ def applicable_by_content(items: list[_SnapshotItem],
             c.clause.evidence_id for c in m.candidates if not c.clause.is_heading
             and (not stating or {s.kind for s in c.score.signals} & STATING_SIGNALS)}
 
+    def says_a_figure(i: _SnapshotItem, evidence_id: UUID) -> bool:
+        m = mappings[i.requirement.code]
+        return isinstance(m, str) or any(
+            _ANY_FIGURE.search(" ".join(r.content or "" for r in _with_continuations(
+                clauses, replace(m, candidates=(c,)))))
+            for c in m.candidates if c.clause.evidence_id == evidence_id)
+
+    def measured(stated: set[UUID], unit: str | None) -> list[_SnapshotItem] | None:
+        by = [o for o in numeric if o in own and read(o, stating=False) & stated
+              and (o.company_standard.configuration or {}).get("unit") == unit]
+        read_by = set().union(*(read(o, stating=False) for o in by))
+        return by if stated <= read_by else None
+
     numeric = [i for i in applied if i.requirement_version.evaluator_type
                is EvaluatorType.NUMERIC_COMPARISON]
     own = [i for i in applied if not _cross_family(i, declared_type)]
+    # every clause a declared-family position reads or cites (its mapping's evidence)
+    in_view = {e for o in own if not isinstance(m := mappings[o.requirement.code], str)
+               for e in m.evidence_ids}
     measured_by: dict[str, list[str]] = {}
     stated_none: dict[str, bool] = {}
     for item in numeric:
@@ -2116,9 +2146,14 @@ def applicable_by_content(items: list[_SnapshotItem],
             continue
         unit = (item.company_standard.configuration or {}).get("unit")
         stated = read(item, stating=True)
-        by = [o for o in numeric if o in own and read(o, stating=False) & stated
-              and (o.company_standard.configuration or {}).get("unit") == unit]
-        if stated <= set().union(*(read(o, stating=False) for o in by)):
+        by = measured(stated, unit)
+        if by is None and read(item, stating=False) <= in_view:
+            # AB-217 F7: a stating clause with no figure in any form is not its own
+            # words — dropped only while every clause it confirmed stays in front of a
+            # person through a declared-family position (rule 15)
+            stated = {e for e in stated if says_a_figure(item, e)}
+            by = measured(stated, unit)
+        if by is not None:
             measured_by[item.requirement.code] = sorted(
                 o.requirement.code for o in (by or sections))
             stated_none[item.requirement.code] = not stated
@@ -2170,6 +2205,7 @@ def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
         mapping = replace(mapping, state=MappingState.UNRESOLVED, explanation=(
             *mapping.explanation, "the clause found states how the paper is amended, "
                                   "not how a change or cancellation is made (R-6)"))
+    widened: set[UUID] = set()
     own = (_own_wording_clause(clauses, mapping, standard_configuration)
            if standard_configuration.get("found_clause_for_a_person")
            and mapping.state in (MappingState.CONFIRMED, MappingState.UNRESOLVED)
@@ -2181,8 +2217,11 @@ def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
                                        "standard's own wording word for word (AM-386)"))
     elif (standard_configuration.get("found_clause_for_a_person")
             and mapping.state in (MappingState.CONFIRMED, MappingState.UNRESOLVED)):
-        # AM-322 r12 — what was found is read by a person: cite the whole section
+        # AM-322 r12 — what was found is read by a person: cite the whole section;
+        # r17 — the rows added around the cited ones are SUPPORTING, never PRIMARY
+        cited = set(mapping.evidence_ids)
         mapping = replace(mapping, evidence_ids=_whole_sections(clauses, mapping))
+        widened = set(mapping.evidence_ids) - cited
     if (own is None and mapping.state is MappingState.CONFIRMED
             and standard_configuration.get("found_clause_for_a_person")):
         # AM-322 r11 — a qualitative §12 position (data residency, a breach-notice
@@ -2305,6 +2344,11 @@ def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
     # ---- evaluate + persist ---------------------------------------------
     try:
         output = evaluate(evaluator_input)
+        if widened:     # AM-322 r17: cited rows stay PRIMARY; CONFLICTING is untouched
+            output = replace(output, evaluations=tuple(replace(r, evidence_relationships={
+                e: "SUPPORTING" if e in widened and rel == "PRIMARY" else rel
+                for e, rel in r.evidence_relationships.items()})
+                for r in output.evaluations))
     except OptionalRequirementAbsent:
         # Locked F-1 — nothing was required, nothing was found, nothing is
         # asserted. Coverage, not a gap.
