@@ -42,12 +42,29 @@ def test_every_new_position_quotes_the_canonical_constitution_verbatim(code):
         quote = next(h["source_quote_before"] for h in payload["_history"]
                      if h.get("record") == "AM-380")
         _in_our_msa(payload["source_quote"])
+    if payload.get("source_file") == "TOS-leapswitch.pdf":
+        # AM-421: the TOS copy now states our published TOS; its Constitution quote is history
+        quote = next(h["source_quote_before"] for h in payload["_history"]
+                     if h.get("record") == "AM-421")
+        _in_our_tos(payload["source_quote"])
     for part in quote.split(" ... "):
         assert part in text, (code, part)
     if cfg.get("unacceptable_position"):
         assert cfg["unacceptable_position"] in text, code
     assert cfg["constitution"]["version"] == "L1.16"
     assert payload["legal_rule"]["configuration"] == OWNER_EFFECT_RULE     # AM-383
+
+
+def _in_our_tos(quote: str) -> None:
+    """An AM-421 quote is our TOS's own text (TOS-leapswitch.pdf, whitespace normalised);
+    skipped where the source material is not on the machine (CI)."""
+    pdf = (Path(os.environ.get("LEGALMIND_SOURCE_MATERIAL_DIR", ROOT / "legal-docs"))
+           / "TOS-leapswitch.pdf")
+    if not pdf.exists():
+        pytest.skip("TOS-leapswitch.pdf not supplied on this machine")
+    import pymupdf
+    text = " ".join(" ".join(page.get_text() for page in pymupdf.open(pdf)).split())
+    assert " ".join(quote.split()) in text, quote
 
 
 def _in_our_msa(quote: str) -> None:
@@ -126,10 +143,17 @@ OUR_TOS_BREACH = ("Breach Notification: Leapswitch will notify you without undue
                   "customer-hosted data.")
 
 
-def test_our_published_breach_wording_is_read_by_a_person(build, db):
-    # AM-322 r11: our own TOS too — found, not MISSING; a person confirms it
-    assert _one(build, db, "BREACH-NOTIFICATION-TOS-001", "TOS", "4. Data Protection",
-                OUR_TOS_BREACH) == "UNABLE_TO_EVALUATE"
+def test_our_published_breach_wording_is_our_own_wording(build, db):
+    # AM-421 (owner 2026-11-18: the live TOS is final for a TOS): our TOS §10 word for
+    # word is MATCH (AM-386's test); AM-322 r11 had a person confirm it
+    assert _one(build, db, "BREACH-NOTIFICATION-TOS-001", "TOS", "10. Data Processing",
+                OUR_TOS_BREACH) == "MATCH"
+
+
+def test_our_breach_wording_changed_by_one_word_goes_to_a_person(build, db):
+    assert _one(build, db, "BREACH-NOTIFICATION-TOS-001", "TOS", "10. Data Processing",
+                OUR_TOS_BREACH.replace("without undue delay", "when practicable")) \
+        == "UNABLE_TO_EVALUATE"
 
 
 @pytest.mark.parametrize("heading,clause", [
@@ -163,17 +187,27 @@ def test_sub_processors_disclosed_and_bound_are_read_by_a_person(build, db):
         == "UNABLE_TO_EVALUATE"
 
 
-@pytest.mark.parametrize("clause", [
-    "Provider may engage any sub-processors without notice to or consent of the Customer "
-    "and shall have no liability for them.",
-    # our published TOS lists them but does not say they are bound: a person decides
-    "Sub-Processors: Leapswitch may engage sub-processors as listed in our Privacy "
-    "Policy. We will notify you of any changes to sub-processors that directly affect "
-    "the processing of your data.",
-])
-def test_sub_processors_not_both_disclosed_and_bound_are_never_a_match(build, db, clause):
+OUR_TOS_SUB = ("Sub-Processors: Leapswitch may engage sub-processors as listed in our Privacy "
+               "Policy. We will notify you of any changes to sub-processors that directly "
+               "affect the processing of your data.")
+
+
+def test_sub_processors_not_both_disclosed_and_bound_are_never_a_match(build, db):
     assert _one(build, db, "SUB-PROCESSORS-TOS-001", "TOS", "4. Data Protection",
-                clause) == "UNABLE_TO_EVALUATE"
+                "Provider may engage any sub-processors without notice to or consent of the "
+                "Customer and shall have no liability for them.") == "UNABLE_TO_EVALUATE"
+
+
+def test_our_published_sub_processor_wording_is_our_own_wording(build, db):
+    # AM-421: our TOS §10 word for word is MATCH (AM-386's test)
+    assert _one(build, db, "SUB-PROCESSORS-TOS-001", "TOS", "10. Data Processing",
+                OUR_TOS_SUB) == "MATCH"
+
+
+def test_our_sub_processor_wording_changed_by_one_word_goes_to_a_person(build, db):
+    assert _one(build, db, "SUB-PROCESSORS-TOS-001", "TOS", "10. Data Processing",
+                OUR_TOS_SUB.replace("We will notify you", "We may notify you")) \
+        == "UNABLE_TO_EVALUATE"
 
 
 def test_an_msa_naming_no_sub_processors_is_missing_them(build, db):
@@ -682,9 +716,11 @@ def test_an_added_paragraph_or_sub_clause_after_our_wording_goes_to_a_person(bui
                 extra) == "UNABLE_TO_EVALUATE"
 
 
-def test_only_the_msa_copies_accept_their_own_wording():
+def test_only_our_own_paper_copies_accept_their_own_wording():
+    # AM-386 the two MSA copies; AM-421 the two TOS copies (our published TOS §10)
     assert {p.stem for p in STANDARDS.glob("*.json")
-            if "own_wording_match" in json.loads(p.read_text())["configuration"]} == {DR, SP}
+            if "own_wording_match" in json.loads(p.read_text())["configuration"]} \
+        == {DR, SP, BNT, SPT}
 
 
 @pytest.mark.skipif(not (_SRC / "MSA-GRP-2026-07-30.pdf").is_file(),

@@ -87,7 +87,9 @@ def _query(db, conv, ordinal):
 
 
 FIRST = "What does our Constitution say about early termination of a fixed-term deal?"
-CLAIM = "What if the customer says they were promised 6 months?"
+# AM-421 (L1.18): our MSA now states "six (6) months" (7.3 renewal, 17.2 cap), so the
+# reader's figure must be one no position states for the claim to stay a claim.
+CLAIM = "What if the customer says they were promised 9 months?"
 
 
 def test_a_follow_up_inherits_the_topic_and_the_claim_stays_a_claim(corpus, user, caplog):
@@ -100,10 +102,26 @@ def test_a_follow_up_inherits_the_topic_and_the_claim_stays_a_claim(corpus, user
     assert _query(corpus, conv, 2) == CLAIM
     assert second.text.count(FIRST) == 0
     # The reader's figure is context, never the position (`AM-78`, roadmap §15).
-    assert "No company position states 6 months" in second.text
-    assert not any("policy is 6 months" in s for s in second.text.split(". "))
+    assert "No company position states 9 months" in second.text
+    assert not any("policy is 9 months" in s for s in second.text.split(". "))
     assert any(r.startswith("CONST:14") for r in traces[1]["evidence_refs"]), \
         "topic carried: the early-exit section answers the follow-up"
+
+
+
+def test_a_six_month_claim_is_never_our_policy_though_our_msa_states_six_months(corpus, user,
+                                                                               caplog):
+    """AM-423 r2 (L1.18): our MSA's own "six (6) months" (7.3 renewal, 17.2 cap) is now in
+    the evidence, so the reader's-figure note no longer fires for "6 months" (the figure
+    match is by words, not topic — recorded, not fixed); the claim is still never stated
+    as our policy."""
+    caplog.set_level(logging.INFO)
+    _, (_, second), _ = _thread(corpus, user, FIRST,
+                                "What if the customer says they were promised 6 months?",
+                                caplog=caplog)
+    assert second.answer_state.value == "ANSWERED"
+    assert "No company position states 6 months" not in second.text
+    assert not any("policy is 6 months" in s for s in second.text.split(". "))
 
 
 def test_an_ambiguous_follow_up_keeps_the_last_self_contained_anchor(corpus, user, caplog):
