@@ -671,3 +671,18 @@ def test_in_production_a_missing_broker_leaves_the_upload_unindexed_and_logged(
     failed = [r for r in caplog.records
               if r.getMessage() == "assist.index.dispatch_failed"]
     assert failed and failed[0].legalmind_fields["error"] == "no_broker"
+
+
+def test_an_analysis_sent_after_the_session_closed_still_carries_its_review(
+        db, review, queued, monkeypatch):
+    """Production 2026-11-18/19: the publish thread ran after the request's session had
+    closed; reading `review.id` raised DetachedInstanceError and the contract was never
+    analysed. The ids are read before commit, so a detached Review sends the job."""
+    held: list = []
+    monkeypatch.setattr(D, "_off_loop", held.append)   # the thread runs later
+    expected = str(review.id)
+    D.dispatch_analysis(db, review, after_commit=True)
+    db.commit()                                         # expires `review`
+    db.expunge(review)                                  # ...and the session lets go
+    held.pop()()
+    assert [c["kwargs"]["review_id"] for c in queued] == [expected]

@@ -10,6 +10,15 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 
+- Fix (2026-11-19, production E2E): **a new contract was sometimes never analysed.** The
+  after-commit publish thread read `review.id` / `version.id` after the request's session had
+  closed; `DetachedInstanceError` dropped the analysis job (and the PDF job) and the warning with
+  it (seen 2026-11-18 12:28 and 2026-11-19 12:43 IST, both on test contracts). The ids are now
+  read before commit; `test_an_analysis_sent_after_the_session_closed_still_carries_its_review`
+  reproduces the production error on the old code. `ops/deploy.sh` no longer reports "nginx
+  reloaded" when nginx refused the reload (a `limit_req_zone` key change, 2026-11-19, left the
+  old rate limit live since 14 Nov): it compares worker PIDs and restarts when the reload did
+  not take.
 - AB-214 (2026-11-18, `AM-411`–`AM-414`; not deployed). **"Ask the client" never strands a deal**
   (C-33 resolved, option a): a point waiting on a question Legal asked the client no longer blocks
   Sign after our changes / Do not sign / On hold (still blocks Sign as is; any other clarification

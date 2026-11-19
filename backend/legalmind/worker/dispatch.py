@@ -131,6 +131,10 @@ def dispatch_analysis(db: DBSession, review: M.Review, *,
     # depends on that cycle resolving.
     from legalmind.worker.tasks import analyse_review
 
+    # Plain ids, read now: `send` may run after the session closed, when reading
+    # `review.id` raises DetachedInstanceError and the job is silently never sent.
+    review_id = str(review.id)
+
     def send() -> Any:
         return analyse_review.apply_async(
             kwargs={
@@ -138,7 +142,7 @@ def dispatch_analysis(db: DBSession, review: M.Review, *,
                 # the legal position travels through the broker (53.3's instinct
                 # applied to a queue): the worker reads all of it from the pinned
                 # snapshot, which is also what keeps the job reproducible (AUD-04).
-                "review_id": str(review.id),
+                "review_id": review_id,
                 "actor_id": str(actor_id) if actor_id else None,
                 "request_id": request_id,
                 # AM-245: the owner's override, only when given — a flag, not content
@@ -155,7 +159,7 @@ def dispatch_analysis(db: DBSession, review: M.Review, *,
                 send()
             except Exception as exc:     # never fails the request that committed
                 log_event("analysis.dispatch_failed", level=logging.WARNING,
-                          request_id=request_id, review_id=str(review.id),
+                          request_id=request_id, review_id=review_id,
                           error=type(exc).__name__, operational_failure=True)
 
         _after_commit(db, publish)
@@ -323,17 +327,18 @@ def dispatch_pdf(db: DBSession, version: M.DocumentVersion, kind: str, *,
         return DispatchMode.INLINE.value
 
     pdf.mark(version, kind, pdf.RENDERING)
+    version_id = str(version.id)      # as in dispatch_analysis: no ORM read after commit
 
     def send() -> None:
         try:
             from legalmind.worker.tasks import render_pdf
 
-            render_pdf.apply_async(kwargs={"document_version_id": str(version.id),
+            render_pdf.apply_async(kwargs={"document_version_id": version_id,
                                            "kind": kind, "request_id": request_id},
                                    queue=QUEUE_ASSIST)
         except Exception as exc:      # the stale-record redispatch is the retry
             log_event("drafting.pdf.dispatch_failed", level=logging.WARNING,
-                      request_id=request_id, document_version_id=str(version.id),
+                      request_id=request_id, document_version_id=version_id,
                       error=type(exc).__name__, operational_failure=True)
 
     _after_commit(db, send)
