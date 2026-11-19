@@ -31162,3 +31162,9 @@ r5  Legal may add its own wording to either annexure later through AM-412 (draft
 r6  OPEN FOR LEGAL: confirmation of this structure is an item of the next lawyer review of
     the MSA template (ENTERPRISE_TRACKER). Until then nothing here is Legal's ruling.
 ```
+
+`AM-414` r7 — OWNER CONFIRMATION, 2026-11-19. Asked directly whether a final contract may go out
+without a sentence stating that Annexure 2 prevails over the MSA body (each Annexure 2 entry reads
+"Clause X is replaced by the following"; MSA 21.3's text sets no order despite its heading), the
+owner answered "yes, merge and deploy". AM-414 therefore rests on the owner's own words, not on a
+relay. r6 stands: Legal confirms the structure at the next lawyer review of the MSA template.
