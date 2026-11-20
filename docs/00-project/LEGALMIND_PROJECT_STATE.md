@@ -11,6 +11,10 @@
 
 ---
 
+**2026-11-20 — AB-219 (built, not deployed).** Batch 6 "client misreads": LegalMind reads clause
+numbers and headings as typed, never calls a reworded clause missing, says why an indemnity is a
+difference, and gives reasons on NDA and list-item changes.
+
 **2026-11-20 — AB-218 (DEPLOYED 2026-11-20, 0acf53b6).** Batches 3+4 "deal brief": a one-minute summary
 above the tabs for sales and the lawyer, one label per change, Legal records what we told the
 client (never sent to the client), one "your turn" notice, and "Whole contract" for points no

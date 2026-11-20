@@ -19,7 +19,9 @@ from legalmind.evaluation.presence import evaluate_presence
 # identify the exact evaluator version, persisted via AM-19.
 EVALUATOR_VERSIONS: dict[EvaluatorType, str] = {
     EvaluatorType.NUMERIC_COMPARISON: "NUMERIC-COMPARISON-v1",
-    EvaluatorType.PRESENCE: "PRESENCE-v1",
+    # v2 (2026-11-20, batch 6): TOO_BROAD records its cause (`actual_value.cause`) and
+    # names AM-381 r2's indemnity given by us; v1 records replay as they were.
+    EvaluatorType.PRESENCE: "PRESENCE-v2",
     EvaluatorType.CATEGORICAL: "CATEGORICAL-v1",
 }
 

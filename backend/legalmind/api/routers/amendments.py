@@ -31,7 +31,7 @@ from fastapi import APIRouter, Body, Depends
 from sqlalchemy import select
 from sqlalchemy.exc import DBAPIError
 
-from legalmind.analysis import negotiation
+from legalmind.analysis import negotiation, reader_generation
 from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
 from legalmind.api.envelope import data
 from legalmind.api.errors import Conflict
@@ -381,6 +381,7 @@ def effective_text(contract_id: UUID, guard: Guard = Depends(get_guard)) -> dict
         else {"read": read, "reason": reason})
     listed = []
     steps: list[tuple[str | None, set]] = []     # each applied amendment's text, in order
+    paired = units              # our signed text as the clauses beside it are read
     for amendment, at in _signed_amendments(db, contract.id):
         if _readable(guard, amendment.id) is None:
             # SEC-07 / rule 15: an amendment the caller cannot read is never applied for
@@ -416,6 +417,11 @@ def effective_text(contract_id: UUID, guard: Guard = Depends(get_guard)) -> dict
                 if status not in (effective.APPLIED, effective.NONE):
                     why = reason or "its Special Conditions could not be read"
                 else:
+                    # batch 6 R2-3: an amendment's copy and our signed text, read by
+                    # different readers, are aligned as one reads them
+                    ours_read, got = reader_generation.as_one_reader(
+                        db, signed.id, final.id, clauses, got)
+                    paired = negotiation._units(ours_read)
                     current = {"read": status, "units": negotiation._units(got)}
                     in_force = agreed
         if why is None:
@@ -429,6 +435,7 @@ def effective_text(contract_id: UUID, guard: Guard = Depends(get_guard)) -> dict
                        "document_version_id": str(final.id) if final else None,
                        "applied": why is None})
     if current.get("units") is not None:
-        current = {"read": current["read"], **_beside(units, current.pop("units"), steps)}
+        current = {"read": current["read"],
+                   **_beside(paired, current.pop("units"), steps)}
     return data({"contract_id": str(contract.id), "original": original,
                  "amendments": listed, "current": current})

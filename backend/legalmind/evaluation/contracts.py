@@ -151,6 +151,10 @@ class MappingInput:
     #: ruled too broad (an indemnity covering indirect or consequential loss or lost
     #: profits, or restricting our control of the defence). A fact, never text (45D).
     too_broad: bool = False
+    #: Why ``too_broad`` holds (batch 6, AM-381 r2 rider): ``BREADTH`` — AM-154's breadth;
+    #: ``OUR_INDEMNITY`` — under ``customer_indemnity_only`` LeapSwitch (or each party)
+    #: gives an indemnity. A fact, never text (45D); None when not too broad.
+    too_broad_cause: str | None = None
     #: Whether the clause found reaches only PART of the position — a data-loss exclusion
     #: limited to losses the customer or a third party caused, where the Constitution's
     #: position (L1.14 §9) also covers our own operational error (2026-10-21). A fact.

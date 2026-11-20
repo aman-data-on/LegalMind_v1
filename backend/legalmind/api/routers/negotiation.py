@@ -55,7 +55,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import select, update
 
 from legalmind import notifications
-from legalmind.analysis import document_comparison, negotiation
+from legalmind.analysis import document_comparison, negotiation, reader_generation
 from legalmind.analysis.service import AnalysisNotPermitted
 from legalmind.analysis.version_comparison import ComparisonNotPossible
 from legalmind.api import ratelimit
@@ -1536,8 +1536,14 @@ def _derive(guard: Guard, before: M.DocumentVersion, after: M.DocumentVersion,
     second one. Each side read as its Special Conditions vary it (the change list's own
     reading); the template's text from our version's raw body, which is the template's."""
     db = guard.db
-    old, new = (negotiation._units(negotiation.read_clauses(
-        db, v.id, effective.effective_clauses)[0]) for v in (before, after))
+    ours, theirs = (negotiation.read_clauses(db, v.id, effective.effective_clauses)[0]
+                    for v in (before, after))
+    # batch 6 D1: read as the change list reads them — the older generation re-read
+    ours, theirs = reader_generation.as_one_reader(db, before.id, after.id, ours, theirs)
+    old, new = negotiation._units(ours), negotiation._units(theirs)
+    body = load_clauses(db, before.id)
+    if (o := reader_generation.older(db, before.id, after.id)) and o[0] == before.id:
+        body = reader_generation.reread_clauses(db, body, o[1], o[2])
 
     def standard(cv_id: str | None) -> str | None:
         cv = db.get(M.ClauseVersion, UUID(cv_id)) if cv_id else None
@@ -1546,7 +1552,7 @@ def _derive(guard: Guard, before: M.DocumentVersion, after: M.DocumentVersion,
     return special_conditions.derive(
         listed["changes"], old, new, negotiation._align(old, new), basis["base"],
         standard, prior=_prior(db, before),
-        template=negotiation._units(load_clauses(db, before.id)))
+        template=negotiation._units(body))
 
 
 def _in_package(guard: Guard, before: M.DocumentVersion | None,

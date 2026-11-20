@@ -16,7 +16,7 @@ from fastapi.responses import Response
 from sqlalchemy import func, select, text
 
 from legalmind import config, notifications
-from legalmind.analysis import document_comparison, negotiation
+from legalmind.analysis import document_comparison, negotiation, reader_generation
 from legalmind.analysis.version_comparison import (
     ComparisonNotPossible,
     compare_versions,
@@ -467,6 +467,9 @@ def compare_documents(
     traversal (`document.view`), so a version the caller cannot read is the same 404
     as one that does not exist (SEC-07); a website key needs only `document.view`."""
     sides = _comparison_pair(guard, left, right)
+    # batch 6 R2-3: two stored versions read by different readers compare as one reads
+    older = reader_generation.older(guard.db, sides[0][1].id, sides[1][1].id) \
+        if sides[0][1] is not None and sides[1][1] is not None else None
 
     def content(ref: str, version: M.DocumentVersion | None) -> dict:
         if version is None:
@@ -474,7 +477,9 @@ def compare_documents(
         contract = guard.db.get(M.Contract, version.contract_id)
         if contract is None:          # a version outlives no contract; never a 500
             raise NotVisible("document not found")
-        return document_comparison.version_side(guard.db, contract, version)
+        return document_comparison.version_side(
+            guard.db, contract, version,
+            reread=older[1:] if older and older[0] == version.id else None)
 
     try:
         return data(document_comparison.compare(content(left, sides[0][1]),

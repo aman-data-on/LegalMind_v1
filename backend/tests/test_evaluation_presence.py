@@ -162,8 +162,9 @@ def test_mapping_input_carries_no_clause_text():
     # `AM-152` added a boolean polarity FACT — never text (the waiving sentence stays
     # with the analysis record).
     # `too_narrow` (G-F, 2026-10-21) is a boolean fact like `too_broad` — never text.
+    # `too_broad_cause` (batch 6, AM-381 r2 rider) is one of two fixed tokens — never text.
     assert fields == {"mapping_state", "evidence_refs", "opposed", "too_broad",
-                      "too_narrow", "one_sided", "contested", "restated"}
+                      "too_broad_cause", "too_narrow", "one_sided", "contested", "restated"}
     for flag in ("opposed", "too_broad", "too_narrow", "one_sided"):
         assert MappingInput.__dataclass_fields__[flag].type in ("bool", bool)
     for banned in ("content", "text", "clause_text", "raw", "body", "patterns"):
@@ -211,7 +212,7 @@ def test_a_mistyped_expected_presence_is_a_configuration_error(typo):
 
 def test_evaluator_version_is_recorded():
     e = only(evaluate(presence_input(S.CONFIRMED)))
-    assert e.evaluator_version == "PRESENCE-v1"
+    assert e.evaluator_version == "PRESENCE-v2"
 
 
 def test_no_evaluator_lets_a_rule_accept_a_deviation():

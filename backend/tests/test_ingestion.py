@@ -6,6 +6,7 @@ in invented text or legal conclusions.**
 
 from __future__ import annotations
 
+import functools
 import io
 import zipfile
 
@@ -674,6 +675,113 @@ def test_a_long_numbered_paragraph_keeps_its_number():
     assert parsing.detect_clause_number("12 Months after termination" + tail) \
         == (None, None)
     assert parsing.detect_clause_number("6.3 above and" + tail) == (None, None)
+
+
+def test_a_long_sub_clause_keeps_its_number_whatever_its_first_word():
+    """Batch 6 (2026-11-20): over 200 characters a typed "N.N." lost its number when a
+    lowercase word or a single quote followed, so the text joined the clause above and a
+    real change read as one clause DELETED and another MODIFIED. The short path already
+    read both; the long one now agrees. Without the dot a lowercase word stays prose."""
+    d = parsing.detect_clause_number
+    assert d("1.2. \u2018Widget\u2019 shall mean " + "x " * 120) == ("1.2", None)
+    assert d("1.2. 'Widget' shall mean " + "x " * 120) == ("1.2", None)
+    assert d("4.1.3. suspension required by law " + "y " * 120) == ("4.1.3", None)
+    assert d("6.3 above and " + "z " * 120) == (None, None)
+
+
+def test_a_number_glued_to_its_text_is_still_its_number():
+    """Batch 6: "1.9.“Force Majeure” shall…" types no space after the number, so the
+    definition had none and was cited as the clause above. A quote opens a defined
+    term (never a title); a bare "12." or a year stays prose."""
+    d = parsing.detect_clause_number
+    assert d("1.4.“Widget” shall have the meaning set forth in Clause 3.") == ("1.4", None)
+    assert d("2.3.The Supplier shall deliver the goods.") == ("2.3", None)
+    assert d("1.4.“Widget” shall mean " + "w " * 120) == ("1.4", None)
+    assert d("2026.“Quote” said the party.") == (None, None)
+    assert d("12.") == (None, None)
+    # round 2 (D9): a figure or a date glued to a word stays prose; a closing quote
+    # typed to open a term still numbers it
+    for prose in ("3.5.Mbps link", "99.99.Uptime", "0.5.The rate", "12.10.2026.The parties",
+                  "12.10.2026.\u201cEffective Date\u201d",
+                  "12.10.2026. the parties " + "p " * 100):
+        assert d(prose) == (None, None), prose
+    assert d("1.2.\u2019Widget\u2019 means a part.") == ("1.2", None)
+    assert d("1.2.\u201dWidget\u201d means a part.") == ("1.2", None)
+
+
+def test_a_word_heading_style_over_a_table_is_a_heading():
+    """Batch 6: "Execution" in Word's Heading 1 over a signature table has no prose
+    after it, so the shape rule missed it and the table's changes were filed under the
+    last numbered clause. The document's own heading style marks it; a heading-styled
+    sentence is still not a heading."""
+    import docx
+
+    d = docx.Document()
+    d.add_paragraph("9.4. Counterparts: This agreement may be signed in counterparts.")
+    d.add_paragraph("Execution", style="Heading 1")
+    d.add_paragraph("The parties have signed this agreement on the date first written.",
+                    style="Heading 2")
+    d.add_table(rows=1, cols=2).rows[0].cells[0].text = "For the Provider"
+    buf = io.BytesIO()
+    d.save(buf)
+    segs = {s.content.split("\n")[0]: s for s in parsing.parse_docx(buf.getvalue()).segments}
+    assert segs["Execution"].metadata.get("heading") is True
+    assert segs["Execution"].section_title == "Execution"
+    assert "heading" not in segs["The parties have signed this agreement on the date "
+                                 "first written."].metadata
+
+
+def test_a_heading_style_with_its_body_after_a_soft_break_is_no_heading():
+    """D8: a run-in "Payment Terms" + soft break + its sentence, styled Heading 2, is a
+    clause body, never one heading line."""
+    import docx
+
+    d = docx.Document()
+    d.add_paragraph("7.1 The Provider shall invoice monthly.")
+    p = d.add_paragraph("Payment Terms", style="Heading 2")
+    p.add_run().add_break()
+    p.add_run("The Customer shall pay all invoices within thirty (30) days.")
+    d.add_table(rows=1, cols=2)
+    buf = io.BytesIO()
+    d.save(buf)
+    [seg] = [s for s in parsing.parse_docx(buf.getvalue()).segments
+             if s.content.startswith("Payment Terms")]
+    assert "heading" not in seg.metadata
+
+
+def test_an_older_readers_row_is_reread_by_todays_rules():
+    """D1: a row the v11 reader stored, re-read as v12 reads it — a number it missed, a
+    Word heading style; a stored number kept; prose stays prose."""
+    r = functools.partial(parsing.reread, since=11, upto=12)
+    long = "4.1.3. suspension required by law " + "y " * 120
+    assert r(long, None, None, False, None) == ("4.1.3", None, False)
+    assert r("1.9.\u201cForce\u201d has the meaning in Clause 8.", None, None, False,
+             "Normal") == ("1.9", None, False)
+    assert r("Signatures", None, None, False, "Heading 1") == (None, "Signatures", True)
+    assert r("12. Fees", "12", "Fees", True, None) == ("12", "Fees", True)
+    assert r("12 Months later the term ends.", None, None, False, None) == (
+        None, None, False)
+    # a pair of one generation, or one already at v12, reads nothing more
+    assert parsing.reread(long, None, None, False, None, since=12, upto=12) == (
+        None, None, False)
+
+
+def test_a_later_reader_never_moves_a_pair_already_compared(monkeypatch):
+    """R2-4: a v11/v12 pair is re-read up to v12 only. A hypothetical v13 that numbers
+    more (its own READER_ADDS entry, a changed live detector) leaves it as it was, and
+    reaches only a pair whose newer side is v13."""
+    rows = ["4.1.3. suspension required by law " + "y " * 120, "Signatures",
+            "(a) a lettered item the v13 reader would number", "Plain prose."]
+    before = [parsing.reread(t, None, None, False, "Heading 1" if t == "Signatures"
+                             else None, since=11, upto=12) for t in rows]
+    monkeypatch.setitem(parsing.READER_ADDS, 13,
+                        lambda normalized, style: ("99", None, False))
+    monkeypatch.setattr(parsing, "detect_clause_number", lambda line: ("99", None))
+    after = [parsing.reread(t, None, None, False, "Heading 1" if t == "Signatures"
+                            else None, since=11, upto=12) for t in rows]
+    assert after == before
+    assert parsing.reread(rows[2], None, None, False, None, since=11, upto=13)[0] == "99"
+
 
 
 def test_a_broken_sentence_is_not_promoted_to_a_heading():

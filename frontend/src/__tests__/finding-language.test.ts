@@ -622,6 +622,16 @@ describe("waived, too broad and working days read as what they are (AM-152/AM-15
   it("never shows the raw tokens", () => {
     expect(sideOf({ presence: "WAIVED" }).text).toBe("Waived by the document");
     expect(sideOf({ presence: "TOO_BROAD" }).text).toBe("Broader than our standard");
+    expect(sideOf({ presence: "TOO_BROAD", cause: "BREADTH" }).text).toBe("Broader than our standard");
+    // AM-381 r2 (batch 6): the cause PRESENCE-v2 records — LeapSwitch gives an indemnity
+    expect(sideOf({ presence: "TOO_BROAD", cause: "OUR_INDEMNITY" }).text)
+      .toBe("LeapSwitch gives an indemnity; our standard has only the Customer's");
+    const broad = (actual: Record<string, unknown>) => findingSentence(
+      finding({ classification: "DEVIATION" }),
+      evaluation({ classification: "DEVIATION", actual_value: actual, expected_value: { presence: "PRESENT" } }));
+    expect(broad({ presence: "TOO_BROAD", cause: "OUR_INDEMNITY" }))
+      .toBe("In the document LeapSwitch gives an indemnity; the company standard has only the Customer's.");
+    expect(broad({ presence: "TOO_BROAD" })).toMatch(/goes further than the company standard allows/);
     expect(sideOf({ cap_value: 5, cap_unit: "WORKING_DAYS", scope: "GENERAL" }).text).toBe("5 working days");
   });
 });

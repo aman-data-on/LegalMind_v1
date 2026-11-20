@@ -35,12 +35,13 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass, field, replace
+from itertools import pairwise
 from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DBSession
 
-from legalmind.analysis import negotiation, semantic
+from legalmind.analysis import negotiation, reader_generation, semantic
 from legalmind.analysis import reading as _reading
 from legalmind.analysis.opposition import opposing_signals
 from legalmind.analysis.unmatched import record_unmatched_provisions
@@ -74,7 +75,12 @@ from legalmind.evaluation.contracts import (
     RequirementContext,
 )
 from legalmind.evaluation.numeric import MUTUAL
-from legalmind.evaluation.presence import OptionalRequirementAbsent, PresenceMisconfigured
+from legalmind.evaluation.presence import (
+    BREADTH,
+    OUR_INDEMNITY,
+    OptionalRequirementAbsent,
+    PresenceMisconfigured,
+)
 from legalmind.evaluation.registry import evaluate, version_for
 from legalmind.evaluation.service import (
     EvidenceCardinalityViolation,
@@ -380,6 +386,9 @@ def run_analysis(db: DBSession, review: M.Review, *,
                        "that failed OCR), so the absence of "
                        f"{', '.join(unread)} cannot be established; re-upload a "
                        "complete, clean copy", "extraction_partial")
+    if unread and version is not None:
+        mappings.update(_rewritten_not_absent(db, version, items, mappings, clauses,
+                                              clause_loader))
     # `requirements_in_snapshot` keeps the SNAPSHOT count — the audit record must
     # state what was pinned, not what applied.
     run.requirements_applicable = len(items)
@@ -744,6 +753,106 @@ def _review_model():
             not chosen.base_url_env or os.environ.get(chosen.base_url_env, "").strip())):
         raise model_router.ModelNotConfigured(chosen.label)
     return chosen
+
+
+def _rewritten_not_absent(db: DBSession, version: M.DocumentVersion,
+                          items: list[_SnapshotItem],
+                          mappings: dict[str, MappingResult | str], clauses: list[Clause],
+                          clause_loader: negotiation.ClauseLoader
+                          ) -> dict[str, MappingResult]:
+    """Batch 6 lineage guard (AM-322 r11 / 45D rider): on the client's version, a
+    requirement mapped to NONE whose clause our version FOUND (CONFIRMED, or our own
+    wording, AM-386) — the latest of our versions that found it (D6) — and whose clause
+    survives into this version, followed version by version and paired by its text,
+    never by its number alone (D5), is UNRESOLVED on the surviving clause, never
+    MISSING: a rewrite in words the configured terms do not name is not absence (rule
+    15). Lexical only, from immutable evidence and THIS Review's snapshot; our version is
+    named (REC-07). A clause the client deleted, or replaced by an unrelated one, stays
+    MISSING; only a counterparty version is guarded (D7), an undeclared one never (P1)."""
+    absent = [i for i in items if isinstance(m := mappings[i.requirement.code],
+                                             MappingResult)
+              and m.state is MappingState.NONE]
+    if not absent or not negotiation.is_theirs(version):
+        return {}
+    versions = sorted(db.execute(select(M.DocumentVersion).where(
+        M.DocumentVersion.contract_id == version.contract_id)).scalars(),
+        key=lambda v: v.version_number)
+    ours_back: list[M.DocumentVersion] = []        # our versions before it, newest first
+    try:
+        v: M.DocumentVersion | None = version
+        while v is not None and (v := negotiation.our_previous(versions, v)) is not None:
+            ours_back.append(v)
+    except negotiation.VersionRoleUndeclared:
+        pass                                       # P1: never past an undeclared version
+    read: dict[UUID, list[Clause]] = {version.id: clauses}
+
+    def clauses_of(v: M.DocumentVersion) -> list[Clause]:
+        if v.id not in read:
+            read[v.id] = negotiation.read_clauses(db, v.id, clause_loader)[0]
+        return read[v.id]
+
+    out: dict[str, MappingResult] = {}
+    for item in absent:
+        found = next(((ours, ids) for ours in ours_back
+                      if (ids := _found_on(item, clauses_of(ours)))), None)
+        if found is None:
+            continue
+        ours, ids = found
+        path = [v for v in versions
+                if ours.version_number <= v.version_number <= version.version_number]
+        kept, named = _follow(db, path, clauses_of, {str(e) for e in ids})
+        if not kept:
+            continue                        # deleted, or replaced by another: absent
+        m = mappings[item.requirement.code]
+        assert isinstance(m, MappingResult)
+        out[item.requirement.code] = replace(
+            m, state=MappingState.UNRESOLVED, candidates=(),
+            evidence_ids=tuple(UUID(e) for e in kept),
+            explanation=(*m.explanation,
+                         f"lineage: our version's clause {named} was found for this "
+                         "requirement; the client's version of it no longer uses the "
+                         "configured words, so a person reads it (rule 15); our version "
+                         f"{ours.id}"))
+    return out
+
+
+def _found_on(item: _SnapshotItem, clauses: list[Clause]) -> tuple[UUID, ...]:
+    """The evidence our version FOUND the requirement on, lexically (D4): a CONFIRMED
+    mapping, or the standard's own wording word for word (AM-386); else ()."""
+    found = _map_item(item, clauses)                   # lexical: no index, no egress
+    if isinstance(found, str) or found.state is MappingState.NONE:
+        return ()
+    if found.state is MappingState.CONFIRMED:
+        return found.evidence_ids
+    standard = item.company_standard.configuration or {}
+    own = (_own_wording_clause(clauses, found, standard)
+           if standard.get("found_clause_for_a_person") else None)
+    return (own,) if own is not None else ()
+
+
+def _follow(db: DBSession, path: list[M.DocumentVersion], clauses_of,
+            ids: set[str]) -> tuple[list[str], str]:
+    """The evidence of the units ``ids`` became, version to version along ``path``, each
+    hop aligned as the change list aligns it but never by number alone (D5), and the
+    first version's unit names; ([], …) once a hop loses them."""
+    named = ""
+    for a, b in pairwise(path):
+        ca, cb = reader_generation.as_one_reader(
+            db, a.id, b.id, clauses_of(a), clauses_of(b))
+        old, new = negotiation._units(ca), negotiation._units(cb)
+        by_number: set[int] = set()
+        aligned = negotiation._align(old, new, by_number)
+        if not named:
+            named = ", ".join(dict.fromkeys(
+                u["number"] or u["heading"] or "unnumbered" for u in old
+                if ids & set(u["evidence_ids"])))
+        ids = {e for i, j, _ in aligned if i is not None and j is not None
+               and j not in by_number and ids & set(old[i]["evidence_ids"])
+               for e in new[j]["evidence_ids"]}
+        if not ids:
+            return [], named
+    last = negotiation._units(clauses_of(path[-1]))
+    return [e for u in last for e in u["evidence_ids"] if e in ids], named
 
 
 def _map_item(item: _SnapshotItem, clauses: list[Clause],
@@ -2216,9 +2325,12 @@ def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
                           explanation=(*mapping.explanation, "the clause found is the "
                                        "standard's own wording word for word (AM-386)"))
     elif (standard_configuration.get("found_clause_for_a_person")
-            and mapping.state in (MappingState.CONFIRMED, MappingState.UNRESOLVED)):
+            and mapping.state is MappingState.CONFIRMED):
         # AM-322 r12 — what was found is read by a person: cite the whole section;
-        # r17 — the rows added around the cited ones are SUPPORTING, never PRIMARY
+        # r17 — the rows added around the cited ones are SUPPORTING, never PRIMARY.
+        # Batch 6 rider: only what the mapping FOUND (CONFIRMED, before r11) widens — a
+        # weak UNRESOLVED hit ("third-party service providers" in force majeure) cites
+        # its own scored rows, never its whole section
         cited = set(mapping.evidence_ids)
         mapping = replace(mapping, evidence_ids=_whole_sections(clauses, mapping))
         widened = set(mapping.evidence_ids) - cited
@@ -2235,7 +2347,7 @@ def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
     outcome.mapping_state = mapping.state.value
     # AM-54 — the semantic stage's record travels with the evaluation (REC-07).
     outcome.diagnostics.extend(line for line in mapping.explanation
-                               if line.startswith("semantic mapping:"))
+                               if line.startswith(("semantic mapping:", "lineage:")))
 
     evidence = tuple(EvidenceRef(evidence_id=eid) for eid in mapping.evidence_ids)
     # `AM-152` — the sentence that waives the position, kept with the analysis record
@@ -2251,9 +2363,11 @@ def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
                          standard_configuration)
              if mapping.state is MappingState.CONFIRMED else None)
     only_theirs = standard_configuration.get("customer_indemnity_only")
+    broad_cause = BREADTH if broad else None
     if broad is None and standard_configuration.get("scope_key") == "INDEMNIFICATION" \
             and mapping.state is MappingState.CONFIRMED:
         broad = (our_indemnity_given if only_theirs else our_indemnity_beyond)(clauses)
+        broad_cause = (OUR_INDEMNITY if only_theirs else BREADTH) if broad else None
     if broad:
         outcome.diagnostics.append(f"breadth: {broad!r} (AM-154)")
     narrow = (narrowing_hit(list(mapping.confirmed_clauses), standard_configuration)
@@ -2333,6 +2447,7 @@ def _analyse_requirement(db: DBSession, review: M.Review, item: _SnapshotItem,
                              opposed=waiving is not None,
                              contested=disputed,
                              too_broad=broad is not None,
+                             too_broad_cause=broad_cause,
                              too_narrow=narrow is not None,
                              one_sided=one_way is not None,
                              restated=restated(mapping, standard_configuration)),

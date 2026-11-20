@@ -312,9 +312,9 @@ def test_the_fingerprint_tracks_the_evaluator_versions(monkeypatch):
     """Derived from `EVALUATOR_VERSIONS` (45B.10 / AM-19) rather than a build tag,
     because that mapping is what reproducibility actually depends on."""
     before = evaluator_fingerprint()
-    monkeypatch.setitem(EVALUATOR_VERSIONS, E.EvaluatorType.PRESENCE, "PRESENCE-v2")
+    monkeypatch.setitem(EVALUATOR_VERSIONS, E.EvaluatorType.PRESENCE, "PRESENCE-next")
     assert evaluator_fingerprint() != before
-    assert "PRESENCE-v2" in evaluator_fingerprint()
+    assert "PRESENCE-next" in evaluator_fingerprint()
 
 
 def test_a_differently_versioned_worker_refuses():

@@ -27,7 +27,7 @@ from collections import Counter
 from collections.abc import Sequence
 from difflib import SequenceMatcher
 from functools import cache
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import ColumnElement, and_, select, text
@@ -36,6 +36,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind import config
+from legalmind.analysis import reader_generation
 from legalmind.assist.knowledge import published
 from legalmind.db import models as M
 from legalmind.db.lookup import latest_completed_run_id
@@ -561,8 +562,29 @@ def website_side(db: DBSession, key: str) -> dict[str, Any]:
     return {"document": {"kind": "WEBSITE", **doc}, "clauses": website_clauses(items)}
 
 
+class _Reread:
+    """A stored row seen with today's number, title and heading (batch 6 D1, R2-3) —
+    the side of a pair read by an older reader; the row itself is untouched."""
+
+    def __init__(self, row: M.DocumentEvidence, since: float, upto: float) -> None:
+        meta = row.evidence_metadata or {}
+        self._row = row
+        self.section_number, self.section_title, heading = reader_generation.reread(
+            row.content or "", row.section_number, row.section_title,
+            bool(meta.get("heading")), meta.get("style"), since=since, upto=upto)
+        self.evidence_metadata = {k: v for k, v in meta.items() if k != "heading"} \
+            | ({"heading": True} if heading else {})
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._row, name)
+
+
 def version_side(db: DBSession, contract: M.Contract,
-                 version: M.DocumentVersion) -> dict[str, Any]:
+                 version: M.DocumentVersion,
+                 reread: tuple[float, float] | None = None) -> dict[str, Any]:
+    """One stored version as Diff-Talk reads it; ``reread`` (since, upto): it is the
+    older reading of the pair (`reader_generation.older`), read as the newer one reads
+    (batch 6 R2-3)."""
     run_id = latest_completed_run_id(db, version.id)
     # Headers and footers are page furniture, not clauses (BR-4).
     evidence = body_rows(db.execute(
@@ -582,7 +604,9 @@ def version_side(db: DBSession, contract: M.Contract,
                          "version_number": version.version_number,
                          "filename": version.original_filename,
                          "unread_pages": _unread_pages(db, version, evidence)},
-            "clauses": version_clauses(evidence)}
+            "clauses": version_clauses(
+                cast(list[M.DocumentEvidence], [_Reread(e, *reread) for e in evidence])
+                if reread else evidence)}
 
 
 def _unread_pages(db: DBSession, version: M.DocumentVersion,

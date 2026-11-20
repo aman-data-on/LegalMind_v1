@@ -41,7 +41,9 @@ Nothing is committed until the owner says "commit".
 - [ ] Owner: server refuses an owner's "keep ours" on a Legal-routed row while with Legal (proposed 409 rider; rule 18)
 - [ ] Owner/Legal: a keep-ours / ask-client answer sent with no reason on a measured row still records a system fallback justification ("Answered on the change: …"); the UI no longer reaches it (AB-218) — propose: require the lawyer's reason on the server
 - [ ] Owner note: a lawyer who created a contract (CREATOR, AM-288 r2) may record positions before it is sent to Legal
-- [ ] LegalMind defects seen on the client MSA/NDA run (`audit/client-report-verify-20261120/VERIFY.md`): false missing India hosting, sub-processor mapped to 18/21, unread figures, misattributed rows, NDA party roles unread
+- [x] Batch 6 client misreads — AB-219 `AM-444`–`AM-448` (built + verified on `fix/client-misreads`)
+- [ ] Owner (rule 21 config): finding terms "from termination", "terminates", "subprocessor(s)", data residency / convenience notice / data purge terms
+- [ ] Legal: "paid or payable" cap basis; residuals waiver wording; whether a mutual change is ever onto us; carve-out/precedence/renewal/refund triage rules; data-loss general exclusion; customer-indemnity limbs
 - [ ] Batch 5 "our contract came back marked up" start option
 - [x] Production-copy answered-keys probe (owner OK): 0 of 12 answered keys lost
 - [ ] Legal: confirm BASELINE for this case; this deal's positions; never-concede list

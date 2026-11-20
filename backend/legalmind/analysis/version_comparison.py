@@ -42,6 +42,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DBSession
 
+from legalmind.analysis import reader_generation
 from legalmind.db import models as M
 from legalmind.db.lookup import latest_completed_run_id
 from legalmind.domain.user_status import in_our_favour
@@ -206,17 +207,27 @@ def compare_versions(db: DBSession, before: M.DocumentVersion,
     ).scalars().first()
     findings = _findings_by_section(db, review.id if review else None)
 
-    def numbered(rows: list[M.DocumentEvidence]) -> dict[str, M.DocumentEvidence]:
+    # batch 6 D1: two reader generations compared as one reads them
+    older = reader_generation.older(db, before.id, after.id)
+
+    def numbered(rows: list[M.DocumentEvidence],
+                 version_id: UUID) -> dict[str, M.DocumentEvidence]:
         # First row wins for a repeated number: reading order is the document's
         # own, so the first occurrence is the clause and later ones are
         # cross-references to it.
         out: dict[str, M.DocumentEvidence] = {}
         for row in rows:
-            if row.section_number and row.section_number not in out:
-                out[row.section_number] = row
+            number = row.section_number if not older or older[0] != version_id \
+                else reader_generation.reread(
+                    row.content or "", row.section_number, row.section_title, False,
+                    (row.evidence_metadata or {}).get("style"), since=older[1],
+                    upto=older[2])[0]
+            if number and number not in out:
+                out[number] = row
         return out
 
-    old_by_section, new_by_section = numbered(old_rows), numbered(new_rows)
+    old_by_section, new_by_section = (numbered(old_rows, before.id),
+                                      numbered(new_rows, after.id))
     changes: list[ClauseChange] = []
 
     for section in sorted(set(old_by_section) | set(new_by_section),

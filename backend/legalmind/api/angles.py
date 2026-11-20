@@ -33,6 +33,7 @@ from legalmind.analysis import (
     consistency,
     lawyer_rows,
     negotiation,
+    reader_generation,
     reading,
 )
 from legalmind.analysis.client_changes import client_changes
@@ -544,6 +545,9 @@ def _gap(r, legal_position: bool) -> str:
         if actual.get("presence") == "WAIVED":
             return "The clause waives our position"
         if actual.get("presence") == "TOO_BROAD":   # AM-154: indirect loss, lost profits,
+            if actual.get("cause") == "OUR_INDEMNITY":  # AM-381 r2 (batch 6)
+                return ("LeapSwitch gives an indemnity; our standard has only the "
+                        "Customer's")
             return "Broader than our standard"         # or our control of the defence
         if actual.get("presence") == "RESTATED":    # Constitution §31.11
             return ("The order states its own terms instead of referring to the "
@@ -891,6 +895,9 @@ def _origins(db: DBSession, review: M.Review, clauses: list,
     except negotiation.VersionRoleUndeclared:
         before = None
     ours = load_clauses(db, before.id) if before is not None else None
+    if ours is not None and before is not None:  # batch 6 D1: as the change list reads it
+        ours, clauses = reader_generation.as_one_reader(
+            db, before.id, review.document_version_id, ours, clauses)
     changed = lawyer_rows.changed_evidence(ours, clauses)
     ours_result = None
     if before is not None and (our_review := negotiation._latest_review(db, before)):

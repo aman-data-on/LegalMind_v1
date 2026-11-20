@@ -225,6 +225,11 @@ def normalize_text(raw: str) -> str:
     return text.strip()
 
 
+#: A sub-level number and its dot followed DIRECTLY by a quote (either way round — a
+#: document may type ’ or ” to open one) or a capital. See `_glued` for what it refuses.
+_GLUED = re.compile(r"^(?P<num>\d+(?:\.\d+)+)\.(?=[A-Z\"'\u201c\u2018\u2019\u201d])"
+                    r"(?P<title>[A-Z][^\n]{0,120})?")
+
 # Clause numbering as documents actually write it: "8.", "8.2", "12.3.4",
 # "Section 8", "ARTICLE IV", "(a)". Recognition only — never invention.
 _CLAUSE_PATTERNS = (
@@ -255,7 +260,11 @@ _CLAUSE_PATTERNS = (
 )
 
 
+#: Long: a sub-level number WITH its dot takes any first word ("4.1.3. suspension…",
+#: "1.2. ‘Widget’…"), as the short path does; without the dot a capital or an
+#: opening quote must follow ("6.3 above and…" stays prose); glued: `_glued` (batch 6).
 _LONG_CLAUSE = re.compile(r"^(?P<num>\d+(?:\.\d+)+)\.?\s+[A-Z(\"\u201c]")
+_LONG_DOTTED = re.compile(r"^(?P<num>\d+(?:\.\d+)+)(?:\.\s|\s+['\u2018])")
 #: A long paragraph opening "9. Term and Survival: …" — a top-level number, a dot and a
 #: short Title-Case label closed by a colon (R-4, 2026-11-03). The label is the title.
 _LABEL = rf"(?P<title>{_TITLE_CASE.pattern})\s*:"
@@ -307,7 +316,10 @@ def detect_clause_number(line: str) -> tuple[str | None, str | None]:
         # addendum (2026-10-14), its early-exit clause among them. Long, only a number
         # with a sub-level counts — a long line opening "12 Months" stays prose — and
         # the sentence is not a title.
-        if m := _LONG_CLAUSE.match(stripped):
+        dotted = _LONG_DOTTED.match(stripped)
+        if dotted and _figure(dotted.group("num")):
+            dotted = None
+        if m := _LONG_CLAUSE.match(stripped) or _glued(stripped) or dotted:
             return m.group("num"), None
         m = _LONG_LABELLED.match(stripped)
         return (m.group("num"), m.group("title")) if m else (None, None)
@@ -318,7 +330,28 @@ def detect_clause_number(line: str) -> tuple[str | None, str | None]:
             continue                    # "50 Mbps": a quantity (R-5)
         if m:
             return m.group("num"), _clause_title((m.group("title") or "").strip())
+    if m := _glued(stripped):
+        return m.group("num"), _clause_title((m.group("title") or "").strip())
     return None, None
+
+
+def _glued(stripped: str) -> re.Match | None:
+    """"1.9.“Force Majeure” shall…", "2.3.The Supplier…": a typed sub-level number with
+    NO space before its text (batch 6). A figure is refused: a part opening "0" or past
+    50 ("0.5.The", "99.99.Uptime", the year of "12.10.2026.The") or a unit after it
+    ("3.5.Mbps") — a bare "12." or "2026.“…" has no sub-level at all.
+    ponytail: 50 is the plausible clause-numbering ceiling; a paper numbered past it
+    glued to its text reads as prose (its pre-batch reading)."""
+    m = _GLUED.match(stripped)
+    if m is None or _figure(m.group("num")):
+        return None
+    return None if _QUANTITY.match(stripped[m.end("num") + 1:]) else m
+
+
+def _figure(number: str) -> bool:
+    """"0.5", "99.99", "12.10.2026": a part opening 0 or past 50 is a figure or a date,
+    never a clause's own number (batch 6, the forms that number a line v11 did not)."""
+    return any(p.startswith("0") or int(p) > 50 for p in number.split("."))
 
 
 def _clause_title(rest: str) -> str | None:
@@ -507,6 +540,56 @@ def _is_unnumbered_heading(line: str, following: str | None,
     # ("Monthly Uptime Service Credit Percentage"), and cutting there tore SLA-
     # leapswitch's 15/40/100% rows away from "Issuance of Service Credits" (F1 critic).
     return not following.strip()[:1].islower() and not following.lstrip().startswith("|")
+
+
+def styled_heading(normalized: str, style: str | None) -> bool:
+    """An unnumbered paragraph in a Word Heading/Title style that is one title-shaped line
+    (batch 6) — "Signatures" over a table; never a heading-styled sentence or a run-in
+    heading with its body after a soft break."""
+    return ("\n" not in normalized and _is_title_line(normalized)
+            and (style or "").startswith(("Heading", "Title")))
+
+
+Reading = tuple[str | None, str | None, bool]
+
+
+def _v12_adds(normalized: str, style: str | None) -> Reading | None:
+    """What `legalmind-ingest-v12` reads on a row v11 left unnumbered and unmarked: a
+    glued or long dotted sub-level number (`_glued`, `_LONG_DOTTED`), or a Word heading
+    style (`styled_heading`) — None when it reads nothing more."""
+    stripped = normalized.split("\n", 1)[0].translate(_ZERO_WIDTH).strip()
+    long = len(stripped) > 200
+    if m := _glued(stripped):
+        number, title = m.group("num"), None if long else _clause_title(
+            (m.group("title") or "").strip())
+    elif long and (d := _LONG_DOTTED.match(stripped)) and not _figure(d.group("num")):
+        number, title = d.group("num"), None
+    elif styled_heading(normalized, style):
+        return None, normalized.strip().rstrip(":").rstrip(), True
+    else:
+        return None
+    return number, title, _is_heading(normalized, number, title)
+
+
+#: What each reader generation reads that the one before it did not (batch 6 R2-4). A
+#: re-read applies the generations after the row's own up to the pair's newer side —
+#: never today's whole reader — so a later reader bump adds its own entry and cannot
+#: move the rows of a pair already compared. Keep an entry's rules as they shipped.
+READER_ADDS = {12: _v12_adds}
+
+
+def reread(content: str, number: str | None, title: str | None, heading: bool,
+           style: str | None, *, since: float, upto: float) -> Reading:
+    """A row the reader of generation ``since`` stored, read as generation ``upto``
+    reads it — on read, never re-ingested: content, boundaries and evidence ids stay
+    (batch 6 D1, AM-185 rider). A stored number is kept."""
+    if number is not None:
+        return number, title, heading
+    normalized = normalize_text(content)
+    for generation in sorted(g for g in READER_ADDS if since < g <= upto):
+        if (got := READER_ADDS[generation](normalized, style)) is not None:
+            return got
+    return None, title, heading
 
 
 def _is_heading(normalized: str, number: str | None, title: str | None) -> bool:
@@ -3578,9 +3661,14 @@ def parse_docx(data: bytes, *, render_pages: bool = False) -> ParseResult:
             # the same file reads it — a clause's body is never its heading.
             number = list_numbers[p]
             title = first_line if _is_heading(normalized, number, first_line) else None
-        title, markers = _structure_markers(
-            normalized, first_line, number, title, next_text)
         style = Paragraph(p, document._body).style
+        # The document's own Word heading style (batch 6): "Signatures" styled Heading 1
+        # over a table has no prose after it, so the shape rule alone missed it and the
+        # block joined the clause above. Title-shaped only; the bold-label hook marks it.
+        styled = number is None and styled_heading(normalized,
+                                                   style.name if style else None)
+        title, markers = _structure_markers(
+            normalized, first_line, number, title, next_text, bold=styled)
         noted = p.xpath("./w:commentRangeStart/@w:id | .//w:r/w:commentReference/@w:id")
         weight = _docx_emphasis(p) if normalized == raw else []   # offsets hold as-is
         emit(raw, EvidenceSourceType.NATIVE_TEXT, page, number, title,

@@ -1616,7 +1616,8 @@ def test_a_procedure_titled_for_the_indemnity_is_read_for_its_breadth_end_to_end
     finding = db.execute(select(M.Finding)).scalars().one()
     assert finding.classification is E.FindingClassification.DEVIATION
     evaluation = db.execute(select(M.Evaluation)).scalars().first()
-    assert evaluation.actual_value == {"presence": "TOO_BROAD"}
+    # PRESENCE-v2 (batch 6, AM-381 r2 rider): the cause is recorded — AM-154's breadth
+    assert evaluation.actual_value == {"presence": "TOO_BROAD", "cause": "BREADTH"}
 
 
 def test_ask_reads_a_prohibited_deviation_with_the_reviews_word(build, db):

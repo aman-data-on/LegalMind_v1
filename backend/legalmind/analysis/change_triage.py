@@ -27,7 +27,7 @@ import difflib
 import functools
 import os
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 
 from legalmind.analysis import reading as R
 from legalmind.mapping.engine import Clause
@@ -56,6 +56,26 @@ _PASSIVE = re.compile(r"\W*(?:shall|will|must|may)\s+(?:not\s+)?be\s+(?!liable|"
                       r"discharged|absolved)\w+(?:ed|en)\b", re.I)
 _OBJECT = re.compile(r"\b(?:of|by|to|with|from|for|against|behalf of)\s+(?:the\s+)?$",
                      re.I)
+#: A role either party may hold ("the Receiving Party shall return…", "Neither Party may
+#: assign…") binds both: read MUTUAL — only when no party the document names acts in the
+#: sentence, so a one-way paper whose parties block binds "Disclosing Party" to one side
+#: keeps that side (batch 6, AM-224 r1 rider). Local here: `reading._MUTUAL_PARTY` feeds
+#: `AM-162`.
+_ROLE_PARTY = r"(?:disclosing|receiving|indemnified|indemnifying) party|neither party"
+#: "If the Customer fails …, it shall be liable": the pronoun acts for the one side named
+#: before it in the sentence — never when two sides are, and only bearing what only a
+#: party bears (liability, payment), so "it shall remain suspended" (the Services) or
+#: "it shall state the plan" (the order) names no one (batch 6)
+_PRONOUN = r"it|they"
+_PARTY_BEARS = re.compile(r"\W*(?:shall|will|must)\s+(?:not\s+)?(?:be\s+(?:liable|"
+                          r"responsible|obliged|required)|pay|indemnify|reimburse|bear)\b",
+                          re.I)
+#: a sentence that DEFINES ("X's Confidential Information shall include …", "'Services'
+#: means …") binds no one: its defining verb comes before any other (batch 6)
+_DEFINES = re.compile(r"\b(?:(?:shall\s+)?(?:means?|includes?)|shall\s+(?:be\s+)?"
+                      r"deem(?:ed)?\s+to\s+include)\b", re.I)
+_A_VERB = re.compile(r"\b(?:shall|will|must|may|can|agrees?|undertakes?|is|are|has|have|"
+                     r"does|do)\b", re.I)
 #: (the sentence was added or removed, whom it binds) -> what that does, in fixed words
 REASONS = {
     ("added", "OUR_DUTY"): "Adds a duty on LeapSwitch",
@@ -85,41 +105,94 @@ def _key(s: str) -> str:
     return re.sub(r"[\W_]+", "", s.lower())
 
 
-def _who(sentence: str, vendor: bool, aliases: tuple[list[str], list[str]]) -> str | None:
-    """Whom the sentence binds, from the first party that ACTS in it: OUR_/THEIR_ DUTY,
-    RIGHT or SHIELD, MUTUAL, or None. In a vendor agreement we are the customer."""
+def _first_actor(sentence: str, vendor: bool, aliases: tuple[list[str], list[str]],
+                 roles: bool = False) -> str | None:
+    """origin/main's reading, unchanged: whom the sentence binds from the FIRST party
+    that ACTS in it — OUR_/THEIR_ DUTY, RIGHT or SHIELD, MUTUAL ("each/either party"),
+    or None. ``roles``: a role or "neither party" acting first is MUTUAL too (the
+    reading `helps` is made from, batch 6 R2-1). In a vendor agreement we are the
+    customer."""
+    mutual = rf"{R._MUTUAL_PARTY}|{_ROLE_PARTY}" if roles else R._MUTUAL_PARTY
+    for party, after, acts in _parties(sentence, vendor, aliases, mutual):
+        if not acts or party.group("pronoun") is not None:
+            continue
+        if party.group("mutual") is not None:
+            return "MUTUAL"
+        return _bound("OUR" if party.group("ours") is not None else "THEIR", after,
+                      sentence)
+    return None
+
+
+def _who(sentence: str, vendor: bool, aliases: tuple[list[str], list[str]],
+         pronouns: bool = True) -> str | None:
+    """Whom the sentence binds: origin/main's reading (`_first_actor`) wherever it
+    reads someone — so every reason it gives stands (batch 6 round 4) — else a pronoun
+    acting for the one party named before it, bearing a liability or payment
+    (``pronouns``), else a role or "neither party" acting: MUTUAL (AM-224 r1 rider)."""
+    if (main := _first_actor(sentence, vendor, aliases)) is not None:
+        return main
+    named: set[str] = set()
+    mutual = False
+    for party, after, acts in _parties(sentence, vendor, aliases,
+                                       rf"{R._MUTUAL_PARTY}|{_ROLE_PARTY}"):
+        if party.group("pronoun") is not None:
+            if pronouns and acts and len(named) == 1 and _PARTY_BEARS.match(after):
+                return _bound(next(iter(named)), after, sentence)
+        elif party.group("mutual") is not None:
+            mutual = mutual or bool(acts)
+        else:
+            named.add("OUR" if party.group("ours") is not None else "THEIR")
+    return "MUTUAL" if mutual else None
+
+
+def _parties(sentence: str, vendor: bool, aliases: tuple[list[str], list[str]],
+             mutual: str) -> Iterator[tuple[re.Match, str, bool]]:
+    """Each party mention (ours, theirs, ``mutual``, a pronoun), the words after it and
+    whether it ACTS there."""
     mine_base, other_base = (R._BUYER, R._PROVIDER) if vendor else (R._PROVIDER, R._BUYER)
     mine = R._party_regex([*mine_base, *(aliases[1] if vendor else aliases[0])])
     other = R._party_regex([*other_base, *(aliases[0] if vendor else aliases[1])])
     for party in re.finditer(rf"\b(?:(?P<ours>{mine})|(?P<theirs>{other})|"
-                             rf"(?P<mutual>{R._MUTUAL_PARTY}))\b", sentence, re.I):
+                             rf"(?P<mutual>{mutual})|(?P<pronoun>{_PRONOUN}))\b",
+                             sentence, re.I):
         after = sentence[party.end():party.end() + 80]
         # "consent of the Customer shall be obtained": a party after a preposition is
         # its object, never the one who acts
-        if not R._ACTS.match(after) or _OBJECT.search(sentence[:party.start()]) \
-                or _PASSIVE.match(after):
-            continue
-        if party.group("mutual") is not None:
-            return "MUTUAL"
-        side = "OUR" if party.group("ours") is not None else "THEIR"
-        if R._PROTECTED.search(sentence) or _SHIELD.search(sentence):
-            return f"{side}_SHIELD"
-        return f"{side}_RIGHT" if R._RIGHT.match(after) else f"{side}_DUTY"
-    return None
+        yield party, after, bool(R._ACTS.match(after)) and not (
+            _OBJECT.search(sentence[:party.start()]) or _PASSIVE.match(after))
+
+
+def _bound(side: str, after: str, sentence: str) -> str:
+    if R._PROTECTED.search(sentence) or _SHIELD.search(sentence):
+        return f"{side}_SHIELD"
+    return f"{side}_RIGHT" if R._RIGHT.match(after) else f"{side}_DUTY"
+
+
+def _defines(sentence: str) -> bool:
+    """The sentence defines something: its defining verb comes before any other."""
+    m = _DEFINES.search(sentence)
+    return m is not None and not _A_VERB.search(sentence[:m.start()])
 
 
 def changed_sentences(before: str | None, after: str | None, vendor: bool = False,
-                      aliases: tuple[list[str], list[str]] = ([], [])
+                      aliases: tuple[list[str], list[str]] = ([], []),
+                      lead: str | None = None
                       ) -> tuple[list[tuple[str, str, str | None]], list[str]]:
     """The sentences the change added or removed, each with whom it binds — and the
     rewrites: an added sentence close to a removed one that binds the same way ("within
     10 days" → "within 30 days") is one rewritten sentence, whose effect only its meaning
-    decides, never a removal plus an addition."""
+    decides, never a removal plus an addition. ``lead``: the parent clause's lead-in
+    ("The Customer shall indemnify … arising from:") — a list item that names no acting
+    party is read as a reader reads it, after its lead-in (batch 6)."""
     old, new = _sentences(before), _sentences(after)
     kept_old, kept_new = {_key(s) for s in old}, {_key(s) for s in new}
     added = [s for s in new if _key(s) not in kept_old]
     removed = [s for s in old if _key(s) not in kept_new]
-    who = {s: _who(s, vendor, aliases) for s in added + removed}
+    # rewrites are paired on origin/main's reading, so every sentence it read is moved
+    # and read as it was; the batch's readings only fill in where it read no one
+    base = {s: _first_actor(s, vendor, aliases) for s in added + removed}
+    who = {s: base[s] or _who(s, vendor, aliases) or (
+        _who(f"{lead} {s}", vendor, aliases) if lead else None) for s in added + removed}
     rewritten: list[str] = []
 
     def like(s: str, r: str) -> float:
@@ -129,7 +202,7 @@ def changed_sentences(before: str | None, after: str | None, vendor: bool = Fals
                    difflib.SequenceMatcher(None, s[:len(r) + 20], r).ratio())
     for s in added:
         twin = max(removed, default=None, key=lambda r: like(s, r))
-        if twin and who[s] == who[twin] and twin not in rewritten \
+        if twin and base[s] == base[twin] and twin not in rewritten \
                 and like(s, twin) >= 0.6:
             rewritten += [twin, s]
         elif twin and like(s, twin) >= 0.9:
@@ -142,26 +215,45 @@ def changed_sentences(before: str | None, after: str | None, vendor: bool = Fals
 
 
 def code_reading(before: str | None, after: str | None, vendor: bool = False,
-                 aliases: tuple[list[str], list[str]] = ([], [])) -> dict:
+                 aliases: tuple[list[str], list[str]] = ([], []),
+                 lead: str | None = None) -> dict:
     """What code can say about one changed clause: each reason with its sentence, and
     whether some sentence reads the other way (used only to agree with the model).
-    A pure function of the two texts, so read once per process (M4: every list page
-    re-reads each round's changes) — a copy each time, the caller may change it."""
+    A pure function of the two texts (and the parent's lead-in), so read once per
+    process (M4: every list page re-reads each round's changes) — a copy each time, the
+    caller may change it."""
     return copy.deepcopy(_code_reading(before, after, vendor,
-                                       (tuple(aliases[0]), tuple(aliases[1]))))
+                                       (tuple(aliases[0]), tuple(aliases[1])), lead))
 
 
 @functools.lru_cache(maxsize=4096)
 def _code_reading(before: str | None, after: str | None, vendor: bool,
-                  aliases: tuple[tuple[str, ...], tuple[str, ...]]) -> dict:
+                  aliases: tuple[tuple[str, ...], tuple[str, ...]],
+                  lead: str | None = None) -> dict:
     moved, rewritten = changed_sentences(before, after, vendor,
-                                         (list(aliases[0]), list(aliases[1])))
+                                         (list(aliases[0]), list(aliases[1])), lead)
     reasons = [{"reason": said, "quote": " ".join(s.split())}
                for how, s, who in moved if (said := REASONS.get((how, who or "")))]
+    # batch 6 D3: whether a sentence helps us is read from the sentence alone — a lead-in
+    # or a pronoun may only ADD a reason, never say a change helps us
+    alone = (list(aliases[0]), list(aliases[1]))
     return {"reasons": reasons,
-            "helps": any((how, who) in _HELPS for how, s, who in moved),
+            "helps": any((how, _first_actor(s, vendor, alone, roles=True)) in _HELPS
+                         for how, s, _ in moved if not _defines(s)),
             "editorial": _key(before or "") == _key(after or ""),
             "changed": [s for _, s, _ in moved] + rewritten}
+
+
+def lead_in(text: str | None) -> str | None:
+    """A clause's lead-in to its list — its last sentence, when that ends in a colon
+    ("… arising from:"); else None."""
+    last = (_sentences(text) or [""])[-1]
+    return last if last.endswith(":") else None
+
+
+def parent_number(number: str | None) -> str | None:
+    """"16.1.4" → "16.1"; a top-level number has none."""
+    return number.rsplit(".", 1)[0] if number and "." in number.strip(".") else None
 
 
 @functools.lru_cache(maxsize=1)
@@ -184,7 +276,21 @@ def playbook() -> dict[str, dict[str, str]]:
 
 
 def _stems(text: str) -> set[str]:
-    return {w[:5] for w in re.findall(r"[a-z]{4,}", text.lower()) if w not in _GENERIC}
+    """Each word of three letters or more (generic and joining words aside), a trailing
+    "s" folded ("laws" reads "law"), as its first five letters."""
+    return {w.removesuffix("s")[:5] for w in re.findall(r"[a-z]{3,}", text.lower())
+            if w not in _GENERIC and w not in ("and", "the", "for")}
+
+
+def _names(half: str, heading: set[str]) -> bool:
+    """A title half ("Governing Law", "SLA", "Data Protection") a heading names: a half
+    holding a word under four letters only with ALL its words ("TERMS GOVERNING THE
+    SERVICES" never names Governing Law by "governing" alone — batch 6); any other half
+    by any word it shares."""
+    words = _stems(half)
+    if any(len(w) < 4 for w in re.findall(r"[a-z]+", half.lower())):
+        return bool(words) and words <= heading
+    return bool(words & heading)
 
 
 def topics_for_heading(heading: str | None) -> list[str]:
@@ -194,7 +300,8 @@ def topics_for_heading(heading: str | None) -> list[str]:
     words = _stems(heading or "")
     if not words:
         return []
-    return [n for n, t in playbook().items() if words & _stems(t["title"])]
+    return [n for n, t in playbook().items()
+            if any(_names(half, words) for half in re.split(r"\s*[&/]\s*", t["title"]))]
 
 
 def topic_entry(number: str) -> dict[str, str]:
