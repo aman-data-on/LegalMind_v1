@@ -473,7 +473,8 @@ test.describe("the 3-column redesign (2026-08-31)", () => {
     // are Legal details, absent for this owner (never greyed, SEC-07).
     const USER_WORDS = ["Matches our standard", "Change needed", "Missing", "Needs a decision"];
     await expect(panel.locator(".ws-tiles")).toHaveCount(0);
-    await expect(panel.locator(".ws-attn__count")).toContainText(/1 open point/);
+    // AB-218: with no round of changes the points line sits in the deal brief above the tabs
+    await expect(page.getByTestId("deal-brief").locator(".ws-attn__count")).toContainText(/1 open point/);
     const open = panel.getByRole("region", { name: /Points to settle \(\d+\)/ });
     const first = open.locator(".ws-open__go").first();
     await expect(first).toBeVisible();
