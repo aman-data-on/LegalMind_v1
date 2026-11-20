@@ -31275,3 +31275,84 @@ r2  Otherwise an other-family standard's stating clause with no figure in any fo
     as before (e.g. Needs a decision citing the clause). A clause is never left in front of no
     one.
 ```
+
+## AMENDMENT BATCH AB-218 — `AM-439`–`AM-443` (2026-11-20): the deal brief — what we told the client, one label per change, one status
+
+Owner instruction (2026-11-20): "go with Ironclad, Juro, SpotDraft, LegalOn … make it high level grade
+legal-assistant" — plan batches 3 and 4 merged and kept simple (one summary at the top; one label and one
+next action per change; internal notes never reach the client; only what is outside the playbook goes to
+Legal). Owner 2026-11-19: positions in sales' emails are Legal's advice that sales relays, so Legal is the
+only source of a deal position. Owner 2026-11-20 chose "Whole contract" for a point no single clause holds.
+No legal content, standard, threshold or position is added or changed; no evaluator version moves.
+IDs scanned: AB-218, AM-439–450 on origin/main, every remote branch and every worktree.
+
+`AM-439` — WHAT WE TOLD THE CLIENT (new; under `LEGAL-02`, `AM-384`, `AM-317` r2, `AM-408`).
+```text
+r1  A deal may carry Legal's own words of what was told to the client ("positions"), stored
+    append-only and versioned per position (text at most 500 characters, an optional date, the
+    change rows it is tied to, withdrawn or not, who recorded it). Replace and withdraw add a
+    version; nothing is updated or deleted. Deleting the contract (AM-55) removes them with it.
+r2  Only a holder of legal.decision who can negotiate the contract, and only while the deal is
+    with Legal, records, replaces, withdraws or ties a position. Anyone else in scope is refused;
+    out of scope is the byte-identical 404 (SEC-07, API-10).
+r3  Sales read the words and the date only (legal_position.view), never clause numbers or ties.
+r4  A position never reaches anything client-bound: the reply DOCX/PDF, the final package,
+    Annexure 2, any send or the client export (LEGAL-02).
+r5  A tie is Legal's own act on one Legal-routed change row, to one position at a time:
+    "As we told them" or "Goes further than we told them". No matching suggests a tie.
+r6  A tie is never a Legal Decision and never moves a route, an effect, an answer, a Rule
+    Outcome, a Mapping State or the AM-384 auto-accept set.
+r7  On a tied row the answer form shows the position above the form. Where the answer writes
+    no Legal Decision it preselects one existing action (as told: accept theirs; goes further:
+    keep ours); where it writes a Legal Decision it preselects nothing. The reason box starts
+    empty: the tie never supplies a Legal Decision's justification. Each row is
+    still answered one by one; no bulk answer (AM-317 r2 stands).
+r8  The lawyer may start a position from the sales "Note for Legal" (AM-408 r1); the recorded
+    author is the lawyer.
+```
+
+`AM-440` — ONE LABEL AND ONE ACTION PER CHANGE ROW (rider on `AM-291`; words per `AM-184`, `AM-258`).
+```text
+r1  Each change row and its answer card show exactly one status label and at most one primary
+    action for the reader. The kind of change, the reader word and the effect move into the
+    card.
+r2  Sales see "With Legal" or "Yours to answer". The lawyer sees "Goes further than we told
+    them", "As we told them", "Needs your answer" or "Answered: …"; a lawyer who cannot answer
+    the row sees "With Legal". Words live in lib/labels.ts; RESOLVED is never shown as a match.
+```
+
+`AM-441` — THE DEAL BRIEF (replaces the Summary's "What needs attention").
+```text
+r1  One block above the tabs, for sales and the lawyer, collapsed to three lines; never shown
+    beside "What needs attention".
+r2  Its status is a code decided on the server from the one count (AM-434: deal_counts and
+    review_progress); the browser only maps the code to words. It never says Legal answered
+    while a change or point is open, never when nothing went to Legal (then: "N points need
+    Legal. Send it to Legal." or "every change is answered"), and never before the client's
+    version has been read (then: still reading).
+r3  Sales copy has no §, no requirement codes, no engine or confidence words: status and next
+    step, what the client asks for (at most 6 clause groups, the client's words quoted, "and N
+    more"), what we told them (words only), our own mistake (AM-437) when present.
+r4  Lawyer copy: status, "Start here: N go further than what we told them", N as told, N not
+    discussed, our own mistake, the client's comments.
+```
+
+`AM-442` — YOUR TURN (rider on `AM-273`).
+```text
+r1  The deal owner gets one notice, "Legal has answered every change on {contract}. Your turn:
+    send our reply.", only when every Legal-routed change is answered and no point is open,
+    whichever closes last, once per client version; never one per row or per point.
+```
+
+`AM-443` — WHOLE CONTRACT (rider on `AM-322` r17; rule 15).
+```text
+r1  A point's place is a clause only when its mapping is CONFIRMED, or a clause cited for a
+    person (AM-322 r11/r12). Otherwise it shows "Whole contract" in the points list, the brief,
+    the review export and the Ask question, never a clause number.
+r2  Under a whole-contract point, a legal.review holder sees "Possibly in: clause …" from the
+    candidate clauses the mapping already found (four, then "and N more"); the server sends them
+    to Legal only — never sales, never an export, never the client.
+```
+Open, for the owner: an owner's "keep ours" on a Legal-routed row is refused only in the UI
+(AM-408 r2); the server accepts it and counts it as answered. Proposed: refuse it on the server
+(409) while the deal is with Legal. Not decided here (rule 18).

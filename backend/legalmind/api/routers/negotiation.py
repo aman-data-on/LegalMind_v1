@@ -119,6 +119,7 @@ from legalmind.security.errors import NotVisible, SecurityError
 from legalmind.security.resolver import has_permission
 from legalmind.worker.dispatch import dispatch_analysis, dispatch_indexing, dispatch_pdf
 from legalmind.workflow import contract_outcome as CO
+from legalmind.workflow import positions
 from legalmind.workflow.decisions import record_decision, standing_decision, wording_tag
 from legalmind.workflow.escalation import is_escalated
 from legalmind.workflow.review_progress import review_progress
@@ -449,9 +450,7 @@ def deal_counts(guard: Guard, contracts: list[M.Contract]) -> dict[UUID, dict]:
                         can_answer=writer and replied_in is None) for c in rows),
                     # F5: the changes only Legal may answer, not answered yet — a change
                     # answered "Ask the client" is answered (AM-411 r1)
-                    changes_left_legal=sum(
-                        c.get("answer") is None and c["route"] == negotiation.HOLDER
-                        and not c.get("holder_accepted") for c in rows))
+                    changes_left_legal=len(_legal_left(rows)))
         out[contract.id] = counts
     return out
 
@@ -492,11 +491,70 @@ def list_changes(contract_id: UUID, from_version: int | None = _FROM,
     review = negotiation._latest_review(guard.db, after)
     sent = review is not None and guard.db.execute(select(M.Review.id).where(
         M.Review.id == review.id, sent_to_legal())).first() is not None
+    _told(guard, contract, listed["changes"])
     return data({**listed, "replied_in": replied_in, "sent_to_legal": sent,
                  "can_answer": writer and replied_in is None, "can_send": writer,
                  "can_decide": P.LEGAL_DECISION in guard.permissions,
                  "can_write_wording": writer and replied_in is None
                  and P.LEGAL_APPROVE_CUSTOMIZATION in guard.permissions})
+
+
+def _told(guard: Guard, contract: M.Contract, rows: list[dict]) -> None:
+    """Batch 3+4: Legal's own tie on a row — "As we told them" / "Goes further than we
+    told them" — with the words told, for Legal only (`legal.decision` and positions);
+    omitted otherwise. Added after the list is made, so it never touches a route, an
+    effect, an answer or the automatic acceptance."""
+    if P.LEGAL_DECISION not in guard.permissions or not guard.sees_legal_position:
+        return
+    tied = positions.ties(positions.current(guard.db, contract.id))
+    for row in rows:
+        if row["row_key"] in tied:
+            tie, p = tied[row["row_key"]]
+            row["told"] = {"tie": tie, "position_key": p.position_key, "text": p.text}
+
+
+def _legal_left(rows: list[dict]) -> set[str]:
+    """The client changes waiting for Legal: unanswered, Legal's route, not accepted by
+    a holder's decision — `changes_left_legal`'s own rows (F5)."""
+    return {c["row_key"] for c in rows if c.get("answer") is None
+            and c["route"] == negotiation.HOLDER and not c.get("holder_accepted")}
+
+
+def points_to_decide(guard: Guard, contract: M.Contract) -> int | None:
+    """`review_progress.to_decide` on the latest version's analysed Review, as
+    `deal_counts` counts ``points_open``; None when there is no such Review."""
+    latest = guard.db.execute(select(M.DocumentVersion).where(
+        M.DocumentVersion.contract_id == contract.id)
+        .order_by(M.DocumentVersion.version_number.desc()).limit(1)).scalars().first()
+    review = negotiation._latest_review(guard.db, latest) if latest is not None else None
+    if review is None or review.status not in negotiation._ANALYSED:
+        return None
+    return review_progress(guard.db, review,
+                           legal_position=guard.sees_legal_position)["to_decide"]
+
+
+def tell_owner_if_unblocked(guard: Guard, contract: M.Contract) -> None:
+    """Batch 3+4 (lead, round 2): the reply is unblocked — every change Legal answers is
+    answered AND no point is open — so the deal owner is told once per client version
+    ("Your turn: send our reply"). Called when the last Legal change is answered and when
+    the last point is decided; whichever closes last sends it. Fail closed: no analysed
+    Review, no round or no Legal change at all sends nothing."""
+    theirs = client_version(list(guard.db.execute(select(M.DocumentVersion).where(
+        M.DocumentVersion.contract_id == contract.id)).scalars()))
+    # cheap first: told already this round, or a point still open — no change list read
+    if theirs is None or notifications.answered_all_told(guard.db, contract,
+                                                         theirs.created_at) \
+            or points_to_decide(guard, contract) != 0:
+        return
+    try:
+        listed, _, _ = _changes(guard, contract, None, theirs.version_number,
+                                counting=True)
+    except (BusinessRuleRejected, negotiation.VersionRoleUndeclared):
+        return
+    rows = listed["changes"]
+    if any(c["route"] == negotiation.HOLDER for c in rows) and not _legal_left(rows):
+        notifications.legal_answered_all(guard.db, contract, theirs.created_at,
+                                         actor_id=guard.user_id)
 
 
 class NoStandardClause(Conflict):
@@ -556,7 +614,7 @@ def _decide_wording(guard: Guard, contract: M.Contract, change: dict, digest: st
         if finding is not None and (review := db.get(M.Review, finding.review_id)):
             reviews[review.id] = review
     for review in reviews.values():
-        _advance_if_resolved(guard, review)
+        _advance_if_resolved(guard, review, tell_owner=False)   # answer_change tells
 
 
 #: AM-395 r3: a holder's answer on a measured change IS their decision on its points —
@@ -609,7 +667,7 @@ def _decide_by_answer(guard: Guard, change: dict, kind: DecisionType,
         if finding is not None and (review := db.get(M.Review, finding.review_id)):
             reviews[review.id] = review
     for review in reviews.values():
-        _advance_if_resolved(guard, review)
+        _advance_if_resolved(guard, review, tell_owner=False)   # answer_change tells
 
 
 @router.post("/contracts/{contract_id}/changes/{row_key}/answers", status_code=201)
@@ -722,6 +780,12 @@ def answer_change(contract_id: UUID, body: NegotiationAnswer,
             and P.LEGAL_DECISION in guard.permissions:
         _decide_by_answer(guard, change, _ANSWER_DECIDES[body.answer], body.reason)
     written = _current_choice(guard, before, after, row_key)
+    # batch 3+4 (round 2): no change waits for Legal after this answer — answering never
+    # accepts another row, so the set before tells it; the owner is told once the points
+    # are decided too (`tell_owner_if_unblocked` checks both, once per client version)
+    if (_legal_left(listed["changes"]) <= {row_key} and written is not None
+            and (replaced is None or written.id != replaced.id)):
+        tell_owner_if_unblocked(guard, contract)
     if (replaced is not None and written is not None and written.id != replaced.id
             and replaced.decided_by != guard.user_id):
         notifications.notify(guard.db, [replaced.decided_by],

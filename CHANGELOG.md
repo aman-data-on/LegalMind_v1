@@ -9,6 +9,15 @@ No version has been released. The V1 specification is complete and implementatio
 ---
 
 ## [Unreleased]
+- AB-218 (2026-11-20, `AM-439`–`AM-443`; case-by-case batches 3+4 "deal brief", the Ironclad / Juro /
+  SpotDraft / LegalOn pattern kept simple). A brief above the tabs for sales and the lawyer (status
+  from a server code on the one count; what the client asks for; what we told them; our own
+  mistake), one status label and one primary action per change row, Legal-recorded "what we told the
+  client" (new append-only table `deal_positions`, migration; never client-bound; a tie preselects
+  an action, the reason stays the lawyer's own), one "Your turn: send our reply" notice when nothing
+  is left open, and "Whole contract" for a point no confirmed clause holds. API: deal brief and
+  positions endpoints (OpenAPI regenerated). Tests: `tests/test_deal_brief.py`, `tests/drafting/test_deal_positions_package.py`,
+  `__tests__/deal-brief.test.tsx`.
 - AB-217 (2026-11-19, `AM-435`–`AM-438`; case-by-case batch 2 "cited passage"; PR #326,
   DEPLOYED 2026-11-20 as ac0332ea).
   A point is placed, labelled and quoted from the clause it cites (widened section rows are kept as

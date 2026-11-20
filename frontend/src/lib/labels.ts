@@ -329,6 +329,11 @@ export function withoutSectionRefs(text: string): string {
   return text.replace(/\s*\((?:Constitution\s*)?§[^)]*\)/g, "").replace(/\s+([.,;])/g, "$1");
 }
 
+/** Batch 3+4 round 3: quoted words shown to sales say "clause 7.3", never "§7.3" (§6). */
+export function plainClauseSigns(text: string): string {
+  return withoutSectionRefs(text).replace(/§+\s*/g, "clause ");
+}
+
 /** Asking Legal to look at a point — a request, never a decision (`EscalateControl`). */
 export const ASK_LEGAL_COPY = {
   open: "Ask Legal",
@@ -633,3 +638,107 @@ export const REOPEN_COPY = {
   reason: "Why you reopen it",
   button: "Reopen and keep our wording",
 } as const;
+
+/** Batch 3+4 (AB-218): ONE label per change row, for this reader. Legal's own
+ *  tie ("what we told them") is a label only — never a decision, never "Matches". */
+export const ROW_STATUS = {
+  beyond: "Goes further than we told them",
+  asTold: "As we told them",
+  needsYou: "Needs your answer",
+  withLegal: "With Legal",
+  yours: "Yours to answer",
+  waiting: "Waiting for approval",
+  answered: (what: string) => `Answered: ${what}`,
+} as const;
+
+/** Batch 3+4: the one-minute brief above the contract's tabs. Plain words for sales: no
+ *  clause signs, codes or engine words (PLAIN-LANGUAGE §2). */
+export const BRIEF_COPY = {
+  title: "Deal brief",
+  showAll: "Show the whole brief",
+  showLess: "Show less",
+  loading: "Loading the deal brief…",
+  failed: "The deal brief could not be loaded",
+  asks: "What the client asks for",
+  asksMore: (n: number) => `and ${n} more`,
+  removes: "removes",
+  told: "What we told them",
+  toldOn: (date: string) => `Told on ${date}`,
+  mistake: "Our own mistake",
+  startHere: (n: number) => `Start here: ${plural(n, "change")} ${n === 1 ? "goes" : "go"} further than what we told them`,
+  asTold: (n: number) => `${plural(n, "change")} as we told them`,
+  notDiscussed: (n: number) => `${plural(n, "change")} not discussed`,
+  comments: (clauses: string[]) => `Client comments: ${clauses.join(", ")}`,
+  wholeContract: "Whole contract",
+  /** round 4: Legal's line under a whole-contract point — candidates, never its place */
+  possiblyIn: (clauses: string[]) =>
+    `Possibly in: clause ${clauses.slice(0, 4).join(", ")}${clauses.length > 4 ? ` and ${clauses.length - 4} more` : ""}`,
+  noteFromSales: "Note for Legal from the deal owner",
+  add: "Add what we told them",
+  addFromNote: "Add from this note",
+  edit: "Edit",
+  withdraw: "Withdraw",
+  save: "Save what we told them",
+  saving: "Saving…",
+  stale: "The brief could not be updated. It may be out of date.",
+  retry: "Try again",
+  saved: "Saved what we told them",
+  withdrawn: "Withdrawn",
+  textLabel: "What we told the client (Legal's words, at most 500 characters)",
+  dateLabel: "Told on (optional)",
+  cancel: "Cancel",
+} as const;
+
+/** Batch 3+4: Legal ties a change to what we told the client — the answer card. */
+export const TIE_COPY = {
+  title: "What we told them",
+  position: "Which of what we told them",
+  asTold: "As we told them",
+  beyond: "Goes further than we told them",
+  save: "Save the label",
+  remove: "Remove the label",
+  saved: "Label saved",
+  removed: "Label removed",
+  why: "Prepared from what we told them",
+} as const;
+
+/** Batch 3+4: the answer card's detail lines (the row says ONE status). */
+export const CARD_COPY = {
+  standard: "Our standard",
+  covers: "Our standard covers this clause",
+  noFinding: "Our standard does not cover this clause",
+  noPoint: "Our standard does not cover this clause, so contact Legal directly, or keep ours.",
+  forUs: "For us",
+  change: "The change",
+  moved: ", also moved",
+  who: "Who answers",
+  loading: "Loading what we told them…",
+  noneTold: "Nothing is recorded yet. Add what we told them in the deal brief.",
+  choose: "Choose one",
+} as const;
+
+/** Batch 3+4 round 2: the brief's status line for each of the server's codes (rule 18:
+ *  the server decides who acts next; these are only its words). Arguments: the changes
+ *  waiting for Legal, the reader's own, the open points — the one count. */
+const are = (n: number) => (n === 1 ? "is" : "are");
+/** round 3 (D1): an open point is never hidden from sales — said beside the changes */
+const andPoints = (p: number) => (p ? ` ${plural(p, "point")} ${p === 1 ? "needs" : "need"} Legal too.` : "");
+export const BRIEF_STATUS: Record<import("@/lib/dealBrief").BriefStatus, (legal: number, mine: number, points: number) => string> = {
+  NOT_SENT: (n, _m, p) => `Not sent to Legal yet: ${plural(n, "change")}${p ? ` and ${plural(p, "point")}` : ""} ${n + p === 1 ? "needs" : "need"} Legal. Send it to Legal.`,
+  WITH_LEGAL: (n) => `With Legal: ${plural(n, "change")} ${are(n)} being answered. Nothing for you yet.`,
+  WITH_LEGAL_AND_YOURS: (n, m) =>
+    `With Legal: ${plural(n, "change")} ${are(n)} being answered. Meanwhile, ${plural(m, "change")} ${are(m)} yours to answer.`,
+  YOURS_TO_ANSWER: (_n, m, p) => `Your turn: ${plural(m, "change")} to answer.${andPoints(p)}`,
+  POINTS_OPEN: (_n, _m, p) => `With Legal: every change is answered. ${plural(p, "point")} ${are(p)} still being decided.`,
+  SEND_POINTS_TO_LEGAL: (_n, _m, p) => `${plural(p, "point")} ${p === 1 ? "needs" : "need"} Legal. Send it to Legal.`,
+  SEND_REPLY: () => "Your turn: Legal answered every change. Send our reply.",
+  /** no change of this round went to Legal: never "Legal answered" */
+  ALL_ANSWERED: () => "Your turn: every change is answered. Send our reply.",
+  REPLY_READY: () => "Your turn: our reply is ready. Send it to the client.",
+  WITH_CLIENT: () => "With the client: we are waiting for their reply.",
+  LEGAL_QUEUE: (n, _m, p) => `${plural(n, "change")} to answer, ${plural(p, "point")} to decide.`,
+  LEGAL_POINTS: (_n, _m, p) => `${plural(p, "point")} to decide.`,
+  LEGAL_NOTHING: () => "Nothing is waiting for Legal on this contract.",
+  /** round 5: no analysed review of the client's version yet — nothing is ready */
+  CHECKING: () => "LegalMind is still reading the client's version.",
+};

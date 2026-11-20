@@ -11,6 +11,11 @@
 
 ---
 
+**2026-11-20 — AB-218 (built, not deployed).** Batches 3+4 "deal brief": a one-minute summary
+above the tabs for sales and the lawyer, one label per change, Legal records what we told the
+client (never sent to the client), one "your turn" notice, and "Whole contract" for points no
+clause holds.
+
 **2026-11-19 — AB-217 (DEPLOYED 2026-11-20, ac0332ea).** Batch 2 "cited passage": points sit on
 the clause they cite, our counter-wording is the whole cited clause, our wrong signature-block
 entity is caught in the version we sent, and the NDA notice rule no longer measures the MSA.

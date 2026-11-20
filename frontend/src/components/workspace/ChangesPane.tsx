@@ -39,13 +39,14 @@ import {
   clauseName, effectLabel, effectSentence, type Measured,
   type AcceptableEffect,
   answersAsLegal, explanation, formattingOnly, changeBucket, historyLine, matches, readerFavour, readerStatus, readerWord, replyBlockers,
-  oursLabel, salesLine, salesStatus, topicOf, whoLine, where,
+  oursLabel, rowMeta, topicOf, whoLine, where,
   type Answer, type ChangeList, type ClientChange, type EffectForUs, type Filter, type ManualRow, type ReplyGate,
 } from "@/lib/changes";
 import type { DocumentVersion, Evaluation, Finding } from "@/lib/types";
 
 import "./changes.css";
-import { AnswerComposer, DiffText } from "./ChangeComposer";
+import { DiffText } from "./ChangeComposer";
+import { AnswerCard, RowStatus } from "./AnswerCard";
 import { ChangesBanners, EarlierAnswers } from "./ChangesBanners";
 import { WordComments } from "./WordComments";
 import { EscalateControl } from "./EscalateControl";
@@ -57,6 +58,8 @@ import { OfferLine } from "./OfferPlaybook";
 import { FromOurStandard, LetteredPoints, NotesForLegal, ReviewTableButton } from "./LawyerView";
 import { REOPEN_COPY, SALES_LINE } from "@/lib/labels";
 import { formatDate } from "@/lib/dates";
+import { onOpenChange } from "@/lib/dealBrief";
+export { AnswerCard } from "./AnswerCard";
 
 export const COLLEAGUE = "Changed by a colleague — reload to see their answer.";
 
@@ -208,6 +211,14 @@ export function ChangesPane({
       ?.scrollIntoView?.({ block: "nearest" });
   }, [current]);
 
+  // batch 3+4: the deal brief names a change — open it here
+  useEffect(() => onOpenChange((key) => {
+    setPicked("all");
+    setSelected(key);
+    setDetail(true);
+    window.requestAnimationFrame(() => document.getElementById(`cx-row-${key}`)?.focus());
+  }), []);
+
   // the header's "Answer changes" (`nextStep`): the first change left for this reader
   useStep("answerChanges", useCallback(() => {
     const first = list?.changes.find((c) => matches(c, "mine", list));
@@ -319,7 +330,7 @@ export function ChangesPane({
       {data.can_decide ? <NotesForLegal list={data} onPick={pick} rowFor={(n) => (data.changes.find((c) => c.clause.number === n)
         ?? data.changes.find((c) => c.clause.number?.startsWith(`${n}.`)))?.row_key ?? null} /> : null}
       {/* R3: the deal owner's one line — who has the changes now, never Legal's view */}
-      {!data.can_decide && data.changes.length ? <p className="cx-banner cx-sales-status" data-testid="sales-status">{salesStatus(data.changes, data.sent_to_legal ?? true)}</p> : null}
+      {/* batch 3+4: the deal owner's one status line is the deal brief's, above the tabs */}
       <p className="ws-visually-hidden" role="status" aria-live="polite">{said}</p>
       {packageBar?.(pick)}
       <ChangesBanners data={data} allUntracked={allUntracked} />
@@ -507,24 +518,6 @@ export function AcceptTogether({ effect, rows, list, contractId, onClose, onDone
   );
 }
 
-/** One line per change, grouped under its top-level clause: where it is, then its kind
- *  and — only where it says something — who answers, untracked, or the answer given.
- *  An open change reads in full ink, an answered one quieter, so the list scans as
- *  "what is left" without a colour or a counter shouting. */
-function RowWho({ change, reader }: { change: ClientChange; reader: ChangeList }) {
-  // R3: a deal owner reads who has it in their own words, on every row
-  if (!reader.can_decide) return <span className={change.answer ? "cx-row__done" : "cx-row__tag"}>{salesLine(change, reader.sent_to_legal ?? true)}</span>;
-  const who = whoLine(change, reader);
-  if (change.answer) {
-    return (
-      <span className="cx-row__done" data-waiting={change.waiting_for_approval || undefined}>
-        {change.waiting_for_approval ? <IconClock size={11} /> : <IconCheck size={11} />}{who}
-      </span>
-    );
-  }
-  return who === "Yours to answer" ? null : <span className="cx-row__tag">{who}</span>;
-}
-
 /** A row's clause group: its top-level number; a point on the client's paper no clause
  *  was confirmed for (MISSING included) is not placed, never "opening text". */
 export function groupHead(c: ClientChange): string {
@@ -532,7 +525,7 @@ export function groupHead(c: ClientChange): string {
     ?? (c.kind === "THEIRS" && !c.after ? "Not placed in a clause" : "Opening text");
 }
 
-function ChangeIndex({ rows, current, onPick, allUntracked, reader, formatting, onKeepAllFormatting, place, packageLine }: {
+export function ChangeIndex({ rows, current, onPick, allUntracked, reader, formatting, onKeepAllFormatting, place, packageLine }: {
   rows: ClientChange[]; current: ClientChange | null; onPick: (key: string) => void;
   allUntracked: boolean; reader: ChangeList; place?: string | undefined;
   /** B5: the same line the answer panel says — the dry run's, read again after every
@@ -610,22 +603,11 @@ function ChangeIndex({ rows, current, onPick, allUntracked, reader, formatting, 
                       {/* the group already says the clause: a row that would only repeat
                           it, or say a bare number, says its own first words */}
                       <span className="cx-row__where">{rowLabel(c, groupLabel(g))}</span>
+                      {/* batch 3+4: ONE status label for this reader, the kind of change as
+                          its small meta; the review's word and the effect are the card's */}
                       <span className="cx-row__meta">
-                        {/* S1 — ONE status on line 1: the review's word against our standard
-                            when it asks for a person, else what the change does for us. The
-                            effect and our offer are said in the answer panel, never stacked
-                            here beside a contradicting word (two-line rule) */}
-                        {/* rule 14: a decided change keeps its status chip, with "Decided" beside it */}
-                        {readerStatus(c) && c.route === "holder"
-                          ? <StatusChip status={chipStatus(readerStatus(c)!, readerFavour(c))} decided={changeBucket(c) === "decided" || null} />
-                          : <>{changeBucket(c) && c.route === "holder"
-                            ? <PointStatusIcon bucket={changeBucket(c)!} size={14} /> : null}<ForUs effect={c.effect_for_us} measured={c.measured} /></>}
-                        {/* "Wording changed" is most rows; only a different kind is said */}
-                        {c.kind !== "MODIFIED" && c.kind !== "THEIRS" ? <span>{KIND_LABEL[c.kind]}</span> : null}
-                        {c.untracked && !allUntracked ? <span className="cx-row__tag">Untracked</span> : null}
-                        {/* line 2: the answer, or who answers — "Yours to answer" goes
-                            unsaid, the row's full ink already says it is open */}
-                        <RowWho change={c} reader={reader} />
+                        <RowStatus change={c} list={reader} />
+                        <span className="cx-row__kind">{rowMeta(c, allUntracked)}</span>
                       </span>
                       {(() => {
                         const line = packageLine ? packageLine(c) : finalLine(c, place);
@@ -667,280 +649,6 @@ export function Marked({ change, list }: { change: ClientChange; list: Pick<Chan
               added="client added" removed="client removed"
               labels={{ from: oursLabel(list),
                         to: `The client's, version ${list.to.version_number}` }} />
-  );
-}
-
-/** The evaluations and findings a holder or an asker acts on — loaded only for the
- *  change on screen, and only when the reader can act. */
-function useFindingDetails(ids: string[], wanted: boolean) {
-  const [details, setDetails] = useState<{ finding: Finding; evaluations: Evaluation[] }[] | null>(null);
-  const key = ids.join(",");
-  useEffect(() => {
-    if (!wanted || !key) return;
-    let cancelled = false;
-    Promise.all(key.split(",").map(async (id) => {
-      const [finding, evaluations] = await Promise.all([api.finding(id), api.evaluations(id)]);
-      return { finding, evaluations };
-    }))
-      .then((got) => { if (!cancelled) setDetails(got); })
-      .catch(() => { if (!cancelled) setDetails([]); });
-    return () => { cancelled = true; };
-  }, [key, wanted]);
-  return details;
-}
-
-export function AnswerCard({ change, list, contractId, onAnswered, onReload, inPackage, amendment = false }: {
-  change: ClientChange;
-  list: ChangeList;
-  contractId: string;
-  onAnswered: (row: Pick<ClientChange, "row_key" | "answer" | "history" | "waiting_for_approval">) => void;
-  onReload: () => void;
-  /** `AM-307` U2: "In the final contract: …", when this deal has one */
-  inPackage?: string | null | undefined;
-  /** `AM-310`: the deal is an amendment — "In the amendment: …" */
-  amendment?: boolean;
-}) {
-  const [reason, setReason] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<{ conflict: boolean; message: string } | null>(null);
-  const holder = change.route === "holder";
-  const legal = answersAsLegal(list);
-  // only a change worse for us goes to Legal (`AM-299`): the only one with Ask Legal
-  const asking = holder && change.effect_for_us === "NEGATIVE" && list.can_answer && !legal && !change.holder_accepted;
-  const actions = actionsFor(change, list);
-  const details = useFindingDetails(change.review.after.map((f) => f.finding_id),
-                                    holder && (list.can_decide || asking));
-  const versions = { from: list.from?.version_number ?? 0, to: list.to.version_number };
-
-  async function answer(which: Answer) {
-    setBusy(true);
-    setError(null);
-    try {
-      onAnswered(await api.answerChange(contractId, change.row_key, list.to.version_number, {
-        answer: which, expected_version: change.answer?.version_number ?? 0,
-        ...(reason.trim() ? { reason: reason.trim() } : {}) }));
-      setReason("");
-    } catch (cause) {
-      setError(answerError(cause));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const explain = explanation(change, versions);
-  // why it is routed where it is — said to whoever does not answer it themselves
-  const routeWhy = change.answer || (holder && list.can_decide) ? null : ROUTE_REASON[change.route_reason];
-  const given = change.answer;
-  const word = readerWord(change);
-  const open = change.review.after.filter((f) => f.user_status !== "ACCEPTABLE");
-  const point = open[0];
-  const waiting = given?.answer === "write_wording" && !!change.waiting_for_approval;
-
-  return (
-    <div className="cx-answer">
-      <header className="cx-answer__head">
-        <h3 title={where(change)}>{rowLabel(change, "")}</h3>
-        {/* AM-291 r1: two lines, never one status — the review's word, then who answers */}
-        <p className="cx-line1">
-          {/* one message (verifier item 7): a clause our standard covers is never also
-              "no finding" — the route line says Legal decides it */}
-          {word ? <StatusChip status={chipStatus(readerStatus(change)!, readerFavour(change))} decided={changeBucket(change) === "decided" || null} /> : <>
-            {changeBucket(change) ? <PointStatusIcon bucket={changeBucket(change)!} /> : null}
-            {change.route_reason === "MEASURED_BY_A_STANDARD"
-              ? <span>Our standard covers this clause</span> : <span>No finding against our standard here</span>}
-          </>}
-          {/* the topic is said once: the point's name only where it is not the heading's */}
-          {point && requirementTitle({ code: point.requirement_code }) !== rowLabel(change, "")
-            ? <span> · {requirementTitle({ code: point.requirement_code })}</span> : null}
-          {formattingOnly(change) ? <span className="cx-tag">Formatting only</span>
-            : change.kind !== "MODIFIED" && !wholeClause(change) ? <span className="cx-tag">{KIND_LABEL[change.kind]}</span> : null}
-          {change.moved ? <span className="cx-tag">Also moved</span> : null}
-        </p>
-        {/* "Legal decides" is said ONCE, beside Ask Legal below — not again here */}
-        <p className="cx-line-forus"><ForUs effect={change.effect_for_us} measured={change.measured} size={15} />
-          {asking ? null : <span>{effectSentence(change.effect_for_us, change.measured)}</span>}</p>
-      </header>
-      {/* B3 p1: Legal is said ONCE — "Legal decides this one" with Ask Legal, straight
-          under the heading (above the fold on a phone); no "With Legal" box as well */}
-      {asking ? (
-        <section className="cx-section cx-asklegal" aria-label="Ask Legal">
-          {/* the one place this pane says it (PLAIN-LANGUAGE §2.4) */}
-          <p className="cx-asklegal__line"><strong>{actions.includes("keep_ours")
-            ? "Legal decides if you accept it; you can keep our wording." : "Legal decides this one."}</strong></p>
-          {details === null && change.review.after.length ? <p role="status" className="ws-pane__note">Loading the points…</p> : null}
-          {details?.length ? details.map(({ finding }) => {
-            const read = change.review.after.find((f) => f.finding_id === finding.id);
-            if (!read || read.user_status === "ACCEPTABLE") return null;
-            return (
-              <div key={finding.id} className="cx-decide__point">
-                {/* named only when there are several — one point is the card's line 1 */}
-                {open.length > 1 ? (
-                  <p className="cx-decide__name">
-                    <StatusChip status={chipStatus(read.user_status, read.in_our_favour)} /> {requirementTitle({ code: read.requirement_code })}
-                  </p>
-                ) : null}
-                <EscalateControl finding={finding} onChanged={onReload} />
-              </div>
-            );
-          }) : details !== null || !change.review.after.length ? (
-            <p className="ws-pane__note">No review finding covers this clause, so contact Legal directly, or keep ours.</p>
-          ) : null}
-        </section>
-      ) : null}
-      {/* nothing confirmed which clause holds this point: say so, never pick one */}
-      {!change.after && change.candidates?.length ? (
-        <p className="ws-pane__note">We could not tell which clause covers this. Clauses that may:{" "}
-          {change.candidates.map(clauseName).filter(Boolean).join("; ")}.</p>
-      ) : null}
-      {/* AM-305: the playbook line this change is measured by */}
-      <OfferLine change={change} contractId={contractId} />
-      {asking ? null : (
-        <p className="cx-line2" data-route={change.route} data-waiting={waiting || undefined}>
-          <strong>{whoLine(change, list)}</strong>
-          {routeWhy ? <span>{routeWhy}</span> : null}
-        </p>
-      )}
-
-      {/* On a narrow screen the passage column is not shown, so the card carries it. */}
-      {/* the passage and its comments: the phone's copy (the passage column shows them on a
-          wide screen), so a comment is drawn once at any width */}
-      <div className="cx-answer__passage" tabIndex={0} role="region" aria-label="The changed passage"><Marked change={change} list={list} />
-        <WordComments comments={[...(change.after?.comments ?? []), ...(change.before?.comments ?? [])]} /></div>
-      <EarlierAnswers change={change} />
-
-      {given ? <GivenAnswer change={change} waiting={waiting} /> : null}
-      {given?.auto && list.can_decide && list.replied_in == null ? (
-        <section className="cx-reopen" aria-label={REOPEN_COPY.title}>
-          <label className="cx-reason">
-            <span>{REOPEN_COPY.reason}</span>
-            <input type="text" maxLength={200} value={reason} onChange={(event) => setReason(event.target.value)} />
-          </label>
-          <div className="cx-acts">
-            <button type="button" className="ws-btn ws-btn--sm" disabled={busy || !reason.trim()}
-                    onClick={() => void answer("keep_ours")}>{REOPEN_COPY.button}</button>
-          </div>
-          {error ? <p className="cx-error" role="alert">{error.message}</p> : null}
-        </section>
-      ) : null}
-      {inPackage ? <p className="cx-inpkg"><strong>{amendment ? "In the amendment:" : "In the final contract:"}</strong> {inPackage}</p> : null}
-
-      {change.review.after.length > 1 || change.review_delta.length ? (
-        <div className="cx-review">
-          {change.review.after.length > 1 ? (
-            <>
-              <span className="cx-label">From the review of version {versions.to}</span>
-              <ul>
-                {change.review.after.map((f) => (
-                  <li key={f.finding_id}><StatusChip status={chipStatus(f.user_status, f.in_our_favour)} /> {requirementTitle({ code: f.requirement_code })}</li>
-                ))}
-              </ul>
-            </>
-          ) : null}
-          {change.review_delta.length && list.from ? (
-            <>
-              <span className="cx-label">Since version {versions.from}</span>
-              <ul>
-                {change.review_delta.map((d) => (
-                  <li key={d.requirement_code}>
-                    {requirementTitle({ code: d.requirement_code })}: {d.before ? USER_STATUS_LABELS[d.before] : "not measured"} →{" "}
-                    {d.after ? USER_STATUS_LABELS[d.after] : "not measured"}
-                  </li>
-                ))}
-              </ul>
-            </>
-          ) : null}
-        </div>
-      ) : null}
-      <LetteredPoints change={change} />
-      {legal && actions.length ? <FromOurStandard change={change} /> : null}
-      {change.triage?.reasons.length ? (
-        <ul className="cx-reasons">
-          {change.triage.reasons.map((r, i) => <li key={i}>{r.reason}</li>)}
-        </ul>
-      ) : null}
-
-      {legal && actions.length ? (
-        <AnswerComposer change={change} list={list} actions={actions} contractId={contractId}
-                        details={details} onAnswered={onAnswered} onReload={onReload} />
-      ) : null}
-
-      {/* AB-213 D10: a change Legal answers carries no verdict control for sales until
-          Legal has accepted it — sales sends it to Legal, never answers it first */}
-      {!legal && actions.length && !(holder && !change.holder_accepted) ? (
-        <section className="cx-section" aria-label={given ? "Change your answer" : "Your answer"}>
-          <h4 className="cx-label">{given ? "Change your answer" : "Your answer"}</h4>
-          {change.route === "favour" && change.favour_reason ? <p className="cx-favour">{change.favour_reason}</p> : null}
-          <div className="cx-acts">
-            {actions.map((a) => (
-              <button key={a} type="button"
-                      className={`ws-btn ws-btn--sm${change.route === "favour" && a === "accept_theirs" ? " ws-btn--primary" : ""}`}
-                      disabled={busy || error?.conflict} onClick={() => void answer(a)}>
-                {holder && a === "accept_theirs" ? "Accept their wording — Legal has accepted it" : ACTION_LABEL[a]}
-              </button>
-            ))}
-          </div>
-          <label className="cx-reason">
-            <span>Reason <span className="cx-reason__opt">(optional, one line)</span></span>
-            <input type="text" maxLength={200} value={reason}
-                   onChange={(event) => setReason(event.target.value)} />
-          </label>
-          {error ? (
-            <p className="cx-error" role="alert">
-              {error.message}{" "}
-              {error.conflict ? <button type="button" className="ws-escalate__link" onClick={onReload}>Reload</button> : null}
-            </p>
-          ) : null}
-        </section>
-      ) : null}
-
-      {change.history.length > 1 ? (
-        <p className="cx-history"><span className="cx-label">History</span> {historyLine(change.history)}</p>
-      ) : null}
-      {explain.length ? (
-        <details className="cx-explain">
-          <summary>Why does this matter?</summary>
-          <ul>{explain.map((line, i) => <li key={i}>{line}</li>)}</ul>
-        </details>
-      ) : null}
-    </div>
-  );
-}
-
-/** The answer on record: what, who and when, the wording it carries and its notes. The
- *  internal note is drawn only when the server sent its key (`AM-285` r3, omitted else). */
-function GivenAnswer({ change, waiting }: { change: ClientChange; waiting: boolean }) {
-  const given = change.answer!;
-  return (
-    <div className="cx-given" role="status" id={`cx-given-${change.row_key}`} tabIndex={-1}>
-      <p className="cx-given__line">
-        {waiting ? <IconClock size={14} /> : <IconCheck size={14} />}
-        <span>
-          <strong>{capital(ANSWER_LABEL[given.answer])}</strong>
-          {" "}— {[given.decided_by, formatDate(given.decided_at)].filter(Boolean).join(", ")}
-          {given.reason ? <span className="cx-given__why">&ldquo;{given.reason}&rdquo;</span> : null}
-        </span>
-      </p>
-      {waiting ? (
-        <p className="cx-waiting">
-          Your wording is recorded as a Legal Decision. It takes effect when a second person with the
-          right approves it — needed on a contract you own or created, or where our
-          standard asks for two. The reply cannot be prepared until then.
-        </p>
-      ) : null}
-      {given.wording ? (
-        <div className="cx-given__wording">
-          <span className="cx-label">Our wording, against theirs</span>
-          <DiffText from={change.after?.text ?? ""} to={given.wording} added="we add" removed="we remove"
-                    labels={{ from: "Their wording", to: "Our wording" }} />
-        </div>
-      ) : null}
-      {given.client_note ? (
-        <p className="cx-note-read cx-note-read--client"><span>Sent to the client</span>{given.client_note}</p>
-      ) : null}
-      {given.internal_note ? (
-        <p className="cx-note-read cx-note-read--internal"><span><IconLock size={12} /> Only Legal sees this — never sent</span>{given.internal_note}</p>
-      ) : null}
-    </div>
   );
 }
 

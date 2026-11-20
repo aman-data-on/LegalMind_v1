@@ -1,7 +1,7 @@
 /** E2E fix batch A/B (AM-393, AM-398, UX L1/S4): one primary per person per stage. */
 import { describe, expect, it } from "vitest";
 
-import { salesLine, salesStatus, type ClientChange } from "@/lib/changes";
+import { rowStatus, type ClientChange } from "@/lib/changes";
 import { nextStep } from "@/lib/nextStep";
 
 describe("whose turn", () => {
@@ -14,8 +14,9 @@ describe("whose turn", () => {
   });
   it("says With Legal only once the changes were sent to Legal", () => {
     const c = { route: "holder", holder_accepted: false, answer: null } as unknown as ClientChange;
-    expect(salesLine(c, false)).toBe("Legal answers this");
-    expect(salesStatus([c], false)).toBe("Your turn: send the client's changes to Legal.");
-    expect(salesStatus([c], true)).toMatch(/^With Legal/);
+    // batch 3+4: the row's one label (the deal's status line is the server's code)
+    const reader = { can_answer: true, can_decide: false } as const;
+    expect(rowStatus(c, { ...reader, sent_to_legal: false })).toBe("Legal answers this");
+    expect(rowStatus(c, { ...reader, sent_to_legal: true })).toBe("With Legal");
   });
 });

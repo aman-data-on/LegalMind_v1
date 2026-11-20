@@ -42,7 +42,7 @@ from legalmind.assist.knowledge import constitution
 from legalmind.db import models as M
 from legalmind.domain.document_types import DOCUMENT_TYPES
 from legalmind.domain.enforceability import note_for
-from legalmind.domain.enums import EvidenceRelationshipType, FindingStatus
+from legalmind.domain.enums import EvidenceRelationshipType, FindingStatus, MappingState
 from legalmind.domain.user_status import in_our_favour as favoured_word
 from legalmind.evaluation.constitution_boundaries import constitution_prohibition_for
 from legalmind.evaluation.rule_config import FAVOURABLE_COUNSEL_CHECK, in_our_favour
@@ -186,6 +186,7 @@ def _rows(db: DBSession, review: M.Review) -> list[dict[str, Any]]:
     for f in findings:
         rv, req = versions.get(f.requirement_version_id, (None, None))
         ev = _governing(evaluations[f.id], f.classification)
+        standard = standards.get(f.requirement_version_id) or {}
         code = req.code if req else ""
         # the folded reader word, as `by_finding` projects it (AM-56/AM-63/AM-239)
         word = worst([user_status(e.classification, e.rule_outcome,
@@ -198,7 +199,8 @@ def _rows(db: DBSession, review: M.Review) -> list[dict[str, Any]]:
                     "cited_ids": cited[f.id] or linked[f.id],
                     "title": ((rv.description if rv else None)
                               or (req.code if req else "")),
-                    "standard": standards.get(f.requirement_version_id) or {},
+                    "standard": standard,
+                    "whole": _whole_contract(f, evaluations[f.id], standard),
                     "classification": f.classification.value,
                     "outcome": ev.rule_outcome.value if ev else None,
                     "actual": (ev.actual_value if ev else None) or {},
@@ -209,7 +211,28 @@ def _rows(db: DBSession, review: M.Review) -> list[dict[str, Any]]:
     return out
 
 
+#: AM-322 r17 rider (owner 2026-11-20, batch 3+4): where a point no single clause holds
+WHOLE_CONTRACT = "Whole contract"
+
+
+def _whole_contract(finding, evaluations: list, standard: dict) -> bool:
+    """Round 4 (lead): a point's place is a clause only when its mapping is CONFIRMED.
+    Every Evaluation stamped and none CONFIRMED (UNRESOLVED / AMBIGUOUS — its rows are
+    only unranked candidates) → the whole contract, never one of the candidates (SPEC §B,
+    rule 15). A clause found for a person (AM-322 r11/r12) is cited, so it keeps it; a
+    MISSING point has no place; an Evaluation with no stamp (an older Review) reads as
+    before."""
+    stamped = [((e.result or {}).get("evaluated_facts") or {}).get("mapping_state")
+               for e in evaluations]
+    return (bool(stamped) and all(stamped)
+            and MappingState.CONFIRMED.value not in stamped
+            and finding.classification.value != "MISSING"
+            and not standard.get("found_clause_for_a_person"))
+
+
 def _where(row) -> str | None:
+    if row.get("whole"):
+        return WHOLE_CONTRACT
     e = row["evidence"]
     if e is None:
         return None
@@ -612,7 +635,8 @@ def _unread(actual: dict, theirs: str | None, where: str = "") -> str:
 
 
 def _case(r, item: dict, point: dict | None, source: dict | None,
-          legal_position: bool, names: dict[str, str] | None = None) -> dict[str, Any]:
+          legal_position: bool, names: dict[str, str] | None = None, *,
+          candidates: bool = False) -> dict[str, Any]:
     """One finding as a careful reviewer states it (owner, 2026-10-21, Step 3): what the
     contract says, what our standard says and where it comes from, the gap, the business
     impact the figures support, the related clauses, and the recommended action. Built by
@@ -626,7 +650,15 @@ def _case(r, item: dict, point: dict | None, source: dict | None,
         if source:
             standard["source"] = {"label": source["label"], "quote": source["text"]}
     return {
-        "contract": None if r["classification"] == "MISSING" or passage is None else {
+        # a point no single clause holds is said to be on the whole contract — never
+        # quoted from one of its candidate clauses (AM-322 r17 rider)
+        # round 4/5: its candidate clauses' numbers, for Legal's "Possibly in" line —
+        # only for a `legal.review` caller (``candidates``), omitted for everyone else
+        "contract": {"whole": True, **({"candidates": [
+            n.rstrip(".") for n in r["sections"]]}
+            if candidates and r["sections"] else {})}
+        if r.get("whole") else
+        None if r["classification"] == "MISSING" or passage is None else {
             "quote": " ".join((passage.content or "").split()),
             "clause": passage.section_number, "page": passage.page_number,
             # a number the paper uses twice, by the clause's own words (slice A)
@@ -874,7 +906,8 @@ def _origins(db: DBSession, review: M.Review, clauses: list,
     # AB-213 D13: a point the client changed is placed at the clause they changed
     # ("19.4"), not the first clause the point reads ("19.1")
     for r in actionable:
-        if origins.get(str(r["finding"].id)) != lawyer_rows.CLIENT_CHANGED or not changed:
+        if (origins.get(str(r["finding"].id)) != lawyer_rows.CLIENT_CHANGED
+                or not changed or r.get("whole")):
             continue
         hit = changed_passage(r.get("cited_ids") or r["evidence_ids"], changed, clauses)
         row = db.get(M.DocumentEvidence, hit) if hit is not None else None
@@ -883,8 +916,17 @@ def _origins(db: DBSession, review: M.Review, clauses: list,
     return origins, mine
 
 
+def whole_contract_points(db: DBSession, review: M.Review) -> list[dict[str, str]]:
+    """The undecided points no single clause holds, for the deal brief (batch 3+4)."""
+    return [{"finding_id": str(r["finding"].id), "title": r["title"]}
+            for r in _rows(db, review) if r["whole"] and r["classification"] in _ACTION
+            and r["finding"].status is not FindingStatus.RESOLVED]
+
+
 def review_angles(db: DBSession, review: M.Review, *, legal_position: bool,
-                  legal_open: int = 0) -> dict:
+                  legal_open: int = 0, legal_review: bool = False) -> dict:
+    """``legal_review`` (round 5): the caller holds `legal.review` — only then does a
+    whole-contract point's case carry its candidate clauses ("Possibly in")."""
     rows = _rows(db, review)
     document_type = _review_document_type(db, review)
     for r in rows:
@@ -966,7 +1008,8 @@ def review_angles(db: DBSession, review: M.Review, *, legal_position: bool,
         item["decided"] = item["finding_id"] in resolved
         section = str((r["standard"].get("constitution") or {}).get("section") or "")
         item["case"] = _case(r, item, by_finding.get(item["finding_id"]),
-                             by_section.get(section), legal_position, names)
+                             by_section.get(section), legal_position, names,
+                             candidates=legal_review)
     observed = consistency.observe(clauses, document_type)
     # what the client changed, each change beside the standard that measured its clause
     measured: dict[str, list[str]] = {}

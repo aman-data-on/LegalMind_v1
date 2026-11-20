@@ -34,7 +34,7 @@ import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { Contract, Counterparty, DocumentVersion, ReviewAssignments } from "@/lib/types";
 import { ACTION, READER_OUTDATED, contractStatusLabel, type StageViewer } from "@/lib/labels";
-import { canSendToLegalFor, nextStep, runStep, useStep, type StepKind } from "@/lib/nextStep";
+import { canSendToLegalFor, nextStep, runStep, type StepKind } from "@/lib/nextStep";
 import { PageHeader } from "@/components/page/PageHeader";
 import { documentSourceChip, isOurs } from "@/lib/documentTypes";
 
@@ -58,6 +58,8 @@ import { FindingsProvider, primeReviews, useFindingsState, useFindingsStateOptio
 import { HighlightProvider } from "./highlight";
 import { contractHref, contractTabFromPath, pickVersion, shortDate, stageViewer, versionRoleLabel } from "./model";
 import { RecordSigning } from "./SigningSheet";
+import { SendToLegal } from "./SendToLegal";
+import { DealBrief } from "./DealBrief";
 import { FinalCard, FinalCheckFailed, PrepareFinal, ClosedPanel } from "./FinalCopy";
 import { StageBadge } from "./StageBadge";
 import { UploadDocument } from "./UploadDocument";
@@ -440,6 +442,10 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
                       ) : null}
                       <ClientMenu label="More actions">{overflow}</ClientMenu>
                     </>}>
+      {version ? <DealBrief contractId={contract.id} stage={contract.negotiation_stage ?? null} viewer={viewer}
+                            refreshKey={`${JSON.stringify(contract.counts ?? {})}${stageCode ?? ""}${
+                              changeList?.changes.map((c) => c.told?.tie ?? "").join() ?? ""}`}
+                            onOpen={() => chooseView("changes")} onChanged={changesFeed.reload} /> : null}
       {version && !phone && changesFeed.enabled ? (
         <div className="ws-record__bar">
           <div className="ws-record__tabs" role="tablist" aria-label="Contract views">
@@ -794,7 +800,8 @@ function RecordHeader({
         {holder ? (
           <span className="ws-send">
             With <strong>{holder.name || holder.email}</strong> since {shortDate(holder.assigned_at)}
-            {holder.note ? <span className="lm-sendlegal__said">Note for Legal: “{holder.note}”</span> : null}
+            {/* batch 3+4: Legal reads the note in the deal brief, beside "Add what we told them" */}
+            {holder.note && viewer !== "legal" ? <span className="lm-sendlegal__said">Note for Legal: “{holder.note}”</span> : null}
             {assign?.can_send && reviewId ? (
               <button type="button" className="ws-linkbtn"
                       onClick={() => void api.withdrawReview(reviewId, holder.user_id)
@@ -820,73 +827,6 @@ function RecordHeader({
       primary={primary}>
       {children}
     </PageHeader>
-  );
-}
-
-/** Send to Legal (AB-100): a button that opens a picker of the people who may review —
- *  never a styled native select (MED 8). The list is the server's (only people holding
- *  both legal roles, never the owner); the server checks the send again. */
-function SendToLegal({ reviewId, data, onChange, label, primary = false }: {
-  reviewId: string; data: ReviewAssignments; onChange: (next: ReviewAssignments) => void;
-  label: string; primary?: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  // AB-213 D3: nobody preselected — the owner picks the lawyer
-  const [pick, setPick] = useState("");
-  const [note, setNote] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  useStep("sendToLegal", useCallback(() => setOpen(true), []));
-  const send = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const { assigned } = await api.sendForReview(reviewId, pick, note);
-      onChange({ ...data, assigned });
-      setOpen(false);
-    } catch (cause) {
-      setError(describeError(cause));
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <span className="lm-sendlegal"
-          onKeyDown={(event) => { if (event.key === "Escape" && open) { event.stopPropagation(); setOpen(false); } }}>
-      <button type="button" className={`ws-btn ws-btn--sm${primary ? " ws-btn--primary" : ""}`}
-              aria-expanded={open} aria-controls="lm-sendlegal" onClick={() => setOpen((v) => !v)}>
-        {label}
-      </button>
-      {open ? (
-        <div className="lm-sendlegal__pop" id="lm-sendlegal" role="dialog" aria-label={label}>
-          <fieldset>
-            <legend>Who reviews it</legend>
-            {data.eligible.map((person, i) => (
-              <label key={person.user_id}>
-                <input type="radio" name="lm-sendlegal" value={person.user_id} checked={pick === person.user_id}
-                       autoFocus={i === 0} onChange={() => setPick(person.user_id)} />
-                <span className="lm-sendlegal__who">
-                  {person.name || person.email}
-                  {person.name ? <small>{person.email}</small> : null}
-                </span>
-              </label>
-            ))}
-          </fieldset>
-          <label className="lm-sendlegal__note">
-            <span>Note for Legal (optional)</span>
-            <textarea rows={3} maxLength={2000} value={note} onChange={(e) => setNote(e.target.value)} />
-          </label>
-          {error ? <p className="cx-error" role="alert">{error}</p> : null}
-          <div className="lm-sendlegal__foot">
-            <button type="button" className="ws-btn ws-btn--sm" onClick={() => setOpen(false)}>Cancel</button>
-            <button type="button" className="ws-btn ws-btn--sm ws-btn--primary" disabled={busy || !pick}
-                    onClick={() => void send()}>
-              {busy ? "Sending…" : label}
-            </button>
-          </div>
-        </div>
-      ) : null}
-    </span>
   );
 }
 

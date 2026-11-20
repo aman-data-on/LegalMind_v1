@@ -34,6 +34,7 @@ DECISION_REQUESTED = "DECISION_REQUESTED"
 DECIDED = "DECIDED"
 CLIENT_RETURNED = "CLIENT_RETURNED"
 ANSWER_CHANGED_BY_COLLEAGUE = "ANSWER_CHANGED_BY_COLLEAGUE"
+LEGAL_ANSWERED_ALL = "LEGAL_ANSWERED_ALL"
 
 #: The closed set. `{contract}` is the contract's name in-app, "a contract" in e-mail.
 SENTENCES: dict[str, str] = {
@@ -41,13 +42,16 @@ SENTENCES: dict[str, str] = {
     DECIDED: "A point on {contract} has been decided.",
     CLIENT_RETURNED: "The client returned a new version of {contract}.",
     ANSWER_CHANGED_BY_COLLEAGUE: "A colleague changed an answer on {contract}.",
+    LEGAL_ANSWERED_ALL: "Legal has answered every change on {contract}. "
+                        "Your turn: send our reply.",
 }
 UNNAMED = "a contract"
 SUBJECT = "LegalMind: you have a new notification"
 
 
 def _link(kind: str, contract_id: UUID) -> str:
-    return f"/contracts/{contract_id}" + ("/changes" if kind == CLIENT_RETURNED else "")
+    return f"/contracts/{contract_id}" + (
+        "/changes" if kind in (CLIENT_RETURNED, LEGAL_ANSWERED_ALL) else "")
 
 
 def notify(db: DBSession, user_ids, kind: str, contract: M.Contract, *,
@@ -110,6 +114,26 @@ def client_returned(db: DBSession, contract: M.Contract, *, actor_id: UUID) -> i
     return notify(db, [contract.owner_id, *(u for u in collaborators
                                             if is_collaborator(db, u, contract))],
                   CLIENT_RETURNED, contract, actor_id=actor_id)
+
+
+def answered_all_told(db: DBSession, contract: M.Contract, since: datetime) -> bool:
+    """Whether the owner was already told for the client version received at ``since``."""
+    return db.execute(select(M.Notification.id).where(
+        M.Notification.user_id == contract.owner_id,
+        M.Notification.kind == LEGAL_ANSWERED_ALL,
+        M.Notification.contract_id == contract.id,
+        M.Notification.created_at >= since).limit(1)).first() is not None
+
+
+def legal_answered_all(db: DBSession, contract: M.Contract, since: datetime, *,
+                       actor_id: UUID) -> int:
+    """The last client change waiting for Legal was answered (batch 3+4): the deal owner,
+    once per round — never again for the same client version (``since``: when it came
+    in), read or unread, so a reopened and re-answered change sends nothing more."""
+    if answered_all_told(db, contract, since):
+        return 0
+    return notify(db, [contract.owner_id], LEGAL_ANSWERED_ALL, contract,
+                  actor_id=actor_id)
 
 
 # ---------------------------------------------------------------- reading

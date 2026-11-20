@@ -24,7 +24,7 @@ import {
 } from "@/components/workspace/ChangesPane";
 import { ApiError } from "@/lib/api";
 import {
-  EFFECT_LABEL, acceptable, actionsFor, answerFor, salesLine, salesStatus, verdictsFor, historyLine, matches, redline, replyBlockers, whoLine, wordDiff,
+  EFFECT_LABEL, acceptable, actionsFor, answerFor, verdictsFor, historyLine, matches, redline, replyBlockers, whoLine, wordDiff,
   type Answer, type ChangeList, type ClientChange,
 } from "@/lib/changes";
 import type { DocumentVersion } from "@/lib/types";
@@ -303,16 +303,19 @@ describe("Write our wording (AM-284) and the notes (AM-285)", () => {
                              waiting_for_approval: true });
     expect(whoLine(waiting, list(LAWYER))).toBe("Waiting for approval");
     const html = card(waiting, list(LAWYER));
-    expect(html).toContain("<strong>Waiting for approval</strong>");
+    // batch 3+4: the card's ONE status label (the row's own) says it
+    expect(html).toMatch(/class="cx-line1"><span class="cx-status"[^>]*>.*?Waiting for approval<\/span>/);
     expect(html).toContain("second person");
     expect(html).toContain("Our wording, against theirs");
     expect(whoLine({ ...waiting, waiting_for_approval: false }, list(LAWYER))).toBe("Our wording");
   });
 
-  it("keeps line 1 (the review's word) apart from line 2 (who answers)", () => {
+  it("says ONE status on line 1 and keeps the review's word as a detail (batch 3+4)", () => {
     const html = card(change(), list());
-    // the review's word as the one StatusChip (AM-291 r1; UX Batch 2: same hue and icon as Points)
-    expect(html).toMatch(/class="cx-line1"><span class="lm-chip lm-chip--change" data-status="CHANGE_NEEDED"[^>]*>.*?<\/svg>Change needed<\/span>/);
+    // batch 3+4 (rider on AM-291 r1): line 1 is the row's one label for this reader
+    expect(html).toMatch(/class="cx-line1"><span class="cx-status"[^>]*>With Legal<\/span><\/p>/);
+    // the review's word moves into the details, still the one StatusChip (same hue and icon as Points)
+    expect(html).toMatch(/<dt>Our standard<\/dt><dd><span class="lm-chip lm-chip--change" data-status="CHANGE_NEEDED"/);
     // B3 p1: where the reader asks Legal, "With Legal" folds into the one Legal line
     expect(html).not.toContain('class="cx-line2"');
     // Sales may keep ours (AM-250 r2 gates only accepting theirs): the one Legal line says so
@@ -454,18 +457,6 @@ describe("P1 — a version nobody declared (owner, 2026-11-09)", () => {
 
 describe("the deal owner's words (R3 step 10)", () => {
   const done = (over: Partial<ClientChange> = {}) => change({ answer: answered("keep_ours"), ...over });
-  it("says who has each change", () => {
-    expect(salesLine(change())).toBe("With Legal: nothing for you");
-    expect(salesLine(change(), false)).toBe("Legal answers this");
-    expect(salesLine(done())).toBe("Legal answered");
-    expect(salesLine(change({ route: "owner" }))).toBe("Your turn");
-    expect(salesLine(change({ holder_accepted: true }))).toBe("Legal answered. Your turn");
-  });
-  it("gives one status line for the deal", () => {
-    expect(salesStatus([change()])).toContain("With Legal: nothing for you right now");
-    expect(salesStatus([change(), change({ route: "owner", row_key: "r2" })])).toBe("Your turn: 1 change to answer.");
-    expect(salesStatus([done({ route: "owner" })])).toBe("Ready to send the reply");
-  });
   it("shows a deal owner the status line and no Legal-only box", () => {
     const html = card(change(), list());
     expect(html).not.toContain("From our standard");

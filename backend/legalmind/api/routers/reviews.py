@@ -552,7 +552,8 @@ def review_angles(review_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
     from legalmind.api.routers.negotiation import round_counts  # circular at import
     return data(angles.review_angles(
         guard.db, review, legal_position=guard.sees_legal_position,
-        legal_open=round_counts(guard, review).get("changes_left_legal", 0)))
+        legal_open=round_counts(guard, review).get("changes_left_legal", 0),
+        legal_review=P.LEGAL_REVIEW in guard.permissions))
 
 
 @router.get("/reviews/{review_id}/report")

@@ -464,7 +464,8 @@ test.describe("the 3-column redesign (2026-08-31)", () => {
     // read as a second analysis beside "Findings" rather than as its summary.
     await expect(page.getByRole("tab", { name: "Summary", exact: true })).toHaveAttribute("aria-selected", "true");
     const panel = page.locator('[data-region="analysis"]');
-    await expect(panel.getByRole("heading", { name: "What needs attention", level: 2 })).toBeVisible();
+    // batch 3+4: "What needs attention" is the deal brief's, above the tabs
+    await expect(panel.getByRole("heading", { name: "Summary", level: 2, exact: true })).toBeVisible();
 
     // CLM Page 2 (AM-291 r4/r6, 2026-11-03): the Summary leads with what needs attention —
     // where the deal stands and how many points are open, in words — and lists each open

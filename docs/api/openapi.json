@@ -1278,6 +1278,58 @@
     "title": "CounterpartyUpdate",
     "type": "object"
    },
+   "DealPositionWrite": {
+    "additionalProperties": false,
+    "description": "What Legal told the client (batch 3+4, AB-218): Legal's own words, the\nday (optional) and the client changes tied to it. A new position, or \u2014 with\n``expected_version`` on ``\u2026/positions/{key}`` \u2014 its next version: replaced, re-tied\nor ``withdrawn``. Nothing is deleted.",
+    "properties": {
+     "expected_version": {
+      "default": 0,
+      "minimum": 0.0,
+      "title": "Expected Version",
+      "type": "integer"
+     },
+     "text": {
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Text",
+      "type": "string"
+     },
+     "ties": {
+      "additionalProperties": {
+       "enum": [
+        "AS_TOLD",
+        "BEYOND"
+       ],
+       "type": "string"
+      },
+      "maxProperties": 500,
+      "title": "Ties",
+      "type": "object"
+     },
+     "told_on": {
+      "anyOf": [
+       {
+        "format": "date",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Told On"
+     },
+     "withdrawn": {
+      "default": false,
+      "title": "Withdrawn",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "text"
+    ],
+    "title": "DealPositionWrite",
+    "type": "object"
+   },
    "DecisionCreate": {
     "additionalProperties": false,
     "description": "49.7 \u2014 supersession is a create, never an update.\n\n``expected_version`` is the whole concurrency mechanism (N-1 Option C): the\nserver writes ``expected_version + 1``, and a collision surfaces as 409\nthrough ``UNIQUE(evaluation_id, version_number)``. There is no ETag.",
@@ -4132,6 +4184,51 @@
     ]
    }
   },
+  "/api/v1/contracts/{contract_id}/brief": {
+   "get": {
+    "operationId": "deal_brief_api_v1_contracts__contract_id__brief_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Deal Brief Api V1 Contracts  Contract Id  Brief Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Deal Brief",
+    "tags": [
+     "negotiation"
+    ]
+   }
+  },
   "/api/v1/contracts/{contract_id}/changes": {
    "get": {
     "description": "Every change between two versions of this contract (R1\u2013R4). `can_answer` and\n`can_decide` say what THIS reader may do \u2014 presentation only; every write checks\nagain server-side, without the audited refusal a reader opening a page is not.\nA collaborator reads this (`AM-280` r1).",
@@ -5494,6 +5591,126 @@
     "summary": "Contract Playbook",
     "tags": [
      "playbook"
+    ]
+   }
+  },
+  "/api/v1/contracts/{contract_id}/positions": {
+   "post": {
+    "operationId": "record_position_api_v1_contracts__contract_id__positions_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DealPositionWrite"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Record Position Api V1 Contracts  Contract Id  Positions Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Record Position",
+    "tags": [
+     "negotiation"
+    ]
+   }
+  },
+  "/api/v1/contracts/{contract_id}/positions/{position_key}": {
+   "post": {
+    "operationId": "revise_position_api_v1_contracts__contract_id__positions__position_key__post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "position_key",
+      "required": true,
+      "schema": {
+       "maxLength": 32,
+       "title": "Position Key",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DealPositionWrite"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Revise Position Api V1 Contracts  Contract Id  Positions  Position Key  Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Revise Position",
+    "tags": [
+     "negotiation"
     ]
    }
   },

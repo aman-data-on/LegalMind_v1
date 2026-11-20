@@ -388,6 +388,10 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
         return (f.get("evidence") or [None])[0]
 
     def clause_of(f):
+        # batch 3+4 round 3 (D3a): a point no clause holds is on the whole contract
+        if ((cases.get(f["id"]) or {}).get("contract") or {}).get("whole"):
+            from legalmind.api.angles import WHOLE_CONTRACT  # as LEGAL_REVIEW_WORDS
+            return WHOLE_CONTRACT
         return _clause(first_evidence(f)) if first_evidence(f) else "—"
 
     matches = [f for f in points
@@ -572,7 +576,7 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
                     or (evidence or {}).get("content"))
             must = decided(f)["decision_type"] == "REJECT"
             rows.append((name(f), "Must change" if must else "Requested",
-                         _clause(evidence) if evidence else "—",
+                         clause_of(f),
                          _short(says, 240) if says else "Missing — to be added",
                          _position(f, ours) if ours else "—",
                          decided(f).get("justification") or ""))
