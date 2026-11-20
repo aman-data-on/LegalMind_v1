@@ -9,7 +9,8 @@ No version has been released. The V1 specification is complete and implementatio
 ---
 
 ## [Unreleased]
-- AB-217 (2026-11-19, `AM-435`–`AM-438`; case-by-case batch 2 "cited passage"; not deployed).
+- AB-217 (2026-11-19, `AM-435`–`AM-438`; case-by-case batch 2 "cited passage"; PR #326,
+  DEPLOYED 2026-11-20 as ac0332ea).
   A point is placed, labelled and quoted from the clause it cites (widened section rows are kept as
   supporting evidence); our counter-wording is the cited clauses with their sub-clauses (Indemnity
   on the client's MSA: "16" → 16.1–16.2); the our-entity check reads the version we sent (the

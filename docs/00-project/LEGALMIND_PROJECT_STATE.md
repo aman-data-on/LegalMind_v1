@@ -11,7 +11,7 @@
 
 ---
 
-**2026-11-19 — AB-217 (built, verified, not deployed).** Batch 2 "cited passage": points sit on
+**2026-11-19 — AB-217 (DEPLOYED 2026-11-20, ac0332ea).** Batch 2 "cited passage": points sit on
 the clause they cite, our counter-wording is the whole cited clause, our wrong signature-block
 entity is caught in the version we sent, and the NDA notice rule no longer measures the MSA.
 
