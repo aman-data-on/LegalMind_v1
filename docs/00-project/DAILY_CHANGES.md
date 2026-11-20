@@ -37,6 +37,36 @@ working day gets one entry, newest first, with these headings (omit an empty one
 
 ---
 
+## 2026-11-20
+
+### Reached production
+- **`ac0332ea`** (#326, AB-217 batch 2 "cited passage"). Health 200. Live re-check of the test
+  contract needs a fresh analysis (stored Reviews read as before by design); done with the next
+  release's live check.
+
+### Decided (owner)
+- Follow the Ironclad / Juro / SpotDraft / LegalOn pattern, kept simple: batches 3 and 4 merge into
+  one "deal brief" release (brief at the top, one label + one action per change, Legal-recorded
+  "what we told the client"); themes and interplay stay parked.
+- A point whose mapping cites no single clause shows under "Whole contract".
+
+### In progress
+- **Batch 3+4 "deal brief"** — `/root/legalmind-worktrees/deal-brief`, branch `feat/deal-brief`,
+  spec `legalmind-clm-local/audit/batch34-deal-brief/SPEC.md`. Next step: builder report →
+  independent verifier → PR → merge → deploy OK.
+- **PR #322** (Constitution L1.18; other session) — waiting for the owner's merge OK.
+
+### Next
+- Batch 5 "our contract came back marked up"; then the live-test leftovers (whitespace-only change,
+  carry answers after "Ask the client", "Annexure A" wording, 20–30 s waits).
+
+### Blocked
+- **Owner:** NDA link; keep/archive the audit test contract; close #285, decide #270.
+- **Legal:** confirm the case baseline; this deal's positions; never-concede list; annexure
+  structure (`AM-414` r6); CIN, 15.5 cross-reference, 17.7.
+
+---
+
 ## 2026-11-19
 
 ### Done

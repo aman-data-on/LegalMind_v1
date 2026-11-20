@@ -36,9 +36,8 @@ Nothing is committed until the owner says "commit".
 
 ## Open — case-by-case round 2026-11-19 (client MSA markup; plan in `audit/client-msa-case-20261119/`)
 - [x] Batch 1 redline truth — AB-216 `AM-431`–`AM-434` (DEPLOYED 2026-11-19 ab8250b1; live check as sales + lawyer passed)
-- [x] Batch 2 cited passage — AB-217 `AM-435`–`AM-438` (built, verified; not deployed). Open product decision: where to place a point whose mapping cites no clause (the 7.3 notice point)
-- [ ] Batch 3 what we told the client — Legal-only deal positions, row labels, theme map
-- [ ] Batch 4 one-minute brief — sales + lawyer brief above the tabs, "your turn" notice
+- [x] Batch 2 cited passage — AB-217 `AM-435`–`AM-438` (DEPLOYED 2026-11-20 ac0332ea)
+- [ ] Batch 3+4 "deal brief" (owner 2026-11-20: the Ironclad/Juro/SpotDraft/LegalOn pattern, kept simple) — brief above the tabs, one label + one action per change, Legal-recorded "what we told the client", whole-contract points; spec `audit/batch34-deal-brief/SPEC.md`; building on `feat/deal-brief`
 - [ ] Batch 5 "our contract came back marked up" start option
 - [x] Production-copy answered-keys probe (owner OK): 0 of 12 answered keys lost
 - [ ] Legal: confirm BASELINE for this case; this deal's positions; never-concede list
