@@ -11,7 +11,7 @@
 import { useEffect, useState } from "react";
 
 import { api } from "@/lib/api";
-import { CHANGES_COPY, ORIGIN_LABELS, ORIGIN_RANK, withoutSectionRefs } from "@/lib/labels";
+import { BRIEF_COPY, CHANGES_COPY, ORIGIN_LABELS, ORIGIN_RANK, withoutSectionRefs } from "@/lib/labels";
 import { requirementTitle } from "./findingLanguage";
 import type {
   BusinessPoint, CounterProposal, LegalItem, Observation, ReviewAngles,
@@ -283,6 +283,17 @@ export function LegalAngleView({ angles, onOpen, decided, words, withRecommendat
         </details>
       ) : null}
     </section>
+  );
+}
+
+/** A point no confirmed clause holds (round 4): placed on the whole contract; Legal (a
+ *  `legal.review` reader — presentation only) also reads the candidate clause numbers. */
+export function WholeContractPlace({ candidates }: { candidates?: string[] | undefined }) {
+  const legalReader = useCanQuietly(P.LEGAL_REVIEW);
+  return (
+    <p className="ws-case__where">{BRIEF_COPY.wholeContract}
+      {legalReader && candidates?.length ? <span className="ws-case__candidates">{BRIEF_COPY.possiblyIn(candidates)}</span> : null}
+    </p>
   );
 }
 

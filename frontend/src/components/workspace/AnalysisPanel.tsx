@@ -187,7 +187,7 @@ export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner
           Visually hidden because the tab above already says "Summary" on
           screen; the outline needs the level, not a second label. */}
       <div className="ws-analysis__updated">
-        <h2 id="ws-sum-attention" className="ws-summary__h2">{state.kind === "no-review" && signedCopy ? "Signed copy" : "What needs attention"}</h2>
+        <h2 id="ws-sum-attention" className="ws-summary__h2">{state.kind === "no-review" && signedCopy ? "Signed copy" : "Summary"}</h2>
         <button type="button" className="ws-toolbtn" aria-label="Refresh analysis"
                 title={state.kind === "ready" && state.review.completed_at
                   ? `Updated ${relativeTime(state.review.completed_at)}` : "Refresh"}
@@ -236,9 +236,9 @@ export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner
           {/* S1 — two questions, in the order a person asks them: what needs me (where
               the review stands, the decision on the contract, the open points), then
               what the contract commits us to. The engine's tallies are Legal details. */}
+          {/* batch 3+4: where the deal stands is the deal brief's, above the tabs — never
+              said twice; the Summary keeps the decision on the contract and the points */}
           <section className="ws-summary__part" aria-labelledby="ws-sum-attention">
-            <AttentionLine progress={state.progress} stage={stage} viewer={viewer}
-                           canDecide={!reference && can(P.LEGAL_DECISION)} counts={counts} />
             {/* AM-174: once every point is decided, a reviewer decides the contract */}
             <ContractDecision reviewId={state.review.id} reviewStatus={state.review.status}
                               refreshKey={state.findings.map((f) => f.status).join()}

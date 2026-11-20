@@ -472,6 +472,37 @@ class ReviewAssign(Body):
     note: str | None = Field(default=None, max_length=2000)
 
 
+class DealPositionWrite(Body):
+    """What Legal told the client (batch 3+4, AB-218): Legal's own words, the
+    day (optional) and the client changes tied to it. A new position, or — with
+    ``expected_version`` on ``…/positions/{key}`` — its next version: replaced, re-tied
+    or ``withdrawn``. Nothing is deleted."""
+
+    text: str = Field(min_length=1, max_length=500)
+    told_on: date | None = None
+    #: {row_key: "AS_TOLD" | "BEYOND"} — a label on the change, never a decision
+    ties: dict[str, Literal["AS_TOLD", "BEYOND"]] = Field(default_factory=dict,
+                                                         max_length=500)
+    withdrawn: bool = False
+    #: the version the reader last saw (0 for a new position); stale -> 409
+    expected_version: int = Field(default=0, ge=0)
+
+    @field_validator("text")
+    @classmethod
+    def _words(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("say what we told the client")
+        return value
+
+    @field_validator("ties")
+    @classmethod
+    def _keys(cls, value: dict[str, str]) -> dict[str, str]:
+        if any(len(k) > 200 or not k.startswith("N|") for k in value):
+            raise ValueError("a tie names a change of this contract")
+        return value
+
+
 # -------------------------------------------------------------- findings
 class EscalationCreate(Body):
     """Locked Step 4: an escalation means "this requires authorized review", NOT

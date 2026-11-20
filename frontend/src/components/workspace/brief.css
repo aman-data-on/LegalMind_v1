@@ -1,0 +1,65 @@
+/* The deal brief (batch 3+4): one block above the contract's tabs. Tokens only. The
+   status sentence is the one strong line; everything under it is quiet: the client's
+   words in the serif we read contracts in, our own notes in the sans. */
+.lm-brief {
+  margin: 0 var(--s-4) var(--s-3); padding: var(--s-3) var(--s-4);
+  margin-inline: 0;
+  background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-card);
+  color: var(--c-text); font-size: var(--t-body); line-height: var(--t-body-lh);
+}
+.lm-brief > h2 { font-weight: 600; }
+.lm-brief__skel { display: block; width: 45%; height: var(--t-body-lh); }
+.lm-brief__status {
+  margin: 0; font-size: var(--t-subsection); line-height: var(--t-subsection-lh); font-weight: 600;
+}
+.lm-brief .ws-attn { margin: 0; }
+.lm-brief__lead { margin: var(--s-1) 0 0; color: var(--c-text-2); }
+.lm-brief__toggle { margin-top: var(--s-2); min-height: 24px; font-size: var(--t-dense); }
+.lm-brief__toggle, .lm-brief__acts .ws-linkbtn, .lm-brief__links .ws-linkbtn { display: inline-flex; align-items: center; }
+.lm-brief__body {
+  display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: var(--s-3) var(--s-6);
+  margin-top: var(--s-3);
+}
+.lm-brief__part { min-width: 0; }
+.lm-brief__h {
+  margin: 0 0 var(--s-1); font-size: var(--t-dense); line-height: var(--t-dense-lh); font-weight: 600;
+  color: var(--c-text-2);
+}
+.lm-brief__part > .lm-brief__h ~ .lm-brief__h { margin-top: var(--s-3); }
+.lm-brief__asks, .lm-brief__told, .lm-brief__links, .lm-brief__plain {
+  margin: 0; padding: 0; list-style: none; display: grid; gap: var(--s-2);
+}
+.lm-brief__ask { font-weight: 500; }
+.lm-brief__quote {
+  font-family: var(--font-serif); color: var(--c-text-2);
+}
+.lm-brief__more, .lm-brief__counts { margin: var(--s-2) 0 0; color: var(--c-text-2); font-size: var(--t-dense); }
+.lm-brief__counts:empty { display: none; }
+.lm-brief__told li { display: grid; gap: var(--s-1); }
+.lm-brief__meta { display: block; font-size: var(--t-caption); line-height: var(--t-caption-lh); color: var(--c-text-3); }
+.lm-brief__acts { display: flex; gap: var(--s-3); font-size: var(--t-dense); }
+.lm-brief__acts .ws-linkbtn, .lm-brief__links .ws-linkbtn { min-height: 24px; text-align: start; }
+.lm-brief__stale { margin: var(--s-1) 0 0; font-size: var(--t-dense); color: var(--c-text-2); }
+.lm-brief__mistake { margin: 0; }
+.lm-brief__toldtext { white-space: pre-line; }
+.lm-brief__note {
+  margin: var(--s-3) 0; padding: var(--s-2) var(--s-3); border-left: 2px solid var(--c-line-strong);
+  color: var(--c-text-2); white-space: pre-line;
+}
+.lm-brief__form { display: grid; gap: var(--s-1); margin-top: var(--s-2); }
+.lm-brief__form textarea, .lm-brief__form input {
+  font: inherit; font-size: var(--t-dense); padding: var(--s-2); border: 1px solid var(--c-line-strong);
+  border-radius: var(--r-control); background: var(--c-surface); color: var(--c-text);
+}
+.lm-brief__form label { font-size: var(--t-caption); color: var(--c-text-2); margin-top: var(--s-1); }
+.lm-brief__formacts { display: flex; justify-content: flex-end; gap: var(--s-2); margin-top: var(--s-2); }
+.lm-brief .ws-btn--sm { min-height: 32px; }
+@media (max-width: 900px) {
+  .lm-brief { margin: 0 0 var(--s-2); padding: var(--s-3); }
+  .lm-brief__body { grid-template-columns: minmax(0, 1fr); }
+  /* beats `.ws-record .ws-linkbtn` (24px): a phone's targets are 44 */
+  .lm-brief .lm-brief__toggle, .lm-brief .ws-btn--sm, .lm-brief .lm-brief__links .ws-linkbtn,
+  .lm-brief .lm-brief__acts .ws-linkbtn { min-height: 44px; min-block-size: 44px; }
+}
+/* round 4: Legal's candidate clauses under a whole-contract point — a quiet second line */
+.ws-case__candidates { display: block; margin-top: var(--s-1); }

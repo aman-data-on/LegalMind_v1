@@ -8,7 +8,7 @@
 import { USER_STATUS_LABELS, readerWord as pointWord, requirementTitle, type UserStatus } from "@/components/workspace/findingLanguage";
 import { clauseName } from "@/lib/documentTypes";
 import { formatDate } from "@/lib/dates";
-import { SALES_LINE, VERDICT_LABELS } from "@/lib/labels";
+import { ROW_STATUS, SALES_LINE, VERDICT_LABELS } from "@/lib/labels";
 import type { WordComment } from "@/lib/types";
 
 /** THEIRS: the client's paper came first (`AM-290`) — one row per point the review
@@ -139,6 +139,8 @@ export interface ClientChange {
   /** ground rule 1: answers given to this clause on an earlier reading (another pairing)
    *  — shown, never dropped; this row itself is still to answer */
   earlier_answers?: (AnswerEntry & { row_key: string })[];
+  /** batch 3+4: Legal's own tie to what we told the client — sent to Legal only */
+  told?: { tie: "AS_TOLD" | "BEYOND"; position_key: string; text: string };
 }
 
 export interface TemplateLink {
@@ -422,21 +424,33 @@ export function answerFor(verdict: Verdict | null, actions: Answer[], rejectWith
   return rejectWith && wordings.includes(rejectWith as typeof wordings[number]) ? rejectWith : wordings.length === 1 ? wordings[0]! : null;
 }
 
-/** R3: who has a change, in the deal owner's words (never Legal's view). */
-export function salesLine(change: ClientChange, sentToLegal = true): string {
+/** Batch 3+4: THE one status label of a change row (and its answer card), for this
+ *  reader — from the server's route, answer and Legal's own tie only (rule 18). */
+export function rowStatus(change: ClientChange, list: Reader & Pick<ChangeList, "sent_to_legal">): string {
+  const a = change.answer;
+  if (a) {
+    return a.answer === "write_wording" && change.waiting_for_approval ? ROW_STATUS.waiting
+      : ROW_STATUS.answered(ANSWER_LABEL[a.answer].replace(/^./, (c) => c.toUpperCase()));
+  }
   const legalFirst = change.route === "holder" && !change.holder_accepted;
-  if (change.answer) return change.route === "holder" ? SALES_LINE.legalAnswered : whoLine(change, { can_answer: true, can_decide: false });
-  if (legalFirst) return sentToLegal ? SALES_LINE.withLegal : SALES_LINE.forLegal;
-  return change.holder_accepted ? `${SALES_LINE.legalAnswered}. ${SALES_LINE.yourTurn}` : SALES_LINE.yourTurn;
+  if (list.can_decide) {
+    if (!legalFirst) return ROUTE_LABEL.owner;
+    // round 3 (N2): a lawyer who cannot answer it reads who has it, never "your answer"
+    if (!list.can_answer) return ROW_STATUS.withLegal;
+    return change.told?.tie === "BEYOND" ? ROW_STATUS.beyond
+      : change.told?.tie === "AS_TOLD" ? ROW_STATUS.asTold : ROW_STATUS.needsYou;
+  }
+  if (legalFirst) return list.sent_to_legal ?? true ? ROW_STATUS.withLegal : SALES_LINE.forLegal;
+  return list.can_answer ? ROW_STATUS.yours : ROUTE_LABEL.owner;
 }
-/** R3: the deal owner's one status line for the whole list. */
-export function salesStatus(changes: ClientChange[], sentToLegal = true): string {
-  const b = replyBlockers(changes);
-  if (!b.open.length && !b.approval.length && !b.legal.length) return SALES_LINE.ready;
-  if (!sentToLegal && (b.withLegal.length || b.legal.length)) return SALES_LINE.sendToLegal;
-  if (b.withOwner.length) return `${SALES_LINE.yourTurn}: ${b.withOwner.length} ${b.withOwner.length === 1 ? "change" : "changes"} to answer.`;
-  return SALES_LINE.waitingLegal;
+
+/** The row's small meta: the kind of change, and whether the client marked it. */
+export function rowMeta(change: ClientChange, allUntracked: boolean): string {
+  return KIND_LABEL[change.kind] + (change.untracked && !allUntracked ? ", untracked" : "");
 }
+
+/* batch 3+4 round 2: `salesLine` / `salesStatus` are gone — the row says `rowStatus`
+   and the deal's status is the server's (`GET …/brief`, rule 18). */
 /** R3: the plain topic a deal owner groups by — the server's topic, else none. */
 export const topicOf = (change: ClientChange): string | null => change.triage?.topics[0]?.title ?? null;
 

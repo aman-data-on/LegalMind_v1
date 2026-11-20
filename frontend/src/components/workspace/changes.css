@@ -422,3 +422,27 @@ button.cx-bar__open[aria-expanded="true"] svg { transform: rotate(-90deg); }
 .cx-elsewhere .ws-row__notes { margin-top: var(--ws-s2); }
 .cx-earlier { display: grid; gap: var(--ws-s1); font-size: var(--ws-text-sm); }
 .cx-earlier p { margin: 0; }
+
+/* ---- batch 3+4: ONE status label per row and card; the detail is the card's ---- */
+.cx-status { display: inline-flex; align-items: center; gap: var(--s-1); color: var(--c-text-2); }
+.cx-status[data-open] { color: var(--c-text); font-weight: 600; }
+.cx-status svg { flex: none; }
+.cx-row__kind { color: var(--c-text-3); }
+.cx .cx-details { display: grid; gap: var(--s-1); margin: 0 0 var(--s-3); font-size: var(--t-dense); color: var(--c-text-2); }
+.cx .cx-details > div { display: grid; grid-template-columns: 7.5rem minmax(0, 1fr); gap: var(--s-2); align-items: baseline; }
+.cx .cx-details dt { color: var(--c-text-3); font-size: var(--t-caption); }
+.cx .cx-details dd { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-1) var(--s-2); }
+.cx .cx-prepared { margin: var(--s-3) 0 0; font-size: var(--t-dense); color: var(--c-text-2); }
+.cx .cx-prepared .cx-label { display: block; }
+.cx .cx-tie { margin-top: var(--s-3); font-size: var(--t-dense); }
+.cx .cx-tie summary { cursor: pointer; min-height: 24px; color: var(--c-action); }
+.cx .cx-tie summary:focus-visible { outline: 2px solid var(--c-action); outline-offset: 2px; }
+.cx .cx-tie__form { display: grid; gap: var(--s-2); margin-top: var(--s-2); }
+.cx .cx-tie__form label { display: grid; gap: var(--s-1); }
+.cx .cx-tie__form fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-4); }
+.cx .cx-tie__form fieldset label { display: inline-flex; align-items: center; gap: var(--s-2); }
+.cx .cx-tie__form select { font: inherit; padding: var(--s-1) var(--s-2); border: 1px solid var(--c-line-strong); border-radius: var(--r-control); background: var(--c-surface); max-width: 100%; }
+@media (max-width: 900px) {
+  .cx .cx-details > div { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .cx .cx-tie summary { min-height: 44px; display: flex; align-items: center; }
+}

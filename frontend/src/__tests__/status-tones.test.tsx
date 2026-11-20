@@ -176,7 +176,9 @@ describe("the four reader words wear one tone each, in one order", () => {
     granted = new Set(["finding.view", "legal_position.view"]);
     try {
       const html = summary();
-      expect(html).toContain("What needs attention");
+      // batch 3+4: "What needs attention" is the deal brief's now, above the tabs
+      expect(html).toContain(">Summary</h2>");
+      expect(html).not.toContain("What needs attention");
       expect(html).not.toContain("Legal details");
       expect(html).not.toContain("ws-tile");
     } finally {

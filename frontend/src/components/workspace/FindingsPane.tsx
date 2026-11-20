@@ -26,7 +26,7 @@
  * EDITABLE question to the Ask pane — the user sees exactly what is asked.
  */
 
-import { CounterProposalCard, isWording, useReviewAngles } from "./Angles";
+import { CounterProposalCard, WholeContractPlace, isWording, useReviewAngles } from "./Angles";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api, describeError } from "@/lib/api";
@@ -92,10 +92,9 @@ const POINT_STATE_LABELS = {
   clarification: "Awaiting clarification",
   decided: "Decided",
 } as const;
-import { requirementHeading, reviewOrder, showsLegalDetails } from "./model";
+import { findingsSummary, requirementHeading, reviewOrder, showsLegalDetails } from "./model";
 import { useHighlight } from "./highlight";
 import { IconAlertCircle, IconCheckCircle, IconXCircle } from "./icons";
-import { findingsSummary } from "./model";
 import { POINT_CHIP, POINT_STATUS, POINT_STATUS_ORDER, PointStatusMark } from "./PointStatus";
 import type { StatusBucket } from "./model";
 import { useSideTabs } from "./WorkspaceLayout";
@@ -572,16 +571,16 @@ export function FindingsPane({ version }: { version: DocumentVersion }) {
   );
 }
 
-function askQuestionFor(finding: Finding): string {
+function askQuestionFor(finding: Finding, whole = false): string {
   // The same reader-facing phrase the card heading uses — the question is shown
   // to the user and sent to the assistant, and "say anything about
   // EARLY-TERM-RESTRICTION-MSA-001?" is neither a question a person would ask
   // nor one worth retrieving against.
   const name = requirementHeading(finding.requirement);
-  const where = finding.evidence.find((e) => e.section_number)?.section_number;
+  const where = whole ? null : finding.evidence.find((e) => e.section_number)?.section_number;
   return finding.classification === "MISSING"
     ? `Does this document say anything about ${name}?`
-    : `What does this document say about ${name}${where ? ` (clause ${where})` : ""}?`;
+    : `What does this document say about ${name}${whole ? " in the whole contract" : where ? ` (clause ${where})` : ""}?`;
 }
 
 /** Exported for `finding-card.test.tsx`, which renders one card per
@@ -836,7 +835,7 @@ export function FindingCard({ finding, onChanged, prepared, qualify, explanation
           <button
             type="button"
             className="ws-escalate__link"
-            onClick={() => askIntent.ask(askQuestionFor(finding), finding.id)}
+            onClick={() => askIntent.ask(askQuestionFor(finding, !!kase?.contract?.whole), finding.id)}
           >
             Ask about this
           </button>
@@ -924,7 +923,7 @@ function EvaluationCard({
     ? (kase.recommendation === "Ask Legal to look at this" ? "Read it and decide"
       : kase.recommendation) : null;
   // the card already quotes the case's passage: "Where it says this" lists the others
-  const quoted = kase?.contract ? kase.contract.quote.replace(/\s+/g, " ").trim() : null;
+  const quoted = kase?.contract?.quote ? kase.contract.quote.replace(/\s+/g, " ").trim() : null;
   const others = quoted
     ? cited.filter((row) => row.content.replace(/\s+/g, " ").trim() !== quoted) : cited;
   /* A scope worth naming, or none. Every requirement carries a scope key and
@@ -1266,7 +1265,7 @@ function EvidenceItem({ row, index, current, onPoint, focus = null }: {
 export function CaseContract({ kase, focus = null }: { kase: FindingCase; focus?: string | null }) {
   const [full, setFull] = useState(false);
   // a missing clause is said once — by the reason line and the comparison below
-  if (!kase.contract) return null;
+  if (!kase.contract?.quote) return kase.contract?.whole ? <WholeContractPlace candidates={kase.contract.candidates} /> : null;
   const { quote, clause, page, name } = kase.contract;
   const short = excerpt(quote, 320, focus);
   const where = clause || page ? clauseAndPage({ section_number: clause, page_number: page, ...(name ? { name } : {}) }, 0)

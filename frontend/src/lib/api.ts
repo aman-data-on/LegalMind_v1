@@ -14,6 +14,7 @@
  */
 
 import type { AcceptableEffect, Answer, ChangeList, ClientChange, ManualRow, PreparedReply, ReplyGate } from "./changes";
+import type { DealBrief, TellBody, Told } from "./dealBrief";
 import type { ConvertPlan, PackageBlocker, PackageForm, PackagePlan, PreparedPackage, SpecialConditions } from "./package";
 import type { Playbook } from "./playbook";
 import type { ClauseVersionRow, OutlineLine, TemplateCheck, TemplateDetail, TemplateSummary } from "./templates";
@@ -698,6 +699,11 @@ export const api = {
     request<Pick<ClientChange, "row_key" | "answer" | "history" | "waiting_for_approval">>(
       p`/contracts/${contractId}/changes/${rowKey}/answers`,
       { method: "POST", query: { to_version: toVersion }, body }),
+  /** Batch 3+4: the deal brief, and what Legal told the client (Legal writes only). */
+  dealBrief: (contractId: string) => request<DealBrief>(p`/contracts/${contractId}/brief`),
+  tell: (contractId: string, body: TellBody, positionKey?: string) =>
+    request<Told>(positionKey ? p`/contracts/${contractId}/positions/${positionKey}`
+      : p`/contracts/${contractId}/positions`, { method: "POST", body }),
   /** "Keep ours" on these formatting-only changes, in one write — all or none (409 if a
    *  colleague answered one first, nothing written). */
   // Template approval (S4, `AM-282`/`AM-283`) — every write is the approver's

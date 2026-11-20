@@ -464,7 +464,8 @@ test.describe("the 3-column redesign (2026-08-31)", () => {
     // read as a second analysis beside "Findings" rather than as its summary.
     await expect(page.getByRole("tab", { name: "Summary", exact: true })).toHaveAttribute("aria-selected", "true");
     const panel = page.locator('[data-region="analysis"]');
-    await expect(panel.getByRole("heading", { name: "What needs attention", level: 2 })).toBeVisible();
+    // batch 3+4: "What needs attention" is the deal brief's, above the tabs
+    await expect(panel.getByRole("heading", { name: "Summary", level: 2, exact: true })).toBeVisible();
 
     // CLM Page 2 (AM-291 r4/r6, 2026-11-03): the Summary leads with what needs attention —
     // where the deal stands and how many points are open, in words — and lists each open
@@ -472,7 +473,8 @@ test.describe("the 3-column redesign (2026-08-31)", () => {
     // are Legal details, absent for this owner (never greyed, SEC-07).
     const USER_WORDS = ["Matches our standard", "Change needed", "Missing", "Needs a decision"];
     await expect(panel.locator(".ws-tiles")).toHaveCount(0);
-    await expect(panel.locator(".ws-attn__count")).toContainText(/1 open point/);
+    // AB-218: with no round of changes the points line sits in the deal brief above the tabs
+    await expect(page.getByTestId("deal-brief").locator(".ws-attn__count")).toContainText(/1 open point/);
     const open = panel.getByRole("region", { name: /Points to settle \(\d+\)/ });
     const first = open.locator(".ws-open__go").first();
     await expect(first).toBeVisible();

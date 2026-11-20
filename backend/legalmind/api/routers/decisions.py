@@ -105,17 +105,29 @@ def list_decisions(evaluation_id: UUID,
         decision_history(guard.db, evaluation_id)))
 
 
-def _advance_if_resolved(guard: Guard, review: M.Review) -> None:
+def _advance_if_resolved(guard: Guard, review: M.Review, *,
+                         tell_owner: bool = True) -> None:
     """Locked Step 30 r7 / r16 — RESOLVED is derived from the Findings.
 
     Done here rather than exposed as an endpoint precisely because r3 forbids a
     caller setting Review status. If outstanding decisions remain, nothing happens
     and the Review stays in LEGAL_REVIEW.
+
+    Batch 3+4 (round 3, lead D2): after a decision, the deal owner is told the reply is
+    unblocked whenever nothing is open now (`negotiation.tell_owner_if_unblocked` checks
+    the points and the changes and is once per client version). ``tell_owner`` False:
+    the caller (an answer on a change) tells the owner itself, after its own write.
     """
     if (review.status is ReviewStatus.LEGAL_REVIEW
             and all_required_decisions_complete(guard.db, review)):
         transition(guard.db, review, ReviewStatus.RESOLVED,
                    actor_id=guard.user_id, request_id=guard.request_id)
+    if tell_owner:
+        # lazy: negotiation imports this module (`_advance_if_resolved`)
+        from legalmind.api.routers.negotiation import tell_owner_if_unblocked
+        contract = guard.db.get(M.Contract, review.contract_id)
+        if contract is not None:
+            tell_owner_if_unblocked(guard, contract)
 
 
 @router.post("/reviews/{review_id}/decisions", status_code=201)

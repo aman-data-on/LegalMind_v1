@@ -50,10 +50,17 @@ working day gets one entry, newest first, with these headings (omit an empty one
   "what we told the client"); themes and interplay stay parked.
 - A point whose mapping cites no single clause shows under "Whole contract".
 
+### Done
+- **AB-218 batches 3+4 "deal brief"** (`AM-439`–`AM-443`) on `feat/deal-brief`: builder 4 rounds,
+  independent verifier (FIX-THEN-SHIP → fixed: wrong "send our reply" status, a missed notice,
+  "§N" for whole-contract points in the export, positions writable before Legal, a system-written
+  reason); real browser on the real pair as sales and lawyer; production-copy probe 0 keys lost.
+- **Client MSA + NDA lawyer report** checked through LegalMind's own pipeline (main, no paid model):
+  30 of 37 claims confirmed, 5 corrected, 2 outside LegalMind; LegalMind's own misreads listed in
+  `legalmind-clm-local/audit/client-report-verify-20261120/VERIFY.md`.
+
 ### In progress
-- **Batch 3+4 "deal brief"** — `/root/legalmind-worktrees/deal-brief`, branch `feat/deal-brief`,
-  spec `legalmind-clm-local/audit/batch34-deal-brief/SPEC.md`. Next step: builder report →
-  independent verifier → PR → merge → deploy OK.
+- **AB-218 deal brief** — PR → CI → merge gate → merge; then the owner's deploy OK.
 - **PR #322** (Constitution L1.18; other session) — waiting for the owner's merge OK.
 
 ### Next

@@ -38,6 +38,7 @@ from legalmind.api.routers import (
     configuration,
     contracts,
     counterparties,
+    deal_brief,
     decisions,
     documents,
     drafts,
@@ -181,6 +182,7 @@ def create_app() -> FastAPI:
     v1.include_router(counterparties.router)
     v1.include_router(documents.router)
     v1.include_router(negotiation.router)
+    v1.include_router(deal_brief.router)
     v1.include_router(execution.router)
     v1.include_router(amendments.router)
     v1.include_router(reviews.router)

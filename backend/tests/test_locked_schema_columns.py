@@ -122,6 +122,9 @@ LOCKED_SCHEMA: dict[str, tuple[str, ...]] = {
     # fields and AM-297's (AB-156).
     "executions": ('comparison', 'contract_id', 'created_at', 'differences_accepted_by', 'differences_reason', 'duty_paid', 'id', 'not_stamped_ack_by', 'origin', 'recorded_by', 'seal_used', 'signatories', 'signed_at', 'signed_document_version_id', 'stamp_method', 'stamp_reference', 'stamp_state', 'stamped_on', 'version_number', 'witnesses'),
     "draft_answers": ('answers', 'counterparty_id', 'created_at', 'created_by', 'expires_at', 'id', 'owner_id', 'template_version_id', 'brand', 'updated_at', 'version'),
+    # Batch 3+4 "deal brief" (2026-11-20, migration f1a7c3e9d5b2), AB-218: what
+    # Legal told the client, append-only and versioned per position.
+    "deal_positions": ('contract_id', 'created_at', 'id', 'position_key', 'recorded_by', 'text', 'ties', 'told_on', 'version_number', 'withdrawn'),
 }
 
 # Alembic's bookkeeping table, present in the database and absent from the domain model.
@@ -173,9 +176,10 @@ def test_the_locked_table_count_is_thirty_three(db):
     (AM-259) and `notifications` (AM-273), migration f7c2a9e4b1d6 (2026-11-02). 40 since
     slice S3's `clause_versions`, `template_versions`, `contract_drafts`, `draft_answers`
     (AM-279 / AM-265 d1), migration a3c9e7f1b5d2 (2026-11-03). 41 since `executions`
-    (AM-279 / AM-292 / AM-297), migration e6b3d9a1c7f5 (2026-11-03).
+    (AM-279 / AM-292 / AM-297), migration e6b3d9a1c7f5 (2026-11-03). 42 since
+    `deal_positions` (batch 3+4, AB-218), migration f1a7c3e9d5b2 (2026-11-20).
     """
-    assert len(_live_columns(db)) == 41
+    assert len(_live_columns(db)) == 42
 
 
 # --------------------------------------------------------------------------
@@ -221,9 +225,10 @@ def test_the_total_locked_column_count_is_unchanged(db):
     356 with `contracts.governed_by_contract_id` (AM-267 / AM-309, b4f8e2a6d9c1).
     357 with `draft_answers.brand` (one MSA for every brand, AM-341; f3b8c1d6e2a7).
     358 with `review_assignments.note` (Note for Legal, AM-408; e4b9a2d7c318).
+    368 with the ten-column `deal_positions` (batch 3+4, AB-218; f1a7c3e9d5b2).
     """
     live = _live_columns(db)
-    assert sum(len(c) for c in live.values()) == 358
+    assert sum(len(c) for c in live.values()) == 368
 
 
 # --------------------------------------------------------------------------

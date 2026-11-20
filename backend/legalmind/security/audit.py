@@ -201,6 +201,9 @@ NEGOTIATION_AUTO_ACCEPTED = "negotiation.auto_accepted"
 EXECUTION_RECORDED = "contract.execution_recorded"
 EXECUTION_DIFFERENCES_ACCEPTED = "contract.execution_differences_accepted"
 CONTRACT_SIGNED = "contract.signed"
+# batch 3+4 (AB-218): Legal recorded, replaced, withdrew or tied what we told
+# the client — key, version and the tie count only, never the words (LEGAL-02)
+DEAL_POSITION_RECORDED = "contract.position_recorded"
 # AM-269 r2 (AB-150): a file attached in Ask, filed by the reader as a contract's version
 ASSIST_ATTACHMENT_FILED = "assist.attachment_filed"
 

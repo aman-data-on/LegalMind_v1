@@ -953,6 +953,39 @@ class ComparisonChoice(Base):
     )
 
 
+class DealPosition(Base):
+    """What Legal told the client on this deal — batch 3+4 "deal brief" (AB-218),
+    migration f1a7c3e9d5b2. Legal's own words (≤ 500 characters), optionally when, and
+    the client changes Legal tied to it (``ties``: ``{row_key: "AS_TOLD" | "BEYOND"}``).
+    APPEND-ONLY and versioned per ``position_key``: a replace, a withdrawal or a new tie
+    is a new row, the current one the highest ``version_number``; a cascade from a
+    deleted contract still passes (`AM-176` r1); the recording user is RESTRICT.
+    Internal (LEGAL-02): never read by a reply, a package, an annexure, a send or an
+    export. A tie is a label only — never a Legal Decision, a route, an effect, an
+    answer or a Rule Outcome."""
+
+    __tablename__ = "deal_positions"
+
+    id = pk_uuid()
+    contract_id = fk_uuid("contracts.id", ondelete="CASCADE")
+    position_key = mapped_column(String(32), nullable=False)
+    version_number = mapped_column(Integer, nullable=False)
+    # before `text` below: in this class body that name becomes the column
+    withdrawn = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    text = mapped_column(Text, nullable=False)
+    told_on = mapped_column(Date, nullable=True)
+    ties = jsonb_col(nullable=False)
+    recorded_by = fk_uuid("users.id", ondelete="RESTRICT")
+    created_at = ts_created()
+
+    __table_args__ = (
+        UniqueConstraint("contract_id", "position_key", "version_number",
+                         name="uq_deal_positions_contract_key_version"),
+        CheckConstraint("char_length(text) BETWEEN 1 AND 500", name="text_length"),
+        CheckConstraint("version_number >= 1", name="version_number"),
+    )
+
+
 class ContractCollaborator(Base):
     """`AM-259` r1 (AB-150, 2026-11-02), migration f7c2a9e4b1d6 — a colleague who may
     answer a contract's changes beside its owner, and read that contract (`AM-280`,

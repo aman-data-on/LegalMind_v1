@@ -313,6 +313,13 @@ IMPLEMENTATION_ADDED_ENDPOINTS: Final[dict[tuple[str, str], str]] = {
     ("POST", f"{API_PREFIX}/contracts/{{contract_id}}/changes/accept"): P.CONTRACT_UPDATE,
     ("POST", f"{API_PREFIX}/document-versions/{{document_version_id}}/mark-sent"):
         P.CONTRACT_UPDATE,
+    # Batch 3+4 (AB-218): the deal brief is a read of what the page already
+    # shows (positions only for `legal_position.view`, inside); what we told the client
+    # is recorded by a `legal.decision` holder who may negotiate the contract.
+    ("GET", f"{API_PREFIX}/contracts/{{contract_id}}/brief"): P.DOCUMENT_VIEW,
+    ("POST", f"{API_PREFIX}/contracts/{{contract_id}}/positions"): P.LEGAL_DECISION,
+    ("POST", f"{API_PREFIX}/contracts/{{contract_id}}/positions/{{position_key}}"):
+        P.LEGAL_DECISION,
     # CLM flow 5 (`AM-292`/`AM-297`): the execution record is read like the contract and
     # written like any negotiation write; a signed copy's differences are a holder's.
     ("GET", f"{API_PREFIX}/contracts/{{contract_id}}/execution"): P.CONTRACT_VIEW,

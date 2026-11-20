@@ -28,8 +28,9 @@ for (const viewport of [{ width: 1366, height: 768 }, { width: 1536, height: 864
       await page.goto(`/dashboard?id=${contractId}`);
       await showDocument(page);
       // CLM Page 2 (2026-11-03): the Summary's four tiles moved to Legal details; what the
-      // owner's side card shows is "What needs attention" and the open points list.
-      const heading = page.getByRole("heading", { name: "What needs attention", level: 2 });
+      // owner's side card shows is its "Summary" and the open points list ("What needs
+      // attention" became the deal brief above the tabs, batch 3+4).
+      const heading = page.getByRole("heading", { name: "Summary", level: 2, exact: true });
       await expect(heading).toBeVisible();
 
       // The side card never drops under its floor, and the document keeps the

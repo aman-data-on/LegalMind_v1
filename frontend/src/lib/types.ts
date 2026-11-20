@@ -1413,7 +1413,11 @@ interface RelatedClause {
 export interface FindingCase {
   contract: { quote: string; clause: string | null; page: number | null;
               /** a number the paper uses twice: the clause's own words (slice A) */
-              name?: string } | null;
+              name?: string; whole?: never }
+    /** batch 3+4: a point no single clause holds — placed on the whole contract */
+    | { whole: true; quote?: never; clause?: never; page?: never; name?: never;
+        /** round 4: the mapping's candidate clauses (numbers only), for Legal's line */
+        candidates?: string[] } | null;
   standard: {
     section: string | null;
     topic: string | null;
