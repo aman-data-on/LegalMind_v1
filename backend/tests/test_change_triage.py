@@ -60,6 +60,18 @@ def test_the_topic_is_named_by_the_heading_in_the_constitutions_own_titles():
     assert T.topics_for_heading(None) == []
 
 
+def test_a_title_half_with_a_short_word_needs_all_its_words():
+    """Batch 6 (AM-224 r3): "governing" alone named §22 Governing Law; "SLA" (three
+    letters) named nothing. A half holding a short word needs every word; "laws" reads
+    "law"."""
+    assert T.topics_for_heading("TERMS GOVERNING THE SERVICES") == []
+    assert T.topics_for_heading("GOVERNING LAW AND JURISDICTION") == ["22"]
+    assert T.topics_for_heading("GOVERNING LAWS") == ["22"]
+    assert T.topics_for_heading("Hardware SLA") == ["11"]
+    assert T.topics_for_heading("DATA PROCESSING") == ["12"]
+    assert T.topics_for_heading("TERM AND TERMINATION") == ["13", "14"]
+
+
 def test_every_playbook_topic_carries_its_own_words():
     book = T.playbook()
     assert set(book) == {str(n) for n in range(9, 23)}
@@ -150,3 +162,107 @@ def test_the_model_is_asked_once_per_text_prompt_and_model(build, db):
                  lambda p, v: None, "other-model") is None        # no model: nothing
     assert T.read_back(db, review.document_version_id)[str(rows[1].evidence_id)][
         "topic"] == "14"
+
+
+# ------------------------------------------------- batch 6 (2026-11-20): F1–F4, AM-224 r1
+NONE: tuple[list[str], list[str]] = ([], [])
+
+
+def test_a_role_either_party_holds_binds_both():
+    """F1: "the Receiving Party", "Neither Party" are no one's alone — MUTUAL, which has
+    no reason of its own (a mutual change is Legal's to weigh). A one-way paper whose
+    parties block binds the role to one side keeps that side."""
+    assert T._who("The Receiving Party shall return all Confidential Information within "
+                  "ten days of a written request.", False, NONE) == "MUTUAL"
+    assert T._who("Neither Party may assign this Agreement without consent.", False,
+                  NONE) == "MUTUAL"
+    assert T._who("The Disclosing Party may require the return of its information.",
+                  False, (["disclosing party"], ["receiving party"])) == "OUR_RIGHT"
+    assert _reasons("", "Neither Party may assign this Agreement without consent.") == []
+
+
+def test_a_list_item_is_read_after_its_parents_lead_in():
+    """F2: "any breach … by the Buyer;" names its actor in the lead-in only."""
+    lead = T.lead_in("12.2 The Buyer shall indemnify the Provider against claims "
+                     "arising from:")
+    item = "12.2.3. any breach of the acceptable use policy by the Buyer;"
+    assert [r["reason"] for r in T.code_reading(item, "", lead=lead)["reasons"]] == \
+        ["Removes a duty of the client"]
+    assert _reasons(item, "") == []
+    assert T.lead_in("12.2 The Buyer shall indemnify the Provider.") is None
+    assert (T.parent_number("12.2.3"), T.parent_number("12"), T.parent_number(None)) \
+        == ("12.2", None, None)
+
+
+def test_a_pronoun_acts_for_the_one_party_named_before_it():
+    """F3: "If the Customer …, it shall …" — never when two sides are named before it."""
+    assert _reasons("If the Customer does not collect its hardware within ten days, it "
+                    "shall be liable to pay a storage fee of 150% of the monthly charge.",
+                    "") == ["Removes a duty of the client"]
+    assert T._who("If the Customer notifies LeapSwitch of a fault in writing, it shall "
+                  "respond.", False, NONE) is None
+
+
+def test_a_definition_never_reads_as_helping_us():
+    """F4: removing "X's Confidential Information shall include …" is no duty of ours
+    taken away; its reasons (none here) are unchanged."""
+    read = T.code_reading("The Provider's Confidential Information shall include its "
+                          "rate cards and roadmaps.", "")
+    assert read["helps"] is False and read["reasons"] == []
+    assert T.code_reading("LeapSwitch shall provide transition assistance.", "")[
+        "helps"] is True                                   # a real duty still does
+
+
+def test_precedence_stays_the_models_to_read():
+    """RC4 (AM-224 r6): no party acts — code says nothing."""
+    assert _reasons("", "The signed order form prevails over any online policy.") == []
+
+
+# ------------------------------------------------ batch 6 round 2 (independent verifier)
+def test_a_named_party_acting_later_wins_over_a_role():
+    """D2: a role or "neither party" binds both only when no party the paper names acts
+    in the sentence — the duty the client named loses no reason."""
+    assert _reasons("The Disclosing Party may request return of its information, and the "
+                    "Customer shall comply within ten days.", "") == \
+        ["Removes a duty of the client"]
+    assert _reasons("Neither Party shall be liable for indirect loss, provided that the "
+                    "Customer shall pay all fees due.", "") == ["Removes a duty of the client"]
+
+
+def test_a_lead_in_or_a_pronoun_never_says_a_change_helps_us():
+    """D3: an exception removed from OUR indemnity is read after its lead-in for a reason
+    only — never as "helps us"; a pronoun is a party only bearing what a party bears."""
+    lead = ("16.2 LeapSwitch shall indemnify the Customer against third-party claims, "
+            "except claims arising from:")
+    read = T.code_reading("16.2.1. any modification of the Services by the Customer;", "",
+                          lead=lead)
+    assert read["helps"] is False and read["reasons"] == []
+    for added in ("If LeapSwitch suspends the Services, it shall remain suspended until "
+                  "all overdue amounts are paid.",
+                  "If the Customer places an order, it shall state the service plan.",
+                  "If the Customer terminates early, its liability shall not exceed the "
+                  "fees paid."):
+        assert _reasons("", added) == [], added
+
+
+def test_only_a_defining_sentence_is_a_definition():
+    """D10: "X includes …" before any other verb defines; "LeapSwitch shall ensure the
+    service includes …" is a duty, and taking it away still helps the client's reading."""
+    assert T.code_reading("LeapSwitch's Confidential Information includes its pricing.",
+                          "")["helps"] is False
+    assert T.code_reading("LeapSwitch shall ensure the service includes daily backups.",
+                          "")["helps"] is True
+
+
+def test_a_named_party_in_a_condition_after_each_party_is_no_actor():
+    """R2-1: after "Either/Each/Neither Party" acts, a named party wins only with a duty
+    or right of its own; the subject of a condition ("… while LeapSwitch is
+    investigating", "… if LeapSwitch is acquired") reads as origin/main reads it, and
+    `helps` keeps origin/main's order (the first party that acts)."""
+    read = T.code_reading("Either Party may suspend performance while LeapSwitch is "
+                          "investigating a security incident.", "")
+    assert read["helps"] is False and read["reasons"] == []
+    assert _reasons("", "Either Party may terminate this Agreement if LeapSwitch is "
+                        "acquired by a competitor.") == []
+    assert _reasons("Each Party may terminate on notice if the Customer has not paid for "
+                    "sixty days.", "") == []

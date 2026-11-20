@@ -82,7 +82,12 @@ from legalmind.ingestion.validation import validate_upload
 # Markdown export's marks — a heading mark after the clause number ("12. ## **TITLE**"),
 # ``**`` emphasis and backslash escapes — so its clause numbers and headings are read.
 # New readings only — existing evidence is never re-parsed by this bump.
-PROCESSOR_VERSION = "legalmind-ingest-v11"
+# v12 (2026-11-20, batch 6): a long typed sub-level number keeps its number whatever
+# its first word ("4.1.3. suspension…", "1.2. ‘Widget’…"); "1.9.“Force…" with no space
+# is numbered; an unnumbered title-shaped paragraph in a Word Heading/Title style is a
+# heading.
+# New readings only — existing evidence is never re-parsed by this bump.
+PROCESSOR_VERSION = "legalmind-ingest-v12"
 
 
 @dataclass(frozen=True)

@@ -66,8 +66,13 @@ working day gets one entry, newest first, with these headings (omit an empty one
 ### Sent (owner-approved)
 - The client MSA + NDA review posted to the deal's Slack group DM (main message + 3 comparison tables).
 
+### Done (later)
+- **AB-219 batch 6 "client misreads"** (`AM-444`–`AM-448`) on `fix/client-misreads`: diagnosis →
+  spec → builder 2 rounds → independent verifier (round 1 FIX-THEN-SHIP: phantom rows on mixed reader
+  versions, two triage rules that could leave Legal; fixed). Production-copy route probe: 0 changes.
+
 ### In progress
-- None for the deal brief. Next unit: the LegalMind misreads found on the client MSA/NDA run.
+- **AB-219** — PR → CI → merge gate → merge; then the owner's deploy OK.
 - **PR #322** (Constitution L1.18; other session) — waiting for the owner's merge OK.
 
 ### Next

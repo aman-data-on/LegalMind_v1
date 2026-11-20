@@ -36,6 +36,9 @@ INDETERMINATE = "INDETERMINATE"
 WAIVED = "WAIVED"
 #: `AM-154` — the provision is present and broader than the position allows.
 TOO_BROAD = "TOO_BROAD"
+#: Why TOO_BROAD (batch 6): AM-154's breadth, or AM-381 r2's indemnity given by us.
+BREADTH = "BREADTH"
+OUR_INDEMNITY = "OUR_INDEMNITY"
 TOO_NARROW = "TOO_NARROW"
 #: Constitution §10 — present, but only one side gives the indemnity (R-1).
 ONE_SIDED = "ONE_SIDED"
@@ -130,6 +133,9 @@ def evaluate_presence(evaluator_input: EvaluatorInput) -> EvaluatorOutput:
         classification = FindingClassification.DEVIATION
         outcome = _deviation_outcome(evaluator_input.legal_rule)
         explanation = (f"mapping CONFIRMED for {evaluator_input.requirement.code}",
+                       "LeapSwitch (or each party) gives an indemnity; the position is "
+                       "that only the Customer indemnifies (AM-381 r2)"
+                       if mapping.too_broad_cause == OUR_INDEMNITY else
                        "the clause found is broader than the position (AM-154)")
         diagnostics = ("presence established by the mapping layer; breadth flagged",
                        f"{len(evidence)} provision(s) mapped")
@@ -223,7 +229,9 @@ def evaluate_presence(evaluator_input: EvaluatorInput) -> EvaluatorOutput:
         rule_outcome=outcome,
         evaluator_version=evaluator_input.evaluator_version,
         expected_value={"presence": expected},
-        actual_value={"presence": actual},
+        actual_value={"presence": actual,
+                      **({"cause": mapping.too_broad_cause}
+                         if actual == TOO_BROAD and mapping.too_broad_cause else {})},
         operator="presence",
         comparison={"expected": expected, "actual": actual,
                     "mapping_state": state.value},

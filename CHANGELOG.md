@@ -9,6 +9,14 @@ No version has been released. The V1 specification is complete and implementatio
 ---
 
 ## [Unreleased]
+- AB-219 (2026-11-20, `AM-444`–`AM-448`; batch 6 "client misreads", from running a client's MSA + NDA
+  markup through LegalMind). Clause numbers kept on long and glued lines, Word heading styles read (no more
+  phantom 1.11 / 15.1.4 / signature-as-21.11 rows; reader v12, mixed reader versions re-read on compare);
+  a reworded clause is never "missing"; weak matches no longer widen to whole sections; the indemnity
+  difference says when the reason is that LeapSwitch now gives an indemnity (PRESENCE-v2); change reasons
+  for role-name (NDA) sentences, list items under a lead-in and pronouns; definitions never "help us";
+  heading topic tags fixed. Production-copy route probe: 0 route/effect/auto-accept changes, 0 answered
+  keys lost. No migration, no API schema change.
 - AB-218 (2026-11-20, `AM-439`–`AM-443`; case-by-case batches 3+4 "deal brief", the Ironclad / Juro /
   SpotDraft / LegalOn pattern kept simple; PR #328, DEPLOYED 2026-11-20 as 0acf53b6). A brief above the tabs for sales and the lawyer (status
   from a server code on the one count; what the client asks for; what we told them; our own

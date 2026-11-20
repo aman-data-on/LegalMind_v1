@@ -175,7 +175,9 @@ def test_a_bare_indemnity_from_leapswitch_covering_indirect_loss_is_too_broad(bu
                            "losses, including indirect and consequential losses and loss of "
                            "profits, arising from the Services."])
     run_analysis(db, review)
-    assert _finding(db, review, "INDEMNITY-MSA-001") == ("DEVIATION", {"presence": "TOO_BROAD"})
+    # PRESENCE-v2 (batch 6): a configured breadth phrase is the cause, before our indemnity
+    assert _finding(db, review, "INDEMNITY-MSA-001") == ("DEVIATION", {"presence": "TOO_BROAD",
+                                                                       "cause": "BREADTH"})
 
 
 def test_a_residuals_clause_for_any_purpose_is_wider_than_ours(build, db):
@@ -184,7 +186,8 @@ def test_a_residuals_clause_for_any_purpose_is_wider_than_ours(build, db):
                          "retained in the unaided memory of its personnel, including "
                          "Confidential Information, for any purpose."])
     run_analysis(db, wide)
-    assert _finding(db, wide, "RESIDUALS-NDA-001")[1] == {"presence": "TOO_BROAD"}
+    assert _finding(db, wide, "RESIDUALS-NDA-001")[1] == {"presence": "TOO_BROAD",
+                                                          "cause": "BREADTH"}   # v2
 
 
 def test_a_residuals_clause_in_the_ratified_words_still_matches(build, db):

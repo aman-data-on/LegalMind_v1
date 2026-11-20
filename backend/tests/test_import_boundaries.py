@@ -254,8 +254,13 @@ LAYERING: dict[str, frozenset[str]] = {
     # grounded semantic RECOGNITION stage. The edge is one-way and lands only in
     # `analysis/` — `evaluation`, `mapping` and `extraction` still import no assist
     # module, so no classification is ever produced by anything but the evaluators.
-    "analysis": frozenset({"assist", "db", "domain", "evaluation", "extraction", "mapping",
-                           "observability", "security", "workflow"}),
+    # `ingestion` entered with batch 6 D1 (2026-11-20, lead decision): two versions read by
+    # different reader generations are compared as one reader reads them — the older
+    # side's stored rows re-read on read by the parser's own rules (`parsing.reread`,
+    # pure text, no IO), never re-ingested. Only `analysis.reader_generation` imports
+    # it; every pair reader (change list, comparisons, amendments) goes through it.
+    "analysis": frozenset({"assist", "db", "domain", "evaluation", "extraction", "ingestion",
+                           "mapping", "observability", "security", "workflow"}),
     # `notifications` entered with `AM-273` m3 (AB-150, 2026-11-02): an escalation and a
     # decision tell the people they concern. It writes a notice row and nothing legal.
     "workflow": frozenset({"db", "domain", "evaluation", "notifications", "observability",

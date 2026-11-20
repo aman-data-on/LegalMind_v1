@@ -67,7 +67,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DBSession
 
-from legalmind.analysis import change_triage, lawyer_rows, reading
+from legalmind.analysis import change_triage, lawyer_rows, reader_generation, reading
 from legalmind.analysis import document_comparison as dc
 from legalmind.analysis.version_comparison import ComparisonNotPossible
 from legalmind.analysis.version_comparison import _normalize as _spacing
@@ -286,6 +286,15 @@ def is_ours(version: M.DocumentVersion) -> bool:
     role = meta.get("version_role")
     return role == "COMPANY_DRAFT" or (role is None
                                        and meta.get("source") == "ORGANIZATION")
+
+
+def is_theirs(version: M.DocumentVersion) -> bool:
+    """A version the client returned: declared CLIENT_MODIFIED, or the counterparty's
+    paper by ``source`` — never a signed copy or an undeclared one (batch 6 D7)."""
+    meta = version.doc_metadata or {}
+    role = meta.get("version_role")
+    return role == "CLIENT_MODIFIED" or (role is None
+                                         and meta.get("source") == "COUNTERPARTY")
 
 
 def our_previous(versions: list[M.DocumentVersion],
@@ -567,7 +576,8 @@ def _same_lines(old: list[dict], new: list[dict], i: int | None, j: int | None,
     return False
 
 
-def _align(old: list[dict], new: list[dict]) -> list[tuple[int | None, int | None, bool]]:
+def _align(old: list[dict], new: list[dict], by_number: set[int] | None = None
+           ) -> list[tuple[int | None, int | None, bool]]:
     """(before index, after index, moved) per row in the returned copy's order; a clause
     only ours sits where we had it. Paired by exact text first (a renumbered clause is
     the same clause), then by the returned clause's own wording BEFORE its tracked
@@ -575,7 +585,8 @@ def _align(old: list[dict], new: list[dict]) -> list[tuple[int | None, int | Non
     definition's term, then by Diff-Talk's similarity, and by number LAST and only
     where nothing says the two are on different subjects (`AM-317` r3, audit N2: a
     client who adds a definition shifts every later number). A clause none of these
-    pairs is shown on one side only, never set beside another."""
+    pairs is shown on one side only, never set beside another. ``by_number``, when given,
+    collects the after indices paired by number alone (batch 6 D5)."""
     pair: dict[int, int] = {}                                   # after -> before
     by_text: dict[str, list[int]] = {}
     norms = [dc._norm(u["text"]) for u in old]
@@ -632,6 +643,8 @@ def _align(old: list[dict], new: list[dict]) -> list[tuple[int | None, int | Non
         if k is not None and k not in taken and _same_subject(old[k], u):
             pair[j] = k
             taken.add(k)
+            if by_number is not None:
+                by_number.add(j)
     dc._title_words.cache_clear()
     # Text the returned copy MARKED as moved in (w:moveTo: none of it stood there before
     # the markup) is the move, whatever else kept its place — never the order's tie.
@@ -813,6 +826,15 @@ def _route(kind: str, old: dict | None, new: dict | None, before: list[dict],
     return HOLDER, MEASURED if before or after else UNMEASURED
 
 
+def _lead(units: list[dict], k: int | None) -> str | None:
+    """The lead-in of unit ``k``'s parent clause (the nearest unit before it numbered its
+    number less the last part — "16.1" for "16.1.4"), read with a list item that names
+    no acting party (batch 6, `change_triage.lead_in`); else None."""
+    parent = change_triage.parent_number(units[k]["number"]) if k is not None else None
+    return next((change_triage.lead_in(u["text"]) for u in reversed(units[:k])
+                 if parent and u["number"] == parent), None)
+
+
 def _kind(old: dict | None, new: dict | None, moved: bool) -> str | None:
     if old is None:
         assert new is not None
@@ -992,6 +1014,11 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
         raise ComparisonNotPossible(
             "one of these versions has no extracted text to compare — an unreadable or "
             "still-processing document cannot be compared")
+    # batch 6 D1: two reader generations are compared as one reads them (the older side
+    # re-read on read; one generation untouched, so answered rows keep their keys)
+    ours, theirs = reader_generation.as_one_reader(
+        db, before.id if template is None and before is not None else None, after.id,
+        ours, theirs)
     old, new = _units(ours), _units(theirs)
     if template is not None:
         as_filled(old, new, template)
@@ -1024,8 +1051,9 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
         f_before, f_after = _on(o, found_before), _on(n, found_after)
         triage = None
         if kind != "MOVED":
-            code = change_triage.code_reading(o["text"] if o else "",
-                                              n["text"] if n else "", vendor, aliases)
+            code = change_triage.code_reading(
+                o["text"] if o else "", n["text"] if n else "", vendor, aliases,
+                lead=_lead(new, j) if j is not None else _lead(old, i))
             if not code["editorial"]:
                 triage = change_triage.merged(
                     code, readings.get(n["evidence_ids"][0]) if n else None,

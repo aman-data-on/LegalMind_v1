@@ -679,6 +679,65 @@ def test_a_recitals_joining_word_is_never_a_change_of_its_own():
     assert "AND" in units[0]["text"] and "WHEREAS" in units[0]["text"]
 
 
+def _rows_of(*pair: bytes) -> list[str]:
+    """Each change between two DOCX files as "KIND number|heading", read as the change
+    list reads them (parse → clauses → units → alignment), no database."""
+    from legalmind.ingestion.parsing import parse_docx
+    from legalmind.mapping.engine import Clause
+    from legalmind.mapping.service import _marks
+    old, new = (negotiation._units([
+        Clause(uuid.uuid4(), s.content, s.section_number, s.section_title,
+               is_heading=bool(s.metadata.get("heading")), marks=_marks(s.metadata))
+        for s in parse_docx(data).segments]) for data in pair)
+    out = []
+    for i, j, moved in negotiation._align(old, new):
+        o, n = (old[i] if i is not None else None), (new[j] if j is not None else None)
+        if kind := negotiation._kind(o, n, moved):
+            here = n or o
+            assert here is not None
+            out.append(f"{kind} {here['number'] or here['heading']}")
+    return out
+
+
+def _with_table(paragraphs: list[str], cell: str) -> bytes:
+    import docx
+    d = docx.Document()
+    for para in paragraphs:
+        d.add_paragraph(para)
+    d.add_paragraph("Execution", style="Heading 1")
+    row = d.add_table(rows=1, cols=2).rows[0]
+    row.cells[0].text, row.cells[1].text = cell, "For the Customer Name: ___"
+    buf = io.BytesIO()
+    d.save(buf)
+    return buf.getvalue()
+
+
+def test_one_change_to_a_long_sub_clause_or_a_signature_block_is_one_row():
+    """Batch 6 (2026-11-20): a long "1.2. ‘Widget’…" or "4.1.3. suspension…" lost
+    its number, so the change read as clause 1.1 modified plus 1.2 added (or 4.1.3
+    deleted plus 4.1.2 modified); a Heading-1 "Execution" over a signature table had
+    its cell's change filed under 9.4. Each is now exactly one row."""
+    tail = " and every replacement of it supplied under an order form" * 4
+    ours = ["1.1. \"Alpha\" means the first thing.",
+            "1.2. \u2018Widget\u2019 shall mean any part" + tail + ".",
+            "1.3. \"Gamma\" means the third thing."]
+    theirs = [ours[0], [_run("1.2. \u2018Widget\u2019 shall mean any "),
+                        _mark("ins", "spare ", 1), _run("part" + tail + ".")], ours[2]]
+    assert _rows_of(_docx(*ours), _docx(*theirs)) == ["MODIFIED 1.2"]
+
+    lead = ["4.1. The provider may suspend if:", "4.1.1. a threat;", "4.1.2. a breach;"]
+    longer = ("4.1.3. suspension required by law or by a binding direction of a competent "
+              "authority" + ", and the provider shall restore the service promptly once "
+              "the grounds cease" * 2 + ".")
+    assert _rows_of(_docx(*lead, "4.1.3. suspension is required by law."),
+                    _docx(*lead, longer)) == ["MODIFIED 4.1.3"]
+
+    body = ["9.4. Counterparts: This agreement may be signed in counterparts."]
+    assert _rows_of(_with_table(body, "For the Provider Name: ___"),
+                    _with_table(body, "For the Provider Name: Provider Pvt Ltd")) \
+        == ["MODIFIED Execution"]
+
+
 # ------------------------------------------- R2 S2/S3/S9 (owner, 2026-11-16)
 def test_each_change_carries_its_lettered_points_and_the_review_table(api, db, owner):
     """The lawyer's view rides on each change (display only) and the internal review

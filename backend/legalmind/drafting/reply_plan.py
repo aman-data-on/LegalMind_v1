@@ -41,6 +41,7 @@ import docx
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind.analysis import negotiation as N
+from legalmind.analysis import reader_generation
 from legalmind.analysis.negotiation import THEIRS_KIND as THEIRS
 from legalmind.db import models as M
 from legalmind.drafting.model import SLOT
@@ -127,6 +128,9 @@ def reply_rows(db: DBSession, before: M.DocumentVersion | None, after: M.Documen
     theirs = load_clauses(db, after.id)
     if template:
         theirs = [c for c in theirs if not c.content.startswith(template["note_open"])]
+    if not paper_first:         # batch 6 D1: as the change list reads the pair
+        ours, theirs = reader_generation.as_one_reader(
+            db, before.id if before is not None else None, after.id, ours, theirs)
     text = {c.evidence_id: c.content for c in (*ours, *theirs)}
     old, new = N._units(ours), N._units(theirs)
     if template:

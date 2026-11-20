@@ -630,6 +630,9 @@ export function findingSentence(finding: Finding, evaluation?: Evaluation): stri
       if (contract?.text === PRESENCE_WORDS.WAIVED!.text) {
         return `The document waives ${subject}: it states the opposite of the company standard.`;
       }
+      if (contract?.text === OUR_INDEMNITY.text) {
+        return "In the document LeapSwitch gives an indemnity; the company standard has only the Customer's.";
+      }
       if (contract?.text === PRESENCE_WORDS.TOO_BROAD!.text) {
         return `The document's ${subject} goes further than the company standard allows.`;
       }
@@ -747,6 +750,12 @@ const PRESENCE_WORDS: Record<string, Side> = {
   TOO_NARROW: { tone: "absent", text: "Narrower than our standard" },
   ONE_SIDED: { tone: "absent", text: "One-sided — only the customer indemnifies" },
   RESTATED: { tone: "absent", text: "States its own terms instead of referring to the MSA" },
+};
+
+/** AM-381 r2 (batch 6): too broad because LeapSwitch gives an indemnity — the cause the
+ *  engine records since PRESENCE-v2; an older row without it reads as TOO_BROAD. */
+const OUR_INDEMNITY: Side = {
+  tone: "absent", text: "LeapSwitch gives an indemnity; our standard has only the Customer's",
 };
 
 /** Why a found clause's figure was not compared — the engine's `reason` (AM-146
@@ -873,6 +882,7 @@ export function sideOf(value: unknown): Side {
     return { tone: "unknown", text: UNREADABLE_WORDS[record.reason] +
       (figures.length > 0 ? `: ${figures.join(" · ")}` : "") };
   }
+  if (state === "TOO_BROAD" && record.cause === "OUR_INDEMNITY") return OUR_INDEMNITY;
   if (typeof state === "string" && (number === undefined || state !== "FINITE")) {
     return PRESENCE_WORDS[state] ?? { tone: "unknown", text: state };
   }

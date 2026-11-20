@@ -708,14 +708,29 @@ def test_the_cited_section_stops_before_the_signature_block(build, db):
     # AM-322 r15: a "Title Case:" label with its own sentence is the section's text
     (DR, "MSA", ("3. Data Protection", "3.1 This clause sets out data residency.",
                  "Storage Location: All Customer Data shall be stored only in India.")),
+    # batch 6 (AM-322 r12 rider): only a FOUND clause is widened, so the breach clause
+    # here is found by its configured words ("… notified without undue delay")
     (BNT, "TOS", ("10. Security", "10.1 A personal data breach means a breach of security "
-                  "leading to unauthorised access to personal data.",
+                  "leading to unauthorised access to personal data, notified without "
+                  "undue delay.",
                   "Notice To You: We will tell you without undue delay.")),
 ])
 def test_a_labelled_operative_sentence_stays_in_the_cited_section(build, db, code, kind,
                                                                   clauses):
     assert None in _cited(build, db, code, kind, *clauses, "11. Fees",
                           "11.1 Fees are stated in the Order.")
+
+
+def test_a_weak_breach_hit_cites_only_its_own_row(build, db):
+    """The r15 scenario as it was before batch 6: 10.1 names "personal data breach" only
+    (an alias, below the threshold — UNRESOLVED), so under the AM-322 r12 rider (batch 6:
+    only a FOUND clause widens) it cites 10.1 alone; the labelled notice sentence beside
+    it is not cited (narrower than the widened citation it had)."""
+    assert _cited(build, db, BNT, "TOS", "10. Security",
+                  "10.1 A personal data breach means a breach of security leading to "
+                  "unauthorised access to personal data.",
+                  "Notice To You: We will tell you without undue delay.", "11. Fees",
+                  "11.1 Fees are stated in the Order.") == {"10.1"}
 
 
 def test_the_take_back_is_cited_and_the_signature_block_is_not(build, db):

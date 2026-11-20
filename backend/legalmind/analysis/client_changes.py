@@ -44,9 +44,11 @@ def client_changes(clauses: list[Clause], measured: dict[str, list[str]],
     sections: list[dict[str, Any]] = []
     clause: str | None = None
     heading: dict[str, str] = {}                # a top-level number → its own heading
+    lead: dict[str, str | None] = {}            # a number → its list lead-in (batch 6)
     for row in clauses:
         if row.section_number:      # an unnumbered row belongs to the clause above it
             clause = row.section_number
+            lead[clause] = change_triage.lead_in(row.content)
             if "." not in clause and row.section_title:
                 heading[clause] = row.section_title
         if not row.marks:
@@ -68,8 +70,9 @@ def client_changes(clauses: list[Clause], measured: dict[str, list[str]],
                 "removed": change.get("deleted") or "",
                 "added": change.get("inserted") or "", "measured_by": by})
         if revision["changes"] and row.marks.get("original") is not None:
-            code = change_triage.code_reading(row.marks["original"], row.content, vendor,
-                                              aliases)
+            code = change_triage.code_reading(
+                row.marks["original"], row.content, vendor, aliases,
+                lead=lead.get(change_triage.parent_number(clause) or ""))
             if not code["editorial"]:
                 seen = change_triage.merged(
                     code, (readings or {}).get(str(row.evidence_id)),

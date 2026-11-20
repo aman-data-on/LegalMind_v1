@@ -31356,3 +31356,68 @@ r2  Under a whole-contract point, a legal.review holder sees "Possibly in: claus
 Open, for the owner: an owner's "keep ours" on a Legal-routed row is refused only in the UI
 (AM-408 r2); the server accepts it and counts it as answered. Proposed: refuse it on the server
 (409) while the deal is with Legal. Not decided here (rule 18).
+
+## AMENDMENT BATCH AB-219 — `AM-444`–`AM-448` (2026-11-20): reading the client's paper as written
+
+Owner instruction (2026-11-20): "go with the next fix batch" — the misreads seen when the client's MSA and NDA
+markup was run through LegalMind (case notes outside the repo). Engineering riders under the owner's "product
+over locks" delegation; every change reads the document's own text more faithfully or fails closed. No legal
+content, standard, term, alias, threshold or position is added or changed (rules 7/21). IDs scanned: AB-219,
+AM-444–450 on origin/main, every remote branch and every worktree.
+
+`AM-444` — THE DOCUMENT'S OWN NUMBERS AND HEADINGS (rider on `AM-185` / 34.11–34.12).
+```text
+r1  A typed sub-level number with its dot is the clause's number whatever follows it (a lowercase word,
+    an opening or closing quote) on long paragraphs as on short ones, and also when the quote or a
+    capital follows the dot directly ("1.9.“…"). In these added forms a year, a quantity or a figure
+    ("12.10.2026.The", "3.5.Mbps") is never a number. The number is the document's, never generated.
+r2  An unnumbered single-line DOCX paragraph in a Word Heading or Title style, shaped like a title, is a
+    heading (signature, execution and schedule labels over a table included).
+r3  Reader version legalmind-ingest-v12. When two versions being compared (change list, carry, final
+    contract, reply, lawyer view, compare page, Diff-Talk, amendments, the AM-445 guard) were read by
+    different reader versions, the older side's stored rows are re-numbered and re-marked on read by the
+    rules each later reader version added, up to the newer side's version only; nothing is re-ingested and no
+    evidence id changes. Pairs read by the same version are untouched, so an answered row never re-keys
+    (AM-433).
+```
+
+`AM-445` — A REWRITE IS NOT AN ABSENCE (rider on `AM-322` r11 / 45D; rule 15).
+```text
+r1  On a counterparty version, a requirement no clause maps to is UNRESOLVED, not MISSING, when a clause
+    of our latest version that found it (CONFIRMED or our own wording) survives in this version, followed
+    version by version by its text, never by number alone. It cites the surviving clause and names our
+    version's clause ("was found for this requirement"). Lexical only, from the versions' evidence and this
+    Review's snapshot; never a stored Review (rule 9). A clause the client deleted stays MISSING. Other
+    versions are untouched.
+```
+
+`AM-446` — WIDEN ONLY WHAT WAS FOUND (rider on `AM-322` r12).
+```text
+r1  A finding is widened to its whole numbered section only when its mapping found the clause (CONFIRMED,
+    before r11 makes a person read it). A weak lexical hit cites only the rows that scored.
+```
+
+`AM-447` — WHY AN INDEMNITY IS A DIFFERENCE (rider on `AM-381` r2, `AM-154`).
+```text
+r1  TOO_BROAD records its cause as a fact: OUR_INDEMNITY (under customer_indemnity_only, LeapSwitch or
+    each party gives an indemnity) or BREADTH (AM-154's phrases). The explanation and the reader line say
+    which: "LeapSwitch gives an indemnity; our standard has only the Customer's". Token, classification and
+    outcome unchanged. PRESENCE-v2; stored v1 Reviews reproduce under v1. A Review without a cause reads as
+    before.
+```
+
+`AM-448` — WHO ACTS IN A CHANGED SENTENCE (rider on `AM-224` r1 and r3).
+```text
+r1  A changed sentence is first read exactly as before this batch. Only when that finds no acting party
+    do role names (the Disclosing / Receiving / Indemnified / Indemnifying Party, neither / each / either
+    party) read as binding both parties. Whether a change helps LeapSwitch keeps the earlier reading.
+    Reasons are therefore never fewer than before.
+r2  A list item with no acting party is read with its parent clause's lead-in; "it" / "they" act for the one
+    party named before them, for a liability or payment. These may only ADD a reason; whether a change helps
+    LeapSwitch is read from the sentence alone. A sentence whose defining verb comes first ("X means /
+    includes") never helps.
+r3  A Constitution topic title's half that holds a word under four letters ("Governing Law", "SLA", "AUP")
+    tags a heading only when all its words are in it (a trailing "s" folded: "laws" reads "law").
+r4  Unchanged: a change that binds both parties gives no reason by code; carve-outs, precedence, renewal and
+    refunds stay the model's (AM-224 r6).
+```
