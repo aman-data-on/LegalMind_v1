@@ -10,7 +10,7 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 - AB-218 (2026-11-20, `AM-439`–`AM-443`; case-by-case batches 3+4 "deal brief", the Ironclad / Juro /
-  SpotDraft / LegalOn pattern kept simple). A brief above the tabs for sales and the lawyer (status
+  SpotDraft / LegalOn pattern kept simple; PR #328, DEPLOYED 2026-11-20 as 0acf53b6). A brief above the tabs for sales and the lawyer (status
   from a server code on the one count; what the client asks for; what we told them; our own
   mistake), one status label and one primary action per change row, Legal-recorded "what we told the
   client" (new append-only table `deal_positions`, migration; never client-bound; a tie preselects

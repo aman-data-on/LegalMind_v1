@@ -37,7 +37,7 @@ Nothing is committed until the owner says "commit".
 ## Open — case-by-case round 2026-11-19 (client MSA markup; plan in `audit/client-msa-case-20261119/`)
 - [x] Batch 1 redline truth — AB-216 `AM-431`–`AM-434` (DEPLOYED 2026-11-19 ab8250b1; live check as sales + lawyer passed)
 - [x] Batch 2 cited passage — AB-217 `AM-435`–`AM-438` (DEPLOYED 2026-11-20 ac0332ea)
-- [x] Batch 3+4 "deal brief" — AB-218 `AM-439`–`AM-443` (built + verified on `feat/deal-brief`; deploy waits for the owner's OK)
+- [x] Batch 3+4 "deal brief" — AB-218 `AM-439`–`AM-443` (DEPLOYED 2026-11-20 0acf53b6; live as sales + lawyer)
 - [ ] Owner: server refuses an owner's "keep ours" on a Legal-routed row while with Legal (proposed 409 rider; rule 18)
 - [ ] Owner/Legal: a keep-ours / ask-client answer sent with no reason on a measured row still records a system fallback justification ("Answered on the change: …"); the UI no longer reaches it (AB-218) — propose: require the lawyer's reason on the server
 - [ ] Owner note: a lawyer who created a contract (CREATOR, AM-288 r2) may record positions before it is sent to Legal

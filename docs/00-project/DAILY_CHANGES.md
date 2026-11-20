@@ -40,6 +40,10 @@ working day gets one entry, newest first, with these headings (omit an empty one
 ## 2026-11-20
 
 ### Reached production
+- **`0acf53b6`** (#328, AB-218 deal brief). Migration `f1a7c3e9d5b2` verified (table
+  `deal_positions` + append-only trigger); API 200. Live on the test contract: sales see "With Legal:
+  55 changes are being answered. Nothing for you yet." and the client's asks above the tabs; the
+  lawyer sees "55 changes to answer, 11 points to decide."
 - **`ac0332ea`** (#326, AB-217 batch 2 "cited passage"). Health 200. Live re-check of the test
   contract needs a fresh analysis (stored Reviews read as before by design); done with the next
   release's live check.
@@ -59,8 +63,11 @@ working day gets one entry, newest first, with these headings (omit an empty one
   30 of 37 claims confirmed, 5 corrected, 2 outside LegalMind; LegalMind's own misreads listed in
   `legalmind-clm-local/audit/client-report-verify-20261120/VERIFY.md`.
 
+### Sent (owner-approved)
+- The client MSA + NDA review posted to the deal's Slack group DM (main message + 3 comparison tables).
+
 ### In progress
-- **AB-218 deal brief** — PR → CI → merge gate → merge; then the owner's deploy OK.
+- None for the deal brief. Next unit: the LegalMind misreads found on the client MSA/NDA run.
 - **PR #322** (Constitution L1.18; other session) — waiting for the owner's merge OK.
 
 ### Next
