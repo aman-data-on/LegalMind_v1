@@ -25,3 +25,33 @@ def test_a_problem_is_repeated_at_most_every_six_hours():
     assert a.due(seen, state, 1000.0) == ["x"]
     assert a.due(seen, state, 1000.0 + 600) == []
     assert a.due(seen, state, 1000.0 + a.REPEAT_S) == ["x"]
+
+
+def test_the_alert_is_emailed_over_starttls_when_a_recipient_is_set(monkeypatch):
+    sent = []
+
+    class FakeSMTP:
+        def __init__(self, host, port, timeout):
+            sent.append(("connect", host, port))
+        def __enter__(self):
+            return self
+        def __exit__(self, *exc):
+            return False
+        def starttls(self):
+            sent.append(("starttls",))
+        def login(self, user, password):
+            sent.append(("login", user))
+        def send_message(self, msg):
+            sent.append(("send", msg["To"], msg["Subject"], msg.get_content().strip()))
+
+    monkeypatch.setattr(a.smtplib, "SMTP", FakeSMTP)
+    monkeypatch.delenv("LEGALMIND_ALERT_EMAIL_TO", raising=False)
+    a._email("x")
+    assert sent == []                                  # no recipient: nothing sent
+    monkeypatch.setenv("LEGALMIND_ALERT_EMAIL_TO", "ops@example.com")
+    monkeypatch.setenv("LEGALMIND_ALERT_SMTP_USER", "alerts@example.com")
+    a._email("LegalMind needs attention")
+    assert sent == [("connect", "smtp.gmail.com", 587), ("starttls",),
+                    ("login", "alerts@example.com"),
+                    ("send", "ops@example.com", "LegalMind needs attention",
+                     "LegalMind needs attention")]

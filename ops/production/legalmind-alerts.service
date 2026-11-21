@@ -1,8 +1,9 @@
 # Failure alerts (backend/tools/alert_failures.py): every 10 minutes, the failures the code
 # already marks in the API, worker and benchmark journals, and any failed legalmind-* unit,
-# posted once per kind (repeated at most every 6 h) to LEGALMIND_ALERT_WEBHOOK_URL — a Slack
-# incoming webhook in /root/.legalmind.env. Content-free: event names and counts only.
-# Unset URL: the message goes to this unit's journal only.
+# sent once per kind (repeated at most every 6 h) by EMAIL to LEGALMIND_ALERT_EMAIL_TO through
+# LEGALMIND_ALERT_SMTP_HOST/_PORT/_USER/_PASSWORD (STARTTLS; owner 2026-10-30), and/or to a
+# Slack webhook (LEGALMIND_ALERT_WEBHOOK_URL), all in /root/.legalmind.env. Content-free:
+# event names and counts only. Neither set: the message goes to this unit's journal only.
 #
 # Install with the timer:
 #   sudo cp ops/production/legalmind-alerts.{service,timer} /etc/systemd/system/
