@@ -23,27 +23,93 @@ Two rules govern this module:
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import TextClause, event, select
+from sqlalchemy.orm import ORMExecuteState
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind.db import models as M
 from legalmind.security import permissions as P
 
+#: The tables a user's authority is read from. A write to any of them empties the memo.
+#: ``User``: deleting one cascades its ``user_roles`` in Postgres, past the ORM.
+_GRANT_TABLES = (M.Permission, M.Role, M.RolePermission, M.UserRole, M.User)
+
+#: user id -> permissions, for ONE request (BE-7, 2026-11-23: the same user was resolved
+#: 7-9 times per request). Set only by `request_memo` around a request, so a worker, a
+#: script or a test calling in directly resolves fresh every time, exactly as before.
+_MEMO: ContextVar[dict[UUID, frozenset[str]] | None] = ContextVar("permission_memo",
+                                                                 default=None)
+
+
+@contextmanager
+def request_memo() -> Iterator[None]:
+    """Memoise `effective_permissions` for the life of one request — never across
+    requests (S-1), never across users (keyed by user id)."""
+    token = _MEMO.set({})
+    try:
+        yield
+    finally:
+        _MEMO.reset(token)
+
+
+def _grants_pending(db: DBSession) -> bool:
+    return any(isinstance(o, _GRANT_TABLES) for o in (*db.new, *db.dirty, *db.deleted))
+
+
+@event.listens_for(DBSession, "after_flush")
+def _forget_on_grant_flush(db: DBSession, _ctx: object) -> None:
+    memo = _MEMO.get()
+    if memo and _grants_pending(db):      # pre-flush state is still visible here
+        memo.clear()
+
+
+@event.listens_for(DBSession, "after_soft_rollback")
+def _forget_on_rollback(_db: DBSession, _tx: object) -> None:
+    """A rolled-back grant write (savepoint or whole) must not live on in the memo."""
+    memo = _MEMO.get()
+    if memo:
+        memo.clear()
+
+
+@event.listens_for(DBSession, "do_orm_execute")
+def _forget_on_bulk_write(state: ORMExecuteState) -> None:
+    """A bulk ``delete``/``update``/``insert`` (the user erasure deletes ``user_roles``
+    this way) or raw SQL through ``Session.execute`` bypasses the flush: anything but a
+    read forgets everything."""
+    memo = _MEMO.get()
+    if memo and not (state.is_select or _raw_select(state.statement)):
+        memo.clear()
+
+
+def _raw_select(statement: object) -> bool:
+    return (isinstance(statement, TextClause)
+            and statement.text.lstrip().upper().startswith("SELECT"))
+
 
 def effective_permissions(db: DBSession, user_id: UUID) -> frozenset[str]:
     """Union of every permission granted by every role the user holds (SEC-03).
 
-    Resolved fresh; never cached across requests.
+    Resolved fresh for every request; within one request, memoised (`request_memo`)
+    until the request writes a grant table.
     """
+    memo = _MEMO.get()
+    if memo is not None and user_id in memo and not _grants_pending(db):
+        return memo[user_id]
     rows = db.execute(
         select(M.Permission.name)
         .join(M.RolePermission, M.RolePermission.permission_id == M.Permission.id)
         .join(M.UserRole, M.UserRole.role_id == M.RolePermission.role_id)
         .where(M.UserRole.user_id == user_id)
     ).scalars().all()
-    return frozenset(rows)
+    granted = frozenset(rows)
+    if memo is not None:
+        memo[user_id] = granted
+    return granted
 
 
 def role_permissions(db: DBSession, role_id: UUID) -> frozenset[str]:

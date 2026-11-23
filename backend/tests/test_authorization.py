@@ -11,7 +11,7 @@ import uuid
 from datetime import UTC
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from legalmind.db import models as M
 from legalmind.domain import enums as E
@@ -637,3 +637,62 @@ def test_legal_scope_ends_when_the_review_resolves(db, seeded, requirement_versi
     # of the lifecycle, which is exactly why REC-09 needs both.
     _escalate(db, review, requirement_version, owner)
     assert can_see_review(db, counsel.id, review) is True
+
+
+# =====================================================================
+# BE-7 (2026-11-23) — one resolution per user per request, never longer
+# =====================================================================
+def _permission_queries(db):
+    from sqlalchemy import event
+    seen = []
+    event.listen(db.connection(), "before_cursor_execute",
+                 lambda *a: seen.append(a[2]) if "JOIN user_roles" in a[2]
+                 and "permissions.name" in a[2] else None)
+    return seen
+
+
+def test_inside_a_request_a_user_is_resolved_once(db, seeded):
+    from legalmind.security.resolver import request_memo
+    u, other = make_user(db), make_user(db)
+    grant_role(db, u, P.ROLE_PLATFORM_ADMIN)
+    queries = _permission_queries(db)
+    with request_memo():
+        first = effective_permissions(db, u.id)
+        db.execute(text("SELECT 1"))                 # a raw read keeps the memo
+        assert all(effective_permissions(db, u.id) == first for _ in range(8))
+        assert has_permission(db, u.id, P.USER_MANAGE)
+        assert effective_permissions(db, other.id) == frozenset()   # keyed per user
+    assert len(queries) == 2
+    effective_permissions(db, u.id)                  # outside a request: fresh, as before
+    effective_permissions(db, u.id)
+    assert len(queries) == 4
+
+
+def test_a_grant_written_inside_the_request_is_seen_at_once(db, seeded):
+    """The memo never outlives a grant write: pending, flushed or bulk."""
+    from sqlalchemy import delete
+
+    from legalmind.security.resolver import request_memo
+    u = make_user(db)
+    admin = db.execute(select(M.Role).where(M.Role.code == P.ROLE_PLATFORM_ADMIN)).scalar_one()
+    with request_memo():
+        assert P.USER_MANAGE not in effective_permissions(db, u.id)
+        db.add(M.UserRole(user_id=u.id, role_id=admin.id))          # pending, not flushed
+        assert P.USER_MANAGE in effective_permissions(db, u.id)
+        db.execute(delete(M.UserRole).where(M.UserRole.user_id == u.id))   # bulk
+        assert P.USER_MANAGE not in effective_permissions(db, u.id)
+        grant_role(db, u, P.ROLE_PLATFORM_ADMIN)                    # flushed
+        assert has_permission(db, u.id, P.USER_MANAGE)
+        db.execute(text("DELETE FROM user_roles WHERE user_id = :u"), {"u": u.id})   # raw
+        assert not has_permission(db, u.id, P.USER_MANAGE)
+        grant_role(db, u, P.ROLE_PLATFORM_ADMIN)
+        assert has_permission(db, u.id, P.USER_MANAGE)
+        link = db.execute(select(M.UserRole).where(M.UserRole.user_id == u.id)).scalar_one()
+        db.delete(link)
+        db.flush()
+        assert not has_permission(db, u.id, P.USER_MANAGE)
+        savepoint = db.begin_nested()                               # rolled back
+        grant_role(db, u, P.ROLE_PLATFORM_ADMIN)
+        assert has_permission(db, u.id, P.USER_MANAGE)
+        savepoint.rollback()
+        assert not has_permission(db, u.id, P.USER_MANAGE)

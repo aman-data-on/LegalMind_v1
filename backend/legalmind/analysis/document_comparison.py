@@ -26,7 +26,7 @@ from bisect import bisect_left
 from collections import Counter
 from collections.abc import Sequence
 from difflib import SequenceMatcher
-from functools import cache
+from functools import cache, lru_cache
 from typing import Any, cast
 from uuid import UUID
 
@@ -59,6 +59,16 @@ def _words(s: str) -> list[str]:
     return re.findall(r"\w+", s.lower())
 
 
+# BE-4 (2026-11-23): `_pair` scores every left clause against every right one, and each
+# score re-read both whole texts (`_words` 11,222 calls for 5,610 pairs). Bounded, so
+# nothing needs clearing and memory stays flat: a comparison holds at most
+# 2 x `MAX_CLAUSES` texts plus their pre-markup and folded variants.
+@lru_cache(maxsize=2048)
+def _tokens(s: str) -> tuple[tuple[str, ...], frozenset[str]]:
+    words = tuple(_words(s))
+    return words, frozenset(_content(words))
+
+
 def _norm(s: str) -> str:
     """Comparison text: spacing ignored and the clause's own leading number dropped
     — a clause renumbered word for word is unchanged (the reader still sees the
@@ -70,7 +80,7 @@ def _norm(s: str) -> str:
     return re.sub(r"[\s|]+", "", _BLANK.sub(" ", _INVISIBLE.sub("", text)))
 
 
-def _content(words: list[str]) -> set[str]:
+def _content(words: Sequence[str]) -> set[str]:
     return {w for w in words if len(w) > 3}
 
 
@@ -107,8 +117,7 @@ def _similarity(a: dict, b: dict) -> float:
 # every re-pair past ~64 clauses a side — 60 clauses took 10 s (review, 2026-10-14).
 @cache
 def _score(text_a: str, title_a: str, text_b: str, title_b: str) -> float:
-    wa, wb = _words(text_a), _words(text_b)
-    ca, cb = _content(wa), _content(wb)
+    (wa, ca), (wb, cb) = _tokens(text_a), _tokens(text_b)
     if not ca or not cb or not ca & cb:
         return 0.0
     shared = 2 * len(ca & cb) / (len(ca) + len(cb))
@@ -176,7 +185,7 @@ def _merge_once(left: list[dict], right: list[dict],
 
 
 def _order(a: str, b: str) -> float:
-    return SequenceMatcher(None, _words(a), _words(b), autojunk=False).ratio()
+    return SequenceMatcher(None, _tokens(a)[0], _tokens(b)[0], autojunk=False).ratio()
 
 
 def _improves(other: dict, alone: dict, joined: dict, was: float, on_left: bool) -> bool:
@@ -213,6 +222,7 @@ def align(left: list[dict], right: list[dict]) -> list[dict]:
     finally:
         _score.cache_clear()
         _title_words.cache_clear()
+        _tokens.cache_clear()          # keys hold whole clause texts (cache rule above)
 
 
 def _squash(text: str) -> str:

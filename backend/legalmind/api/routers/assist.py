@@ -387,6 +387,12 @@ def list_conversations(guard: Guard = Depends(get_guard),
     } for r in rows], page=page.page, page_size=page.page_size, total=total)
 
 
+#: A chunk id as the app writes it (`str(uuid)`), matched before the cast. Comparing
+#: ``ch.id::text`` instead seq-scanned every chunk once per message (DB-3, 2026-11-23:
+#: 45 ms -> 0.2 ms for 30 messages); anything else, as before, matches no chunk.
+_UUID_TEXT = "'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'"
+
+
 @router.get("/conversations/{conversation_id}")
 def get_conversation(conversation_id: UUID,
                      guard: Guard = Depends(get_guard)) -> dict:
@@ -425,7 +431,9 @@ def get_conversation(conversation_id: UUID,
                  ON v.id = COALESCE(
                       (r.filters->>'document_version_id')::uuid,
                       (SELECT ch.document_version_id FROM "{schema}".chunks ch
-                        WHERE ch.id::text = (r.results->'hits'->0->>'chunk_id')))
+                        WHERE ch.id = CASE
+                          WHEN r.results->'hits'->0->>'chunk_id' ~ {_UUID_TEXT}
+                          THEN (r.results->'hits'->0->>'chunk_id')::uuid END))
          WHERE m.conversation_id = :c
          ORDER BY m.ordinal
     """), {"c": conversation_id}).all()

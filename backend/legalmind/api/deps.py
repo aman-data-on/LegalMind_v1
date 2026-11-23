@@ -22,8 +22,11 @@ from uuid import UUID, uuid5
 
 from fastapi import Depends, Request, Response
 from fastapi.routing import APIRoute
+from sqlalchemy import event
 from sqlalchemy.orm import Session as DBSession
+from starlette.concurrency import run_in_threadpool
 
+from legalmind import config
 from legalmind.api.context import SESSION_COOKIE, request_id_of
 from legalmind.api.errors import Conflict
 from legalmind.db import models as M
@@ -53,7 +56,7 @@ from legalmind.security.authorization import (
     require_review_visible,
 )
 from legalmind.security.errors import Forbidden, NotVisible, Unauthenticated
-from legalmind.security.resolver import effective_permissions
+from legalmind.security.resolver import effective_permissions, request_memo
 from legalmind.security.sessions import Principal, resolve_session
 
 
@@ -76,6 +79,11 @@ def get_db(request: Request) -> Iterator[DBSession]:
     is a no-op.
     """
     db = new_session()
+    statement_ms, idle_ms = config.db_request_timeouts_ms()
+    # Every transaction of this request, including one begun after a mid-request commit.
+    limits = (f"SET LOCAL statement_timeout = {statement_ms}; "
+              f"SET LOCAL idle_in_transaction_session_timeout = {idle_ms}")
+    event.listen(db, "after_begin", lambda _s, _tx, conn: conn.exec_driver_sql(limits))
     request.state.db = db
     try:
         yield db
@@ -125,10 +133,16 @@ class CommitBeforeResponse(APIRoute):
         original = super().get_route_handler()
 
         async def handler(request: Request) -> Response:
-            response = await original(request)
-            db = getattr(request.state, "db", None)
-            if db is not None:
-                db.commit()
+            # BE-7: one permission memo for this request only (resolver.request_memo)
+            with request_memo():
+                response = await original(request)
+                db = getattr(request.state, "db", None)
+                if db is not None:
+                    # Off the event loop (BE-11, 2026-11-23): a commit that waits on a
+                    # lock, and the after-commit hooks it runs, must never freeze every
+                    # other request in the process. Same commit point, still before the
+                    # response.
+                    await run_in_threadpool(db.commit)
             return response
 
         return handler

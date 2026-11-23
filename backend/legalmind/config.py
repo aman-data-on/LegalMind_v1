@@ -63,6 +63,24 @@ def db_pool() -> dict[str, int]:
             "pool_timeout": int(os.environ.get("LEGALMIND_DB_POOL_TIMEOUT_S", "30"))}
 
 
+def db_request_timeouts_ms() -> tuple[int, int]:
+    """``statement_timeout`` and ``idle_in_transaction_session_timeout`` for an API
+    REQUEST's transactions — ``LEGALMIND_DB_STATEMENT_TIMEOUT_MS`` /
+    ``LEGALMIND_DB_IDLE_IN_TX_TIMEOUT_MS``; ``0`` switches one off (Postgres's own
+    meaning). Never the worker's, the in-process OCR thread's or Alembic's: those run
+    long by design (full-stack audit, 2026-11-23).
+
+    Defaults from production's own request log (10,761 requests, 2026-10-24 to
+    11-23): the slowest request that is not waiting on a language model took 14 s
+    (the template check), and a statement is a fraction of its request — 30 s per
+    statement is twice that whole request. An Ask turn holds its transaction open
+    while the model answers (94 s seen; 429 s once under host load, 2026-10-08), so
+    the idle limit is 10 min: it only frees a connection a stuck request would keep.
+    """
+    return (int(os.environ.get("LEGALMIND_DB_STATEMENT_TIMEOUT_MS", "30000")),
+            int(os.environ.get("LEGALMIND_DB_IDLE_IN_TX_TIMEOUT_MS", "600000")))
+
+
 def storage_backend() -> str:
     """Which write-once document store runs: ``local`` (the default, single host)
     or ``s3`` (locked Step 39's S3-compatible object storage). Any other value is

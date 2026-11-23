@@ -434,3 +434,67 @@ def test_one_lone_heading_stays_a_heading():
     units = [{"id": "a", "ref": None, "title": "Terms & Conditions", "text": "Terms & Conditions:"},
              {"id": "b", "ref": "1", "title": "Pricing", "text": "1. Pricing is per the quote."}]
     assert [u["id"] for u in _blocks(units)] == ["a", "b"]
+
+
+def _synthetic_pair(clauses=75, seed=7):
+    """A real-size pair (an MSA runs ~60-80 top-level clauses): the second side
+    renumbered, partly reworded, partly reordered, with clauses dropped, added and cut
+    into unnumbered pieces — every path `_pair` and the folding take. Placeholder words
+    only; nothing here is a legal position."""
+    import random
+    rnd = random.Random(seed)
+    vocab = [f"{a}{b}" for a in ("alpha", "bravo", "delta", "omega", "sigma", "tango")
+             for b in ("line", "item", "term", "unit", "part", "word", "note", "rule")]
+    ours = [_u(" ".join(rnd.choice(vocab) for _ in range(rnd.randint(12, 60))), str(n))
+            for n in range(1, clauses + 1)]
+    theirs = []
+    for n, unit in enumerate(ours):
+        words = unit["text"].split()
+        roll = rnd.random()
+        if roll < 0.08:
+            continue                                            # dropped
+        if roll < 0.35:                                         # reworded
+            words = [rnd.choice(vocab) if rnd.random() < 0.2 else w for w in words]
+        if roll > 0.92 and len(words) > 20:                     # cut in two pieces
+            theirs += [_u(" ".join(words[:10]), str(n + 3)), _u(" ".join(words[10:]))]
+            continue
+        theirs.append(_u(" ".join(words), str(n + 3)))
+        if roll > 0.85:                                         # added
+            theirs.append(_u(" ".join(rnd.choice(vocab) for _ in range(25)), f"{n + 3}A"))
+    moved = theirs[5:15]
+    rnd.shuffle(moved)                                          # reordered
+    theirs[5:15] = moved
+    return ours, theirs
+
+
+def test_caching_tokens_per_text_leaves_the_alignment_byte_identical(monkeypatch):
+    """BE-4 (2026-11-23): each text is tokenised once per comparison instead of once
+    per pair. The rows must be exactly what re-tokenising every pair produced."""
+    import copy
+    import json
+
+    from legalmind.analysis import document_comparison as dc
+
+    ours, theirs = _synthetic_pair()
+    cached = json.dumps(align(copy.deepcopy(ours), copy.deepcopy(theirs)), sort_keys=True)
+
+    def per_pair(s):                    # the pre-BE-4 behaviour: a fresh list every call
+        words = dc._words(s)
+        return words, dc._content(words)
+    per_pair.cache_clear = lambda: None  # type: ignore[attr-defined]  # align() releases it
+    monkeypatch.setattr(dc, "_tokens", per_pair)
+    fresh = json.dumps(align(copy.deepcopy(ours), copy.deepcopy(theirs)), sort_keys=True)
+
+    assert cached == fresh
+    statuses = {r["status"] for r in json.loads(cached)}
+    assert {"UNCHANGED", "CHANGED", "ADDED", "REMOVED"} <= statuses
+
+
+def test_the_token_cache_is_released_after_each_comparison():
+    """Keys hold whole clause texts: the cache lives for one comparison only
+    (the module's cache rule; verifier D1, 2026-11-23)."""
+    from legalmind.analysis import document_comparison as dc
+
+    dc.align([{"text": "The fees are payable monthly.", "title": "Fees"}],
+             [{"text": "The fees are payable quarterly.", "title": "Fees"}])
+    assert dc._tokens.cache_info().currsize == 0
