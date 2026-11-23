@@ -37,6 +37,27 @@ working day gets one entry, newest first, with these headings (omit an empty one
 
 ---
 
+## 2026-11-23
+
+### Reached production
+- **`f695622d`** (#330, AB-219 batch 6 "client misreads"). API and site 200, reader legalmind-ingest-v12,
+  no errors in the API log; the test contract opens unchanged for the lawyer (its versions are both v11,
+  so its rows are untouched by design).
+
+### Decided (owner)
+- Build the "client details before drafting" batch: Legal's 10-item checklist on the MSA form, stored on
+  the client, generation blocked until complete; free checks + a person's verification tick; our CIN locked.
+
+### In progress
+- **Batch 7 client details** — `/root/legalmind-worktrees/client-details`, branch `feat/client-details`,
+  spec `legalmind-clm-local/audit/batch7-client-details/SPEC.md`. Next: builder → verifier → PR.
+
+### Blocked
+- **Legal:** LeapSwitch's standard NDA template; our registered office and incorporating Act (Constitution
+  §4.1 differs from the MSA template).
+
+---
+
 ## 2026-11-20
 
 ### Reached production

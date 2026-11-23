@@ -10,7 +10,7 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 - AB-219 (2026-11-20, `AM-444`–`AM-448`; batch 6 "client misreads", from running a client's MSA + NDA
-  markup through LegalMind). Clause numbers kept on long and glued lines, Word heading styles read (no more
+  markup through LegalMind; PR #330, DEPLOYED 2026-11-23 as f695622d). Clause numbers kept on long and glued lines, Word heading styles read (no more
   phantom 1.11 / 15.1.4 / signature-as-21.11 rows; reader v12, mixed reader versions re-read on compare);
   a reworded clause is never "missing"; weak matches no longer widen to whole sections; the indemnity
   difference says when the reason is that LeapSwitch now gives an indemnity (PRESENCE-v2); change reasons

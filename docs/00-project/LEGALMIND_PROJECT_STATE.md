@@ -11,7 +11,7 @@
 
 ---
 
-**2026-11-20 — AB-219 (built, not deployed).** Batch 6 "client misreads": LegalMind reads clause
+**2026-11-20 — AB-219 (DEPLOYED 2026-11-23, f695622d).** Batch 6 "client misreads": LegalMind reads clause
 numbers and headings as typed, never calls a reworded clause missing, says why an indemnity is a
 difference, and gives reasons on NDA and list-item changes.
 
