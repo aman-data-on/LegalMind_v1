@@ -5072,6 +5072,24 @@
        "description": "`AM-324` r4: whose paper this version is, declared in the same request \u2014 COMPANY_DRAFT (our draft) or CLIENT_MODIFIED (the client's paper or markup)",
        "title": "X-Version-Role"
       }
+     },
+     {
+      "description": "`AM-456`: TRACKED_ORIGINAL \u2014 we do not hold the copy we sent, so compare this returned Word file with its own text before the client's tracked changes. Only with CLIENT_MODIFIED, on the contract's first version, for a Word file that carries tracked changes (422 WORD_FILE_NEEDED / NO_TRACKED_CHANGES otherwise); stored in the same request, never changed afterwards",
+      "in": "header",
+      "name": "x-compare-with",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "`AM-456`: TRACKED_ORIGINAL \u2014 we do not hold the copy we sent, so compare this returned Word file with its own text before the client's tracked changes. Only with CLIENT_MODIFIED, on the contract's first version, for a Word file that carries tracked changes (422 WORD_FILE_NEEDED / NO_TRACKED_CHANGES otherwise); stored in the same request, never changed afterwards",
+       "title": "X-Compare-With"
+      }
      }
     ],
     "responses": {

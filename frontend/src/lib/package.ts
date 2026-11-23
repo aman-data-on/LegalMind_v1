@@ -5,7 +5,7 @@
  * names them in plain words (rule 18: nothing decided here).
  */
 
-import type { Answer, ClientChange, EffectForUs, Measured } from "./changes";
+import type { Answer, ChangeList, ClientChange, EffectForUs, Measured } from "./changes";
 
 export interface PackageBlocker {
   code: string;
@@ -52,6 +52,13 @@ export interface PackagePlan {
  *  clauses of ours an unanchored point may be added after. */
 export interface ConvertPlan extends PackagePlan {
   choices: PackageTarget[];
+}
+
+/** S5: "Convert to our paper" is offered on the client's own paper only — never on our
+ *  blank template (`AM-302`) nor on our own contract compared with the client's tracked
+ *  changes (`AM-457`); the server refuses it there too. */
+export function convertOffered(list: Pick<ChangeList, "from" | "template" | "tracked_base" | "can_answer">): boolean {
+  return !list.from && !list.template && !list.tracked_base && !!list.can_answer;
 }
 
 /** S6: the annexure the agreed changes sit in — Annexure 2 on our MSA (S3), Annexure A on

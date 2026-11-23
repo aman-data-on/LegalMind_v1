@@ -130,7 +130,13 @@ def reply_rows(db: DBSession, before: M.DocumentVersion | None, after: M.Documen
         theirs = [c for c in theirs if not c.content.startswith(template["note_open"])]
     if not paper_first:         # batch 6 D1: as the change list reads the pair
         ours, theirs = reader_generation.as_one_reader(
-            db, before.id if before is not None else None, after.id, ours, theirs)
+            db, before.id if before is not None else (template or {}).get("read_by"),
+            after.id, ours, theirs)
+    # `AM-459` (review M6): on the tracked-only base a paragraph the client deleted whole
+    # rides on its neighbour's wording before the marks (`parsing.drop`), so writing it
+    # back would merge the two paragraphs — a person restores it by hand
+    folded = {str(c.evidence_id) for c in theirs if (template or {}).get("tracked") and
+              ((c.marks or {}).get("original") or "").count("\n") > c.content.count("\n")}
     text = {c.evidence_id: c.content for c in (*ours, *theirs)}
     old, new = N._units(ours), N._units(theirs)
     if template:
@@ -208,6 +214,9 @@ def reply_rows(db: DBSession, before: M.DocumentVersion | None, after: M.Documen
             edits += [x for e in o["evidence_ids"] for x in edit(at, text[UUID(e)], True)]
         if kind == "MODIFIED":
             assert o is not None and n is not None and i is not None
+            if folded & set(n["evidence_ids"]):
+                raise ReplyError("the client deleted a whole paragraph here; restore it "
+                                 "by hand", "UNSUPPORTED")
             edits += _rewrite(o["evidence_ids"], n["evidence_ids"], text, edit,
                               functools.partial(where_we_had, i))
         return edits

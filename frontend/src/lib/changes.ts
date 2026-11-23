@@ -8,7 +8,7 @@
 import { USER_STATUS_LABELS, readerWord as pointWord, requirementTitle, type UserStatus } from "@/components/workspace/findingLanguage";
 import { clauseName } from "@/lib/documentTypes";
 import { formatDate } from "@/lib/dates";
-import { ROW_STATUS, SALES_LINE, VERDICT_LABELS } from "@/lib/labels";
+import { RETURNED_COPY, ROW_STATUS, SALES_LINE, VERDICT_LABELS } from "@/lib/labels";
 import type { WordComment } from "@/lib/types";
 
 /** THEIRS: the client's paper came first (`AM-290`) — one row per point the review
@@ -155,9 +155,10 @@ export interface TemplateLink {
   message: string | null;
 }
 
-/** What the left side of a change is called: our version, or the template it came from */
-export function oursLabel(list: Pick<ChangeList, "from" | "template">): string {
-  return list.template ? `Our template, version ${list.template.version}`
+/** What the left side of a change is called: our version, the template it came from, or
+ *  (`AM-457`) the client's own text before their tracked changes */
+export function oursLabel(list: Pick<ChangeList, "from" | "template" | "tracked_base">): string {
+  return list.tracked_base ? RETURNED_COPY.oursLabel : list.template ? `Our template, version ${list.template.version}`
     : `Ours, version ${list.from?.version_number ?? ""}`;
 }
 
@@ -168,6 +169,9 @@ export interface ChangeList {
   to: { document_version_id: string; version_number: number };
   /** `AM-302`: the returned copy was made from our blank template — compared with it */
   template?: TemplateLink;
+  /** `AM-457`: compared with the client's tracked changes only (we hold no copy we sent);
+   *  absent otherwise. No row is then untracked, and "Keep ours" is not offered (Q2) */
+  tracked_base?: true;
   /** `AM-307`: why a side's Special Conditions (Annexure A) could not be applied — the
    *  list then compares the raw text and every change goes to Legal; absent otherwise */
   special_conditions_not_applied?: string[];
@@ -325,7 +329,7 @@ export const ACTION_LABEL: Record<Answer, string> = {
   ask_client: "Ask the client",
 };
 
-type Reader = Pick<ChangeList, "can_answer" | "can_decide" | "can_write_wording">;
+type Reader = Pick<ChangeList, "can_answer" | "can_decide" | "can_write_wording"> & Partial<Pick<ChangeList, "tracked_base">>;
 
 /** Whether this reader answers as Legal: the four actions, the notes, the decisions. */
 export const answersAsLegal = (list: Reader) => list.can_decide || !!list.can_write_wording;
@@ -339,7 +343,8 @@ export function actionsFor(change: ClientChange, list: Reader): Answer[] {
   const holder = change.route === "holder";
   const out: Answer[] = [];
   // AM-294 r2: on the client's paper there is no wording of ours to keep
-  if (list.can_answer && !theirs) out.push("keep_ours");
+  // AM-459: nor on the client's tracked changes only, until Legal answers Q2
+  if (list.can_answer && !theirs && !list.tracked_base) out.push("keep_ours");
   // accepting a point Legal decides: the decision itself for a holder, nothing for Sales
   if (holder ? (change.holder_accepted ? list.can_answer : list.can_decide) : list.can_answer) {
     out.push("accept_theirs");

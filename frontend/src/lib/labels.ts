@@ -708,6 +708,8 @@ export const CARD_COPY = {
   covers: "Our standard covers this clause",
   noFinding: "Our standard does not cover this clause",
   noPoint: "Our standard does not cover this clause, so contact Legal directly, or keep ours.",
+  /** where "Keep our wording" is not offered (the client's own paper; their tracked changes only) */
+  noPointNoKeep: "Our standard does not cover this clause, so contact Legal directly.",
   forUs: "For us",
   change: "The change",
   moved: ", also moved",
@@ -881,3 +883,81 @@ export const INTAKE_COPY = {
   refusedLead: "Finish these first:",
   goTo: "Go to it",
 } as const;
+
+/** Batch 5 (AB-221): "Our contract came back marked up" — the start, its refusals, and the
+ *  Changes tab when we compare with the client's tracked changes only. Labels only: the
+ *  server decides every refusal and every row. */
+export const RETURNED_COPY = {
+  choose: "Our contract came back marked up",
+  chooseLine: "The client’s Word file with their tracked changes",
+  uploadLine: "The client’s own paper, or a draft of ours not yet sent",
+  title: "Our contract came back marked up",
+  lead: "Upload the client’s Word file. We show each change they made and who answers it.",
+  dealTitle: "Which deal is it?",
+  newDeal: "It’s not in LegalMind yet",
+  newDealLine: "We start a new deal with this client.",
+  /** a new deal's name (round 2, UI 4): its type, the client and the day — told apart in every list */
+  dealName: (type: string | null, client: string, day: string) => `${type ?? "Contract"} with ${client}, ${day}`,
+  noDeals: "No deals with this client yet. We’ll start a new one.",
+  dealsFailed: "Deals could not be loaded",
+  dealsFailedFix: "Try again, or start a new deal.",
+  moreDeals: "Show more deals",
+  /** a deal line 2: its type, the stage's own words, whose the latest version is, when it last changed */
+  dealLine: (type: string | null, stage: string | null, n: number | null, role: string | null | undefined,
+             changed: string) =>
+    [type, stage, n === null ? null : `Version ${n}${role === "COMPANY_DRAFT" ? " is ours"
+      : role === "CLIENT_MODIFIED" ? " is the client’s" : ""}`, changed ? `Last changed ${changed}` : null]
+      .filter(Boolean).join(". ") + ".",
+  /** UI 3: the deals that cannot take the file now, in one closed list */
+  closedDeals: (n: number) => `${n} ${n === 1 ? "deal" : "deals"} can’t take this file now`,
+  dealOpen: "These deals are waiting on an answer first. Open one to see where it stands.",
+  openDeal: "Open the deal",
+  fileTitle: "The file they sent back",
+  fileHint: "A Word file, up to 25 MB",
+  pickTitle: "Choose or drop the client’s Word file",
+  baseTitle: "Do you have the copy we sent?",
+  copyYes: "Yes, I have the copy we sent",
+  copyYesLine: "Best: we also find edits the client made without tracking.",
+  copyTitle: "The copy we sent",
+  copyHint: "The Word file we emailed to the client",
+  copyTracked: "This copy still has tracked changes. We read it with every change accepted. If that is not what we sent, fix it in Word first.",
+  copyNo: "No, use the client’s tracked changes only",
+  copyNoLine: "Edits made without tracking can’t be seen, and every tracked change is read as the client’s. Use this only if the copy we sent had no tracked changes.",
+  existingBase: "We compare it with the last version of ours on this deal.",
+  whatNext: "What happens next",
+  next: ["We read the client’s changes and comments.", "You answer the simple ones.",
+         "You send the rest to Legal."] as const,
+  nothingSent: "Nothing goes to the client until you send our reply.",
+  submit: "Upload and compare",
+  busy: "Uploading…",
+  busyCheck: "Checking…",
+  retry: "Try again",
+  resumeCopyIn: "The copy we sent is saved. Try again to add the client’s file.",
+  missing: { client: "Choose the client first.", deal: "Choose the deal.", file: "Choose the file the client sent back.",
+             copy: "Choose the copy we sent." },
+  /** S8: the real step, never a percent */
+  step: (n: number, of: number, what: "copy" | "theirs" | "check") =>
+    `Step ${n} of ${of}. ${what === "copy" ? "Uploading and reading the copy we sent"
+      : what === "theirs" ? "Uploading and reading the client’s file" : "Checking against our standards"}`,
+  // refusals
+  pdf: "This is a PDF. Ask the client for the Word file. We need it to see their tracked changes and to send our reply.",
+  pdfWayOn: "If it is the client’s own paper, not ours, upload it as their paper instead.",
+  pdfUpload: "Upload as their paper",
+  copyWord: "The copy we sent must be the Word file. Its figures become our starting point.",
+  same: "This is the same file as the copy we sent. Choose the file the client sent back.",
+  noTracked: "The client’s file has no tracked changes. To see what they changed, choose the copy we sent.",
+  gone: "We can’t find this deal any more. Choose another deal or start a new one.",
+  closed: "This deal is archived or signed, so it can’t take a new version. Choose another deal or start a new one.",
+  duplicate: "This file is already on the deal, so there is nothing new to compare.",
+  failed: "The file could not be uploaded",
+  // the Changes tab
+  banner: "Compared with the client’s tracked changes only. We don’t have the copy we sent, so edits made without tracking can’t be seen. Every tracked change is read as the client’s.",
+  oursLabel: "Before the client’s tracked changes",
+  legend: "We compare with the text under the client’s tracked changes.",
+  /** item 12: Legal's line where Keep our wording is withheld (AM-459, Q2) */
+  keepOff: "Keep our wording is off here: Legal is deciding whether we can send back the text from before the client’s changes. Use our standard wording or write new wording instead.",
+  noChanges: "The client’s file has no tracked changes to answer.",
+  /** S5: under "Our draft" in Upload a contract */
+  ourDraftHint: "Did our contract come back with the client’s tracked changes?",
+  ourDraftLink: "Use “Our contract came back marked up”",
+};

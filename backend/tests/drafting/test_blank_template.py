@@ -331,3 +331,44 @@ def test_the_contract_says_its_only_version_was_made_from_the_template(
     contract = _returned(db, tmp_path, staff, _fill(_blank_bytes(api)))
     [version] = api.get(f"{V1}/contracts/{contract.id}").json()["data"]["document_versions"]
     assert version["made_from_template"]["template_key"] == KEY
+
+
+@pytest.mark.parametrize("footer", [True, False], ids=["by-id", "by-structure"])
+def test_compare_with_wins_over_the_template_link(db, api, published, staff, tmp_path,
+                                                  footer):
+    """Batch 5 (`AM-457`, a rider on `AM-302`): a version the person declared "compare
+    with its tracked changes only" is compared with its own text before the marks —
+    never linked to the blank it matches, by ID or by structure."""
+    sign_in(api, db, staff)
+    contract = _returned(db, tmp_path, staff, _fill(_blank_bytes(api), footer=footer))
+    version = db.execute(select(M.DocumentVersion).where(
+        M.DocumentVersion.contract_id == contract.id)).scalar_one()
+    assert blank.link(db, contract, version) is not None          # it would link
+    version.doc_metadata = {**version.doc_metadata, "compare_with": "TRACKED_ORIGINAL"}
+    db.flush()
+    body = api.get(f"{V1}/contracts/{contract.id}/changes").json()["data"]
+    assert body["tracked_base"] is True and "template" not in body
+    assert body["changes"] == []                                   # no marks, no rows
+    [dv] = api.get(f"{V1}/contracts/{contract.id}").json()["data"]["document_versions"]
+    assert "made_from_template" not in dv
+
+
+@pytest.mark.parametrize("route", ["accept", "formatting/keep-ours"])
+def test_answers_together_on_a_returned_blank_read_back(db, api, published, staff, tmp_path,
+                                                        route):
+    """Review D1 (batch 5): a bulk answer on paper made from our blank template stores its
+    left side as the template (the `left_side` CHECK holds) and reads back after a reload
+    — "Accept all with no change for us" and "Keep our wording on all formatting"."""
+    sign_in(api, db, staff)
+    edited = _fill(_blank_bytes(api), edit=("Clause C.2 text.", "Clause C.2 text;"))
+    contract = _returned(db, tmp_path, staff, edited)
+    url = f"{V1}/contracts/{contract.id}/changes"
+    [row] = api.get(url).json()["data"]["changes"]
+    assert (row["effect_for_us"], row["route_reason"]) == ("NEUTRAL", "FORMATTING_ONLY")
+    body = {"row_keys": [row["row_key"]], **({"effect": "NEUTRAL"} if route == "accept" else {})}
+    done = api.post(f"{url}/{route}", json=body)
+    assert done.status_code == 201, done.text
+    said = api.get(url).json()["data"]["changes"][0]["answer"]["answer"]
+    assert said == ("accept_theirs" if route == "accept" else "keep_ours")
+    stored = db.execute(select(M.ComparisonChoice)).scalars().one()
+    assert stored.left_version_id is None and stored.left_key.startswith("template:")

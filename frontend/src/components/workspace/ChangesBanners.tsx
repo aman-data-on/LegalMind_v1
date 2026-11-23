@@ -5,8 +5,8 @@
  * the client did not mark (R2), and the client's comments on clauses they did not change.
  * Split out of `ChangesPane` (batch 1, redline truth); presentation only.
  */
-import { CHANGES_COPY } from "@/lib/labels";
-import { clauseName, historyLine, type ChangeList, type ClientChange } from "@/lib/changes";
+import { CHANGES_COPY, RETURNED_COPY } from "@/lib/labels";
+import { answersAsLegal, clauseName, historyLine, type ChangeList, type ClientChange } from "@/lib/changes";
 import { displayTitle } from "@/lib/templates";
 import { CommentLines } from "./WordComments";
 
@@ -15,6 +15,9 @@ export function ChangesBanners({ data, allUntracked }: { data: ChangeList; allUn
   return (
     <>
       {data.from ? <p className="cx-banner" role="note">{CHANGES_COPY.comparedWith(data.from.version_number)}</p> : null}
+      {data.tracked_base ? <p className="cx-banner" role="note">{RETURNED_COPY.banner}
+        {/* item 12: Legal sees why Keep our wording is missing here (AM-459, Q2) */}
+        {answersAsLegal(data) ? <><br />{RETURNED_COPY.keepOff}</> : null}</p> : null}
       {data.special_conditions_not_applied?.length ? (
         <div className="cx-banner cx-banner--strong" role="note">
           <strong>Annexure A could not be read on this copy, so each change is compared with the contract text as
@@ -39,7 +42,7 @@ export function ChangesBanners({ data, allUntracked }: { data: ChangeList; allUn
               client&rsquo;s file — {data.summary.total === 1 ? "it was" : "they were"} made without tracking. LegalMind found each one
               by comparing the text.</>
           ) : (
-            <><strong>{data.summary.untracked}</strong> of {data.summary.total} changes are not
+            <><strong>{data.summary.untracked}</strong> of {data.summary.total} changes {data.summary.untracked === 1 ? "is" : "are"} not
               marked in the client&rsquo;s file (made without tracking). Each is tagged
               &ldquo;Untracked&rdquo; in the list.</>
           )}

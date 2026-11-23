@@ -172,7 +172,28 @@ def link(db: DBSession, contract: M.Contract,
     rows, fields, optional = our_side(db, tv)
     return {"template_version": tv, "clauses": rows, "fields": fields,
             "optional": optional, "note_open": model_.NOTE_OPEN,
-            "said": said(db, tv, how)}
+            "said": said(db, tv, how),
+            "anchor": f"{negotiation.TEMPLATE_ANCHOR}{tv.id}"}
+
+
+#: no row starts with it: Postgres text cannot hold NUL, so the tracked-only base drops
+#: no paragraph of the client's (a blank's note marker would, `AM-457`)
+_NO_NOTE = "\0"
+
+
+def base(db: DBSession, contract: M.Contract,
+         version: M.DocumentVersion) -> dict[str, Any] | None:
+    """Our side of a version with no version of ours before it, as `negotiation.changes`
+    takes it. The person's declaration wins (`AM-457`, a rider on `AM-302`): a version
+    uploaded "compare with its tracked changes only" is compared with its own text
+    before the marks, never linked to a blank template; any other, `link`."""
+    if not negotiation.tracked_only(version):
+        return link(db, contract, version)
+    return {"clauses": negotiation.tracked_original(db, version), "fields": set(),
+            "optional": set(), "note_open": _NO_NOTE, "said": None, "tracked": True,
+            "anchor": f"{negotiation.TRACKED_ANCHOR}{version.id}",
+            # one reader read both sides: never re-read (batch 6 D1, review S9)
+            "read_by": version.id}
 
 
 def said(db: DBSession, tv: M.TemplateVersion, how: str) -> dict[str, Any]:

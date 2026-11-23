@@ -235,7 +235,7 @@ export function AnswerCard({ change, list, contractId, onAnswered, onReload, inP
               </div>
             );
           }) : details !== null || !change.review.after.length ? (
-            <p className="ws-pane__note">{CARD_COPY.noPoint}</p>
+            <p className="ws-pane__note">{actions.includes("keep_ours") ? CARD_COPY.noPoint : CARD_COPY.noPointNoKeep}</p>
           ) : null}
         </section>
       ) : null}

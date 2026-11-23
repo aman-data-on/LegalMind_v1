@@ -163,7 +163,7 @@ interface RequestOptions {
   method?: string;
   body?: unknown;
   /** Raw bytes for the upload endpoint, which takes the file as the body. */
-  raw?: { data: BodyInit; contentType: string; filename: string; versionRole?: UploadRole };
+  raw?: { data: BodyInit; contentType: string; filename: string; versionRole?: UploadRole; compareWith?: CompareWith };
   query?: Record<string, string | number | undefined>;
   /** 49.8 — echoed as `Idempotency-Key`; a repeat must not duplicate the effect. */
   idempotencyKey?: string;
@@ -248,6 +248,7 @@ async function send<T>(path: string, options: RequestOptions = {}): Promise<T> {
     // decodes it back to the real filename (see `upload_document_version`).
     headers["X-Filename"] = encodeURIComponent(options.raw.filename);
     if (options.raw.versionRole) headers["X-Version-Role"] = options.raw.versionRole;   // AM-324 r4
+    if (options.raw.compareWith) headers["X-Compare-With"] = options.raw.compareWith;   // AM-456
   } else if (options.body !== undefined) {
     body = JSON.stringify(options.body);
     headers["Content-Type"] = "application/json";
@@ -471,7 +472,7 @@ export const api = {
       sort?: string | undefined;
       /** `own` (default) or `department` — AB-12 r3. The server refuses
        *  `department` without `department.view`; this is a view choice. */
-      scope?: ContractScope | undefined;
+      scope?: ContractScope | "negotiable" | undefined;   // AM-460: mine and those I collaborate on
       /** `true` lists ONLY archived contracts (AB-12 r6). */
       archived?: boolean | undefined;
       /** One client's documents, or the literal `"none"` for the ones linked
@@ -632,7 +633,7 @@ export const api = {
    */
   /** `AM-324` r4: whose paper it is travels with the file — the server refuses an upload
    *  that does not say, so no version is ever left undeclared. */
-  uploadDocument: (contractId: string, file: File, versionRole: UploadRole) =>
+  uploadDocument: (contractId: string, file: File, versionRole: UploadRole, compareWith?: CompareWith) =>
     request<UploadResult>(p`/contracts/${contractId}/document-versions`, {
       method: "POST",
       raw: {
@@ -640,6 +641,7 @@ export const api = {
         contentType: file.type || "application/octet-stream",
         filename: file.name,
         versionRole,
+        ...(compareWith ? { compareWith } : {}),
       },
     }),
   documentVersion: (id: string) => request<DocumentVersion>(p`/document-versions/${id}`),
@@ -1139,10 +1141,13 @@ export const api = {
  */
 /** The two answers an upload takes to "whose paper is it?" (`AM-324` r4). */
 export type UploadRole = "COMPANY_DRAFT" | "CLIENT_MODIFIED";
+/** `AM-456`: we do not hold the copy we sent — compare with the client's tracked changes only */
+export type CompareWith = "TRACKED_ORIGINAL";
 
-export async function uploadFirstDocument(contractId: string, file: File, versionRole: UploadRole) {
+export async function uploadFirstDocument(contractId: string, file: File, versionRole: UploadRole,
+                                          compareWith?: CompareWith) {
   try {
-    return await api.uploadDocument(contractId, file, versionRole);
+    return await api.uploadDocument(contractId, file, versionRole, compareWith);
   } catch (cause) {
     // Only a REFUSAL (4xx) stored nothing. A network failure, a timeout or a 5xx may have
     // come after the server kept the version — archiving then would hide a real contract.

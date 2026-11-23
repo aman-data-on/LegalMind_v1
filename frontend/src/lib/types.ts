@@ -112,6 +112,8 @@ interface LatestVersionSummary {
   counterparty?: string;
   /** ISO date, as declared. Never read out of the document. */
   effective_date?: string;
+  /** `AM-324` r4: whose paper it is, as declared at upload — omitted when nobody said */
+  version_role?: string;
 }
 
 /** The company on the other side of a deal — AB-13 r1. `industry` and

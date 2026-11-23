@@ -111,6 +111,13 @@ def declare_document_version(document_version_id: UUID, body: DocumentVersionDec
     """
     version = guard.document_version(document_version_id, P.DOCUMENT_UPLOAD,
                                      negotiable=True)   # AM-259 r2
+    if (version.doc_metadata or {}).get("compare_with") \
+            and {"version_role", "source"} & body.model_fields_set:
+        # AM-456 (review M2): declared at upload "compared with its tracked changes only"
+        # — never recast as ours, so its pre-markup text can never become our opening
+        raise Conflict("This version was uploaded as the client's marked-up copy, so "
+                       "whose paper it is can no longer be changed. Upload a new "
+                       "version.")
     reviewed = guard.db.execute(
         select(M.Review.id).where(M.Review.document_version_id == version.id).limit(1)
     ).first()

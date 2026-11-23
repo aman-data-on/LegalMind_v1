@@ -25,7 +25,7 @@
  */
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { chainAnalysis } from "@/lib/analysisChain";
@@ -48,7 +48,7 @@ import { ConvertPaper } from "./ConvertPaper";
 import { PackageBar, PackageCard, usePackagePlan, usePreparedEntries } from "./Package";
 import { FillInFields } from "./FillInFields";
 import { AmendmentsPanel, GovernedByLink } from "./Amendments";
-import { AMENDMENT_PLACE, packageLine } from "@/lib/package";
+import { AMENDMENT_PLACE, convertOffered, packageLine } from "@/lib/package";
 import { ClientMenu } from "@/components/clients/ClientWorkspace";
 import { CollaboratorsControl } from "./CollaboratorsControl";
 import { WEBSITE_KEY_BY_TYPE } from "@/components/diff-talk/text";
@@ -105,19 +105,18 @@ function comparisonRequested(): boolean {
   return new URLSearchParams(window.location.search).get("compare") === "1";
 }
 
-/** `/contracts/{id}/changes` (`AM-263`) — or the older `?tab=changes` — opens the
- *  client's changes (CLM Phase 1, UX §3.4). */
-function initialView(): "document" | "changes" {
-  if (typeof window === "undefined") return "document";
-  return contractTabFromPath(window.location.pathname).tab === "changes"
-    || new URLSearchParams(window.location.search).get("tab") === "changes" ? "changes" : "document";
+/** `/contracts/{id}/changes` (`AM-263`) — or the older `?tab=changes` — opens the client's changes
+ *  (CLM Phase 1, UX §3.4). The router's path, not `window.location`: an in-app navigation renders
+ *  the page before the address bar changes (batch 5: "Upload and compare" landed on Document). */
+function initialView(path: string, params: { get: (key: string) => string | null }): "document" | "changes" {
+  return contractTabFromPath(path).tab === "changes" || params.get("tab") === "changes" ? "changes" : "document";
 }
 
 export function WorkspacePage({ contractId }: { contractId: string }) {
-  const params = useSearchParams();            // S5: ?convert_draft= back from New contract
+  const params = useSearchParams(), path = usePathname();   // S5: ?convert_draft= back from New contract
   const { can, identity } = useSession();
   const [state, setState] = useState<Load>({ kind: "loading" });
-  const [view, setView] = useState(initialView);
+  const [view, setView] = useState(() => initialView(path, params));
   const changesFeed = useClientChanges(
     contractId, state.kind === "ready" ? (state.contract.document_versions ?? []) : []);
   // AM-307: the final contract's dry run — only while the client's returned copy is the
@@ -558,7 +557,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
       ) : version && changesFeed.enabled && view === "changes" ? (
         <ChangesPane contractId={contract.id} versions={versions} changes={changesFeed}
                      onVersionCreated={() => { setView("document"); openVersion(null); }}
-                     packageBar={changeList && !changeList.from && !changeList.template && changeList.can_answer
+                     packageBar={changeList && convertOffered(changeList)
                        ? (onPick: (rowKey: string) => void) => (   // S5: client paper → ours
                          <ConvertPaper contractId={contract.id} draftId={params.get("convert_draft")} onPick={onPick}
                                        onConverted={() => { setView("document"); openVersion(null); }} />)
