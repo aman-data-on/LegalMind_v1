@@ -48,9 +48,17 @@ working day gets one entry, newest first, with these headings (omit an empty one
 - Build the "client details before drafting" batch: Legal's 10-item checklist on the MSA form, stored on
   the client, generation blocked until complete; free checks + a person's verification tick; our CIN locked.
 
+### Done
+- **AB-220 batch 7 "client details before drafting"** (`AM-449`–`AM-452`) on `feat/client-details`: spec →
+  design plan → independent design review (12 changes) → owner OK → build → UX benchmark of Ironclad / Juro /
+  SpotDraft public material (6 additions) → independent verifier, 2 rounds (round 1: unbounded certificate OCR,
+  country free text opening the gate, convert using another client's draft, scope loss, a name change not clearing
+  the check; round 2: the certificate reader's regex — all fixed).
+
 ### In progress
-- **Batch 7 client details** — `/root/legalmind-worktrees/client-details`, branch `feat/client-details`,
-  spec `legalmind-clm-local/audit/batch7-client-details/SPEC.md`. Next: builder → verifier → PR.
+- **AB-220** — PR → CI → merge gate → merge; then the owner's deploy OK; after deploy, a new MSA version with our
+  CIN locked (`import_template --from-published … --lock`), Legal re-keeps the "Partner" wording point on it, then
+  approves and publishes.
 
 ### Blocked
 - **Legal:** LeapSwitch's standard NDA template; our registered office and incorporating Act (Constitution
