@@ -11,6 +11,10 @@
 
 ---
 
+**2026-11-23 — Speed batch P1 (BUILT, not deployed).** From the full-stack audit: one person's screens no
+longer wait for each other (a second request beside the contracts list: 1.2 s → 0.04 s), the contracts
+list and To-do are about 15 % faster, reopening a long Ask chat no longer scans every stored passage, and a
+runaway database query is stopped after 30 s instead of holding a connection.
 **2026-11-23 — AB-221 (DEPLOYED 2026-11-23, febed05f).** Batch 5: a salesperson whose own MSA came back as a Word file with
 tracked changes starts from "Our contract came back marked up", picks the client and the deal, and lands on the
 Changes tab. Without the copy we sent, the client's tracked changes alone are compared and "Keep our wording" waits

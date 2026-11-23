@@ -9,6 +9,16 @@ No version has been released. The V1 specification is complete and implementatio
 ---
 
 ## [Unreleased]
+- Full-stack audit 2026-11-23, batch P1 "speed quick wins" (branch `perf/quick-wins`; BUILT, NOT deployed; no
+  migration, no API schema change, no lock touched). `last_seen_at` is stamped at most once a minute in its own
+  `SKIP LOCKED` transaction before the request reads anything, so one user's parallel requests no longer queue on
+  the session row (`/auth/session` beside `/contracts`, same session: 1,245 → 39 ms median); the request commit
+  runs in the threadpool; permissions are memoised for one request only, keyed by user and forgotten on any
+  grant write or rollback (`/contracts?scope=legal` 21 → 1 permission queries); the Ask conversation's
+  chunk fallback uses the chunks' primary key behind a strict uuid pattern (45 → 0.2 ms, same rows); the
+  clause matcher tokenises each text once (align −28 %; `/contracts` −15 %, `/todo` −14 %, byte-identical
+  output); API request transactions carry `statement_timeout` 30 s and `idle_in_transaction_session_timeout`
+  10 min (`LEGALMIND_DB_STATEMENT_TIMEOUT_MS` / `LEGALMIND_DB_IDLE_IN_TX_TIMEOUT_MS`, ops/README §1).
 - AB-221 (2026-11-23, `AM-455`–`AM-460`; batch 5 "our contract came back marked up"; branch `feat/returned-markup`,
   PR #334, DEPLOYED 2026-11-23 as febed05f). A third New-contract start for our own MSA returned as a Word file with tracked changes:
   client required, the deal chosen (or a new one), and — for a new deal — the copy we sent uploaded first as our draft

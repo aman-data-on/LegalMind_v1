@@ -182,3 +182,98 @@ def test_no_credential_material_in_audit_metadata(db):
     forbidden = {"password", "credential", "credential_hash", "token",
                  "session_token", "code", "secret"}
     assert not (set(sig.parameters) & forbidden)
+
+
+# =====================================================================
+# BE-1 (2026-11-23) — last_seen_at never holds the session row for a request
+# =====================================================================
+@pytest.fixture
+def committed_session(engine):
+    """A real, COMMITTED session row, last seen five minutes ago: a row lock is only
+    visible across connections, which the per-test transaction cannot show."""
+    from sqlalchemy.orm import Session
+    with Session(engine) as s:
+        u = M.User(email=f"p1-{uuid.uuid4().hex[:8]}@example.test", name="P1",
+                   status=E.UserStatus.ACTIVE)
+        s.add(u); s.flush()
+        row = create_session(s, u)
+        row.last_seen_at = row.created_at - timedelta(minutes=5)
+        s.commit()
+        ids = (u.id, row.id)
+    yield ids[1]
+    with engine.begin() as c:
+        c.execute(M.UserSession.__table__.delete().where(M.UserSession.id == ids[1]))
+        c.execute(M.User.__table__.delete().where(M.User.id == ids[0]))
+
+
+def _last_seen(engine, sid):
+    with engine.connect() as c:
+        return c.execute(select(M.UserSession.last_seen_at)
+                         .where(M.UserSession.id == sid)).scalar_one()
+
+
+def test_a_request_never_holds_its_session_row(engine, committed_session):
+    """Two requests on one session ran one at a time: the first held the row from its
+    `last_seen_at` write until it committed (1.5 s waits behind `/contracts`). Now the
+    stamp commits on its own and the request's transaction locks nothing."""
+    from sqlalchemy.orm import Session
+    before = _last_seen(engine, committed_session)
+    with Session(engine) as request_a:
+        resolve_session(request_a, committed_session)
+        request_a.flush()                     # what the handler's first query autoflushes
+        with engine.connect() as request_b:   # would raise LockNotAvailable if held
+            request_b.execute(text("SET LOCAL lock_timeout = '200ms'"))
+            request_b.execute(select(M.UserSession.id).where(
+                M.UserSession.id == committed_session).with_for_update(nowait=True))
+        stamped = _last_seen(engine, committed_session)
+        assert stamped > before               # committed already, outside request A
+    with Session(engine) as again:            # within the minute: no second write
+        resolve_session(again, committed_session)
+    assert _last_seen(engine, committed_session) == stamped
+
+
+def test_a_held_session_row_is_skipped_never_waited_for(engine, committed_session):
+    import time
+
+    from sqlalchemy.orm import Session
+    before = _last_seen(engine, committed_session)
+    with engine.connect() as holder:
+        holder.execute(select(M.UserSession.id).where(
+            M.UserSession.id == committed_session).with_for_update())
+        started = time.monotonic()
+        with Session(engine) as request:
+            assert resolve_session(request, committed_session).session_id == committed_session
+        assert time.monotonic() - started < 1.0
+    assert _last_seen(engine, committed_session) == before
+
+
+def test_a_revoked_stale_session_still_fails_and_is_not_stamped(engine, committed_session):
+    from sqlalchemy.orm import Session
+    with Session(engine) as s:
+        revoke_session(s, committed_session, reason="logout")
+        s.commit()
+    before = _last_seen(engine, committed_session)
+    with Session(engine) as request, pytest.raises(Unauthenticated):
+        resolve_session(request, committed_session)
+    assert _last_seen(engine, committed_session) == before
+
+
+def test_a_failed_last_seen_stamp_never_fails_the_request(db, monkeypatch):
+    """The stamp is bookkeeping: a database error writing it is logged, never raised,
+    and the session still resolves (verifier D2, 2026-11-23)."""
+    from sqlalchemy.exc import OperationalError
+
+    from legalmind.security import sessions
+
+    class _Boom:
+        def __enter__(self):
+            raise OperationalError("stamp", {}, Exception("pool gone"))
+
+        def __exit__(self, *a):
+            return False
+
+    sid = uuid.uuid4()
+    monkeypatch.setattr(sessions, "_asked", {})
+    monkeypatch.setattr(type(db.get_bind().engine), "begin", lambda self: _Boom())
+    sessions._stamp_last_seen(db, sid)              # must not raise
+    assert sid in sessions._asked                   # no retry storm

@@ -664,6 +664,7 @@ def _align(old: list[dict], new: list[dict], by_number: set[int] | None = None
     finally:
         dc._score.cache_clear()
         dc._title_words.cache_clear()
+        dc._tokens.cache_clear()
     for b, (a, _) in similar.items():
         pair[rest_new[b]] = rest_old[a]
         taken.add(rest_old[a])

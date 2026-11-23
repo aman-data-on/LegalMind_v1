@@ -15,6 +15,7 @@ import pathlib
 import re
 
 import pytest
+from fastapi import Request
 
 ROUTERS = sorted((pathlib.Path(__file__).resolve().parents[1]
                   / "legalmind" / "api" / "routers").glob("*.py"))
@@ -59,3 +60,82 @@ def test_get_db_still_commits_in_its_own_teardown():
             / "legalmind" / "api" / "deps.py").read_text()
     body = deps[deps.index("def get_db("):deps.index("class CommitBeforeResponse")]
     assert "db.commit()" in body and "db.rollback()" in body
+
+
+def test_the_request_commit_never_blocks_the_event_loop():
+    """BE-11 (2026-11-23): the commit ran ON the loop, so a commit waiting on a lock
+    (or a slow after-commit hook) froze every other request in the process — the
+    2026-10-13 freeze class. Now it runs in the threadpool, still before the response."""
+    import asyncio
+    import threading
+    import time
+
+    import httpx
+    from fastapi import APIRouter, FastAPI
+
+    from legalmind.api.deps import CommitBeforeResponse
+
+    release = threading.Event()
+
+    class SlowCommit:
+        def commit(self):
+            release.wait(5)
+
+    router = APIRouter(route_class=CommitBeforeResponse)
+
+    @router.get("/slow")
+    def slow(request: Request):
+        request.state.db = SlowCommit()
+        return {}
+
+    @router.get("/fast")
+    async def fast():
+        return {}
+
+    app = FastAPI()
+    app.include_router(router)
+
+    async def run():
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://t") as client:
+            started = time.monotonic()
+            held = asyncio.create_task(client.get("/slow"))
+            await asyncio.sleep(0.3)                     # /slow is now inside its commit
+            other = await client.get("/fast")
+            waited = time.monotonic() - started - 0.3
+            release.set()
+            return other.status_code, waited, (await held).status_code
+    other, waited, held = asyncio.run(run())
+    assert (other, held) == (200, 200)
+    assert waited < 1.0, f"another request waited {waited:.1f}s on a commit"
+
+
+def test_a_request_transaction_carries_its_statement_and_idle_limits(engine, monkeypatch):
+    """Pool timeouts (2026-11-23): every transaction a REQUEST opens is bounded, the
+    one after a mid-request commit too; a session the worker opens is not."""
+    from types import SimpleNamespace
+
+    from sqlalchemy import text
+    from sqlalchemy.exc import OperationalError
+    from sqlalchemy.orm import sessionmaker
+
+    from legalmind.api import deps
+
+    monkeypatch.setenv("LEGALMIND_DB_STATEMENT_TIMEOUT_MS", "150")
+    monkeypatch.setenv("LEGALMIND_DB_IDLE_IN_TX_TIMEOUT_MS", "5678")
+    factory = sessionmaker(bind=engine, future=True)
+    monkeypatch.setattr(deps, "new_session", factory)
+    request = SimpleNamespace(state=SimpleNamespace())
+    requests_db = deps.get_db(request)
+    db = next(requests_db)
+    show = "SELECT current_setting('statement_timeout'), " \
+           "current_setting('idle_in_transaction_session_timeout')"
+    assert db.execute(text(show)).one() == ("150ms", "5678ms")
+    db.commit()                                          # a mid-request commit
+    assert db.execute(text(show)).one() == ("150ms", "5678ms")
+    with pytest.raises(OperationalError, match="statement timeout"):
+        db.execute(text("SELECT pg_sleep(1)"))
+    with pytest.raises(OperationalError):
+        requests_db.throw(OperationalError("x", {}, Exception("x")))   # get_db rolls back
+    with factory() as worker:                            # not a request: untouched
+        assert worker.execute(text(show)).one()[0] != "150ms"

@@ -34,6 +34,15 @@ Nothing is committed until the owner says "commit".
 
 ---
 
+## Open — Full-stack audit 2026-11-23 (`/root/legalmind-clm-local/audit/fullstack-audit-20261123/AUDIT-SUMMARY.md`)
+- [x] P1 speed quick wins — BE-1 session stamp, BE-11 commit off the loop, DB-3 Ask chunk by uuid, BE-4 token cache, BE-7 permissions once per request, request DB timeouts (BUILT 2026-11-23 on `perf/quick-wins`, NOT deployed; `P1-BUILD-REPORT.md`)
+- [ ] P2 comparison cache (after batch 5 merges) — BE-2/DB-1, BE-3, BE-5, BE-6, DB-7, BE-9
+- [ ] P3 database hygiene (migrations) — DB-2, DB-5, DB-8, DB-10, BE-8, BE-13
+- [ ] U1 UI wrong or risky (after batch 5 merges) — UI-01, UI-02, UI-05, UI-10, UI-09, UI-12
+- [ ] U2 UI workspace layout — UI-03, UI-04, UI-06, UI-07
+- [ ] U3 UI consistency — UI-11, mediums/lows, UI-08 (presentation-only amendment to AM-264/AM-291)
+- [ ] Later / owner — BE-10 nginx gzip, BE-12 OCR to the worker (rule 19), DB-4/DB-6 statute search, DB-9 duplicate indexes, BE-14–19, a fresh production copy
+
 ## Open — case-by-case round 2026-11-19 (client MSA markup; plan in `audit/client-msa-case-20261119/`)
 - [x] Batch 1 redline truth — AB-216 `AM-431`–`AM-434` (DEPLOYED 2026-11-19 ab8250b1; live check as sales + lawyer passed)
 - [x] Batch 2 cited passage — AB-217 `AM-435`–`AM-438` (DEPLOYED 2026-11-20 ac0332ea)

@@ -322,3 +322,40 @@ def test_the_retrieval_run_records_the_document_scope(api, db, seeded, user, mon
          WHERE m.conversation_id = :c
     """), {"c": conversation_id}).scalars().all()
     assert scopes == [v1["id"]]
+
+
+def test_a_turn_written_before_the_scope_filter_still_states_its_version(
+        api, db, seeded, user, monkeypatch):
+    """Runs written before 2026-09-02 carry no `filters.document_version_id`; the
+    version comes from the first chunk the run hit. That lookup now uses the chunks'
+    primary key (DB-3, 2026-11-23) instead of comparing `ch.id::text`: the same rows,
+    and a chunk id that is not a canonical uuid still matches nothing — never a 500."""
+    from sqlalchemy import text
+
+    from legalmind import config
+
+    _, v1, v2, conversation_id = _two_version_contract(api, db, user, monkeypatch)
+    for version in (v1, v2, v2):
+        _fake_generation(monkeypatch, "Termination requires notice [1].")
+        api.post(f"/api/v1/conversations/{conversation_id}/messages",
+                 json={"question": ASK, "document_version_id": version["id"]})
+    schema = config.assist_schema()
+    runs = db.execute(text(f"""
+        SELECT r.id FROM "{schema}".retrieval_runs r
+          JOIN "{schema}".messages m ON m.id = r.message_id
+         WHERE m.conversation_id = :c ORDER BY m.ordinal
+    """), {"c": conversation_id}).scalars().all()
+    assert len(runs) == 3
+    db.execute(text(f"""UPDATE "{schema}".retrieval_runs
+                           SET filters = filters - 'document_version_id'
+                         WHERE id = ANY(:ids)"""), {"ids": runs})
+    # The third run's first hit is not a canonical uuid (upper case): no version.
+    db.execute(text(f"""UPDATE "{schema}".retrieval_runs
+                           SET results = jsonb_set(results, '{{hits,0,chunk_id}}',
+                               to_jsonb(upper(results->'hits'->0->>'chunk_id')))
+                         WHERE id = :r"""), {"r": runs[2]})
+
+    loaded = api.get(f"/api/v1/conversations/{conversation_id}")
+    assert loaded.status_code == 200, loaded.text
+    answers = [m for m in loaded.json()["data"]["messages"] if m["role"] == "ASSISTANT"]
+    assert [a["document_version_id"] for a in answers] == [v1["id"], v2["id"], None]

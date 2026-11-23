@@ -297,6 +297,25 @@ Then `python3 -m alembic upgrade head` as the application role. The preflight's
 `assist_role` row verifies the grants for you — it FAILs if the role holds any write
 grant on an authoritative table.
 
+### API request limits — `statement_timeout`, `idle_in_transaction_session_timeout` (2026-11-23)
+
+Every transaction an API **request** opens runs with (`api/deps.get_db`, `SET LOCAL` per transaction):
+
+| Env (API unit only) | Default | `0` |
+|---|---|---|
+| `LEGALMIND_DB_STATEMENT_TIMEOUT_MS` | `30000` (30 s per statement) | off |
+| `LEGALMIND_DB_IDLE_IN_TX_TIMEOUT_MS` | `600000` (10 min idle inside a transaction) | off |
+
+Why these values: production's request log (10,761 requests, 2026-10-24 → 11-23) — the slowest
+request not waiting on a language model is the template check at 14 s (p99 13.8 s), and one
+statement is a fraction of its request; an Ask turn keeps its transaction open while the model
+answers (94 s seen, 429 s once under host load), so the idle limit sits well above it. A statement
+cancelled by the limit fails that one request with a 500 (`QueryCanceled` in the API log) and rolls it
+back; nothing partial is written (43.26). Not applied to the Celery worker, the in-process OCR thread,
+the `last_seen_at` stamp or Alembic — they open their own sessions and keep the server defaults.
+If a legitimate request is ever cancelled, raise the env value in the API unit and restart; do not
+switch it off.
+
 ## 2 · Network egress (row: `egress_allow_list`)
 
 `AM-30` t8/t10, deny-by-default:
