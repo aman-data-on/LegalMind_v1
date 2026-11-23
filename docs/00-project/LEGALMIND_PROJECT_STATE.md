@@ -11,7 +11,7 @@
 
 ---
 
-**2026-11-23 — AB-221 (BUILT, not deployed).** Batch 5: a salesperson whose own MSA came back as a Word file with
+**2026-11-23 — AB-221 (DEPLOYED 2026-11-23, febed05f).** Batch 5: a salesperson whose own MSA came back as a Word file with
 tracked changes starts from "Our contract came back marked up", picks the client and the deal, and lands on the
 Changes tab. Without the copy we sent, the client's tracked changes alone are compared and "Keep our wording" waits
 for Legal's answer (Q2).

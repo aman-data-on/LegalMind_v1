@@ -10,7 +10,7 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 - AB-221 (2026-11-23, `AM-455`–`AM-460`; batch 5 "our contract came back marked up"; branch `feat/returned-markup`,
-  BUILT, not deployed). A third New-contract start for our own MSA returned as a Word file with tracked changes:
+  PR #334, DEPLOYED 2026-11-23 as febed05f). A third New-contract start for our own MSA returned as a Word file with tracked changes:
   client required, the deal chosen (or a new one), and — for a new deal — the copy we sent uploaded first as our draft
   or, when we do not have it, the file compared with its own text before the client's marks (`X-Compare-With:
   TRACKED_ORIGINAL`, stored in `metadata.compare_with`; refusals `WORD_FILE_NEEDED` / `NO_TRACKED_CHANGES`; virtual

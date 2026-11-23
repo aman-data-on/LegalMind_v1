@@ -47,7 +47,7 @@ Nothing is committed until the owner says "commit".
 - [ ] Legal: NDA template; our registered office + incorporating Act (Constitution §4.1 vs MSA); source of our CIN; fixed defaults for recital A and the banks' city; **Q2 (AB-221 `AM-459`)**: "When we only have the client's file, 'Keep our wording' would put back the text that was there before their tracked edits. That text may include edits they made without tracking, or our own older edits. May we send it as ours?"
 - [ ] Owner (rule 21 config): finding terms "from termination", "terminates", "subprocessor(s)", data residency / convenience notice / data purge terms
 - [ ] Legal: "paid or payable" cap basis; residuals waiver wording; whether a mutual change is ever onto us; carve-out/precedence/renewal/refund triage rules; data-loss general exclusion; customer-indemnity limbs
-- [x] Batch 5 "our contract came back marked up" start option — AB-221 `AM-455`–`AM-460` (BUILT 2026-11-23 on `feat/returned-markup`; not deployed; awaiting independent verification and the owner's go)
+- [x] Batch 5 "our contract came back marked up" start option — AB-221 `AM-455`–`AM-460` (DEPLOYED 2026-11-23 febed05f, PR #334)
 - [x] Production-copy answered-keys probe (owner OK): 0 of 12 answered keys lost
 - [ ] Legal: confirm BASELINE for this case; this deal's positions; never-concede list
 

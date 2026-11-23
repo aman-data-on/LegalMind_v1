@@ -40,6 +40,8 @@ working day gets one entry, newest first, with these headings (omit an empty one
 ## 2026-11-23
 
 ### Reached production
+- **`febed05f`** (#334, AB-221 batch 5 "our contract came back marked up"). No migration; API and site 200; the new start page
+  and the `scope=negotiable` deal list answer as the test sales user; no errors in the API log.
 - **`f695622d`** (#330, AB-219 batch 6 "client misreads"). API and site 200, reader legalmind-ingest-v12,
   no errors in the API log; the test contract opens unchanged for the lawyer (its versions are both v11,
   so its rows are untouched by design).
