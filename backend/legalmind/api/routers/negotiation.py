@@ -103,6 +103,7 @@ from legalmind.drafting import model as model_
 from legalmind.drafting.reply_docx import ReplyError, apply_reply, placeable, unplaceable
 from legalmind.drafting.reply_plan import Answer, clause_text, reply_rows, sha256
 from legalmind.evaluation.workflow import (
+    DECISION_CARRIED_FORWARD,
     asked_client,
     carried_forward,
     current_decision,
@@ -193,19 +194,29 @@ def _changes(guard: Guard, contract: M.Contract, from_version: int | None,
             if before is None and template is None else negotiation.changes(
                 guard.db, contract, before, after,
                 legal_position=guard.sees_legal_position, template=template,
-                clause_loader=effective.effective_clauses)          # AM-307
+                clause_loader=effective.effective_clauses,          # AM-307
+                counting=counting)
     except ComparisonNotPossible as exc:
         raise BusinessRuleRejected(str(exc)) from exc
+    # BE-6: the pair's current answers in one query. Counting reads only rows with no
+    # answer, and a row with no answer has no current choice: `answer_lines` loads every
+    # choice `_current_choice` could find (same pair and key; the `left_side` CHECK and
+    # `_left` put a template/tracked anchor on every non-THEIRS row with no left version)
+    choices = {} if counting else _current_choices(guard, before, after)
+    open_ = _undecided(guard, [c for c in listed["changes"]
+                               if c["route"] == negotiation.HOLDER
+                               and not (counting and c.get("answer") is not None)])
     for change in listed["changes"]:
         if counting:
             if change["route"] == negotiation.HOLDER and change.get("answer") is None:
-                change["holder_accepted"] = _holder_accepted(guard, change, before, after)
+                change["holder_accepted"] = _holder_accepted(guard, change, choices,
+                                                             open_)
             continue
         if change["route"] == negotiation.FAVOUR:
             change["favour_reason"] = ACCEPT_FAVOURABLE        # AM-239, its own words
         if change["route"] == negotiation.HOLDER:
             change["unmeasured"] = _unmeasured(change)
-            change["holder_accepted"] = _holder_accepted(guard, change, before, after)
+            change["holder_accepted"] = _holder_accepted(guard, change, choices, open_)
         change["waiting_for_approval"] = _waiting(guard, change)
         change["offers"] = _offers(change, bool(listed.get("tracked_base")))
     return listed, before, after
@@ -319,21 +330,58 @@ def _bulk_left(before: M.DocumentVersion | None, rows: list[dict]
     return (before.id if before else None), None
 
 
-def _current_choice(guard: Guard, before: M.DocumentVersion | None,
-                    after: M.DocumentVersion, row_key: str) -> M.ComparisonChoice | None:
+def _pair_choices(before: M.DocumentVersion | None, after: M.DocumentVersion) -> tuple:
     C = M.ComparisonChoice
     # DB-10: the key columns' NULLs (implied by the `right_side`/`left_side` CHECKs) are
     # named so every column of `uq_comparison_choices_pair_row_version` is used, in order
     left = ((C.left_version_id == before.id, C.left_key.is_(None)) if before is not None
             else (C.left_version_id.is_(None),))
+    return (C.right_version_id == after.id, C.right_key.is_(None), *left)
+
+
+def _current_choice(guard: Guard, before: M.DocumentVersion | None,
+                    after: M.DocumentVersion, row_key: str) -> M.ComparisonChoice | None:
+    C = M.ComparisonChoice
     return guard.db.execute(
-        select(C).where(C.right_version_id == after.id, C.right_key.is_(None), *left,
-                        C.row_key == row_key)
+        select(C).where(*_pair_choices(before, after), C.row_key == row_key)
         .order_by(C.version_number.desc()).limit(1)).scalars().first()
 
 
-def _holder_accepted(guard: Guard, change: dict, before: M.DocumentVersion | None,
-                     after: M.DocumentVersion) -> bool:
+def _current_choices(guard: Guard, before: M.DocumentVersion | None,
+                     after: M.DocumentVersion) -> dict[str, M.ComparisonChoice]:
+    """`_current_choice` for every row of the pair, in one query (BE-6)."""
+    C = M.ComparisonChoice
+    out: dict[str, M.ComparisonChoice] = {}
+    for choice in guard.db.execute(select(C).where(*_pair_choices(before, after))
+                                   .order_by(C.row_key, C.version_number.desc())
+                                   ).scalars():
+        out.setdefault(choice.row_key, choice)
+    return out
+
+
+def _undecided(guard: Guard, rows: list[dict]) -> set[str]:
+    """BE-6: the client's Evaluations on ``rows`` with no Legal Decision at all whose
+    Finding has no carry record either — read now, in two queries for the whole list.
+    `_holder_accepted` reads such an Evaluation as not accepted at once: with no decision
+    `effective_decision` is None and with no carry record `_carried_acceptance` is
+    False, so asking each of them again could only say the same."""
+    pairs = {(e, f["finding_id"]) for c in rows for f in c["review"]["after"]
+             for e in f["evaluation_ids"]}
+    if not pairs:
+        return set()
+    decided = {str(e) for e in guard.db.execute(
+        select(M.LegalDecision.evaluation_id).where(
+            M.LegalDecision.evaluation_id.in_({UUID(e) for e, _ in pairs}))).scalars()}
+    carried = {str(f) for f in guard.db.execute(
+        select(M.AuditEvent.entity_id).where(
+            M.AuditEvent.action == DECISION_CARRIED_FORWARD,
+            M.AuditEvent.entity_type == "finding",
+            M.AuditEvent.entity_id.in_({UUID(f) for _, f in pairs}))).scalars()}
+    return {e for e, f in pairs if e not in decided and f not in carried}
+
+
+def _holder_accepted(guard: Guard, change: dict,
+                     choices: dict[str, M.ComparisonChoice], undecided: set[str]) -> bool:
     """Whether the client's wording may stand. Measured: every Evaluation on the
     returned clause that needs a decision — a point not already Acceptable, the same
     points the Changes tab offers to decide; a MATCH beside a deviation in one clause
@@ -345,13 +393,15 @@ def _holder_accepted(guard: Guard, change: dict, before: M.DocumentVersion | Non
     accepted (rule 15)."""
     db = guard.db
     if _no_finding(change):
-        choice = _current_choice(guard, before, after, change["row_key"])
+        choice = choices.get(change["row_key"])          # the pair's `_current_choices`
         return (choice is not None
                 and choice.choice == negotiation.ANSWERS["accept_theirs"]
                 and has_permission(db, choice.decided_by, P.LEGAL_DECISION))
     ids = {e for f in change["review"]["after"] if f["user_status"] != ACCEPTABLE
            for e in f["evaluation_ids"]}
     if not ids:             # routed to Legal for another reason: no decision opens it
+        return False
+    if ids & undecided:     # one is not accepted, as the loop below would find (BE-6)
         return False
     for e in ids:
         ev = db.get(M.Evaluation, UUID(e))
@@ -418,14 +468,18 @@ def client_version(versions: list[M.DocumentVersion]) -> M.DocumentVersion | Non
     return None if negotiation.is_ours(latest) or role == FINAL_SIGNED else latest
 
 
-def deal_counts(guard: Guard, contracts: list[M.Contract]) -> dict[UUID, dict]:
+def deal_counts(guard: Guard, contracts: list[M.Contract],
+                listed: dict[UUID, tuple | None] | None = None) -> dict[UUID, dict]:
     """`AM-291` — the two nouns, counted ONCE for every screen (home, To-do, the contract
     page, the Changes tab): CHANGES are the client's edits in the open round, POINTS the
     gaps against our standard still undecided on the latest version. Each key is present
     only when its source is readable (`document.view` / `review.view`) — absent, never 0.
+    ``listed`` (BE-5): a contract's open-round `_changes` the caller already made (None:
+    it could not be made), counted as it stands — the same rows, so the same numbers.
 
-    ponytail: one change list per contract in a live round (~0.4 s each); bounded by a
-    list page. A stored per-version tally is the upgrade if the list grows slow."""
+    ponytail: one change list per contract in a live round, its pure part kept per
+    process (`negotiation.process_memo`, P2); findings, answers and decisions are read
+    per contract. A stored per-version tally is the upgrade if a list page grows slow."""
     db, out = guard.db, {}
     can_decide = P.LEGAL_DECISION in guard.permissions
     for contract in contracts:
@@ -455,14 +509,11 @@ def deal_counts(guard: Guard, contracts: list[M.Contract]) -> dict[UUID, dict]:
         theirs = (client_version(versions)
                   if P.DOCUMENT_VIEW in guard.permissions else None)
         if theirs is not None:
-            try:
-                listed, _, after = _changes(guard, contract, None, theirs.version_number,
-                                            counting=True)
-            except (BusinessRuleRejected, negotiation.VersionRoleUndeclared):
-                listed = None           # one version, unreadable, processing, undeclared
-            if listed is not None:
-                replied_in, writer = _reader(guard, contract, after)
-                rows = listed["changes"]
+            made = (listed[contract.id] if listed is not None and contract.id in listed
+                    else _round_changes(guard, contract, theirs))
+            if made is not None:
+                replied_in, writer = _reader(guard, contract, made[2])
+                rows = made[0]["changes"]
                 counts.update(
                     changes_total=len(rows),
                     changes_left=sum(c.get("answer") is None for c in rows),
@@ -480,17 +531,46 @@ def deal_counts(guard: Guard, contracts: list[M.Contract]) -> dict[UUID, dict]:
     return out
 
 
+def _round_changes(guard: Guard, contract: M.Contract, theirs: M.DocumentVersion,
+                   counting: bool = True) -> tuple | None:
+    """The open round's `_changes` for ``theirs``, or None when it cannot be made (one
+    version, unreadable, processing, a role undeclared)."""
+    try:
+        return _changes(guard, contract, None, theirs.version_number, counting=counting)
+    except (BusinessRuleRejected, negotiation.VersionRoleUndeclared):
+        return None
+
+
+def _round_of(guard: Guard, review: M.Review
+              ) -> tuple[M.Contract, M.DocumentVersion] | None:
+    """(contract, the client's version) when the Review is of the version the open round
+    answers; None for any other version (no round, our own version, an older one)."""
+    contract = guard.db.get(M.Contract, review.contract_id)
+    theirs = client_version(list(guard.db.execute(select(M.DocumentVersion).where(
+        M.DocumentVersion.contract_id == review.contract_id)).scalars()))
+    if contract is None or theirs is None or theirs.id != review.document_version_id:
+        return None
+    return contract, theirs
+
+
 def round_counts(guard: Guard, review: M.Review) -> dict:
     """`deal_counts` for the Review's contract when the Review is of the client's version
     the open round answers — the recommendation's ``changes_left_legal`` (F5) and the
     report's change count are then the Changes tab's own, from one change list; ``{}``
     for any other version (no round, our own version, an older one)."""
-    contract = guard.db.get(M.Contract, review.contract_id)
-    theirs = client_version(list(guard.db.execute(select(M.DocumentVersion).where(
-        M.DocumentVersion.contract_id == review.contract_id)).scalars()))
-    if contract is None or theirs is None or theirs.id != review.document_version_id:
-        return {}
-    return deal_counts(guard, [contract])[contract.id]
+    found = _round_of(guard, review)
+    return {} if found is None else deal_counts(guard, [found[0]])[found[0].id]
+
+
+def legal_left(guard: Guard, review: M.Review) -> int:
+    """`round_counts(...)["changes_left_legal"]` (0 where absent) without the rest of the
+    counts (BE-5: the angles read this one number) — the same change list, the same
+    `_legal_left`, under the same `document.view` gate as `deal_counts`."""
+    found = _round_of(guard, review)
+    if found is None or P.DOCUMENT_VIEW not in guard.permissions:
+        return 0
+    made = _round_changes(guard, *found)
+    return 0 if made is None else len(_legal_left(made[0]["changes"]))
 
 
 _FROM = Query(None, ge=1, description="our version number (default: the one before)")
@@ -1973,13 +2053,14 @@ def _trace(guard: Guard, plan: dict) -> list[dict]:
     change stand — ids and hashes only; who, why and notes are joined at read time."""
     db, before, after = guard.db, plan["_internal"]["before"], plan["_internal"]["after"]
     rows = {c["row_key"]: c for c in plan["_internal"]["changes"]}
+    choices = _current_choices(guard, before, after)                    # BE-6
     out = []
     for e in plan["_internal"]["entries"]:
         if "trace" in e:            # agreed in an earlier round, unchanged since (AM-308)
             out.append(_carried_trace(db, e))
             continue
         change = rows[e["row_key"]]
-        choice = _current_choice(guard, before, after, e["row_key"])
+        choice = choices.get(e["row_key"])
         digest = (change.get("answer") or {}).get("wording_sha256")
         decisions = []
         for ev in _their_evaluations(db, change):

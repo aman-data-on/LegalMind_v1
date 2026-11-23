@@ -37,6 +37,7 @@ from legalmind.api.routers.contracts import negotiation_stages
 from legalmind.api.routers.negotiation import (
     _changes,
     _legal_left,
+    _round_changes,
     client_version,
     deal_counts,
 )
@@ -258,17 +259,20 @@ def _legal(guard: Guard, rows: list[dict], listed: dict,
 def deal_brief(contract_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
     contract = guard.contract_readable(contract_id, P.DOCUMENT_VIEW)
     db = guard.db
-    counts = deal_counts(guard, [contract])[contract.id]
     versions = list(db.execute(select(M.DocumentVersion).where(
         M.DocumentVersion.contract_id == contract.id)).scalars())
     latest = max(versions, key=lambda v: v.version_number, default=None)
     theirs = client_version(versions)
+    # BE-5: the open round's change list made once; the counts read the same rows
+    made = (_round_changes(guard, contract, theirs, counting=False)
+            if theirs is not None and P.DOCUMENT_VIEW in guard.permissions else None)
+    counts = deal_counts(guard, [contract], listed={contract.id: made})[contract.id]
     stage = negotiation_stages(guard, [contract]).get(contract.id) or {}
     out: dict[str, Any] = {"counts": counts}
     rows: list[dict] = []
     listed: dict = {}
-    if theirs is not None and "changes_total" in counts:
-        listed, _, after = _changes(guard, contract, None, theirs.version_number)
+    if made is not None and "changes_total" in counts:
+        listed, _, after = made
         rows = listed["changes"]
         headings = _headings(db, after.id)
         if (unmarked := _not_marked(listed, headings)) is not None:

@@ -11,6 +11,7 @@ clause version with the recorded lawyer source (`drafting.library`), and publish
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import re
 from pathlib import Path
@@ -22,6 +23,7 @@ from fastapi.responses import JSONResponse
 from pydantic import Field
 from sqlalchemy import select
 
+from legalmind.analysis.negotiation import process_memo
 from legalmind.analysis.service import AnalysisNotPermitted, run_analysis
 from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
 from legalmind.api.envelope import attachment_headers, data
@@ -47,6 +49,7 @@ from legalmind.ingestion.storage import StorageBackend
 from legalmind.security import audit as A
 from legalmind.security import permissions as P
 from legalmind.security.errors import NotVisible
+from legalmind.worker.app import evaluator_fingerprint
 from legalmind.worker.dispatch import dispatch_blank_pdf
 
 router = APIRouter(tags=["templates"], route_class=CommitBeforeResponse)
@@ -740,27 +743,33 @@ def check_template(template_id: UUID, guard: Guard = Depends(get_guard)) -> dict
                 library.decide(guard.db, tv, key, "APPROVE", actor_id=guard.user_id)
         rows = publish.pinned_clauses(guard.db, tv)
         texts = {k: _norm(" ".join(library.texts(r.body))) for (k, _), r in rows.items()}
+        clauses = {k: publish.clause_dict(c) for k, c in rows.items()}
         try:
-            model = model_.resolve(publish.template_dict(tv),
-                                   {k: publish.clause_dict(c) for k, c in rows.items()},
+            model = model_.resolve(publish.template_dict(tv), clauses,
                                    (tv.layout or {}).get("check_values", {}))
         except model_.ModelError as exc:
             return data({"publishable": False, "problems": [f"MODEL: {exc}"],
                          "standards": []})
-        docx = render_contract.render(model, tv.assets, contract_ref="PUBLISHCHECK",
-                                      version_number=tv.version,
-                                      model_hash=model_.model_hash(model))
-        pdf_bytes = None
-        # Synchronous on purpose (`AM-293` r2 governs the CLIENT PDF only): this is the
-        # internal publish gate's check of a PUBLISHCHECK render — its PDF is read for
-        # the preflight and discarded, never stored, downloaded or sent, and the lawyer
-        # pressing Publish needs the verdict in this response.
-        if os.environ.get("LEGALMIND_SOFFICE"):
-            docx, result = pdf.convert_contract(docx)
-            pdf_bytes = result.pdf
-        problems = [f"PREFLIGHT {p.code}: {p.detail}" for p in publish.unkept(
-            guard.db, tv.id, preflight.check(docx, model=model, pdf=pdf_bytes))]
-        standards = _engine_check(guard, tv, docx, texts, positions)
+
+        def made() -> tuple[list[preflight.Problem], list[dict] | None]:
+            docx = render_contract.render(model, tv.assets, contract_ref="PUBLISHCHECK",
+                                          version_number=tv.version,
+                                          model_hash=model_.model_hash(model))
+            pdf_bytes = None
+            # Synchronous on purpose (`AM-293` r2 governs the CLIENT PDF only): this is
+            # the internal publish gate's check of a PUBLISHCHECK render — its PDF is
+            # read for the preflight and discarded, never stored, downloaded or sent,
+            # and the lawyer pressing Publish needs the verdict in this response.
+            if os.environ.get("LEGALMIND_SOFFICE"):
+                docx, result = pdf.convert_contract(docx)
+                pdf_bytes = result.pdf
+            return (preflight.check(docx, model=model, pdf=pdf_bytes),
+                    _engine_check(guard, tv, docx, texts, positions))
+        # BE-9: the render, preflight and engine verdict on these exact inputs, made once
+        found, standards = process_memo(
+            _check_key(guard, tv, clauses, positions), "publish_check", made)
+        problems = [f"PREFLIGHT {p.code}: {p.detail}"
+                    for p in publish.unkept(guard.db, tv.id, found)]
         if standards is None:
             problems.append("ANALYSIS: the engine could not analyse the file")
             standards = []
@@ -775,6 +784,24 @@ def check_template(template_id: UUID, guard: Guard = Depends(get_guard)) -> dict
                      "special_conditions": special_conditions.readiness(guard.db, tv)})
     finally:
         savepoint.rollback()
+
+
+def _check_key(guard: Guard, tv: M.TemplateVersion, clauses: dict[tuple[str, int], dict],
+               positions: bool) -> str:
+    """sha256 of everything the check's render, preflight and engine read (rule 9's
+    triple): the draft's own fields (layout and its check values, pins, variables,
+    annexures, assets, content hash), every pinned clause as the check approved it, the
+    latest configuration snapshot, the evaluator and reader versions, whether LibreOffice
+    converts, and whether the reader sees positions. A draft edit, a clause edit or a
+    snapshot publish is a new key; what Legal kept as written is read live."""
+    snapshot = publish.latest_snapshot(guard.db)
+    return hashlib.sha256(json.dumps({
+        "template": [str(tv.id), publish.template_dict(tv)],
+        "clauses": sorted([list(k), c] for k, c in clauses.items()),
+        "snapshot": snapshot.id if snapshot is not None else None,
+        "versions": [PROCESSOR_VERSION, evaluator_fingerprint(),
+                     os.environ.get("LEGALMIND_SOFFICE")],
+        "positions": positions}, default=str, sort_keys=True).encode()).hexdigest()
 
 
 def _engine_check(guard: Guard, tv: M.TemplateVersion, docx: bytes,

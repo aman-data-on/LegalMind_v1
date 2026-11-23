@@ -69,6 +69,7 @@ working day gets one entry, newest first, with these headings (omit an empty one
   copy of the production copy: same-session `/auth/session` beside `/contracts` 1,245 → 39 ms; `/contracts` −15 %,
   `/todo` −14 %; permission queries on the legal list 21 → 1; Ask chat reopen 45 → 0.2 ms SQL.
   Report: `audit/fullstack-audit-20261123/P1-BUILD-REPORT.md`.
+- **Full-stack audit P2 "stop recalculating"** on `perf/comparison-cache` (BUILT, not committed, not deployed): BE-2/DB-1 comparison cache (content-hash key, answers/decisions live), BE-3 align once, BE-5 brief once + angles one number + brief fetched once, BE-6 answers/decisions per list, DB-7 review screens, BE-9 template check verdict kept. Scratch production copy: `/contracts` 1.6 → 0.35 s, legal list 1.85 → 0.65 s, `/todo` 1.4 → 0.28 s, brief 1.95 → 0.19 s, template check 7.7 s → 34 ms; 15/15 bodies byte-identical to main; probe 0 differences cold and hot. Report: `audit/fullstack-audit-20261123/P2-BUILD-REPORT.md`.
 - **Full-stack audit P3 "database hygiene"** on `perf/db-hygiene` (BUILT, not committed, not deployed): migration `d340ac8e60fd` (six indexes built CONCURRENTLY: DB-2, DB-5), DB-10 lookup, BE-13 Docling logs, P1 leftovers (template check commit removed, upload docstring). Measured on a scratch production copy: largest contract delete 463–487 → 69–76 ms; audit reads at 50× 3–42 ms → ≤0.08 ms. DB-8 proposed only (locked 49.4). Report: `audit/fullstack-audit-20261123/P3-BUILD-REPORT.md`.
 - **AB-221 batch 5 "our contract came back marked up"** (`AM-455`–`AM-460`) built on `feat/returned-markup`
   (worktree `/root/legalmind-worktrees/returned-markup`): diagnosis → spec → design → independent design review
@@ -86,6 +87,7 @@ working day gets one entry, newest first, with these headings (omit an empty one
 - **U1:** re-verify round 2 → PR → CI (job 15 baselines will move: adopt CI's) → merge; deploy on the owner's OK.
 - **Owner (U1):** should taking a contract back from Legal notify the lawyer and keep the Sales note?
 - P1: independent verification → PR → CI → merge; deploy only on the owner's OK. Then P2 once batch 5 merges.
+- P2: independent verification → PR → CI → merge; deploy only on the owner's OK (first read after a deploy is cold: one list page builds the cache).
 - P3: independent verification → PR → CI → merge; deploy only on the owner's OK, then run the ops/README index check. DB-8 needs an owner decision on 49.4.
 - **AB-222:** independent verification of `feat/case-lessons-a`, then git; then sub-batch B (items 1, 4, 5).
 - **Legal:** on MSA.LEAPSWITCH v3 (draft), re-keep the "Partner" wording point, approve, publish.

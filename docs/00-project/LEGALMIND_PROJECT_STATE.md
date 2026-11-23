@@ -11,10 +11,15 @@
 
 ---
 
+**2026-11-23 — Speed batch P2 (BUILT, not deployed).** The client's change list is no longer worked out from scratch on
+every screen: the part that depends only on the two documents is kept, while answers, decisions and findings are
+still read fresh every time. The contracts list goes from about 1.6 s to 0.35 s (Legal's view 1.9 s → 0.65 s), To-do
+1.4 s → 0.3 s, a 137-change contract's page, Changes tab and brief from 1–2 s to 0.1–0.2 s, and a lawyer checking a
+draft template waits 0.03 s instead of 8 s when nothing changed. Every screen shows exactly what it showed before.
 **2026-11-23 — UI batch U1 (BUILT, not deployed).** From the full-stack audit: a finished (Final) contract no
 longer tells sales "Send our reply" — it says the final contract is ready to sign in the signing tool. Taking a
-contract back from Legal now asks first. The client page's counts no longer run together, contract names show
-two lines instead of one, the Reviews list speaks the same words as its rows, and the report sales reads has no
+contract back from Legal now asks first. The client page's counts no longer run together, contract names keep the
+owner's one-line rule with a facts line that tells rows apart, the Reviews list speaks the same words as its rows, and the report sales reads has no
 file names, "§" or "analysed", and says what Export will download.
 
 **2026-11-23 — AB-222, batch 8 part A (BUILT, not deployed).** Lessons from a real client MoU. The changes a client

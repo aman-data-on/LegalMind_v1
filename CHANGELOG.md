@@ -54,6 +54,25 @@ No version has been released. The V1 specification is complete and implementatio
   are not summed, an unrated tax row leaves the total unchecked, the subtotal comes from the amount column.
   Round 4 (c8, supersedes c1/c6): one fail-closed rule — row by row only when every changed row on either side is
   a table row or a short title line; a prose carve-out the client inserts makes the whole clause theirs. Coordination: sub-batch B takes AM-464 onward (the spec's draft numbering is not used).
+- Full-stack audit 2026-11-23, batch P2 "stop recalculating" (branch `perf/comparison-cache`; BUILT, NOT deployed;
+  no migration, no API schema change, no lock touched). The pure part of a client-change comparison (units,
+  alignment, each row's kind, marks and pure readings; separately the display-only notes and lettered points) is
+  kept per API process, pickled, under a sha256 of every input it reads — both sides' clauses as compared (after
+  the loader, the Special Conditions and the reader re-read: every field incl. marks and highlights), the version
+  ids, the base kind and anchor, optional parts and placeholders, the vendor reading, the latest configuration
+  snapshot and the reader/engine versions; findings, answers, decisions, routes, effects and the automatic
+  acceptance are read live on every call (BE-2/DB-1). One comparison aligns once and counting skips the display-only
+  parts (BE-3); the brief makes the change list once and the angles read only `changes_left_legal` (BE-5); the
+  pair's current answers are read in one query and an Evaluation with no decision and no carry record is not asked
+  again per row (BE-6); the findings page reads escalations, Evaluations, requirements, Constitution blocks,
+  evidence ids and decisions once per page and the review list one read basis per contract (DB-7); the template
+  publish check's render + preflight + engine verdict is kept under the draft's content, its pinned clauses, the
+  latest snapshot and the engine version (BE-9); the deal brief is no longer fetched twice on a page's first load.
+  Measured on a scratch production copy (warm medians): `/contracts` 1,603 → 348 ms (676 → 231 statements), legal
+  scope 1,851 → 647 ms (994 → 495), `/todo` 1,421 → 276 ms, the 137-change contract 993 → 128 ms, its Changes 1,040
+  → 91 ms, brief 1,954 → 193 ms, angles 1,102 → 260 ms, `/reviews` 99 → 68 ms, findings 171 → 86 ms, template
+  check 7,667 → 34 ms. All 15 response bodies byte-identical to main; production-copy probe 0 differences in 83
+  answered-pair rows, cold and hot. Report: `audit/fullstack-audit-20261123/P2-BUILD-REPORT.md`.
 - Full-stack audit 2026-11-23, batch P3 "database hygiene" (branch `perf/db-hygiene`; BUILT, NOT deployed; one
   migration `d340ac8e60fd`, no API schema change, no lock touched). Six indexes built `CONCURRENTLY` (autocommit
   block, `if_not_exists`, `lock_timeout` 60 s, an INVALID leftover dropped and rebuilt, the migration refuses to

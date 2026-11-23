@@ -153,13 +153,24 @@ def standards(row: dict[str, Any]) -> dict[str, Any]:
     return {"source": LEGAL_DECIDES}
 
 
+def lettered(before: str | None, after: str | None, kind: str, vendor: bool = False,
+             aliases: tuple[list[str], list[str]] = ([], [])
+             ) -> tuple[list[dict[str, Any]], str | None]:
+    """(lettered points, mutuality) — read from the two texts alone (a moved clause has
+    none), so a comparison keeps them with its pure part (P2 BE-2)."""
+    said = points(before, after, vendor, aliases) if kind != "MOVED" else []
+    return said, mutuality(before, said, vendor, aliases)
+
+
 def lawyer_view(row: dict[str, Any], vendor: bool = False,
-                aliases: tuple[list[str], list[str]] = ([], [])) -> dict[str, Any]:
-    before = (row.get("before") or {}).get("text")
-    after = (row.get("after") or {}).get("text")
-    lettered = points(before, after, vendor, aliases) if row["kind"] != "MOVED" else []
-    return {"points": lettered, "standards": standards(row),
-            "mutuality": mutuality(before, lettered, vendor, aliases)}
+                aliases: tuple[list[str], list[str]] = ([], []),
+                read: tuple[list[dict[str, Any]], str | None] | None = None
+                ) -> dict[str, Any]:
+    """``read``: the row's `lettered` already made; the standards are always the row's."""
+    said, mutual = read or lettered((row.get("before") or {}).get("text"),
+                                    (row.get("after") or {}).get("text"), row["kind"],
+                                    vendor, aliases)
+    return {"points": said, "standards": standards(row), "mutuality": mutual}
 
 
 # ------------------------------------------------------------------ D4 / D5
@@ -185,14 +196,18 @@ def _note(kind: str, clauses: list[str], text: str) -> dict[str, Any]:
     return {"kind": kind, "clauses": clauses, "text": text}
 
 
-def notes_for_legal(ours: list[Clause], theirs: list[Clause]) -> list[dict[str, Any]]:
+def notes_for_legal(ours: list[Clause], theirs: list[Clause],
+                    aligned: list[tuple[int | None, int | None, bool]] | None = None
+                    ) -> list[dict[str, Any]]:
     """What a lawyer checks across the clauses after a markup — each note cites its
     clauses; a person reads it. A figure or duplicate note starts from a clause the
-    client changed; a reference or term note from any clause naming what was deleted."""
+    client changed; a reference or term note from any clause naming what was deleted.
+    ``aligned``: `negotiation._align` of these two sides' units, when the caller already
+    made it (BE-3: one comparison aligns once)."""
     old, new = N._units(ours), N._units(theirs)
     changed: list[dict] = []
     deleted: set[str] = set()       # by alignment, never by number: renumbering moves
-    for i, j, moved in N._align(old, new):
+    for i, j, moved in (N._align(old, new) if aligned is None else aligned):
         if j is None and i is not None and old[i]["number"]:
             deleted.add(_num(old[i]["number"]))
         elif j is not None and N._kind(old[i] if i is not None else None, new[j],
@@ -202,8 +217,15 @@ def notes_for_legal(ours: list[Clause], theirs: list[Clause]) -> list[dict[str, 
     deleted -= {_num(u["number"]) for u in numbered}   # its number still names a clause
     notes: list[dict[str, Any]] = []
 
-    # (i) one concept, two figures
+    # (i) one concept, two figures — read once per unit (BE-3: not per pair)
+    read: dict[int, dict[str, set[str]]] = {}
+
     def figures(unit: dict) -> dict[str, set[str]]:
+        if id(unit) not in read:
+            read[id(unit)] = _figures(unit)
+        return read[id(unit)]
+
+    def _figures(unit: dict) -> dict[str, set[str]]:
         found: dict[str, set[str]] = {}
         for s in _flat(unit["text"]):
             for concept, rx in _CONCEPTS.items():
@@ -261,15 +283,17 @@ def notes_for_legal(ours: list[Clause], theirs: list[Clause]) -> list[dict[str, 
     # D5: a changed sentence that repeats another clause
     def words(s: str) -> set[str]:
         return set(_WORD.findall(s.lower()))
-    others = [(u["number"], words(s)) for u in numbered for s in _flat(u["text"])]
+    others = [(u["number"], _num(u["number"]), words(s))
+              for u in numbered for s in _flat(u["text"])]
     flagged: set[tuple] = set()
     for unit in changed:
+        here = _num(unit["number"])
         for s in _flat(unit["text"]):
             mine = words(s)
             if len(mine) < _DUP_MIN_WORDS:
                 continue
-            for number, theirs_w in others:
-                if not number or _num(number) == _num(unit["number"]):
+            for number, its, theirs_w in others:
+                if not number or its == here:
                     continue
                 if len(mine & theirs_w) / len(mine | theirs_w) >= DUPLICATE_OVERLAP:
                     key = tuple(sorted((_num(unit["number"]), _num(number))))
