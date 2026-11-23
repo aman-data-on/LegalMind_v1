@@ -48,7 +48,11 @@ test.describe("the reviews queue and the report", () => {
     expect(body).not.toContain("risk");
     expect(body).not.toContain("verdict");
 
-    await page.getByRole("link", { name: "Open the workspace" }).click();
+    // U1 (UI-12): the back control names where it goes, and the contract opens at its
+    // own address — both links lead to this contract, nowhere else
+    await expect(page.getByRole("link", { name: "Contract", exact: true }))
+      .toHaveAttribute("href", `/contracts/${contractId}`);
+    await page.getByRole("link", { name: "Open the contract", exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`/contracts/${contractId}$`));
   });
 
@@ -63,13 +67,18 @@ test.describe("the reviews queue and the report", () => {
     // Since AM-174 a decision on the contract CLOSES a Review, so other specs may leave
     // one: filtering to CLOSED shows only closed Reviews, or the empty state honestly
     // worded — never an error, never a Review in another status.
-    await page.getByRole("button", { name: "Closed" }).click();
+    // U1 (UI-09): one filter control in the row chips' own words — no engine word, and
+    // no "Checked" (it named the date column too)
+    const filter = page.getByRole("group", { name: "Status" });
+    await expect(filter.getByRole("button")).toHaveText(["All", "With Legal", "Decided", "Closed"]);
+    await filter.getByRole("button", { name: "Closed" }).click();
+    await expect(filter.getByRole("button", { name: "Closed" })).toHaveAttribute("aria-pressed", "true");
     await expect(page.locator("tbody tr").first()
-      .or(page.getByText("Nothing visible to your account has this status."))).toBeVisible();
+      .or(page.getByText("No review you can see has this status."))).toBeVisible();
     await expect(page.locator("tbody tr").filter({ hasNotText: "Closed" })).toHaveCount(0);
-    await page.getByRole("button", { name: "All" }).click();
+    await filter.getByRole("button", { name: "All" }).click();
     await expect(page.locator("tbody tr").first()
-      .or(page.getByText(/Nothing visible to your account/))).toBeVisible();
+      .or(page.getByText(/A review appears once a contract is checked/))).toBeVisible();
     await context.close();
   });
 });
