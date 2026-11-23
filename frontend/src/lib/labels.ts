@@ -28,12 +28,12 @@ import type { DealCounts, Finding, Review } from "./types";
 const REVIEW_STATUS_LABELS: Record<string, string> = {
   DRAFT: "Draft",
   UPLOADED: "Uploaded",
-  PROCESSING: "Analysing",
-  ANALYSIS_COMPLETE: "Analysis complete",
+  PROCESSING: "Being read",           // UI-09: no engine words ("analysis") for a reader
+  ANALYSIS_COMPLETE: "Reading finished",   // momentary: LEGAL_REVIEW or RESOLVED follows
   LEGAL_REVIEW: "With Legal",   // PLAIN-LANGUAGE §2.2: one word for one fact
   RESOLVED: "Decided",
   CLOSED: "Closed",
-  ANALYSIS_FAILED: "Analysis failed",
+  ANALYSIS_FAILED: "Could not be read",
   CANCELLED: "Cancelled",
 };
 
@@ -374,6 +374,59 @@ export const ASK_LEGAL_COPY = {
   asked: "You asked Legal to look at this. Asking is not an approval — Legal decides.",
   why: "What should Legal look at?",
   withdraw: "Withdraw",
+} as const;
+
+/** UI-09: the Reviews queue — its filter says the row chips' own words (a Review's state,
+ *  never a deal stage or a legal axis; "Decided" is RESOLVED, never "Matches"). */
+export const REVIEWS_QUEUE_COPY = {
+  filter: "Status",
+  filters: [
+    { id: "", text: "All" },
+    { id: "LEGAL_REVIEW", text: REVIEW_STATUS_LABELS.LEGAL_REVIEW! },
+    // U1 r2: no ANALYSIS_COMPLETE option — the state lasts one call
+    // (`advance_after_analysis` moves it on), and "Checked" named the date column too
+    { id: "RESOLVED", text: REVIEW_STATUS_LABELS.RESOLVED! },
+    { id: "CLOSED", text: REVIEW_STATUS_LABELS.CLOSED! },
+  ],
+  columns: { document: "Contract", status: "Status", checked: "Checked" },
+  emptyTitle: "No reviews here",
+  emptyFiltered: "No review you can see has this status.",
+  emptyAll: "A review appears once a contract is checked. Upload a contract on Contracts to start.",
+  /** the row's facts line, as on Contracts: what tells one template's rows apart */
+  version: (n: number, role?: string) => `Version ${n}${role ? `, ${role.charAt(0).toLowerCase()}${role.slice(1)}` : ""}`,
+  withWhom: (name: string) => `With ${name}`,
+} as const;
+
+/** UI-12: the report page's own words — the server's report text is the download's. */
+export const REPORT_COPY = {
+  backToReviews: "Reviews",
+  backToContract: "Contract",
+  openContract: "Open the contract",
+  /** says what the buttons download before anything downloads */
+  exportLine: "Download the report shown below:",
+  pdf: "PDF",
+  word: "Word",
+  preparing: "Preparing…",
+  exportFailed: "The report could not be downloaded. Try again.",
+} as const;
+
+/** U1 r2: one name for the deal's end (AM-318) — the brief, the list and the card. */
+export const FINAL_READY_WORDS = "Final contract ready";
+
+/** UI-02: taking the contract back from Legal undoes the hand-off, so it asks first. */
+export const TAKE_BACK_COPY = {
+  // U1 r2: says only what the server does — the assignment is revoked; nobody is told
+  // and the note goes with it (whether to notify and keep it is the owner's call)
+  open: "Take back from Legal",
+  title: "Take this contract back from Legal?",
+  body: (who: string) => `It leaves ${who}'s queue. Answers Legal already gave are kept. ${who} is not told, so let `
+    + "them know. When you send it again, write a new note.",
+  /** a 409: someone else changed who holds it first */
+  gone: "Legal no longer has this contract. Refresh to see who has it.",
+  cancel: "Cancel",
+  confirm: "Take back",
+  busy: "Taking back…",
+  done: "Taken back from Legal",
 } as const;
 
 /** Where a deal stands (`AM-260`). The stage is the server's, and so are its words —
@@ -775,6 +828,11 @@ export const BRIEF_STATUS: Record<import("@/lib/dealBrief").BriefStatus, (legal:
   LEGAL_NOTHING: () => "Nothing is waiting for Legal on this contract.",
   /** round 5: no analysed review of the client's version yet — nothing is ready */
   CHECKING: () => "LegalMind is still reading the client's version.",
+  /** UI-01: stages with no reply to send — the deal's end (AM-318), the final contract
+   *  next, or waiting on the client. Never a decision: the stage is the server's. */
+  FINAL_READY: () => `${FINAL_READY_WORDS}. Sign it in your signing tool.`,
+  PREPARE_FINAL: () => "Your turn: prepare the final contract.",
+  ON_HOLD: () => "On hold: waiting for the client.",
 };
 
 /** Batch 7 (AB-220): the New contract intake — four steps, the Client details card (Legal's

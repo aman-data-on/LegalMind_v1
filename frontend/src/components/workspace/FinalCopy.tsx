@@ -35,8 +35,9 @@ import { useFindingsStateOptional } from "./findingsState";
 import { SpecialConditionsTrace } from "./Package";
 import "./final.css";
 
-const NEXT = "Sign it in your signing tool. Nothing more is needed here. If the client asks "
-  + "for another change, upload their version and the negotiation reopens.";
+// U1 r2: "Final contract ready. Sign it in your signing tool." is the brief's line above
+// the tabs; the card does not say it twice
+const NEXT = "If the client asks for another change, upload their version and the negotiation reopens.";
 
 export function PrepareFinal({ contractId, nextVersion, onPrepared }: {
   contractId: string; nextVersion: number; onPrepared: () => void;
@@ -120,7 +121,7 @@ export function FinalCheckFailed({ version }: { version: Pick<DocumentVersion, "
   );
 }
 
-/** "Final contract ready for signature" — the version, Legal's decision, the files, what
+/** The final contract — the version, Legal's decision, the files, what
  *  was agreed, and the one next step (GOV.UK confirmation-page pattern). */
 export function FinalCard({ version, versions, since, owner = true }: {
   version: DocumentVersion; versions: DocumentVersion[]; since: string;
@@ -143,7 +144,7 @@ export function FinalCard({ version, versions, since, owner = true }: {
   return (
     <section className="ws-replynote lm-final" aria-labelledby="lm-final-card">
       <div className="ws-replynote__text">
-        <h2 id="lm-final-card" className="ws-replynote__title">Final contract ready for signature</h2>
+        <h2 id="lm-final-card" className="ws-replynote__title">Final contract</h2>
         <p className="ws-replynote__sub">
           Version {version.version_number}
           {from ? `, made from version ${from.version_number}` : ""}.{" "}

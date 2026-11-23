@@ -9,7 +9,7 @@
  * (Batch 1 (c)), never a guess from the stage.
  */
 
-import { changesWords, pointsWords, reviewStatusLabel, stageLine, stageWords, waitingWords, type StageViewer } from "@/lib/labels";
+import { FINAL_READY_WORDS, changesWords, pointsWords, reviewStatusLabel, stageLine, stageWords, waitingWords, type StageViewer } from "@/lib/labels";
 import type { Contract, DealCounts, NegotiationStage, NegotiationStageCode } from "@/lib/types";
 
 import { documentStatusBucket, relativeTime, shortDate, UNFINISHED_REVIEW_STATUSES } from "./model";
@@ -77,7 +77,7 @@ export function CountsCell({ contract, viewer }: { contract: Contract; viewer: S
     return <span className="ws-home__counts"><span>{stageWords("SIGNED")}</span></span>;
   }
   if (contract.negotiation_stage?.stage === "FINAL") {         // AM-318
-    return <span className="ws-home__counts"><span>Final copy ready</span></span>;
+    return <span className="ws-home__counts"><span>{FINAL_READY_WORDS}</span></span>;
   }
   const review = contract.latest_analysis?.review_status;
   const changes = changesWords(contract.counts, viewer);

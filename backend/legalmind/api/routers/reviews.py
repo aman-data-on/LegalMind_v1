@@ -246,10 +246,24 @@ def _with_document(guard: Guard, reviews: list[M.Review]) -> list[dict]:
                 .where(M.Finding.review_id.in_(ids), M.Escalation.withdrawn_at.is_(None))
                 .group_by(M.Finding.review_id)):
             since[rid] = min(since.get(rid, at), at)
+    # U1 round 2 (UI-10): what tells rows of one template apart — the version and whose it
+    # is, and the client, named only where the caller may read the contract (rule 18;
+    # omitted otherwise, never null — SEC-07). Two queries for the page.
+    D = M.DocumentVersion
+    versions = {} if not ids else {v.id: v for v in guard.db.execute(select(D).where(
+        D.id.in_({r.document_version_id for r in reviews}))).scalars()}
+    party_ids = {c.counterparty_id for c in contracts.values() if c.counterparty_id}
+    parties = {} if not party_ids else dict(guard.db.execute(
+        select(M.Counterparty.id, M.Counterparty.name)
+        .where(M.Counterparty.id.in_(party_ids))).tuples().all())
     payload = []
     for review in reviews:
         contract = contracts.get(review.contract_id)
         item = serialize_review(review)
+        if (version := versions.get(review.document_version_id)) is not None:
+            item["version_number"] = version.version_number
+            if role := (version.doc_metadata or {}).get("version_role"):
+                item["version_role"] = role
         item["document_name"] = contract.name if contract is not None else None
         item["document_type"] = contract.contract_type if contract is not None else None
         # Exactly the rule the workspace this links to will apply — which since
@@ -261,6 +275,9 @@ def _with_document(guard: Guard, reviews: list[M.Review]) -> list[dict]:
             contract is not None
             and can_read_contract(guard.db, guard.user_id, contract)
         )
+        if (contract is not None and item["document_accessible"]
+                and contract.counterparty_id in parties):
+            item["client_name"] = parties[contract.counterparty_id]
         item["sent_to_you"] = review.id in sent
         item["yours"] = review.id in held
         item["contract_outcome"] = outcomes.get(review.id)

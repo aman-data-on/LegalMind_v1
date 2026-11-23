@@ -641,6 +641,35 @@ def test_a_legal_scope_review_names_its_document_and_says_it_opens(
     assert mine[0]["document_accessible"] is True
 
 
+def test_the_review_list_tells_rows_apart_and_names_the_client_only_where_readable(
+        api, db, owner, owned_review, monkeypatch):
+    """U1 round 2 (UI-10): a row says its version, whose it is and the client — the
+    client only where this caller may read the contract (rule 18), omitted otherwise,
+    never null (SEC-07)."""
+    from legalmind.api.routers import reviews as R
+    contract = db.get(M.Contract, owned_review.contract_id)
+    client = M.Counterparty(name="Client Co", created_by=owner.id)
+    db.add(client)
+    db.flush()
+    contract.counterparty_id = client.id
+    version = db.get(M.DocumentVersion, owned_review.document_version_id)
+    version.doc_metadata = {**(version.doc_metadata or {}), "version_role": "CLIENT_MODIFIED"}
+    db.flush()
+    sign_in(api, db, owner)
+
+    def row():
+        listed = api.get(f"{V1}/reviews").json()["data"]
+        return next(r for r in listed if r["id"] == str(owned_review.id))
+
+    got = row()
+    assert got["client_name"] == "Client Co"
+    assert got["version_number"] == version.version_number
+    assert got["version_role"] == "CLIENT_MODIFIED"
+    monkeypatch.setattr(R, "can_read_contract", lambda *a, **k: False)
+    got = row()
+    assert got["document_accessible"] is False and "client_name" not in got
+
+
 def test_the_owner_of_a_document_is_told_the_workspace_is_openable(
         api, db, owner, owned_review):
     """The other half: for the caller who DOES own the contract, the same field

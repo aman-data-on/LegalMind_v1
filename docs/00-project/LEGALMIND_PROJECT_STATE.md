@@ -11,6 +11,12 @@
 
 ---
 
+**2026-11-23 — UI batch U1 (BUILT, not deployed).** From the full-stack audit: a finished (Final) contract no
+longer tells sales "Send our reply" — it says the final contract is ready to sign in the signing tool. Taking a
+contract back from Legal now asks first. The client page's counts no longer run together, contract names show
+two lines instead of one, the Reviews list speaks the same words as its rows, and the report sales reads has no
+file names, "§" or "analysed", and says what Export will download.
+
 **2026-11-23 — AB-222, batch 8 part A (BUILT, not deployed).** Lessons from a real client MoU. The changes a client
 made with no tracked change and no highlight now come first in the deal brief and on the Changes tab, with a line
 sales can copy into the reply. A comment in a table, a sentence broken across two lines, a clause read with a changed

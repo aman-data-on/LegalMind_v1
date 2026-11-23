@@ -195,6 +195,18 @@ describe("the deal brief (checks 5 and 6)", () => {
     expect(statusWords({ status: "WITH_LEGAL", counts: {} })).toBe("With Legal: 0 changes are being answered. Nothing for you yet.");
   });
 
+  it("never tells a Final, Ready to sign or On hold deal to send our reply (UI-01)", () => {
+    const counts = { changes_total: 7, changes_left: 0, changes_left_legal: 0, changes_left_for_me: 0, points_open: 0 };
+    expect(statusWords({ status: "FINAL_READY", counts })).toBe("Final contract ready. Sign it in your signing tool.");
+    expect(statusWords({ status: "PREPARE_FINAL", counts })).toBe("Your turn: prepare the final contract.");
+    expect(statusWords({ status: "ON_HOLD", counts })).toBe("On hold: waiting for the client.");
+    for (const status of ["FINAL_READY", "PREPARE_FINAL", "ON_HOLD"] as const) {
+      expect(statusWords({ status, counts })).not.toMatch(/send our reply|Legal answered/i);
+    }
+    // the brief draws the server's line, never the points line, on a final contract
+    expect(text(view({ ...BRIEF, status: "FINAL_READY" }))).toContain("Final contract ready.");
+  });
+
   it("gives Legal the queue by Legal's own tie, the note and the add control", () => {
     const said = text(view({ ...BRIEF, status: "LEGAL_QUEUE", legal: {
       beyond: [{ row_key: "r1", clause: "17 Limitation of Liability" }], as_told: 30, not_discussed: 24,

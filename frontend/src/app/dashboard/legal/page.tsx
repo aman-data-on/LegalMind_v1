@@ -241,7 +241,7 @@ export default function LegalQueuePage() {
                       {finding.escalated ? <span className="ws-chip--flag">Escalated</span> : null}
                       {/* every row here is With Legal; only another stage is worth a word */}
                       {review.status !== "LEGAL_REVIEW"
-                        ? <span className="ws-chip" title={review.status}>{reviewStatusLabel(review.status)}</span> : null}
+                        ? <span className="ws-chip">{reviewStatusLabel(review.status)}</span> : null}
                     </td>
                     <td>
                       {/* the reader's three words, as on every other screen (owner,

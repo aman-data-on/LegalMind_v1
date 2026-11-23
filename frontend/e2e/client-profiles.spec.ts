@@ -249,9 +249,12 @@ test("the existing analysis engine is what a client's document is analyzed by",
   await expect(row.locator(".ws-dealstage")).toBeVisible();
   await expect(row.locator(".ws-findings-badge")).toHaveCount(0);
   // ...and the name leads to the existing workspace rather than a second reader
-  // (one link per row).
+  // (one link per row) — its own address, no redirect hop (U1: `contractHref`)
   await expect(row.getByRole("link", { name: `Analysed MSA ${stamp}` }))
-    .toHaveAttribute("href", `/dashboard?id=${contract.id}`);
+    .toHaveAttribute("href", `/contracts/${contract.id}`);
+  // U1 round 2 (UI-10): the name is one line on a desktop; the facts line under it tells
+  // rows of one template apart — the current version and the day it was uploaded
+  await expect(row.locator(".ws-hometable__facts")).toHaveText(new RegExp(`^Version ${version.version_number}, uploaded \\d{1,2} \\w{3,4} \\d{4}$`));
 });
 
 test("a client this caller shares no contract with is not on their screen",

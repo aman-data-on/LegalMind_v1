@@ -14,6 +14,7 @@ import { useState } from "react";
 import { ApiError, api, describeError } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
+import { REPORT_COPY as COPY } from "@/lib/labels";
 
 export function ExportControl({ reviewId }: { reviewId: string }) {
   const { can } = useSession();
@@ -37,7 +38,7 @@ export function ExportControl({ reviewId }: { reviewId: string }) {
       setError(
         cause instanceof ApiError
           ? describeError(cause)
-          : "The export could not be generated.",
+          : COPY.exportFailed,
       );
     } finally {
       setBusy(null);
@@ -46,14 +47,15 @@ export function ExportControl({ reviewId }: { reviewId: string }) {
 
   return (
     <span className="ws-export">
-      <span className="ws-pane__note">Export</span>
+      {/* UI-12: says what downloads before it downloads — the report on this page */}
+      <span className="ws-pane__note">{COPY.exportLine}</span>
       <button type="button" className="ws-btn ws-btn--sm" disabled={busy !== null}
               onClick={() => void download("pdf")}>
-        {busy === "pdf" ? "Rendering…" : "PDF"}
+        {busy === "pdf" ? COPY.preparing : COPY.pdf}
       </button>
       <button type="button" className="ws-btn ws-btn--sm" disabled={busy !== null}
               onClick={() => void download("docx")}>
-        {busy === "docx" ? "Rendering…" : "DOCX"}
+        {busy === "docx" ? COPY.preparing : COPY.word}
       </button>
       {error ? (
         <span className="ws-field__error" role="alert">{error}</span>

@@ -54,6 +54,12 @@ working day gets one entry, newest first, with these headings (omit an empty one
   the client, generation blocked until complete; free checks + a person's verification tick; our CIN locked.
 
 ### Done
+- **Full-stack audit U1 "UI wrong or risky"** on `fix/ui-u1` (BUILT, browser-checked, not committed, not deployed):
+  UI-01 Final/Signed brief status (server), UI-02 Take back confirm, UI-05 client counts, UI-10 two-line names,
+  UI-09 Reviews queue words and filter, UI-12 report words, headings and export line. `U1-BUILD-REPORT.md`.
+  Round 2 after the UI critic and code verifier: true Take back copy, owner's one-line desktop rule kept with
+  facts lines (review list API gains version and client), brief "prepare the final contract" when every change is
+  accepted, heading focus after take-back, file name in the audit appendix, one name "Final contract ready".
 - **AB-220 batch 7 "client details before drafting"** (`AM-449`–`AM-452`) on `feat/client-details`: spec →
   design plan → independent design review (12 changes) → owner OK → build → UX benchmark of Ironclad / Juro /
   SpotDraft public material (6 additions) → independent verifier, 2 rounds (round 1: unbounded certificate OCR,
@@ -77,6 +83,8 @@ working day gets one entry, newest first, with these headings (omit an empty one
   BUILD-REPORT-A.md.
 
 ### Next
+- **U1:** re-verify round 2 → PR → CI (job 15 baselines will move: adopt CI's) → merge; deploy on the owner's OK.
+- **Owner (U1):** should taking a contract back from Legal notify the lawyer and keep the Sales note?
 - P1: independent verification → PR → CI → merge; deploy only on the owner's OK. Then P2 once batch 5 merges.
 - P3: independent verification → PR → CI → merge; deploy only on the owner's OK, then run the ops/README index check. DB-8 needs an owner decision on 49.4.
 - **AB-222:** independent verification of `feat/case-lessons-a`, then git; then sub-batch B (items 1, 4, 5).
