@@ -31421,3 +31421,62 @@ r3  A Constitution topic title's half that holds a word under four letters ("Gov
 r4  Unchanged: a change that binds both parties gives no reason by code; carve-outs, precedence, renewal and
     refunds stay the model's (AM-224 r6).
 ```
+
+## AMENDMENT BATCH AB-220 — `AM-449`–`AM-452` (2026-11-23): client details before drafting — one intake, typed once
+
+Owner instruction (2026-11-23): "go with 1-3" — Legal's checklist for an MSA & NDA (relayed to sales on 22 Oct:
+agreement date, company registered email and address as on the GST certificate, CIN for Indian companies, nature of
+business, authorised signatory's name, designation and official email, GST number, GST certificate) collected once,
+stored on the client and required before our MSA is made; free checks plus a person's check against the government
+records; our own CIN fixed. Owner 2026-11-23: "reduce to fill the same information everywhere" and an enterprise-grade
+New contract flow (Ironclad / Juro / SpotDraft); design approved after an independent review. Engineering and product
+under the owner's delegation; no legal position, clause text or threshold is added (rules 7/21); no authorization
+change. IDs scanned: AB-220, AM-449–454 on origin/main, every remote branch and every worktree.
+
+`AM-449` — THE CLIENT RECORD HOLDS THE CLIENT'S FACTS (rider on `AM-286`; S4 / `AM-324` / `AM-326` prefill).
+```text
+r1  The client record adds the registered email, the signatory's official email, the line of business, the GST
+    certificate (one current file, internal, never in anything client-bound; its storage key never sent) and who
+    checked the details, when. Every value is typed, or read from the certificate and confirmed, by a person.
+r2  On MSA and NDA templates the contract's client facts are read from the client record when the contract is
+    shown or made — never a per-deal copy — so the profile and the contract cannot disagree. A client the reader
+    can no longer see is no client (nothing of it is shown; generation is refused).
+r3  Country is a choice. A client is outside India only when its country is a recognised non-India country; any
+    other value, or none, keeps the India items required (fail closed).
+```
+
+`AM-450` — NO MSA WITHOUT THE CLIENT DETAILS (new gate).
+```text
+r1  Generating our MSA (or an NDA template), by create or by "Convert to our paper", is refused with the list of
+    what is missing until every applicable item of the ten is on the client record and a person has recorded "I
+    checked the legal name, address and email against the GST certificate and the GST and MCA records" (Indian
+    clients). Convert is also refused when the draft's client is not the deal's client.
+r2  The check is cleared by any change to the legal name (or the name while no legal name is recorded), the
+    registered email, the registered office, the CIN, the GST number or the certificate. It needs a recorded legal
+    name. It is audited with who, when and the values attested (PAN included).
+r3  Checks without any paid service: CIN, GSTIN and PAN formats and the GSTIN check digit, and the PAN inside the
+    GSTIN equal to the PAN on file, block; the GSTIN state against the address, a CIN year before 2014 against the
+    "Companies Act, 2013" wording ("Legal to confirm the Act wording") and a legal name differing from the
+    certificate only warn.
+```
+
+`AM-451` — READ FROM THE CERTIFICATE, CONFIRMED BY A PERSON.
+```text
+r1  From an uploaded GST certificate the code reads only its own labelled lines (registration number, legal name,
+    trade name, principal place of business; PAN and state from the number), from the text layer or the existing
+    OCR, bounded (first two pages, 25 megapixels, 20 seconds, 25 MB) and failing closed to nothing read. A read
+    value is shown "Read from the certificate" until a person confirms or edits it; it is never written silently.
+    A new certificate that differs from a value on file is offered ("Certificate says …"), never applied.
+```
+
+`AM-452` — ONE INTAKE, TYPED ONCE; OUR COMPANY FIXED.
+```text
+r1  New contract is four steps — template and client, client details, this deal, review and create — with the
+    server's "what is still needed" beside the form and the live contract (unanswered blanks shown and clickable).
+    A returning client whose details are on file and checked goes straight to this deal and types no client fact.
+r2  Our company's name, registered office, signatory and CIN are fixed by the template; an answer cannot override
+    them. A template version locking a value is made from the published one with every other part unchanged.
+r3  Open for Legal: our registered office and incorporating Act as printed (Constitution §4.1 differs from the MSA
+    template); the source of our CIN (MSA.pdf prints a blank; the value is the Constitution's and the published
+    policies'); an NDA template.
+```

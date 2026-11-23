@@ -19,6 +19,7 @@ import type { ConvertPlan, PackageBlocker, PackageForm, PackagePlan, PreparedPac
 import type { Playbook } from "./playbook";
 import type { ClauseVersionRow, OutlineLine, TemplateCheck, TemplateDetail, TemplateSummary } from "./templates";
 import type { Answers, Created, Draft, DraftCheck, DraftPreview, FieldProblem, PublishedTemplate } from "./newContract";
+import type { ClientChecklist } from "./clientDetails";
 import type { FinalCopyPlan,
   ReviewAngles,
   ReviewAssignments,
@@ -763,6 +764,16 @@ export const api = {
   draftPreview: (id: string) => request<DraftPreview>(p`/drafts/${id}/preview`),
   /** the points our review will send to Legal, read before Create; nothing is kept */
   draftCheck: (id: string) => request<DraftCheck>(p`/drafts/${id}/check`),
+  /** batch 7: Legal's ten client details for this deal, as the server reads them now */
+  draftClientDetails: (id: string) => request<ClientChecklist>(p`/drafts/${id}/client-details`),
+  /** the client's GST certificate (PDF, JPG or PNG); replaces the current one */
+  uploadGstCertificate: (counterpartyId: string, file: File) =>
+    request<Counterparty>(p`/counterparties/${counterpartyId}/gst-certificate`, {
+      method: "POST", raw: { data: file, contentType: file.type, filename: file.name } }),
+  gstCertificatePath: (counterpartyId: string) => p`/counterparties/${counterpartyId}/gst-certificate`,
+  /** "I checked …": who and when, on the client; it also confirms values still shown as read */
+  verifyClientDetails: (counterpartyId: string) =>
+    request<Counterparty>(p`/counterparties/${counterpartyId}/details-verified`, { method: "POST" }),
   createFromDraft: (id: string, expectedVersion: number, name?: string) =>
     request<Created>(p`/drafts/${id}/create`, { method: "POST",
       body: { expected_version: expectedVersion, ...(name ? { name } : {}) } }),

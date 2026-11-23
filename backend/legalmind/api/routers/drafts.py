@@ -39,14 +39,14 @@ from legalmind.api.schemas import Body, ContractCreate
 from legalmind.api.storage import get_storage
 from legalmind.db import models as M
 from legalmind.db.lookup import must_exist
+from legalmind.drafting import client_details, preflight, publish, render_contract
 from legalmind.drafting import model as model_
-from legalmind.drafting import preflight, publish, render_contract
 from legalmind.ingestion.service import ingest_document
 from legalmind.ingestion.storage import StorageBackend
 from legalmind.ingestion.validation import DOCX_MIME
 from legalmind.security import audit
 from legalmind.security import permissions as P
-from legalmind.security.errors import NotVisible
+from legalmind.security.errors import Forbidden, NotVisible
 from legalmind.worker.dispatch import dispatch_indexing, dispatch_pdf
 
 router = APIRouter(tags=["drafts"], route_class=CommitBeforeResponse)
@@ -54,7 +54,8 @@ router = APIRouter(tags=["drafts"], route_class=CommitBeforeResponse)
 #: AM-265 d3's "N days after the last edit" — N is not fixed by the record
 TTL_DAYS = int(os.environ.get("LEGALMIND_DRAFT_TTL_DAYS", "30"))
 #: a variable's role (`model.role`; the importer's client-side keys) ← the Client
-#: Profile's legal fields (`AM-286` r1, all ten); only where the template declares it
+#: Profile's legal fields (`AM-286` r1, all ten; batch 7 adds the signatory email); only
+#: where the template declares it
 CLIENT_FIELDS = {"counterparty_name": ("legal_name", "name"),
                  "counterparty_entity_type": ("entity_type",),
                  "counterparty_cin": ("cin_or_llpin",),
@@ -65,7 +66,9 @@ CLIENT_FIELDS = {"counterparty_name": ("legal_name", "name"),
                  "counterparty_notice_email": ("notice_email",),
                  "counterparty_signatory_name": ("signatory_name",),
                  "counterparty_signatory_designation": ("signatory_designation",),
-                 "counterparty_authority": ("authority_reference",)}
+                 "counterparty_authority": ("authority_reference",),
+                 # batch 7 (AB-220): typed once on the client (spec §5)
+                 "counterparty_signatory_email": ("signatory_email",)}
 #: the form's groups by role, so every template asks the client first, ours last
 _ROLE_GROUPS = (("counterparty_", "Client"), ("our_", "Our company"))
 _QUESTION_KEYS = ("type", "class", "allowed", "range", "when", "locked_value", "multi",
@@ -145,6 +148,8 @@ def questionnaire(db: DBSession, tv: M.TemplateVersion,
             "title": (tv.layout or {}).get("title"),
             **publish.card(db, tv, recommended),
             "questions": [_question(v) for v in tv.variables],
+            # batch 7: the questions the Client details card owns (read from the client)
+            "client_questions": sorted(client_details.record_keys(tv)),
             "annexures": [{"key": a["key"], "title": a.get("title"),
                            "when": a.get("when")} for a in tv.annexures]}
 
@@ -224,12 +229,32 @@ def problems(tv: M.TemplateVersion, answers: dict[str, Any]) -> list[dict[str, s
     return []
 
 
-def _serialize(d: M.DraftAnswers, tv: M.TemplateVersion) -> dict[str, Any]:
+def visible_client(guard: Guard, counterparty_id: UUID | None) -> M.Counterparty | None:
+    """The draft's client as THIS caller may read it now (D4): one outside their scope is
+    no client at all — its data never returned, and the MSA gate blocks (fail closed)."""
+    if counterparty_id is None:
+        return None
+    try:
+        return _readable(guard, counterparty_id)
+    except (NotVisible, Forbidden):
+        return None
+
+
+def answers_of(guard: Guard, row: M.DraftAnswers,
+               tv: M.TemplateVersion) -> dict[str, Any]:
+    """The answers the contract is made from — on an MSA or NDA, every client fact read
+    from the client record now (batch 7, spec §5: one record, typed once)."""
+    return client_details.effective_answers(
+        tv, row.answers, visible_client(guard, row.counterparty_id))
+
+
+def _serialize(guard: Guard, d: M.DraftAnswers, tv: M.TemplateVersion) -> dict[str, Any]:
+    answers = answers_of(guard, d, tv)
     return {"id": str(d.id), "version": d.version, "template_version_id": str(tv.id),
             "template_status": tv.status,
             "counterparty_id": str(d.counterparty_id) if d.counterparty_id else None,
             "brand": d.brand,
-            "answers": d.answers, "problems": problems(tv, d.answers),
+            "answers": answers, "problems": problems(tv, answers),
             "updated_at": d.updated_at.isoformat() if d.updated_at else None,
             "expires_at": d.expires_at.isoformat()}
 
@@ -271,7 +296,7 @@ def create_draft(body: DraftCreate, guard: Guard = Depends(get_guard)) -> dict:
                          expires_at=now + timedelta(days=TTL_DAYS))
     guard.db.add(row)
     guard.db.flush()
-    return data(_serialize(row, tv)
+    return data(_serialize(guard, row, tv)
                 | {"prefilled": sorted(set(answers) - set(body.answers))})
 
 
@@ -285,13 +310,13 @@ def list_drafts(guard: Guard = Depends(get_guard)) -> dict:
         .where(M.DraftAnswers.owner_id == guard.user_id,
                M.DraftAnswers.expires_at > datetime.now(UTC))
         .order_by(M.DraftAnswers.updated_at.desc())).all()
-    return data([_serialize(d, tv) for d, tv in rows])
+    return data([_serialize(guard, d, tv) for d, tv in rows])
 
 
 @router.get("/drafts/{draft_id}")
 def get_draft(draft_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
     row = _own(guard, draft_id)
-    return data(_serialize(row, _template(guard, row)))
+    return data(_serialize(guard, row, _template(guard, row)))
 
 
 @router.patch("/drafts/{draft_id}")
@@ -306,7 +331,7 @@ def update_draft(draft_id: UUID, body: DraftUpdate,
         row.brand = body.brand
     row.updated_at, row.expires_at = now, now + timedelta(days=TTL_DAYS)
     guard.db.flush()
-    return data(_serialize(row, _template(guard, row)))
+    return data(_serialize(guard, row, _template(guard, row)))
 
 
 def _stand_in(var: dict[str, Any]) -> Any:
@@ -328,7 +353,7 @@ def preview_draft(draft_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
     tv = _template(guard, row)
     clauses = _clauses(guard, tv)
     declared = {v["key"]: v for v in tv.variables}
-    answers, missing = dict(row.answers), list[str]()
+    answers, missing = answers_of(guard, row, tv), list[str]()
     found = problems(tv, answers)
     for _ in range(len(declared) + 1):     # a C field appears once its condition holds
         try:
@@ -359,7 +384,7 @@ def check_draft(draft_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
     tv = _template(guard, row)
     try:
         model = model_.resolve(publish.template_dict(tv), _clauses(guard, tv),
-                               row.answers)
+                               answers_of(guard, row, tv))
     except model_.ModelError:
         return data({"ready": False, "points": []})
     docx = render_contract.render(model, tv.assets, contract_ref="CHECK",
@@ -374,6 +399,21 @@ def check_draft(draft_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
         if to_legal]})
 
 
+@router.get("/drafts/{draft_id}/client-details")
+def draft_client_details(draft_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
+    """Batch 7 (AB-220): Legal's ten client details for this deal — each present, missing,
+    not needed or to fix, from this deal's answers or the client record as it is now — the
+    checks' warnings and the GST/MCA tick. What `create` refuses on (409)."""
+    row = _own(guard, draft_id)
+    client = visible_client(guard, row.counterparty_id)
+    by = guard.db.get(M.User, client.details_verified_by) \
+        if client and client.details_verified_by else None
+    return data(client_details.checklist(_template(guard, row), row.answers, client,
+                                          by.name if by else None)
+                # review change 8: whoever may not edit the client reads the card
+                | {"can_edit": P.CONTRACT_UPDATE in guard.permissions})
+
+
 @router.post("/drafts/{draft_id}/create", status_code=201)
 def create_from_draft(draft_id: UUID, body: DraftCreateContract,
                       guard: Guard = Depends(get_guard),
@@ -386,9 +426,14 @@ def create_from_draft(draft_id: UUID, body: DraftCreateContract,
     if tv.status != "PUBLISHED":
         raise TemplateNotPublished(f"this template version is {tv.status} now; start "
                                    "again from the published one")
+    counterparty = visible_client(guard, row.counterparty_id)
+    # batch 7 (AB-220): an MSA or NDA waits for the client's details and the GST/MCA tick
+    client_details.require_ready(tv, row.answers, counterparty)
     clauses = _clauses(guard, tv)
     try:
-        model = model_.resolve(publish.template_dict(tv), clauses, row.answers)
+        model = model_.resolve(publish.template_dict(tv), clauses,
+                               client_details.effective_answers(tv, row.answers,
+                                                                counterparty))
     except model_.ModelError as exc:
         raise DraftInvalid(exc.problems) from exc
     digest = model_.model_hash(model)
@@ -396,8 +441,6 @@ def create_from_draft(draft_id: UUID, body: DraftCreateContract,
     title = layout.get("title") or tv.template_key
     # AM-316: two MSAs for one client are told apart by the template's name
     named = readable_title((tv.source or {}).get("catalogue", {}).get("name") or title)
-    counterparty = (guard.db.get(M.Counterparty, row.counterparty_id)
-                    if row.counterparty_id else None)
     made = create_contract(ContractCreate(
         name=body.name or (f"{named} — {counterparty.name}" if counterparty else named),
         contract_type=tv.doc_type, counterparty_id=row.counterparty_id,

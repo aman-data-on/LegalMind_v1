@@ -2638,8 +2638,10 @@ def _median(pix):  # pragma: no cover
     return pymupdf.Pixmap(pymupdf.csGRAY, grey.width, grey.height, out.tobytes(), False)
 
 
-def _tesseract(pix) -> tuple[str, list[list[str]]]:  # pragma: no cover
-    """One tesseract process over ``pix``: its text and its tsv rows."""
+def _tesseract(pix, timeout: float = 120  # pragma: no cover
+               ) -> tuple[str, list[list[str]]]:
+    """One tesseract process over ``pix``: its text and its tsv rows. ``timeout``: the
+    batch 7 certificate reader's hard budget (D1); every other caller keeps 120 s."""
     import os
     import subprocess
     import tempfile
@@ -2655,7 +2657,7 @@ def _tesseract(pix) -> tuple[str, list[list[str]]]:  # pragma: no cover
         proc = subprocess.run(
             ["tesseract", image_path, f"{tmp}/out", "-l", config.ocr_languages(),
              "--psm", "1", "txt", "tsv"],
-            capture_output=True, text=True, timeout=120, check=False, env=env)
+            capture_output=True, text=True, timeout=timeout, check=False, env=env)
         if proc.returncode != 0:
             raise ParseError(f"tesseract exited {proc.returncode}")
         text = Path(f"{tmp}/out.txt").read_text(encoding="utf-8")

@@ -11,6 +11,10 @@
 
 ---
 
+**2026-11-23 — AB-220 (built, not deployed).** Batch 7: Legal's client checklist is collected once and
+required before an MSA is made; the GST certificate fills most of it; New contract is redesigned as one
+enterprise intake where a returning client types no client detail.
+
 **2026-11-20 — AB-219 (DEPLOYED 2026-11-23, f695622d).** Batch 6 "client misreads": LegalMind reads clause
 numbers and headings as typed, never calls a reworded clause missing, says why an indemnity is a
 difference, and gives reasons on NDA and list-item changes.

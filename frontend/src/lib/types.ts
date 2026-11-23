@@ -156,6 +156,25 @@ export interface Counterparty {
   /** `AM-318`: deals that reached Final (counted as the Contracts list's Final filter) */
   final_documents?: number;
   last_activity?: string | null;
+  /* ---- the client's legal details (`AM-286`) and batch 7's (AB-220) ----------- */
+  entity_type?: string;
+  cin_or_llpin?: string;
+  pan?: string;
+  gstin?: string;
+  registered_office?: string;
+  notice_address?: string;
+  notice_email?: string;
+  signatory_name?: string;
+  signatory_designation?: string;
+  authority_reference?: string;
+  registered_email?: string;
+  signatory_email?: string;
+  line_of_business?: string;
+  gst_certificate?: { filename: string; mime_type: string; size_bytes: number; uploaded_at: string;
+    read?: Record<string, string> };
+  details_verified_at?: string;
+  /** items 2–10 of Legal's list still to add or fix (the server's count) */
+  details_missing?: number;
 }
 
 /** A contract as the Client Profile's ONE unified document list needs it: the

@@ -58,7 +58,8 @@ describe("New contract, step 1", () => {
     expect(html).toContain("Which MSA?");
     expect((html.match(/name="nc-template"/g) ?? []).length).toBe(2);
     expect((html.match(/name="nc-template" checked=""/g) ?? []).length).toBe(1);
-    expect(step([original, newer], null)).not.toContain("Which MSA?");       // nothing chosen yet
+    // batch 7: the one published type is chosen already; nothing is preselected among its two
+    expect(step([original, newer], null)).not.toMatch(/name="nc-template" checked=""/);
   });
 
   it("shows the one template as “Our template”, and one awaiting approval only as a line", () => {

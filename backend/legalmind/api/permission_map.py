@@ -248,6 +248,7 @@ ASSIST_ENDPOINTS: Final[dict[tuple[str, str], str]] = {
     ("PATCH", f"{API_PREFIX}/drafts/{{draft_id}}"): P.CONTRACT_CREATE,
     ("GET", f"{API_PREFIX}/drafts/{{draft_id}}/preview"): P.CONTRACT_CREATE,
     ("GET", f"{API_PREFIX}/drafts/{{draft_id}}/check"): P.CONTRACT_CREATE,
+    ("GET", f"{API_PREFIX}/drafts/{{draft_id}}/client-details"): P.CONTRACT_CREATE,
     ("POST", f"{API_PREFIX}/drafts/{{draft_id}}/create"): P.CONTRACT_CREATE,
     # Type suggestion (owner, 2026-08-31): a proposal for the intake pre-fill,
     # same risk profile as Ask — no new legal authority.
@@ -400,6 +401,14 @@ IMPLEMENTATION_ADDED_ENDPOINTS: Final[dict[tuple[str, str], str]] = {
     # withholding `contract.archive` withholds deletion too.
     ("DELETE", f"{API_PREFIX}/counterparties/{{counterparty_id}}"):
         P.CONTRACT_ARCHIVE,
+    # Batch 7 (AB-220): the client's GST certificate and the GST/MCA tick — no new
+    # permission: reading the profile is `contract.view`, editing it `contract.update`.
+    ("POST", f"{API_PREFIX}/counterparties/{{counterparty_id}}/gst-certificate"):
+        P.CONTRACT_UPDATE,
+    ("GET", f"{API_PREFIX}/counterparties/{{counterparty_id}}/gst-certificate"):
+        P.CONTRACT_VIEW,
+    ("POST", f"{API_PREFIX}/counterparties/{{counterparty_id}}/details-verified"):
+        P.CONTRACT_UPDATE,
     # Send for review (AB-100, owner 2026-10-21) — Step 24 r6's assignment, written by
     # the contract's owner. NO new permission: sending and withdrawing take
     # `review.create`, resolved owner-only exactly as analysis is; reading who has it

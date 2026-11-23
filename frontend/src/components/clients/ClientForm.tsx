@@ -37,6 +37,8 @@ import { useEffect, useRef, useState } from "react";
 
 import { api, describeError } from "@/lib/api";
 import { CLIENT_STATUSES } from "@/lib/documentTypes";
+import { countryChoices } from "@/lib/countries";
+import { INTAKE_COPY } from "@/lib/labels";
 import type { Counterparty, DepartmentMembers } from "@/lib/types";
 
 import {
@@ -266,8 +268,10 @@ export function ClientForm({
   const fCountry = (
     <label className="ws-field">
       <span className="ws-field__label">Country</span>
-      <input value={draft.country} onChange={set("country")} maxLength={200}
-             disabled={busy} />
+      <select value={draft.country} onChange={set("country")} disabled={busy}>
+        <option value="">{INTAKE_COPY.countryChoose}</option>
+        {countryChoices(draft.country).map((c) => <option key={c} value={c}>{c}</option>)}
+      </select>
     </label>
   );
 

@@ -36,6 +36,7 @@ from legalmind.domain.enums import (
     RuleType,
     UserStatus,
 )
+from legalmind.drafting.model import EMAIL
 
 #: A difference as Diff-Talk names it: "CHANGED|<our clause id>|<their clause id>".
 ROW_KEY = re.compile(r"(?:CHANGED|ADDED|REMOVED)\|[\w#-]*\|[\w#-]*")
@@ -276,7 +277,8 @@ _PROFILE_TEXT_FIELDS: tuple[str, ...] = (
     "primary_contact_name", "primary_contact_email", "primary_contact_phone",
     "legal_contact_name", "legal_contact_email",
     *("entity_type", "registered_office", "notice_address", "notice_email",
-      "signatory_name", "signatory_designation", "authority_reference"),
+      "signatory_name", "signatory_designation", "authority_reference",
+      "line_of_business"),
 )
 
 #: `AM-286` r3 — shapes only, no lookup service. A CIN (21 characters) or an LLPIN.
@@ -301,6 +303,18 @@ class _CounterpartyLegal(Body):
     signatory_name: str | None = Field(default=None, max_length=200)
     signatory_designation: str | None = Field(default=None, max_length=200)
     authority_reference: str | None = Field(default=None, max_length=500)
+    #: batch 7 (AB-220): the company's email as on its GST certificate
+    registered_email: str | None = Field(default=None, max_length=320)
+    signatory_email: str | None = Field(default=None, max_length=320)
+    line_of_business: str | None = Field(default=None, max_length=500)
+
+    @field_validator("registered_email", "signatory_email")
+    @classmethod
+    def _email(cls, value: str | None) -> str | None:
+        value = (value or "").strip() or None
+        if value is not None and not EMAIL.fullmatch(value):
+            raise ValueError("is not an email address")
+        return value
 
     @field_validator(*_LEGAL_ID_SHAPES)
     @classmethod

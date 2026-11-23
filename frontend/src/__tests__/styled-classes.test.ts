@@ -20,7 +20,7 @@ import { join } from "node:path";
 const STYLESHEETS = ["src/app/globals.css", "src/app/dashboard/workspace.css",
   "src/components/workspace/changes.css", "src/components/workspace/signing.css",
   "src/components/templates/templates.css",
-  "src/components/newcontract/newcontract.css", "src/components/workspace/offer.css",
+  "src/components/newcontract/newcontract.css", "src/components/newcontract/intake.css", "src/components/workspace/offer.css",
   "src/components/templates/playbook.css", "src/components/templates/card.css",
   "src/components/workspace/final.css", "src/components/workspace/brief.css"];
 const EXCLUDED = "src/components/ui";

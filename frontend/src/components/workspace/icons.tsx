@@ -37,7 +37,9 @@ import {
   CircleAlert,
   CircleArrowDown,
   CircleArrowUp,
+  Circle,
   CircleArrowLeft,
+  CircleMinus,
   CircleEqual,
   CircleCheck,
   CirclePause,
@@ -70,9 +72,11 @@ import {
   Plus,
   RefreshCw,
   Scale,
+  ScanText,
   Search,
   Sparkles,
   Trash2,
+  TriangleAlert,
   UploadCloud,
   Users,
   X,
@@ -149,3 +153,10 @@ export const IconPencil = decorative(Pencil);
 export const IconTrash = decorative(Trash2);
 /** The model picker's chosen row (`AM-116`). */
 export const IconCheck = decorative(Check);
+
+/** Batch 7 — the Client details checklist: not filled yet (an empty circle, never a
+ *  status hue), not needed, a read from the certificate, a check that only warns. */
+export const IconCircle = decorative(Circle);
+export const IconNotNeeded = decorative(CircleMinus);
+export const IconScanText = decorative(ScanText);
+export const IconTriangleAlert = decorative(TriangleAlert);

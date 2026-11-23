@@ -27,19 +27,22 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Header, Query, Request, Response
 from sqlalchemy import CompoundSelect, Select, func, or_, select
 from sqlalchemy.exc import IntegrityError
+from starlette.concurrency import run_in_threadpool
 
 from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
-from legalmind.api.envelope import data, paginated
+from legalmind.api.envelope import attachment_headers, data, paginated
 from legalmind.api.errors import BusinessRuleRejected, Conflict
 from legalmind.api.pagination import Page, page_params
 from legalmind.api.routers.contracts import (
     _deal_counts,
+    _decode_percent_encoded_filename,
     _list_summaries,
     _scoped_contracts,
     negotiation_stages,
+    read_bounded,
 )
 from legalmind.api.schemas import CounterpartyCreate, CounterpartyUpdate
 from legalmind.api.serializers import (
@@ -48,9 +51,14 @@ from legalmind.api.serializers import (
     serialize_counterparty,
     serialize_document_version,
 )
+from legalmind.api.storage import get_storage
+from legalmind.config import max_upload_bytes
 from legalmind.db import models as M
 from legalmind.domain import enums as E
 from legalmind.domain.client_profile import FINAL_SIGNED
+from legalmind.drafting import client_details
+from legalmind.ingestion.storage import StorageBackend, fingerprint
+from legalmind.ingestion.validation import PDF_MIME, sniff_image, sniff_mime
 from legalmind.security import audit
 from legalmind.security import permissions as P
 from legalmind.security.authorization import can_read_contract
@@ -356,7 +364,8 @@ def list_counterparties(
     owner_names = _account_owner_names(guard, window)
     payload = []
     for row in window:
-        item = serialize_counterparty(row)
+        item = serialize_counterparty(row) | {
+            "details_missing": client_details.missing_count(row)}      # batch 7
         if row.account_owner_id:
             item["account_owner_name"] = owner_names.get(row.account_owner_id)
         if want_stats:
@@ -422,7 +431,9 @@ def create_counterparty(body: CounterpartyCreate,
                  entity_type="counterparty", entity_id=row.id,
                  actor_id=guard.user_id, request_id=guard.request_id,
                  after={"name": row.name})
-    return data(serialize_counterparty(row))
+    # batch 7: step 1's panel reads it for a client just added (was absent: "on file")
+    return data(serialize_counterparty(row) | {
+        "details_missing": client_details.missing_count(row)})
 
 
 def _resolve_account_owner(guard: Guard, user_id: UUID) -> UUID:
@@ -468,7 +479,8 @@ def get_counterparty(counterparty_id: UUID,
         .order_by(M.Contract.created_at.desc(), M.Contract.id.desc())
     ).scalars().all()
 
-    payload = serialize_counterparty(row)
+    payload = serialize_counterparty(row) | {
+        "details_missing": client_details.missing_count(row)}          # batch 7
     if row.account_owner_id:
         payload["account_owner_name"] = _account_owner_names(
             guard, [row]).get(row.account_owner_id)
@@ -618,11 +630,150 @@ def update_counterparty(counterparty_id: UUID, body: CounterpartyUpdate,
 
     changed = {f for f in tracked if before[f] != after[f]}
     if changed:
+        cleared = _clear_verified(row, changed)
         audit.record(guard.db, action=audit.COUNTERPARTY_UPDATED,
                      entity_type="counterparty", entity_id=row.id,
                      actor_id=guard.user_id, request_id=guard.request_id,
                      before={f: before[f] for f in changed},
-                     after={f: after[f] for f in changed})
+                     after={f: after[f] for f in changed}
+                     | ({"details_verified": "cleared"} if cleared else {}))
+    return data(serialize_counterparty(row))
+
+
+def _clear_verified(row: M.Counterparty, changed: set[str]) -> bool:
+    """Batch 7: the GST/MCA tick attests the email, office, CIN, GSTIN and certificate as
+    they were; any of them changing clears it (the change's own audit event says so)."""
+    attested = {*client_details.VERIFIED_FIELDS, "gst_certificate"}
+    if not (row.legal_name or "").strip():
+        attested.add("name")            # D5: with no legal name, the name is the party's
+    if row.details_verified_at is None or not changed & attested:
+        return False
+    row.details_verified_at = row.details_verified_by = None
+    return True
+
+
+#: batch 7: the GST certificate is a PDF or a photo/scan of it — read from its bytes
+_CERTIFICATE_TYPES = {"application/pdf", "image/png", "image/jpeg"}
+
+
+def _editable(guard: Guard, counterparty_id: UUID) -> M.Counterparty:
+    """Who may edit the client profile today (no authorization change): visible, then
+    `contract.update` — the same 404 then 403 order as PATCH."""
+    row = _readable(guard, counterparty_id)
+    guard.permission(P.CONTRACT_UPDATE)
+    return row
+
+
+#: D8: the refusal says the limits in the reader's units
+_CERTIFICATE_RULE = (f"Use a PDF, JPG or PNG under {client_details.MAX_CERTIFICATE_MB} "
+                     "MB, whose contents match its type.")
+
+
+def _certificate_type(payload: bytes, declared: str) -> str:
+    """PDF, PNG or JPEG by its bytes, matching what was declared — else refused."""
+    actual = sniff_image(payload) or (
+        PDF_MIME if sniff_mime(payload) == PDF_MIME else None)
+    declared = "image/jpeg" if declared == "image/jpg" else declared
+    if actual is None or actual != declared or actual not in _CERTIFICATE_TYPES:
+        raise BusinessRuleRejected(_CERTIFICATE_RULE)
+    return actual
+
+
+def _editable_released(guard: Guard, counterparty_id: UUID) -> None:
+    """The edit check, then the transaction closed (D1): reading a certificate can take
+    seconds and must not hold the session's row lock meanwhile."""
+    _editable(guard, counterparty_id)
+    guard.db.commit()
+
+
+def _store_certificate(guard: Guard, storage: StorageBackend, counterparty_id: UUID,
+                       payload: bytes, filename: str, actual: str,
+                       read: dict[str, str]) -> dict:
+    row = _editable(guard, counterparty_id)       # again: it may have changed meanwhile
+    before = row.gst_certificate
+    # write-once storage (34.18): a replacement is a new object; the old one stays
+    key = storage.put(payload, suggested_name=filename)
+    row.gst_certificate = {
+        "storage_key": key, "filename": filename, "mime_type": actual,
+        "size_bytes": len(payload), "sha256": fingerprint(payload),
+        "uploaded_at": datetime.now(UTC).isoformat(), "uploaded_by": str(guard.user_id),
+        # spec §5: what its own labelled lines say, shown for a person to confirm — never
+        # saved to the client's fields here; read BEFORE this transaction (D1)
+        "read": read}
+    cleared = _clear_verified(row, {"gst_certificate"})
+    guard.db.flush()
+
+    def said(c: dict | None) -> dict | None:
+        return {k: c[k] for k in ("filename", "size_bytes", "sha256")} if c else None
+    audit.record(guard.db, action=audit.COUNTERPARTY_GST_CERTIFICATE_SET,
+                 entity_type="counterparty", entity_id=row.id, actor_id=guard.user_id,
+                 request_id=guard.request_id, before=said(before),
+                 after=(said(row.gst_certificate) or {})
+                 | ({"details_verified": "cleared"} if cleared else {}))
+    return data(serialize_counterparty(row))
+
+
+@router.post("/counterparties/{counterparty_id}/gst-certificate", status_code=201)
+async def upload_gst_certificate(
+    counterparty_id: UUID, request: Request,
+    x_filename: str = Header(..., max_length=400),
+    guard: Guard = Depends(get_guard),
+    storage: StorageBackend = Depends(get_storage),
+) -> dict:
+    """Batch 7 (AB-220): the client's one current GST certificate — the body is the file
+    (PDF, JPG or PNG, checked by its bytes), as a document upload takes it. Filing a new
+    one replaces the current one (the old object stays in write-once storage), is audited
+    and clears the GST/MCA tick. Never part of anything that goes to the client."""
+    await run_in_threadpool(_editable_released, guard, counterparty_id)
+    limit = min(max_upload_bytes(), client_details.MAX_CERTIFICATE_MB * 1024 * 1024)
+    length = request.headers.get("content-length")
+    if length is not None and int(length) > limit:
+        raise BusinessRuleRejected(_CERTIFICATE_RULE)
+    payload = await read_bounded(request, limit, _CERTIFICATE_RULE)
+    if not payload:
+        raise BusinessRuleRejected("the request body is empty")
+    actual = _certificate_type(payload, request.headers.get("content-type", ""))
+    # bounded (2 pages, 25 MP, 20 s) and outside any open transaction (D1)
+    read = await run_in_threadpool(lambda: client_details.read_certificate(
+        client_details.certificate_text(payload, actual)))
+    return await run_in_threadpool(
+        _store_certificate, guard, storage, counterparty_id, payload,
+        _decode_percent_encoded_filename(x_filename), actual, read)
+
+
+@router.get("/counterparties/{counterparty_id}/gst-certificate")
+def download_gst_certificate(counterparty_id: UUID, guard: Guard = Depends(get_guard),
+                             storage: StorageBackend = Depends(get_storage)) -> Response:
+    """The certificate, for whoever may read the profile — to check it before the tick."""
+    row = _readable(guard, counterparty_id)
+    cert = row.gst_certificate or {}
+    if not cert or not storage.exists(cert["storage_key"]):
+        raise NotVisible("certificate not found")
+    return Response(content=storage.get(cert["storage_key"]),
+                    media_type=cert["mime_type"],
+                    headers=attachment_headers(cert["filename"], "gst-certificate"))
+
+
+@router.post("/counterparties/{counterparty_id}/details-verified")
+def verify_details(counterparty_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
+    """Batch 7 (spec §3): a person records that they checked the legal name, address and
+    email against the GST certificate and the GST/MCA records — who and when, audited.
+    Refused (409) while an item it attests is missing or needs a fix."""
+    row = _editable(guard, counterparty_id)
+    confirmed = client_details.confirm_reads(row)        # what was read and still shown
+    if client_details.record_gaps(row):
+        raise Conflict("fill in the client's legal name, registered email, address, CIN, "
+                       "GST number and certificate first, then check them")
+    row.details_verified_at = datetime.now(UTC)
+    row.details_verified_by = guard.user_id
+    guard.db.flush()
+    audit.record(guard.db, action=audit.COUNTERPARTY_DETAILS_VERIFIED,
+                 entity_type="counterparty", entity_id=row.id, actor_id=guard.user_id,
+                 request_id=guard.request_id,
+                 after={f: getattr(row, f)
+                        for f in (*client_details.VERIFIED_FIELDS, "pan")}
+                 | {"gst_certificate_sha256": (row.gst_certificate or {}).get("sha256")}
+                 | ({"confirmed_reads": confirmed} if confirmed else {}))   # field: value
     return data(serialize_counterparty(row))
 
 

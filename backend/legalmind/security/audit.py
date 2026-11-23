@@ -136,6 +136,10 @@ COUNTERPARTY_UPDATED = "counterparty.updated"
 #: `CONTRACT_DELETED` nothing legal is destroyed alongside it: no document, no
 #: version, no Review, no Finding, no Legal Decision. Rule 17 is untouched here.
 COUNTERPARTY_DELETED = "counterparty.deleted"
+#: batch 7 (AB-220): the client's GST certificate filed or replaced (name, size and sha256
+#: only), and the tick "checked against the GST certificate and the GST/MCA records"
+COUNTERPARTY_GST_CERTIFICATE_SET = "counterparty.gst_certificate_set"
+COUNTERPARTY_DETAILS_VERIFIED = "counterparty.details_verified"
 CONTRACT_COUNTERPARTY_LINKED = "contract.counterparty_linked"
 #: AM-287 r1 — the issuing brand chosen (or changed) by a person.
 CONTRACT_ISSUING_ENTITY_SET = "contract.issuing_entity_set"

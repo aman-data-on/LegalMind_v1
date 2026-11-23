@@ -362,6 +362,8 @@ PROFILE_FIELDS: tuple[str, ...] = (
     # `AM-286` r1/r4 — visible to whoever reads the profile today
     "entity_type", "cin_or_llpin", "pan", "gstin", "registered_office", "notice_address",
     "notice_email", "signatory_name", "signatory_designation", "authority_reference",
+    # batch 7 (AB-220): as on the GST certificate; typed once on the client (spec §5)
+    "registered_email", "signatory_email", "line_of_business",
 )
 
 
@@ -389,6 +391,12 @@ def serialize_counterparty(c: M.Counterparty) -> dict[str, Any]:
             payload[field] = value
     if c.account_owner_id:
         payload["account_owner_id"] = str(c.account_owner_id)
+    if c.gst_certificate:       # batch 7: what it is, never where it is stored
+        payload["gst_certificate"] = {k: c.gst_certificate[k] for k in (
+            "filename", "mime_type", "size_bytes", "uploaded_at")} | (
+            {"read": c.gst_certificate["read"]} if c.gst_certificate.get("read") else {})
+    if c.details_verified_at:
+        payload["details_verified_at"] = _iso(c.details_verified_at)
     return payload
 
 

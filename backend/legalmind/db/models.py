@@ -269,6 +269,19 @@ class Counterparty(Base):
     signatory_name = _str(nullable=True)
     signatory_designation = _str(nullable=True)
     authority_reference = _str(nullable=True)
+    # Batch 7 (client details before drafting, AB-220): the company's email as on its GST
+    # certificate; the certificate itself (one current file: {storage_key, filename,
+    # mime_type, size_bytes, sha256, uploaded_at, uploaded_by} — the storage key never
+    # leaves the API); and who ticked "checked against the GST certificate and the GST/MCA
+    # records", cleared when the email, office, CIN, GSTIN or certificate changes.
+    registered_email = _str(nullable=True)
+    #: spec §5: the signatory's official email and the client's nature of business, typed
+    #: once on the client and read by every deal (the recital B blank, the e-sign email)
+    signatory_email = _str(nullable=True)
+    line_of_business = _str(nullable=True)
+    gst_certificate = jsonb_col(nullable=True)
+    details_verified_at = ts_nullable()
+    details_verified_by = fk_uuid("users.id", nullable=True, ondelete="SET NULL")
 
     __table_args__ = (
         Index("ix_counterparties_name", "name"),

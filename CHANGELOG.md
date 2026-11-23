@@ -9,6 +9,13 @@ No version has been released. The V1 specification is complete and implementatio
 ---
 
 ## [Unreleased]
+- AB-220 (2026-11-23, `AM-449`–`AM-452`; batch 7 "client details before drafting"). Legal's ten-item checklist for an
+  MSA & NDA is collected once on the client (registered email, signatory email, line of business, GST certificate
+  added; migration `c5e8a2f4d7b1`) and required, with a person's check against the GST certificate and GST/MCA
+  records, before our MSA is made (create and convert; 409 with what is missing). The GST certificate is read
+  (labelled lines only, bounded, confirmed by a person). New contract redesigned as a four-step enterprise intake
+  (Ironclad / Juro / SpotDraft benchmark): what is still needed and the live contract beside the form; a returning
+  client types no client fact. Our CIN locked via a new `import_template --from-published … --lock` path.
 - AB-219 (2026-11-20, `AM-444`–`AM-448`; batch 6 "client misreads", from running a client's MSA + NDA
   markup through LegalMind; PR #330, DEPLOYED 2026-11-23 as f695622d). Clause numbers kept on long and glued lines, Word heading styles read (no more
   phantom 1.11 / 15.1.4 / signature-as-21.11 rows; reader v12, mixed reader versions re-read on compare);
