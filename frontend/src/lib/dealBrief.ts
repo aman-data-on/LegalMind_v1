@@ -6,7 +6,7 @@
  */
 
 import { BRIEF_STATUS } from "@/lib/labels";
-import type { DealCounts } from "@/lib/types";
+import type { DealCounts, PriorPaper } from "@/lib/types";
 
 export type Tie = "AS_TOLD" | "BEYOND";
 
@@ -34,6 +34,13 @@ export interface DealBrief {
   not_marked?: { count: number; total: number; highlights_read: boolean; more: number;
                  /** `title` is the clause's heading, absent when it has none */
                  rows: (Omit<BriefAsk, "title"> & { title?: string })[] };
+  /** batch 8 R1.4: changes already in an earlier signed or final contract (absent: none) */
+  already_agreed?: { count: number; rows: string[]; contract: PriorPaper };
+  /** batch 8 R5.3: the standard sets that measured the paper (absent: none known); each
+   *  source's name and points only for Legal (omitted otherwise) */
+  measured_against?: { kind: string; name?: string; points?: number }[];
+  /** batch 8 R5.4 (C-34 open): our MSA's terms measured paper that is not an MSA */
+  measured_against_note?: "MSA_TERMS_ON_OTHER_PAPER";
   /** omitted for a reader without positions (LEGAL-02) */
   told?: Told[];
   our_mistake?: string;

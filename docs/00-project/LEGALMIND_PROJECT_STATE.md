@@ -22,6 +22,15 @@ contract back from Legal now asks first. The client page's counts no longer run 
 owner's one-line rule with a facts line that tells rows apart, the Reviews list speaks the same words as its rows, and the report sales reads has no
 file names, "§" or "analysed", and says what Export will download.
 
+**2026-11-24 — AB-223, batch 8 part B (BUILT, not deployed).** When we already signed (or finalised) a contract with
+the same client, each change and point now says whether it was already in that contract or is new — only from
+contracts the reader may open, and it never changes who answers. A contract signed outside LegalMind can be filed
+on the client page "for reference". The client-change check now also says when a change takes more claims out of
+our liability cap, widens a duty on us, or gives us less time (24 hours → 4 hours). The brief says which of our
+standard sets checked the paper and, for paper that is not an MSA, that Legal has not yet confirmed which apply
+(read straight from the standard files — nothing to re-import or publish). A deal already sent to the client can
+no longer be declared "signed" by mistake.
+
 **2026-11-23 — AB-222, batch 8 part A (BUILT, not deployed).** Lessons from a real client MoU. The changes a client
 made with no tracked change and no highlight now come first in the deal brief and on the Changes tab, with a line
 sales can copy into the reply. A comment in a table, a sentence broken across two lines, a clause read with a changed

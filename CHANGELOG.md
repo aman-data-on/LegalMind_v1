@@ -9,6 +9,32 @@ No version has been released. The V1 specification is complete and implementatio
 ---
 
 ## [Unreleased]
+- AB-223 (2026-11-24, `AM-464`–`AM-467`; batch 8 sub-batch B "lessons from a real client MoU"; branch
+  `feat/case-lessons-b`, BUILT, not deployed; no migration, no API schema change (brief, changes and angles are
+  untyped dicts), no new dependency). **Already agreed before (`AM-464`):** `GET …/changes` rows carry `prior`
+  (SAME / CHANGED / NEW / IN_SIGNED against an earlier SIGNED or FINAL contract with the same client that the reader
+  may read — read rule checked before any text, cross-owner reads audited; the change list's own pairing, kept per
+  process) and the list `prior_papers`; angles points carry `prior` where the earlier contract's agreed version was
+  reviewed; the brief adds `already_agreed`. Never a routing input. **Filed for reference (`AM-465`, owner Q1):** the
+  client page's new-document upload offers "Signed earlier, for reference" — upload, then the existing FINAL_SIGNED
+  declaration (`AM-298` r1); no "Mark signed". **Triage (`AM-466`):** a rewritten sentence now says "Takes more
+  claims out of LeapSwitch's liability cap", "Widens a duty on LeapSwitch" or "Gives LeapSwitch less time: 24 hours
+  → 4 hours" / "Gives the client more time: …" (passive "… shall be notified to the Customer" binds LeapSwitch);
+  shown, never read by the route or the measured word. No Q5 vocabulary, no table-row carve-outs (F1b).
+  **Checked against (`AM-467`, C-34 open; no import or publish needed):** each standard's source is read from
+  its ratified file's own provenance when the brief is served (nothing written to configuration, nothing
+  re-versioned, no carried decision moves); the brief carries `measured_against` (source names and point counts
+  for Legal only) and, for MSA terms on non-MSA paper, `measured_against_note`; it says "Checked against our
+  standards as our MSA states them." and "Legal has not yet confirmed which of our standards apply to paper that
+  is not an MSA." D6 follow-up: the notes for Legal read the
+  heading-folded alignment too; the other `_align` callers (special conditions, amendments, AM-395 our words, the
+  decision follow) are left as they are — folding changes their clause text or evidence and none is cheap to prove
+  key-safe. Prod-copy probe: 12 pairs, 83 rows, 0 differences in key/kind/route/why/effect/answer/measured, 0 origin
+  differences, 12 answered keys, 0 lost. Round 2 (independent verification): the source no longer rides in
+  configuration (a re-import would have re-versioned every standard and stopped decisions carrying, `AM-317` r7);
+  "Widens a duty" is silent on an exception list or a prohibition; source names/counts reach Legal only; and
+  `execution.negotiated()` now also refuses a version that was itself sent to the client (`AM-465` r3, fail
+  closed). Report: `/root/legalmind-clm-local/audit/batch8-case-lessons/BUILD-REPORT-B.md`.
 - Full-stack audit U1 "UI wrong or risky" (2026-11-23; branch `fix/ui-u1`, BUILT, browser-checked, not deployed;
   no lock amended, no migration, no API schema change). **UI-01:** the deal brief's status (`deal_brief.status()`)
   no longer falls through to "Send our reply" on a stage with no reply to send: FINAL → `FINAL_READY` ("Final contract

@@ -31714,3 +31714,104 @@ c8  AM-462 r3 restated as one fail-closed rule, superseding c1 and c6: inside a 
     terminal punctuation). Any prose row the client inserted, rewrote, split, merged or deleted makes every row of
     the unit "changed". A carve-out worded inside a table row is not recognised (new vocabulary: owner, rule 21).
 ```
+
+## AMENDMENT BATCH AB-223 — `AM-464`–`AM-467` (2026-11-24): lessons from a real client MoU, sub-batch B
+
+Owner instruction (2026-11-23): "defaults ok, go with batch 8" — the batch 8 specification, built in two sub-batches;
+this record is sub-batch B (items 1, 4 and 5; AB-222 is sub-batch A). Owner answers the same day, each the
+specification's recommended default: Q1 yes — a contract signed outside LegalMind may be filed on the client page for
+reference only, reusing AM-298 (signing itself stays in the signer tool; no "Mark signed", the cycle ends at Final);
+Q2 both signed and final contracts count, each labelled; Q5 no fee-waiver and no "credits start earlier" vocabulary
+(not built); Q6 keep today's measurement, show which standard set was used and that Legal confirms which applies
+(C-34 stays open, registered by AB-222). Product and engineering under the owner's "product over locks" delegation
+and these answers. Nothing here is a Finding, Classification, Rule Outcome, Mapping State, Legal Decision or
+lifecycle change (rules 10/13); no legal position, threshold, tolerance or recognition vocabulary is added (rules
+7/21); no authorization is widened — every other contract is read under the reader's own read rule (rule 18). IDs
+scanned: AB-223, AB-224, AM-464–470, C-35 on origin/main, every remote branch, every worktree (code comments
+included) and the open PRs (#322, #285, #270): free (AB-223 and C-35 appear only in AB-222's "IDs scanned" sentence).
+
+`AM-464` — "ALREADY AGREED BEFORE": A CHANGE OR A POINT BESIDE AN EARLIER SIGNED OR FINAL CONTRACT (information only).
+```text
+r1  An earlier contract counts when it has the same counterparty, is not this contract, is not archived, the reader
+    may read it (the contract read rule itself, checked before any of its text is loaded — a contract they may not
+    read is never named, counted or used, and the response is byte-identical to having none), and its stage is
+    SIGNED or FINAL. Its agreed text is the signed copy, else the final copy (AM-318); it is dated by the latest
+    signing date its record names, else when it was signed or became Final, else when the copy was filed; most
+    recent first, at most five. Each one used is resolved through the audited read, so a read across owners is
+    recorded as opening it would be.
+r2  Each change row of GET /contracts/{id}/changes and of the deal brief's round gets prior {state, contract_id,
+    name, agreed_on, kind}: the client's clause is paired with the earlier contract's clauses by the change list's
+    own pairing (units, alignment, headings folded); SAME when the words are the same (AM-317 r1 / AM-321 r2 test)
+    or, as AM-462 c8 reads a clause beside a changed table, only table rows or short title lines differ; CHANGED
+    when paired with other words, NEW when unpaired; a deleted row reads IN_SIGNED only when its words are
+    a clause of the earlier contract. The contract shown is the first that reads SAME (IN_SIGNED), else the most
+    recent. The list carries prior_papers. Everything is omitted when no contract qualifies; the counts (deal_counts,
+    lists, To-do) never read it. The pairing is kept per process under the comparison's own content key.
+r3  A point of GET /reviews/{id}/angles (business and Legal items) gets prior {state, …} where the earlier
+    contract's agreed version has a latest Review holding a point on the same standard and the reader holds
+    finding.view and review.view: SAME when its classification and the figure it read are equal, else CHANGED;
+    nothing otherwise (absence is never "new"). A copy filed as signed is never reviewed (AM-298), so its points
+    carry nothing.
+r4  The brief adds already_agreed {count, rows, contract} — the changes reading SAME — omitted when none.
+r5  Never an input: route, route reason, effect, measured word, answer (automatic acceptance included), user status
+    and Rule Outcome are byte-identical with and without an earlier contract. Wording: "Same as / Changed since /
+    New since / Was in our signed (final) contract (date)"; "Same result as / Different from …" on a point.
+```
+
+`AM-465` — FILING A CONTRACT SIGNED OUTSIDE LEGALMIND FROM THE CLIENT PAGE, FOR REFERENCE (rider on `AM-298` r1,
+`AM-318` r5, `AM-324` r4; owner Q1).
+```text
+r1  The client page's upload offers "Signed earlier, for reference" for a NEW document only: the contract is created
+    with the client, its one file uploaded as every upload is (a declared role, AM-324 r4 unchanged — the upload
+    endpoint still refuses FINAL_SIGNED) and at once declared FINAL_SIGNED through the existing declaration, which
+    files it as signed (AM-298 r1, origin SIGNED_OUTSIDE, audited; 409 on a contract negotiated in LegalMind). It is
+    not analysed. A refused filing archives the contract it just created.
+r2  AM-318 r5's "FINAL_SIGNED not declarable from the UI" stands everywhere else: no deal is marked signed, no
+    signing step is offered, the contract page and a deal's versions never declare it. This filing is a reference
+    for AM-464, never a lifecycle step on a deal; the cycle still ends at Final and signing stays the signer tool's.
+r3  Fail-closed tightening of AM-298 r1's "not negotiated in LegalMind": a version that was itself sent to the
+    client is negotiated too, so declaring it FINAL_SIGNED is refused with the same words as any negotiated
+    contract (before, only the other versions were read, so a one-version deal already sent could be filed as
+    signed). A new reference filing is never sent and is unaffected.
+```
+
+`AM-466` — CHANGE TRIAGE: A REWRITTEN SENTENCE'S STRUCTURE (rider on `AM-224` r1; information only).
+```text
+r1  For each rewritten sentence (a removed and an added sentence code pairs as one), code says, quoting it, in fixed
+    words: "Takes more claims out of LeapSwitch's liability cap" — a class the cap does not apply to that the old
+    sentence did not take out (the AM-195/AM-304 reading, every listed item, the lawful floor and approved carve-outs
+    of the liability standards pinned in the client's version's snapshot left out; no Review: every class counts;
+    a sentence that uncaps only the customer is silent, AM-388); "Widens a duty on LeapSwitch" — a duty on us both
+    before and after, the rewrite only inserting words, each insert between list separators (comma, semicolon,
+    "or", "and") with no narrowing word (except, excluding, other than, save, unless, provided, only, solely, to
+    the extent, limited to) in or just before it — the guard only silences; "Gives LeapSwitch less time: A → B" /
+    "Gives the client more time: A → B" — one deadline a side ("within" / "no later than" a figure, "thirty (30)
+    days" read as 30), the same unit (no conversion, AM-154), a duty on us shortened or the client's lengthened. A
+    minimum notice ("at least 30 days") is no deadline and says nothing.
+r2  Whom a rewritten sentence binds is read for these reasons only with two grammar rules: a party word followed by
+    up to three words and a passive verb is a noun ("Customer data shall be notified"), not the actor; where nobody
+    acts, a passive duty owed "to (the) <party>" binds the other party. Every AM-224 reading, its reasons and its
+    "helps" stay exactly as they were.
+r3  The reasons are shown with AM-224's (the triage effect is then "moves risk onto LeapSwitch"; client_changes reads
+    them too) but are never a routing input: the route, route reason, effect, measured word and automatic
+    acceptance read only AM-224's sentence reasons. No fee-waiver and no "credits start earlier" vocabulary (Q5);
+    no carve-out words inside a table row (F1b).
+```
+
+`AM-467` — WHICH STANDARD SET MEASURED THE PAPER (rider on `AM-380`; C-34 stays open; no import or publish needed).
+```text
+r1  Which of our standard sets a standard states is read when the brief is served, from fields its ratified file
+    already has (source_document, source_clause; the file is never edited), by requirement code: OUR_MSA when it
+    quotes our MSA, CONSTITUTION when the Legal Constitution, PUBLISHED_POLICY when a published Terms/SLA/AUP/Privacy
+    page of ours, else OTHER_DOCUMENT; its name is the public name (no locator). Nothing is written to any
+    configuration: no standard is re-versioned, no import or publish is needed, and no carried Legal Decision moves
+    (AM-317 r7). A requirement with no ratified file has no source and is left out — never guessed.
+r2  The deal brief carries measured_against — the latest Review's points grouped by their standard's source; each
+    set's name and point count only for a reader of Legal details (legal.decision), the keys omitted otherwise,
+    never nulled — and measured_against_note "MSA_TERMS_ON_OTHER_PAPER" when the paper was analysed as anything but
+    an MSA and any OUR_MSA standard measured it. Omitted when no point's standard has a file.
+r3  The screen says "Checked against our standards as our MSA (our general contract terms, …) states them." and,
+    with the note, "Legal has not yet confirmed which of our standards apply to paper that is not an MSA." Legal
+    also sees each source's name and points and the open question (C-34). Nothing is re-measured and no side of
+    C-34 is chosen.
+```

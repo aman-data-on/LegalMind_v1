@@ -93,6 +93,7 @@ from legalmind.evaluation.registry import EVALUATOR_VERSIONS
 from legalmind.evaluation.rule_config import accepts_good_and_neutral
 from legalmind.evaluation.user_status import ACCEPTABLE, by_finding
 from legalmind.evaluation.workflow import derive_finding_status, waits_on_client_only
+from legalmind.extraction.liability import LiabilityExtractionConfig
 from legalmind.extraction.parties import PROVIDER_TYPES
 from legalmind.ingestion.service import PROCESSOR_VERSION
 from legalmind.mapping.engine import Clause
@@ -1234,8 +1235,7 @@ def _core(ours: list[Clause], theirs: list[Clause],
     old, new = _units(ours), _units(theirs)
     if template is not None:
         as_filled(old, new, template)
-    raw = _align(old, new)
-    aligned = fold_headings(old, new, raw)                       # batch 8 R3d-2
+    aligned = fold_headings(old, new, _align(old, new))          # batch 8 R3d-2
     deleted = dc._norm(" ".join(c.get("deleted") or ""
                                 for u in new for c in u["changes"]))
     twin = {i: j for i, j, _ in aligned if i is not None and j is not None}
@@ -1262,7 +1262,8 @@ def _core(ours: list[Clause], theirs: list[Clause],
             "typography_only": bool(kind == "MODIFIED" and o and n and _typography(
                 o["text"]) == _typography(n["text"])),
             "changed_rows": changed_rows(o, n) if kind == "MODIFIED" and n else None})
-    return {"old": old, "new": new, "raw": raw if template is None else None,
+    # D6 (batch 8 B): the notes read the folded alignment too — no phantom deleted heading
+    return {"old": old, "new": new, "aligned": aligned if template is None else None,
             "rows": rows, "aliases": reading._aliases(theirs)}
 
 
@@ -1272,11 +1273,30 @@ def _display(ours: list[Clause], theirs: list[Clause], core: dict[str, Any],
     clauses — on the alignment `_core` already made (BE-3) — and each row's lettered
     points and mutuality. Never a decision."""
     old, new, aliases = core["old"], core["new"], core["aliases"]
-    return {"notes": lawyer_rows.notes_for_legal(ours, theirs, aligned=core["raw"]),
+    return {"notes": lawyer_rows.notes_for_legal(ours, theirs, aligned=core["aligned"]),
             "lettered": [lawyer_rows.lettered(
                 old[r["i"]]["text"] if r["i"] is not None else None,
                 new[r["j"]]["text"] if r["j"] is not None else None, r["kind"], vendor,
                 aliases) for r in core["rows"]]}
+
+
+def _lawful_floor(db: DBSession, review: M.Review | None) -> tuple[str, ...]:
+    """Batch 8 R4.1 (`AM-466`): the lawful floor (and approved carve-outs) of the
+    liability standards pinned in the Review's snapshot — the configured words
+    `AM-304` reads; none without a Review (every new class then counts: fails toward
+    telling)."""
+    if review is None:
+        return ()
+    item, rv = M.ConfigurationSnapshotItem, M.RequirementVersion
+    configs = db.execute(
+        select(M.CompanyStandardVersion.configuration)
+        .join(item, item.company_standard_version_id == M.CompanyStandardVersion.id)
+        .join(rv, rv.id == item.requirement_version_id)
+        .join(M.Requirement, M.Requirement.id == rv.requirement_id)
+        .where(item.snapshot_id == review.configuration_snapshot_id,
+               M.Requirement.code.startswith("LIABILITY-"))).scalars()
+    return tuple(sorted({p for c in configs
+                         for p in LiabilityExtractionConfig.from_config(c).lawful_floor}))
 
 
 def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | None,
@@ -1334,6 +1354,7 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
     auto = auto_rule(db, after_review)
     readings = change_triage.read_back(db, after.id) \
         if any(u["changes"] for u in new) else {}
+    floor = _lawful_floor(db, after_review)                     # batch 8 R4.1
     answered: set[str] = set()
     answers = answer_lines(db, contract, before, after, legal_position=legal_position,
                            answered=answered)
@@ -1348,7 +1369,7 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
         if kind != "MOVED":
             code = change_triage.code_reading(
                 o["text"] if o else "", n["text"] if n else "", vendor, aliases,
-                lead=r["lead"])
+                lead=r["lead"], floor=floor)
             if not code["editorial"]:
                 triage = change_triage.merged(
                     code, readings.get(_first(n)) if n else None,
@@ -1356,7 +1377,10 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
                 if not legal_position:
                     triage["topics"] = [{k: v for k, v in t.items() if k != "position"}
                                         for t in triage["topics"]]
-        route, why = _route(kind, o, n, f_before, f_after, triage, found_after)
+        # AM-466: the structural reasons are shown, never a routing input — the route
+        # and the measured word read only code's sentence reasons (AM-224)
+        routed = triage and {**triage, "reasons": code["reasons"]}
+        route, why = _route(kind, o, n, f_before, f_after, routed, found_after)
         if unapplied:                          # fail closed: a person reads it
             route, why = HOLDER, SPECIAL_NOT_APPLIED
         effect = effect_against_ours(route, why, f_before, f_after, directions)
@@ -1388,7 +1412,7 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
             "review_delta": _delta(f_before, f_after),
             "triage": triage, "route": route, "route_reason": why,
             "effect_for_us": effect,
-            **_measured(effect, kind, f_before, f_after, triage, {
+            **_measured(effect, kind, f_before, f_after, routed, {
                 f["finding_id"] for e in r["changed_rows"]
                 for f in found_after.get(e, ())} if r["changed_rows"] is not None
                 else None),

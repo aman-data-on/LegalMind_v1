@@ -569,11 +569,14 @@ def review_angles(review_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
     built by code from the Findings, the document's own figures and the Constitution's
     own drafting language; never generated. Same access as the Findings."""
     review = guard.review(review_id, P.FINDING_VIEW)
-    from legalmind.api.routers.negotiation import legal_left  # circular at import
-    return data(angles.review_angles(
+    from legalmind.api import prior_paper  # circular at import
+    from legalmind.api.routers.negotiation import legal_left
+    out = angles.review_angles(
         guard.db, review, legal_position=guard.sees_legal_position,
         legal_open=legal_left(guard, review),                    # BE-5: one number
-        legal_review=P.LEGAL_REVIEW in guard.permissions))
+        legal_review=P.LEGAL_REVIEW in guard.permissions)
+    prior_paper.label_points(guard, review, out)     # batch 8 R1.3: information only
+    return data(out)
 
 
 @router.get("/reviews/{review_id}/report")

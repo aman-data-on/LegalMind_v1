@@ -58,7 +58,7 @@ from legalmind import notifications
 from legalmind.analysis import document_comparison, negotiation, reader_generation
 from legalmind.analysis.service import AnalysisNotPermitted
 from legalmind.analysis.version_comparison import ComparisonNotPossible
-from legalmind.api import ratelimit
+from legalmind.api import prior_paper, ratelimit
 from legalmind.api.angles import ACCEPT_FAVOURABLE
 from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
 from legalmind.api.envelope import attachment_headers, data
@@ -597,6 +597,7 @@ def list_changes(contract_id: UUID, from_version: int | None = _FROM,
     sent = review is not None and guard.db.execute(select(M.Review.id).where(
         M.Review.id == review.id, sent_to_legal())).first() is not None
     _told(guard, contract, listed["changes"])
+    prior_paper.label_rows(guard, contract, listed)          # batch 8 R1.2, information
     return data({**listed, "replied_in": replied_in, "sent_to_legal": sent,
                  "can_answer": writer and replied_in is None, "can_send": writer,
                  "can_decide": P.LEGAL_DECISION in guard.permissions,

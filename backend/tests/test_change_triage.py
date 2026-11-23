@@ -266,3 +266,129 @@ def test_a_named_party_in_a_condition_after_each_party_is_no_actor():
                         "acquired by a competitor.") == []
     assert _reasons("Each Party may terminate on notice if the Customer has not paid for "
                     "sixty days.", "") == []
+
+
+# ---------------------------------------------- batch 8 R4 (AM-466): a rewrite's structure
+def _risks(before: str, after: str, floor: tuple[str, ...] = ()) -> list[str]:
+    read = T.code_reading(before, after, floor=floor)
+    assert read["reasons"] == []        # never a sentence reason: the route cannot move
+    return [r["reason"] for r in read["risks"]]
+
+
+_CAP = ("Liability is capped at the fees paid in the last 12 months, provided that the cap "
+        "shall not apply to liability arising from fraud, breach of confidentiality, or "
+        "infringement of intellectual property rights.")
+
+
+def test_a_new_class_taken_out_of_the_cap_moves_risk_onto_us():
+    grown = _CAP.replace("confidentiality,", "confidentiality, including any security "
+                                             "incident affecting the Customer's data,")
+    assert _risks(_CAP, grown) == [T.RISK_CAP]
+    read = T.code_reading(_CAP, grown)
+    assert read["risks"][0]["quote"].startswith("including any security incident")
+    assert T.merged(read, None, [])["effect"] == T.ONTO
+    # a class only reworded ("rights" → "right") is no new class
+    assert _risks(_CAP, _CAP.replace("rights.", "right.")) == []
+
+
+def test_a_lawful_floor_item_added_to_the_carve_out_is_silent():
+    grown = _CAP.replace("fraud,", "fraud, death or personal injury caused by negligence,")
+    assert _risks(_CAP, grown, floor=("death or personal injury caused by negligence",)) == []
+    assert _risks(_CAP, grown) == [T.RISK_CAP]          # no floor: it counts
+
+
+def test_a_customer_only_carve_out_growing_is_silent():
+    old = ("The limitation of liability shall not apply to the Customer's payment "
+           "obligations.")
+    new = ("The limitation of liability shall not apply to the Customer's payment "
+           "obligations or the Customer's indemnity obligations.")
+    assert _risks(old, new) == []                                          # AM-388
+
+
+_INDEMNITY = ("LeapSwitch shall indemnify the Customer against third-party claims arising "
+              "from breach of applicable laws, breach of confidentiality, or any failure "
+              "of the Services.")
+
+
+def test_a_list_item_added_to_our_indemnity_widens_our_duty():
+    grown = _INDEMNITY.replace("confidentiality,", "confidentiality, any loss of the "
+                                                   "Customer's data,")
+    read = T.code_reading(_INDEMNITY, grown)
+    assert [r["reason"] for r in read["risks"]] == [T.RISK_DUTY]
+    assert read["risks"][0]["quote"] == "any loss of the Customer's data"
+
+
+def test_an_except_clause_added_to_our_duty_is_silent():
+    for words in ("except any claim caused by the Customer", "only to the extent caused by it"):
+        grown = _INDEMNITY.replace("confidentiality,", f"confidentiality, {words},")
+        assert _risks(_INDEMNITY, grown) == []
+    # a word replaced, not only inserted: a person reads it
+    assert _risks(_INDEMNITY, _INDEMNITY.replace("applicable laws", "any laws")) == []
+
+
+def test_an_item_added_to_an_exception_list_is_silent():
+    """D2: "… except to its employees, contractors and advisors" — one more person the
+    duty does not reach narrows it; the narrowing word sits earlier in the sentence."""
+    old = ("LeapSwitch shall keep the Customer's information confidential, except for "
+           "disclosure to its employees, contractors and advisors.")
+    grown = old.replace("contractors and", "contractors, auditors and")
+    assert _risks(old, grown) == []
+
+
+def test_an_item_added_to_a_prohibition_is_silent():
+    old = "LeapSwitch shall not disclose the Customer's data to its affiliates or vendors."
+    assert _risks(old, old.replace("affiliates or", "affiliates, auditors or")) == []
+
+
+def test_an_item_added_to_a_positive_duty_still_widens_it():
+    old = ("LeapSwitch shall indemnify the Customer against claims arising from breach of "
+           "law, breach of confidentiality, or any failure of the Services.")
+    grown = old.replace("confidentiality,", "confidentiality, any data breach,")
+    assert _risks(old, grown) == [T.RISK_DUTY]
+
+
+def test_our_notice_period_shortened_gives_us_less_time():
+    old = "LeapSwitch shall notify the Customer of any breach within 24 hours of discovery."
+    assert _risks(old, old.replace("24 hours", "4 hours")) == [
+        "Gives LeapSwitch less time: 24 hours → 4 hours"]
+    assert _risks(old, old.replace("24 hours", "48 hours")) == []      # never "helps us"
+
+
+def test_the_clients_payment_period_lengthened_gives_them_more_time():
+    old = "The Customer shall pay all fees within 21 days of the invoice date."
+    assert _risks(old, old.replace("21 days", "30 days")) == [
+        "Gives the client more time: 21 days → 30 days"]
+    # a minimum notice is no deadline: a longer one binds the one who gives it
+    notice = "The Customer shall give at least 30 days' notice of termination."
+    assert _risks(notice, notice.replace("30", "60")) == []
+
+
+def test_mixed_units_say_nothing():
+    old = "LeapSwitch shall restore the Services within 2 days of the report."
+    assert _risks(old, old.replace("2 days", "4 hours")) == []
+    two = "LeapSwitch shall respond within 2 hours and resolve within 8 hours."
+    assert _risks(two, two.replace("2 hours", "1 hours")) == []        # several figures
+
+
+def test_thirty_in_parentheses_is_read():
+    old = "The Customer shall pay all fees within fifteen (15) days of the invoice date."
+    assert _risks(old, old.replace("fifteen (15)", "thirty (30)")) == [
+        "Gives the client more time: 15 days → 30 days"]
+
+
+def test_party_as_noun_modifier_is_not_the_actor():
+    # "Customer data shall be …" — the Customer does not act; the AM-224 reading is
+    # unchanged (THEIR_DUTY), the structural reading sees through it
+    s = "Any breach affecting Customer data shall be reported promptly."
+    assert T._first_actor(s, False, ([], [])) == "THEIR_DUTY"
+    assert T._binder(s, False, ([], [])) is None
+
+
+def test_passive_to_the_customer_binds_leapswitch():
+    old = ("Any security breach affecting Customer data shall be notified to the Customer "
+           "within 24 hours of discovery.")
+    assert T._binder(old, False, ([], [])) == "OUR_DUTY"
+    assert _risks(old, old.replace("24 hours", "4 hours")) == [
+        "Gives LeapSwitch less time: 24 hours → 4 hours"]
+    assert T._binder("Invoices shall be paid to LeapSwitch within 21 days.", False,
+                     ([], [])) == "THEIR_DUTY"

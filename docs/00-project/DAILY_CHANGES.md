@@ -37,6 +37,31 @@ working day gets one entry, newest first, with these headings (omit an empty one
 
 ---
 
+## 2026-11-24
+
+### Done
+- **AB-223 batch 8 sub-batch B** (`AM-464`–`AM-467`) built on `feat/case-lessons-b` (worktree
+  `/root/legalmind-worktrees/case-lessons-b`, from `96792533`): "already agreed before" on change rows, points and
+  the brief; "Signed earlier, for reference" on the client page (owner Q1); triage reasons for a rewritten sentence
+  (cap carve-out grown, duty widened, a deadline shortened — shown, never routing); "Checked against our standards
+  as …" from each standard's source recorded at import (C-34 still open). Production-copy probe: 0 differences in
+  12 pairs / 83 rows, 12 answered keys kept. Not committed; report in the batch folder's BUILD-REPORT-B.md.
+  Independent verifier: 9/9 items passed; round 2 fixed D1 (no configuration change), D2, D4, D5 and refused
+  declaring signed a version already sent to the client (`AM-465` r3).
+
+### In progress
+- `feat/case-lessons-b`: independent verification next (spec `SPEC.md` items 1, 4, 5 and BUILD-REPORT-B.md).
+
+### Next
+- `feat/case-lessons-b` round 2 done (verifier D1/D2/D4/D5 + the "sent version filed as signed" bug): the
+  standard source is read from the ratified files at serve time — no import, no publish, no re-versioning.
+  Next: re-verify, then the owner's go for git.
+- Owner: the deploy tree's `frontend/node_modules/node_modules` is a stray self-symlink (made 2026-11-23 22:50);
+  a hardlinked copy resolves React twice through it (10 vitest failures until removed in the copy).
+
+### Blocked
+- **Legal (C-34):** which standards measure paper that is not an MSA. Until then the brief only says which set measured it.
+
 ## 2026-11-23
 
 ### Reached production

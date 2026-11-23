@@ -101,3 +101,22 @@
   .lm-notmarked .ws-linkbtn.lm-notmarked__open, .lm-notmarked .lm-notmarked__copy { min-height: 44px; }
   .lm-notmarked__copy { justify-self: stretch; }
 }
+/* Batch 8 R1.4 / R5: what we signed with this client before, and which standards
+   measured the paper — quiet information under the not-marked block: no tint, no
+   status hue (it decides nothing), the signed contract named and one press away. */
+.lm-prior { display: flex; gap: var(--s-2); align-items: flex-start; margin: 0 0 var(--s-3);
+  font-size: var(--t-dense); line-height: var(--t-dense-lh); color: var(--c-text); }
+.lm-prior__icon { flex: none; margin-top: var(--s-1); color: var(--c-text-2); }
+.lm-prior__text { display: grid; gap: var(--s-1); min-width: 0; max-inline-size: 68ch; }
+.lm-prior__title { margin: 0; font-weight: 500; overflow-wrap: anywhere; }
+.lm-prior__hint { margin: 0; color: var(--c-text-2); }
+.lm-prior__open { justify-self: start; min-height: 24px; }
+.lm-measured { margin: 0 0 var(--s-3); font-size: var(--t-dense); line-height: var(--t-dense-lh);
+  color: var(--c-text-2); max-inline-size: 68ch; }
+.lm-measured__line { margin: 0; }
+.lm-measured__details { margin-top: var(--s-1); }
+.lm-measured__details summary { cursor: pointer; min-height: 24px; color: var(--c-text); }
+.lm-measured__details ul { margin: var(--s-1) 0 0; padding-left: var(--s-4); display: grid; gap: var(--s-1); }
+@media (max-width: 600px) {
+  .lm-prior .lm-prior__open, .lm-measured__details summary { min-height: 44px; display: inline-flex; align-items: center; }
+}

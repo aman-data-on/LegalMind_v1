@@ -11,7 +11,8 @@
 import { useEffect, useState } from "react";
 
 import { api } from "@/lib/api";
-import { BRIEF_COPY, CHANGES_COPY, ORIGIN_LABELS, ORIGIN_RANK, withoutSectionRefs } from "@/lib/labels";
+import { BRIEF_COPY, CHANGES_COPY, ORIGIN_LABELS, ORIGIN_RANK, PRIOR_COPY, withoutSectionRefs } from "@/lib/labels";
+import { formatDate } from "@/lib/dates";
 import { requirementTitle } from "./findingLanguage";
 import type {
   BusinessPoint, CounterProposal, LegalItem, Observation, ReviewAngles,
@@ -137,9 +138,12 @@ function OpenPoint({ item, onOpen, words }: {
           : words ? <span className="ws-open__word">{words.reader}</span> : null}
       </span>
       {/* B3 p1: the place is the name's metadata line, under it, never pushed off to the right */}
-      {item.where || item.origin ? (
+      {item.where || item.origin || item.prior ? (
         <span className="ws-open__where">
-          {[item.origin ? ORIGIN_LABELS[item.origin] : null, item.where].filter(Boolean).join(". ")}
+          {[item.origin ? ORIGIN_LABELS[item.origin] : null, item.where,
+            // batch 8 R1.3: the same point on an earlier signed or final contract
+            item.prior ? PRIOR_COPY.point(item.prior.state, item.prior.kind, formatDate(item.prior.agreed_on)) : null,
+          ].filter(Boolean).join(". ")}
         </span>
       ) : null}
       {words?.answer ? <span className="ws-open__who">{words.answer}</span> : null}

@@ -202,12 +202,14 @@ def notes_for_legal(ours: list[Clause], theirs: list[Clause],
     """What a lawyer checks across the clauses after a markup — each note cites its
     clauses; a person reads it. A figure or duplicate note starts from a clause the
     client changed; a reference or term note from any clause naming what was deleted.
-    ``aligned``: `negotiation._align` of these two sides' units, when the caller already
-    made it (BE-3: one comparison aligns once)."""
+    ``aligned``: `negotiation._align` of these two sides' units, headings folded
+    (`fold_headings`, as the change list), when the caller already made it (BE-3: one
+    comparison aligns once)."""
     old, new = N._units(ours), N._units(theirs)
     changed: list[dict] = []
     deleted: set[str] = set()       # by alignment, never by number: renumbering moves
-    for i, j, moved in (N._align(old, new) if aligned is None else aligned):
+    for i, j, moved in (N.fold_headings(old, new, N._align(old, new)) if aligned is None
+                        else aligned):
         if j is None and i is not None and old[i]["number"]:
             deleted.add(_num(old[i]["number"]))
         elif j is not None and N._kind(old[i] if i is not None else None, new[j],

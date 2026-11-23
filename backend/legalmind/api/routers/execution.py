@@ -99,16 +99,19 @@ def negotiated(db, contract_id: UUID, version_id: UUID) -> str | None:
     """Why this contract cannot be FILED as signed (`AM-298` r1) — it was negotiated in
     LegalMind, so only "Mark signed" signs it — or None. Negotiated: an execution record,
     a client's round, a version sent or our reply, an answered change, or a contract
-    decision on another version."""
+    decision on another version — or (batch 8 B round 2, `AM-465` r3) this version
+    itself already sent to the client."""
     if current(db, contract_id) is not None:
         return "this contract has a signing record; finish it in Record signing"
+    itself = db.get(M.DocumentVersion, version_id)
     others = list(db.execute(select(M.DocumentVersion).where(
         M.DocumentVersion.contract_id == contract_id,
         M.DocumentVersion.id != version_id)).scalars())
     ids = [v.id for v in others]
     C = M.ComparisonChoice
-    if any(_role(v) == "CLIENT_MODIFIED" or v.sent_at is not None
-           or negotiation.answers(v.doc_metadata) for v in others) or (ids and (
+    if (itself is not None and itself.sent_at is not None) or any(
+            _role(v) == "CLIENT_MODIFIED" or v.sent_at is not None
+            or negotiation.answers(v.doc_metadata) for v in others) or (ids and (
             db.execute(select(C.id).where(C.left_version_id.in_(ids)
                                           | C.right_version_id.in_(ids)).limit(1)).first()
             or db.execute(select(M.ContractOutcomeRecord.id).join(

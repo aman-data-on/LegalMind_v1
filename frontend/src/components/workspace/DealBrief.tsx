@@ -25,6 +25,7 @@ import { toast } from "@/components/Toast";
 
 import { AttentionLine } from "./AnalysisPanel";
 import { NotMarked } from "./NotMarked";
+import { AlreadyAgreed, CheckedAgainst } from "./PriorAndStandards";
 import { useFindingsStateOptional } from "./findingsState";
 import "./brief.css";
 
@@ -124,7 +125,9 @@ export function BriefView({ brief, contractId, points, stale = null, expanded, o
     : asks.length ? `${BRIEF_COPY.asks}: ${asks.slice(0, 3).map((a) => a.title).join(", ")}${
       asks.length + (brief.asks_more ?? 0) > 3 ? ` ${BRIEF_COPY.asksMore(asks.length + (brief.asks_more ?? 0) - 3)}` : ""}.`
       : null;
-  if (!status && !points && !asks.length && !brief.told?.length && !brief.our_mistake && !legal && !unmarked) return null;
+  const more = !!(brief.already_agreed || brief.measured_against);              // batch 8 R1.4/R5
+  if (!status && !points && !asks.length && !brief.told?.length && !brief.our_mistake && !legal && !unmarked
+      && !more) return null;
   return (
     <section className="lm-brief" aria-labelledby={`${id}-h`} data-testid="deal-brief"
              data-open={expanded || undefined}>
@@ -143,11 +146,17 @@ export function BriefView({ brief, contractId, points, stale = null, expanded, o
                                                             name: NOT_MARKED_COPY.clause(r.clause, r.title, r.quote) }))} />
             </div>
           ) : null}
+          {brief.already_agreed || brief.measured_against ? (
+            <div className="lm-brief__first">
+              {brief.already_agreed ? <AlreadyAgreed agreed={brief.already_agreed} /> : null}
+              <CheckedAgainst brief={brief} legal={!!legal} />
+            </div>
+          ) : null}
           {legal ? <LegalPart brief={brief} contractId={contractId} onOpen={onOpen} onChanged={onChanged} />
             : <SalesPart brief={brief} />}
         </div>
       )}
-      {legal || asks.length || brief.told?.length || brief.our_mistake || unmarked ? (
+      {legal || asks.length || brief.told?.length || brief.our_mistake || unmarked || more ? (
         <button type="button" className="ws-linkbtn lm-brief__toggle" aria-expanded={expanded}
                 aria-controls={`${id}-body`} onClick={onToggle}>
           {expanded ? BRIEF_COPY.showLess : BRIEF_COPY.showAll}

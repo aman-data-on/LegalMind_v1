@@ -27,7 +27,9 @@
 
 import { useRef, useState } from "react";
 
-import { api, describeError, uploadFirstDocument, type UploadRole } from "@/lib/api";
+import { api, ApiError, describeError, uploadFirstDocument, type UploadRole } from "@/lib/api";
+import { PRIOR_COPY } from "@/lib/labels";
+import { toast } from "@/components/Toast";
 import { chainAnalysis } from "@/lib/analysisChain";
 import {
     VERSION_ROLES,
@@ -38,6 +40,11 @@ import { useSession } from "@/lib/session";
 import type { Counterparty } from "@/lib/types";
 import { FilePicker } from "@/components/FilePicker";
 import { preflightProblem as preflight } from "@/lib/upload";
+
+/** Batch 8 R1.6 (`AM-465`): a contract already signed with this client outside
+ *  LegalMind, filed for reference — uploaded, then declared signed through the existing
+ *  declaration (`AM-298` r1). Never a lifecycle step on a deal, and never analysed. */
+const SIGNED_EARLIER = "SIGNED_EARLIER";
 
 export function UploadToClient({ client, onDone, initialContractId }: {
   client: Counterparty;
@@ -92,10 +99,26 @@ export function UploadToClient({ client, onDone, initialContractId }: {
       }
 
       setStep("Uploading…");
+      const reference = role === SIGNED_EARLIER && !intoContractId;
       // a revision of an existing contract is never discarded; a new one is, if refused
       const uploaded = intoContractId
         ? await api.uploadDocument(contractId, file, role as UploadRole)
-        : await uploadFirstDocument(contractId, file, role as UploadRole);
+        : await uploadFirstDocument(contractId, file, reference ? "COMPANY_DRAFT" : role as UploadRole);
+      if (reference) {
+        setStep(PRIOR_COPY.filing);
+        try {
+          await api.declareVersion(uploaded.document_version.id, { version_role: "FINAL_SIGNED" });
+        } catch (cause) {
+          // refused: the new contract is not left behind as a draft of ours
+          if (cause instanceof ApiError && cause.status >= 400 && cause.status < 500) {
+            try { await api.archiveContract(contractId); } catch { /* the refusal is shown below */ }
+          }
+          throw cause;
+        }
+        toast(PRIOR_COPY.filed);
+        await onDone();
+        return;
+      }
 
       // AM-64 (owner, 2026-09-13): the reader never selects a type. The assist
       // lane's CONFIDENT inference is recorded and audited as the intake does
@@ -145,7 +168,10 @@ export function UploadToClient({ client, onDone, initialContractId }: {
         <label className="ws-field">
           <span className="ws-field__label">This is</span>
           <select value={intoContractId} disabled={busy}
-                  onChange={(event) => setIntoContractId(event.target.value)}>
+                  onChange={(event) => {
+                    setIntoContractId(event.target.value);
+                    if (event.target.value && role === SIGNED_EARLIER) setRole("");  // new documents only
+                  }}>
             <option value="">A new document</option>
             {existing.map((contract) => (
               <option key={contract.id} value={contract.id}>
@@ -170,7 +196,12 @@ export function UploadToClient({ client, onDone, initialContractId }: {
             {VERSION_ROLES.filter((r) => r.role !== "FINAL_SIGNED").map((r) => (
               <option key={r.role} value={r.role}>{`${r.label} — ${r.hint}`}</option>
             ))}
+            {/* AM-465 (owner Q1): filed for reference only, on a new document — never "Mark signed" */}
+            {!intoContractId ? <option value={SIGNED_EARLIER}>{PRIOR_COPY.uploadRole}</option> : null}
           </select>
+          {role === SIGNED_EARLIER && !intoContractId ? (
+            <span className="ws-field__help">{PRIOR_COPY.uploadHint}</span>
+          ) : null}
         </label>
 
         {/* Name and type belong to the DOCUMENT, so they are asked for only
