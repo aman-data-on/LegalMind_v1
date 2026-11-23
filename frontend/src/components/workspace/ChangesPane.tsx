@@ -39,7 +39,7 @@ import {
   clauseName, effectLabel, effectSentence, type Measured,
   type AcceptableEffect,
   answersAsLegal, explanation, formattingOnly, changeBucket, historyLine, matches, readerFavour, readerStatus, readerWord, replyBlockers,
-  oursLabel, rowMeta, topicOf, whoLine, where,
+  firstWords, oursLabel, rowMeta, topicOf, whoLine, where,
   type Answer, type ChangeList, type ClientChange, type EffectForUs, type Filter, type ManualRow, type ReplyGate,
 } from "@/lib/changes";
 import type { DocumentVersion, Evaluation, Finding } from "@/lib/types";
@@ -667,15 +667,6 @@ export function rowLabel(change: ClientChange, groupLabel: string): string {
   // unless its name (a repeated number) already says its own words
   if (!change.clause.heading && !change.clause.name && change.clause.number && words) return `${label} ${words}`;
   return label !== groupLabel ? label : words || label;
-}
-
-/** The changed passage's first words, for a change whose clause has no heading. */
-function firstWords(change: ClientChange): string {
-  const raw = (change.after ?? change.before)?.text.replace(/\s+/g, " ").trim() ?? "";
-  // the clause's own number is already said beside it
-  const n = change.clause.number;
-  const text = n && raw.startsWith(n) ? raw.slice(n.length).replace(/^[.)\s]+/, "") : raw;
-  return text.length > 64 ? `${text.slice(0, 62).trimEnd()}…` : text;
 }
 
 

@@ -538,3 +538,43 @@ def test_an_ordinary_cap_is_still_read():
     ):
         cap = extract_liability_facts([clause(text)], config).caps[0]
         assert (cap.cap_status, cap.cap_value) == (FINITE, 12), text
+
+
+# ----------------------------------------- batch 8 R3b (AM-462): a sentence broken in two
+def _read_with(rows: list[Clause], phrase: str) -> list[str]:
+    """The clauses a figure is read from, as `_extract` reads them (the mapping confirms
+    the rows holding ``phrase``)."""
+    from legalmind.analysis.service import _page_breaks_joined, _with_continuations
+    from legalmind.mapping.engine import map_requirement
+    from legalmind.mapping.rules import MappingRules
+    mapping = map_requirement(uuid4(), MappingRules(exact_phrases=(phrase,),
+                                                    confirm_threshold=5), rows)
+    return [c.content for c in _page_breaks_joined(_with_continuations(rows, mapping))]
+
+
+_UPON = Clause(evidence_id=uuid4(), content="Early termination charges may apply only "
+               "where the Customer terminates the Services for convenience upon thirty")
+_NOTICE = Clause(evidence_id=uuid4(), content="(30) days' prior written notice, and in no "
+                 "other case.")
+
+
+def test_a_parenthesised_figure_after_a_broken_line_is_read_with_its_sentence():
+    """The confirmed piece "(30) days' …" is read from the sentence it continues — before
+    R3b only the piece was read and its figure was not ("thirty" is in the row above)."""
+    other = Clause(evidence_id=uuid4(), content="16. Notices.", section_number="16")
+    assert _read_with([_UPON, _NOTICE, other], "prior written notice") == [
+        f"{_UPON.content} {_NOTICE.content}"]
+
+
+def test_a_finished_sentence_is_not_joined_to_a_parenthesised_list_item():
+    done = Clause(evidence_id=uuid4(), content="The Customer may terminate for convenience.")
+    item = Clause(evidence_id=uuid4(), content="(30) days' prior written notice applies "
+                  "to renewals.")
+    assert _read_with([done, item], "prior written notice") == [item.content]
+
+
+def test_a_table_row_is_never_joined():
+    row = Clause(evidence_id=uuid4(), content="| Notice period | thirty")
+    cell = Clause(evidence_id=uuid4(), content="| (30) days' prior written notice |")
+    assert _read_with([row, _NOTICE], "prior written notice") == [_NOTICE.content]
+    assert _read_with([_UPON, cell], "prior written notice") == [cell.content]

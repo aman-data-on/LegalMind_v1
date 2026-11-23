@@ -30,6 +30,10 @@ export interface DealBrief {
   /** one line per clause group the client changed (absent with no round) */
   asks?: BriefAsk[];
   asks_more?: number;
+  /** batch 8 R2.5: changes with no tracked change and no highlight — absent when none */
+  not_marked?: { count: number; total: number; highlights_read: boolean; more: number;
+                 /** `title` is the clause's heading, absent when it has none */
+                 rows: (Omit<BriefAsk, "title"> & { title?: string })[] };
   /** omitted for a reader without positions (LEGAL-02) */
   told?: Told[];
   our_mistake?: string;

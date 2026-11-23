@@ -9,6 +9,27 @@ No version has been released. The V1 specification is complete and implementatio
 ---
 
 ## [Unreleased]
+- AB-222 (2026-11-23, `AM-461`–`AM-463`; batch 8 sub-batch A "lessons from a real client MoU"; branch
+  `feat/case-lessons-a`, BUILT, independently verified, not deployed). **Not marked:** reader `legalmind-ingest-v13` records
+  a DOCX run's highlight (`metadata.highlighted`, metadata only — `REREAD_FROM` stays 12) and a table cell's comment;
+  each change row carries `unmarked` (no tracked change and no highlight covering it; a deletion never is) and
+  `punctuation_only`; `summary.unmarked` / `summary.highlights_read`; the deal brief's first block `not_marked`
+  (both personas) and the Changes tab's first banner list them, with "Copy line for the reply" (copy only). **Reading
+  fixes:** a sentence broken before "(30)" is read whole (CONVENIENCE-NOTICE on the case: UNABLE → MATCH); origin
+  and "worse" are read row by row inside a changed unit (DISPUTE-VENUE beside a changed price table: ALREADY_OURS);
+  a heading the client restyled is folded into the next clause with the un-folded key (no phantom DELETED rows);
+  "Only punctuation changed" labelled, still with Legal (Q4). **Commercial observations:** QUANTITY_TWO_WAYS,
+  BLANK_FIELD, TOTALS_DIFFER, OUR_CIN (`analysis/consistency.py`; the CIN shape now in `domain/client_profile.py`).
+  C-34 registered (not chosen). No migration, no API schema change. Production-copy probe: 0 of 12 answered keys
+  moved. Round 2 (independent verification, corrections c1–c5): a row of ours deleted inside a unit makes the
+  whole unit the client's change; "review" needs our own same result; "Only punctuation changed" is `same_words`;
+  typography-only rows leave the headline; CGST+SGST checked row by row, line sums only from the amount column,
+  every comparison rounded half up at the printed precision; the Changes tab again says when every untracked
+  change was highlighted. Round 3 (c6–c7): a prose row of ours rewritten in place (a carve-out replaced,
+  weakened or split) makes the whole clause the client's change — only table rows stay row by row; discount lines
+  are not summed, an unrated tax row leaves the total unchecked, the subtotal comes from the amount column.
+  Round 4 (c8, supersedes c1/c6): one fail-closed rule — row by row only when every changed row on either side is
+  a table row or a short title line; a prose carve-out the client inserts makes the whole clause theirs. Coordination: sub-batch B takes AM-464 onward (the spec's draft numbering is not used).
 - Full-stack audit 2026-11-23, batch P3 "database hygiene" (branch `perf/db-hygiene`; BUILT, NOT deployed; one
   migration `d340ac8e60fd`, no API schema change, no lock touched). Six indexes built `CONCURRENTLY` (autocommit
   block, `if_not_exists`, `lock_timeout` 60 s, an INVALID leftover dropped and rebuilt, the migration refuses to

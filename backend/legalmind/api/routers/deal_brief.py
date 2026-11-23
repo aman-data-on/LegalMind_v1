@@ -76,6 +76,19 @@ def _quote(row: dict) -> tuple[str, bool]:
     return _short(side.get("text", "")), row["after"] is None
 
 
+def _line(row: dict, headings: dict[str, str]) -> dict[str, Any]:
+    """A change as one brief line: its clause's top number and title, and the client's
+    own words."""
+    clause = row["clause"]
+    top = (clause["number"] or "").split(".")[0].rstrip(".")
+    quote, removed = _quote(row)
+    title = ((clause.get("group") or {}).get("name") or headings.get(top)
+             or clause["heading"] or clause.get("name") or quote[:60])
+    return {"title": title.capitalize() if title.isupper() else title,     # no caps
+            "clause": top or None, "quote": quote, "removed": removed,
+            "row_key": row["row_key"]}
+
+
 def _asks(rows: list[dict], headings: dict[str, str]) -> list[dict[str, Any]]:
     """One line per clause group the client changed, in contract order; formatting-only
     rows are not an ask."""
@@ -87,15 +100,35 @@ def _asks(rows: list[dict], headings: dict[str, str]) -> list[dict[str, Any]]:
         top = (clause["number"] or "").split(".")[0].rstrip(".")
         key = f"{top}|{(clause.get('group') or {}).get('key') or ''}" if top \
             else f"|{clause['heading'] or row['row_key']}"
-        if key in out:
-            continue
-        quote, removed = _quote(row)
-        title = ((clause.get("group") or {}).get("name") or headings.get(top)
-                 or clause["heading"] or clause.get("name") or quote[:60])
-        out[key] = {"title": title.capitalize() if title.isupper() else title,  # no caps
-                    "clause": top or None, "quote": quote, "removed": removed,
-                    "row_key": row["row_key"]}
+        if key not in out:
+            out[key] = _line(row, headings)
     return list(out.values())
+
+
+def _titled(row: dict, headings: dict[str, str]) -> bool:
+    """Whether a row's clause has a heading of its own (else `_line` titles it with the
+    client's words)."""
+    clause = row["clause"]
+    top = (clause["number"] or "").split(".")[0].rstrip(".")
+    return bool((clause.get("group") or {}).get("name") or headings.get(top)
+                or clause["heading"] or clause.get("name"))
+
+
+def _not_marked(listed: dict, headings: dict[str, str]) -> dict[str, Any] | None:
+    """Batch 8 R2.5 (`AM-461`): the changes the client made with no tracked change and
+    no highlight — first in the brief, for both personas (no position in it): the count,
+    the first lines in contract order, and whether highlights were read on their file.
+    None when every change is marked (the key is then omitted)."""
+    rows = [r for r in listed["changes"] if negotiation.not_marked(r)]
+    if not rows:
+        return None
+    return {"count": len(rows), "total": len(listed["changes"]),
+            "highlights_read": bool(listed["summary"].get("highlights_read")),
+            # a title only where the clause has a heading — never its own words twice
+            "rows": [{k: v for k, v in _line(r, headings).items()
+                      if k != "title" or _titled(r, headings)}
+                     for r in rows[:ASKS_SHOWN]],
+            "more": max(0, len(rows) - ASKS_SHOWN)}
 
 
 def _named(row: dict) -> str:
@@ -221,7 +254,10 @@ def deal_brief(contract_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
     if theirs is not None and "changes_total" in counts:
         listed, _, after = _changes(guard, contract, None, theirs.version_number)
         rows = listed["changes"]
-        asks = _asks(rows, _headings(db, after.id))
+        headings = _headings(db, after.id)
+        if (unmarked := _not_marked(listed, headings)) is not None:
+            out["not_marked"] = unmarked                          # batch 8 R2.5, first
+        asks = _asks(rows, headings)
         out.update(asks=asks[:ASKS_SHOWN], asks_more=max(0, len(asks) - ASKS_SHOWN))
     if (code := status(counts, stage.get("stage"),
                        legal=P.LEGAL_DECISION in guard.permissions,

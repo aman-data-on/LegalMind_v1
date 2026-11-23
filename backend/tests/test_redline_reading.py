@@ -567,3 +567,71 @@ def test_a_docx_page_size_without_its_attributes_does_not_fail_the_reading():
     d.save(buf)
     assert parsing.parse_docx(buf.getvalue()).segments[0].content == \
         "1. Fees are payable monthly."
+
+
+# ------------------------------------------- batch 8 R2.1 (AM-461): what the client lit
+def _lit(text: str, value: str = "yellow") -> str:
+    return (f'<w:r {_W}><w:rPr><w:highlight w:val="{value}"/></w:rPr>'
+            f'<w:t xml:space="preserve">{text}</w:t></w:r>')
+
+
+def _filled(text: str, fill: str) -> str:
+    return (f'<w:r {_W}><w:rPr><w:shd w:val="clear" w:color="auto" w:fill="{fill}"/>'
+            f'</w:rPr><w:t xml:space="preserve">{text}</w:t></w:r>')
+
+
+def test_a_highlighted_run_is_recorded_on_its_paragraph():
+    segments = _docx([_run("Notice is given within "), _lit("4 "), _lit("hours"),
+                      _run(" of discovery, "), _filled("by e-mail", "FFFF00"), _run(".")],
+                     [_run("Nothing is marked "), _lit("here", "none"),
+                      _filled(" or here", "auto"), _filled(" or here", "FFFFFF")])
+    assert segments[0].metadata["highlighted"] == ["4 hours", "by e-mail"]
+    assert "highlighted" not in segments[1].metadata     # omitted, never empty
+
+
+def test_a_highlight_in_a_table_cell_is_recorded_on_the_table():
+    segments = _docx([_run("1. The price is below.")],
+                     table=[_run("Quantity"), _lit("05")])
+    table = next(s for s in segments if s.source_type.value == "TABLE")
+    assert table.metadata["highlighted"] == ["05"]
+
+
+def test_paragraph_and_cell_shading_is_not_a_highlight():
+    import io
+
+    import docx
+    from docx.oxml import parse_xml
+    d = docx.Document()
+    p = d.add_paragraph("A shaded paragraph is layout.")
+    p._p.get_or_add_pPr().append(parse_xml(f'<w:shd {_W} w:val="clear" w:fill="FFFF00"/>'))
+    cell = d.add_table(rows=1, cols=1).rows[0].cells[0]
+    cell.text = "A shaded cell is layout."
+    cell._tc.get_or_add_tcPr().append(parse_xml(f'<w:shd {_W} w:val="clear" '
+                                                'w:fill="FFFF00"/>'))
+    buf = io.BytesIO()
+    d.save(buf)
+    assert not any("highlighted" in s.metadata
+                   for s in parsing.parse_docx(buf.getvalue()).segments)
+
+
+def test_highlighted_deleted_text_is_not_recorded():
+    deleted = (f'<w:del {_W} w:id="1" w:author="c"><w:r><w:rPr><w:highlight w:val='
+               '"yellow"/></w:rPr><w:delText xml:space="preserve">24 hours</w:delText>'
+               '</w:r></w:del>')
+    segments = _docx([_run("Notice within "), deleted, _lit("4 hours"), _run(".")])
+    assert segments[0].metadata["highlighted"] == ["4 hours"]
+
+
+def test_v13_reads_the_same_text_boundaries_and_ids_as_v12(monkeypatch):
+    """R2.1: highlights are metadata only — the same file read with highlight reading
+    off (as v12) and on gives the same rows, text and offsets."""
+    paragraphs = ([_run("1. Fees are "), _lit("payable monthly"), _run(".")],
+                  [_run("2. Notices are in writing.")])
+    on = _docx(*paragraphs, table=[_run("Qty"), _lit("04")])
+    monkeypatch.setattr(parsing, "_docx_highlighted", lambda p: [])
+    off = _docx(*paragraphs, table=[_run("Qty"), _lit("04")])
+    shape = [[(s.content, s.start_offset, s.end_offset, s.section_number,
+               s.source_type) for s in segs] for segs in (on, off)]
+    assert shape[0] == shape[1] and len(on) == 3
+    assert [{k: v for k, v in s.metadata.items() if k != "highlighted"} for s in on] \
+        == [s.metadata for s in off]

@@ -2,18 +2,38 @@
  * The Changes tab's notes above the list — each one only where it says something true
  * about this pair, in the server's facts: which of our versions the client's is compared
  * with, a side whose Annexure A could not be read, a blank template's link, the changes
- * the client did not mark (R2), and the client's comments on clauses they did not change.
+ * the client did not mark (R2; batch 8: first, with highlights read, the list and a line
+ * for the reply), and the client's comments on clauses they did not change.
  * Split out of `ChangesPane` (batch 1, redline truth); presentation only.
  */
-import { CHANGES_COPY, RETURNED_COPY } from "@/lib/labels";
-import { answersAsLegal, clauseName, historyLine, type ChangeList, type ClientChange } from "@/lib/changes";
+import { CHANGES_COPY, NOT_MARKED_COPY, RETURNED_COPY } from "@/lib/labels";
+import { answersAsLegal, clauseName, firstWords, historyLine, notMarkedRows, type ChangeList, type ClientChange } from "@/lib/changes";
+import { openChange } from "@/lib/dealBrief";
 import { displayTitle } from "@/lib/templates";
+import { NotMarked } from "./NotMarked";
 import { CommentLines } from "./WordComments";
 
-export function ChangesBanners({ data, allUntracked }: { data: ChangeList; allUntracked: boolean }) {
+/** the not-marked banner's links: as many as the brief shows, then "and N more" */
+const SHOWN = 6;
+
+export function ChangesBanners({ data }: { data: ChangeList; allUntracked?: boolean }) {
   const elsewhere = data.comments_elsewhere ?? [];
+  const unmarked = notMarkedRows(data);
+  // round 2: untracked but highlighted — said once when nothing is unmarked
+  const lit = data.changes.filter((c) => c.untracked && !c.unmarked).length;
   return (
     <>
+      {!unmarked.length && lit ? (
+        <p className="cx-banner" role="note">{NOT_MARKED_COPY.allHighlighted(lit, data.summary.total)}</p>
+      ) : null}
+      {unmarked.length ? (
+        <NotMarked count={data.summary.unmarked ?? unmarked.length} total={data.summary.total}
+                   highlightsRead={!!data.summary.highlights_read} onOpen={openChange} inline
+                   more={Math.max(0, unmarked.length - SHOWN)}
+                   // named as the brief names them; the list below tags every one
+                   items={unmarked.slice(0, SHOWN).map((c) => ({ rowKey: c.row_key, name: NOT_MARKED_COPY.clause(
+                     c.clause.number, c.clause.heading ?? c.clause.name, firstWords(c)) }))} />
+      ) : null}
       {data.from ? <p className="cx-banner" role="note">{CHANGES_COPY.comparedWith(data.from.version_number)}</p> : null}
       {data.tracked_base ? <p className="cx-banner" role="note">{RETURNED_COPY.banner}
         {/* item 12: Legal sees why Keep our wording is missing here (AM-459, Q2) */}
@@ -35,25 +55,12 @@ export function ChangesBanners({ data, allUntracked }: { data: ChangeList; allUn
           {data.template.message ? <><br /><strong>{data.template.message}</strong></> : null}
         </p>
       ) : null}
-      {data.summary.untracked > 0 ? (
-        <p className="cx-banner" role="note">
-          {allUntracked ? (
-            <>{data.summary.total === 1 ? <>This change is not</> : <>None of these <strong>{data.summary.total}</strong> changes is</>} marked in the
-              client&rsquo;s file — {data.summary.total === 1 ? "it was" : "they were"} made without tracking. LegalMind found each one
-              by comparing the text.</>
-          ) : (
-            <><strong>{data.summary.untracked}</strong> of {data.summary.total} changes {data.summary.untracked === 1 ? "is" : "are"} not
-              marked in the client&rsquo;s file (made without tracking). Each is tagged
-              &ldquo;Untracked&rdquo; in the list.</>
-          )}
-        </p>
-      ) : null}
       {elsewhere.length ? (
         <details className="cx-banner cx-elsewhere">
           <summary>{CHANGES_COPY.commentsElsewhere(elsewhere.length)}</summary>
           {elsewhere.map((c, i) => (
             <div key={i} className="ws-row__notes">
-              <p className="cx-label">{clauseName(c.clause) || "Unnumbered text"}</p>
+              <p className="cx-label">{clauseName(c.clause) || CHANGES_COPY.unnumbered}</p>
               <CommentLines comments={[c]} />
             </div>
           ))}

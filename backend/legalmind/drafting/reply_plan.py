@@ -141,7 +141,7 @@ def reply_rows(db: DBSession, before: M.DocumentVersion | None, after: M.Documen
     old, new = N._units(ours), N._units(theirs)
     if template:
         N.as_filled(old, new, template)
-    rows = N._align(old, new)
+    rows = N.fold_headings(old, new, N._align(old, new))    # batch 8 R3d-2, as changes
     paired = {i: j for i, j, moved in rows
               if i is not None and j is not None and not moved}
 

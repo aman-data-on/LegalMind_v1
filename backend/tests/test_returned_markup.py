@@ -128,6 +128,17 @@ def test_tracked_only_never_reports_untracked(api, db, owner):
     assert "template" not in listed and listed["from"] is None       # omitted, not nulled
 
 
+def test_tracked_base_rows_are_never_unmarked(api, db, owner):
+    """Batch 8 R2.3 (`AM-457`): our side IS their text before the marks, so no change on
+    the tracked-only base can be "not marked" — and the brief says nothing about it."""
+    c, _ = _tracked_deal(api, db, owner)
+    listed = _changes(api, c)
+    assert listed["summary"]["unmarked"] == 0
+    assert not any(ch["unmarked"] for ch in listed["changes"])
+    brief = api.get(f"{V1}/contracts/{c.id}/brief")
+    assert brief.status_code == 200 and "not_marked" not in brief.json()["data"]
+
+
 def test_tracked_only_keys_stable_and_answers_survive(api, db, owner):
     """`AM-253`/`AM-433`: the same keys on every read; an answer stored with the left key
     ``tracked:<version>`` (the CHECK holds) is read back on reload (review M1)."""

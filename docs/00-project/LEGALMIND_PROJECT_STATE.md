@@ -11,6 +11,13 @@
 
 ---
 
+**2026-11-23 — AB-222, batch 8 part A (BUILT, not deployed).** Lessons from a real client MoU. The changes a client
+made with no tracked change and no highlight now come first in the deal brief and on the Changes tab, with a line
+sales can copy into the reply. A comment in a table, a sentence broken across two lines, a clause read with a changed
+price table, and a heading the client restyled are no longer misread; a change to punctuation alone says so and
+still goes to Legal. Quantities stated two ways, a blank field, totals that do not add up and our own CIN printed
+wrongly are flagged as things to check. Part B ("already agreed before", triage reasons, which standard set) is next.
+
 **2026-11-23 — Database batch P3 (BUILT, not deployed).** Deleting a contract is about six times faster (0.47 s → 0.07 s for the largest), the audit-trail reads that To-do and the template pages make stay instant as the trail grows (tested at 50× today's size), and a failed table read in a PDF is now logged instead of silent. One database change, built without pausing the live site; the audit log's page count stays exact (a locked rule).
 **2026-11-23 — Speed batch P1 (BUILT, not deployed).** From the full-stack audit: one person's screens no
 longer wait for each other (a second request beside the contracts list: 1.2 s → 0.04 s), the contracts

@@ -13,6 +13,16 @@ Finding Classification. They describe filing, not law.
 
 from __future__ import annotations
 
+import re
+
+# --------------------------------------------------------------------------
+# `AM-286` r3: an Indian company or LLP identifier — shapes only, no lookup service.
+# One definition, read by the client-details form (`api.schemas`) and by the
+# observation on our own printed CIN (`analysis.consistency`, batch 8 R6.4).
+# --------------------------------------------------------------------------
+CIN = r"[LU]\d{5}[A-Z]{2}\d{4}[A-Z]{3}\d{6}"
+CIN_OR_LLPIN = re.compile(rf"{CIN}|[A-Z]{{3}}-\d{{4}}")
+
 # --------------------------------------------------------------------------
 # Client status — the relationship state, in a non-legal reader's words.
 # --------------------------------------------------------------------------

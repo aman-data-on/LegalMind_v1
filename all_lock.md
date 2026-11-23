@@ -31592,3 +31592,125 @@ c3  The bulk answers ("Accept all with no change for us", "Keep our wording on a
     same left side as one answer: on the tracked-only base its tracked:<version> key, on our blank template its
     template:<version> key (AM-302) — never no left side, which only a client-paper-first row may have.
 ```
+
+## AMENDMENT BATCH AB-222 — `AM-461`–`AM-463` (2026-11-23): lessons from a real client MoU, sub-batch A
+
+Owner instruction (2026-11-23): "defaults ok, go with batch 8" — the batch 8 specification (lessons from a client MoU
+returned by its lawyer), built in two sub-batches; this record is sub-batch A (items 2, 3 and 6). Owner answers the
+same day, each the specification's recommended default: Q3 a client's highlight is their "marked" signal for the
+words it covers and a deletion is never covered (Legal may revise); Q4 a change to punctuation alone stays with Legal,
+labelled "Only punctuation changed"; Q6 C-34 is registered, never chosen; Q7 our office and Act unchanged here; Q8 a
+copy-only line for sales, never sent automatically; Q9 the two case files in the gitignored source-material folder,
+read by structural tests only. Product and engineering under the owner's "product over locks" delegation and these
+answers; nothing here is a Finding, Classification, Rule Outcome, Mapping State, Legal Decision or lifecycle change
+(rules 10/13); no legal position, threshold, tolerance or vocabulary is added (rules 7/21); no authorization is
+widened. IDs scanned: AB-222, AB-223, AM-461–468, C-34, C-35 on origin/main, every remote branch, every worktree (code
+comments included) and the open PRs (#335, #322, #285, #270). The specification's draft numbering (AM-461 "already
+agreed before" … AM-467) is not used: sub-batch A takes AM-461–463 and sub-batch B takes later free numbers.
+
+`AM-461` — "NOT MARKED": HIGHLIGHTS READ, THE COUNT, THE LIST AND A LINE FOR THE REPLY (riders on `AM-185`, `AM-434`
+r1, `AM-457`).
+```text
+r1  Reader legalmind-ingest-v13: a visible DOCX run whose w:highlight is not "none", or whose run shading fills a
+    colour (w:shd fill not auto/FFFFFF/empty), is highlighted; consecutive highlighted runs are one string, kept on
+    the paragraph's or the table's metadata.highlighted (omitted when none). Paragraph and cell shading are layout;
+    deleted or moved-away text is never highlighted; underline is not a mark. Content, boundaries and evidence ids
+    are v12's. Rider on AM-185 / batch 6 D1: v13 adds metadata only, so it adds no READER_ADDS entry and REREAD_FROM
+    stays 12 (a v12/v13 pair reads alike); stored rows are never re-read (rule 16).
+r2  The clause carries the highlighted text apart from its marks (never part of "marks", whose readers take any mark
+    for a tracked change); nothing in mapping or evaluation reads it.
+r3  A change row's "unmarked" is true when it is untracked and the client's wording before its marks, word by word
+    against ours (their whole deletions out), removes or replaces a word of ours, or adds a word their highlights do
+    not cover. A deletion can never be covered by a highlight. A change of punctuation alone has no word to cover and
+    reads as not marked (fail toward "not marked"). Tracked rows, and every row on the tracked-only base (AM-457),
+    are never unmarked.
+r4  summary.unmarked counts the unmarked rows other than formatting-only ones (AM-434 r1: from the change rows);
+    summary.highlights_read is false for a client file read before v13, and the screen then says "not marked as
+    tracked changes" and never claims highlights were read.
+r5  The deal brief's first block, for both personas (it holds no position): not_marked {count, total,
+    highlights_read, rows (the first 6, in contract order, as the asks' lines), more}, omitted when none. The
+    Changes tab shows the same block first, every row a link. A row reads ", not marked" or ", highlighted, not
+    tracked". "Copy line for the reply" copies one line that names clauses only (LEGAL-02); it is never sent.
+```
+
+`AM-462` — READING FIXES: A TABLE'S COMMENTS, A SENTENCE BROKEN IN TWO, A CLAUSE BESIDE A CHANGED TABLE, A RESTYLED
+HEADING, PUNCTUATION ONLY (riders on `AM-253`/`AM-433`, `AM-299` r1, `AM-317` r1).
+```text
+r1  v13: a comment anchored in a table cell is kept beside that table (the paragraph path's own xpath, text boxes
+    excluded); a range spanning a table is placed once, where it starts.
+r2  Read time (no key or parse change): a confirmed row that is prose (unnumbered, not a heading, not a table row)
+    opening in lowercase or with "(" + digits + ")" is read from the row before it when that row is prose ending with
+    no terminal punctuation; a loose "(30) …" piece is joined to such a row for reading a figure. Evidence rows are
+    untouched; the joined clause cites the row it continues.
+r3  Origin by row (lawyer_rows.changed_evidence): inside a paired changed unit only the client's rows whose text is
+    not one of our rows of that unit are "changed"; a point reading only unchanged rows is ALREADY_OURS by the
+    existing rule. Splitting a table into a unit of its own stays deferred (its own probe and generation gate).
+r4  Rider on AM-299 r1: a deviation counts toward "worse" only when it reads a row the client changed; on rows the
+    client left as we sent them it is "review". Never a routing input: the route and effect are unchanged.
+r5  Rider on AM-253/AM-433: a heading-only unit left unpaired is folded into the next paired unit on its side when the
+    unit paired with that one opens with the same line (either side). The row then compares heading + clause, keeps
+    the un-folded pair's key, and the unpaired row is dropped; the change list and the reply plan fold alike. A
+    heading really deleted or added still shows.
+r6  A MODIFIED row whose two sides have the same letters, punctuation aside, carries punctuation_only and reads "Only
+    punctuation changed". Q4 (Legal): the route is unchanged — it stays with a holder; a Legal yes would be a rider
+    on AM-317 r1 and is not built.
+```
+
+`AM-463` — COMMERCIAL CONSISTENCY OBSERVATIONS (riders on `AM-159`, `AM-197`, `AM-241`).
+```text
+r1  New observation kinds, never Findings, each with action words: QUANTITY_TWO_WAYS (one item — its bracketed label,
+    else its description — given two different quantities in a Qty/Quantity column; "Check the quantities against
+    the quote"); BLANK_FIELD (a capitalised "Label:" with nothing after it in a table cell, reported only where the
+    same label has a value elsewhere; "Fill in the blank before signing"); TOTALS_DIFFER (in one table, the stated
+    tax against the subtotal at its stated rate, the line amounts against the subtotal, subtotal + tax against the
+    total; "Check the totals before signing"); OUR_CIN (our CIN printed with a character glued to it, or, in prose
+    read forward from our name, a CIN that is not the one Constitution §4.1 records; "Correct our own details
+    before signing").
+r2  No threshold: every figure is compared at the precision the document prints it (paise or rupees); a missing row
+    means that check is not made. No list of labels is kept. The client's CIN is never checked as ours; in a table
+    only a stray character on §4.1's own CIN is said. OUR_CIN quotes §4.1 as its basis and never calls a value
+    wrong (its source stays open for Legal, AM-452 r3).
+r3  The CIN/LLPIN shape (AM-286 r3) has one definition in the domain layer, read by the client-details form and by
+    OUR_CIN.
+```
+
+C-34 (which positions measure an Other Agreement: our MSA's, AM-380, or the Constitution's general Sections 9-22,
+§31.13) is registered in CONFLICTS.md by this batch for both sub-batches. It is not chosen and nothing is re-measured.
+
+`AM-461`, `AM-462` and `AM-463` — CORRECTIONS (2026-11-23, AB-222 independent verification round 2; appended, the
+lines above stand as written).
+```text
+c1  AM-462 r3 narrowed toward failing closed: inside a changed unit the client's rows are paired with ours in order;
+    a row of ours left with no row of theirs (a carve-out paragraph the client deleted) makes every row of the unit
+    "changed", as before r3. The route's own row test is unchanged.
+c2  AM-462 r4 narrowed toward failing closed: a deviation read only on rows the client left as we sent them is
+    "review" only where our own version gave the same standard the same result; otherwise it stays "worse".
+c3  AM-462 r6 corrected: "Only punctuation changed" is the AM-321 r2 same_words test (the same words in the same
+    order), never "the same letters" — a figure whose separator moved ("1,000" -> "1.000") is a change of words.
+c4  AM-461 r4 narrowed: a change whose two sides differ only in quote marks, dashes or spacing (typography_only) is
+    not counted in the not-marked headline, even where a measured clause keeps it with a holder.
+c5  AM-463 r1/r2 corrected: every tax row with a stated rate (CGST and SGST alike) is checked on its own, and the
+    total against the subtotal plus every tax; line amounts are read only from the column headed amount, total or
+    value (no such column: not summed). Every comparison rounds half up at the stated figure's printed precision.
+```
+
+`AM-462` and `AM-463` — CORRECTIONS (2026-11-23, AB-222 independent verification round 3; appended, the lines above
+stand as written).
+```text
+c6  AM-462 r3 (after c1) narrowed toward failing closed: inside a changed unit only TABLE rows of ours rewritten are
+    marked one by one; a prose row of ours rewritten in place — a carve-out replaced, reworded or split — makes
+    every row of the unit "changed", as a deletion does. Rows the client only added stay row by row.
+c7  AM-463 r1 (after c5): line amounts are not summed when a line takes away (a minus sign in its amount, or a first
+    cell naming a discount, "Less:" or a rebate); the total is not checked beside a tax row with no stated rate (fail
+    silent); the subtotal is read from the amount column when the table has one.
+```
+
+`AM-462` — CORRECTION (2026-11-23, AB-222 independent verification round 4; appended, the lines above stand as
+written).
+```text
+c8  AM-462 r3 restated as one fail-closed rule, superseding c1 and c6: inside a changed unit the rows are paired in
+    order, and the change is marked row by row only when every row on either side of every changed span
+    (inserted, replaced or deleted) is a table row ("| …") or a short title line (at most eight words, one line, no
+    terminal punctuation). Any prose row the client inserted, rewrote, split, merged or deleted makes every row of
+    the unit "changed". A carve-out worded inside a table row is not recognised (new vocabulary: owner, rule 21).
+```

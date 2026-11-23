@@ -459,3 +459,30 @@ def test_a_queued_reply_analysis_is_sent_only_after_the_commit(db, owner, monkey
     assert out.mode is dispatch.DispatchMode.QUEUED and sent == []
     db.dispatch.after_commit(db)
     assert [m["review_id"] for m in sent] == [str(review.id)]
+
+
+def test_reply_over_a_folded_heading_builds(db, owner, tmp_path):
+    """Batch 8 R3d-2: ours read "Force Majeure" as a unit of its own, the client's
+    restyled file reads it as the first line of the clause. Keep ours on the folded row
+    rewrites only the changed paragraph — the heading is never inserted a second time."""
+    import docx
+
+    from legalmind.drafting.reply_plan import Answer, reply_rows
+    from tests.test_negotiation import FM, NO_LIABILITY, OURS_FM, _headed
+    c = _contract(db, owner)
+    ours = _headed(db, c, 1, OURS_FM)
+    d = docx.Document()
+    d.add_paragraph(OURS_FM[0][2])
+    d.add_paragraph(FM, style="Heading 1")
+    d.add_paragraph(NO_LIABILITY)
+    d.add_paragraph("Includes floods, strikes and pandemics.")
+    buf = io.BytesIO()
+    d.save(buf)
+    theirs = _ingest(db, tmp_path, c, buf.getvalue(), "theirs.docx")
+    [row] = negotiation.changes(db, c, ours, theirs, legal_position=True)["changes"]
+    assert row["kind"] == "MODIFIED"
+    [plan] = reply_rows(db, ours, theirs, {row["row_key"]: Answer("keep_ours")},
+                        buf.getvalue())
+    assert plan.error is None
+    assert [(e.anchor_text, e.new_text) for e in plan.edits] == [
+        ("Includes floods, strikes and pandemics.", "Includes floods and strikes.")]

@@ -577,6 +577,9 @@ def _v12_adds(normalized: str, style: str | None) -> Reading | None:
 #: re-read applies the generations after the row's own up to the pair's newer side —
 #: never today's whole reader — so a later reader bump adds its own entry and cannot
 #: move the rows of a pair already compared. Keep an entry's rules as they shipped.
+#: `legalmind-ingest-v13` (batch 8) reads highlights and a table cell's comments — row
+#: metadata only, no number, heading or boundary — so it adds no entry and `REREAD_FROM`
+#: stays 12: a v12/v13 pair reads alike.
 READER_ADDS = {12: _v12_adds}
 
 
@@ -3264,6 +3267,37 @@ def _docx_emphasis(p) -> list[list]:
     return out
 
 
+#: `legalmind-ingest-v13` (batch 8 R2.1, `AM-461`): a run fill that is no highlight
+_NO_FILL = ("", "auto", "ffffff")
+
+
+def _docx_highlighted(p) -> list[str]:
+    """The text of a ``w:p``'s own highlighted runs, consecutive runs as one string —
+    what the client marked without tracking it (batch 8 R2.1). A visible run whose
+    ``w:highlight`` is not ``none``, or whose run shading fills a colour (how some
+    editors write a highlight); paragraph and cell shading are layout, never a mark, and
+    deleted or moved-away text is not visible, so it is never "highlighted". Underline
+    is not a mark (hyperlinks and e-mail addresses carry it)."""
+    depth = len(p.xpath("ancestor-or-self::w:p"))
+    out: list[str] = []
+    joined = False
+    for r in p.xpath(f".//w:r[count(ancestor::w:p) = {depth} and {_VISIBLE_RUN}]"):
+        text = "".join("\n" if el.tag == _W + "br" else str(el) for el in r.xpath(
+            "w:br | w:cr | w:noBreakHyphen | w:ptab | w:t | w:tab"))
+        if not text:
+            continue
+        mark = r.find(f"{_W}rPr/{_W}highlight")
+        fill = r.find(f"{_W}rPr/{_W}shd")
+        lit = (mark is not None and (mark.get(_W + "val") or "none") != "none") or (
+            fill is not None and (fill.get(_W + "fill") or "").lower() not in _NO_FILL)
+        if lit and joined:
+            out[-1] += text
+        elif lit:
+            out.append(text)
+        joined = lit
+    return [n for n in map(normalize_text, out) if n]
+
+
 def _docx_revision(p) -> dict | None:
     """A ``w:p``'s tracked changes as `_record_revisions` records a PDF's (AM-146): the
     ORIGINAL text (deletions kept, insertions dropped) and each change. ``None`` for a
@@ -3681,11 +3715,13 @@ def parse_docx(data: bytes, *, render_pages: bool = False) -> ParseResult:
             normalized, first_line, number, title, next_text, bold=styled)
         noted = p.xpath("./w:commentRangeStart/@w:id | .//w:r/w:commentReference/@w:id")
         weight = _docx_emphasis(p) if normalized == raw else []   # offsets hold as-is
+        lit = _docx_highlighted(p)                                  # v13, R2.1
         emit(raw, EvidenceSourceType.NATIVE_TEXT, page, number, title,
              {"style": style.name if style else None, **markers,
               **({"emphasis": weight} if weight else {}),
               **keep(_docx_revision(p), normalized),
-              **({"comment_ids": sorted(set(noted))} if noted else {})})
+              **({"comment_ids": sorted(set(noted))} if noted else {}),
+              **({"highlighted": lit} if lit else {})})
         pictures(p, page)
 
     table_index = 0
@@ -3698,8 +3734,15 @@ def parse_docx(data: bytes, *, render_pages: bool = False) -> ParseResult:
             rows = _docx_rows(block)
             table_index += 1
             # A tracked change in a cell is recorded as a paragraph's is (AM-157).
-            changes = [c for cell in block.xpath(".//w:p[not(ancestor::w:txbxContent)]")
+            cells = block.xpath(".//w:p[not(ancestor::w:txbxContent)]")
+            changes = [c for cell in cells
                        for c in (_docx_revision(cell) or {}).get("changes", ())]
+            # v13 (batch 8 R2.1/R3a): its cells' highlights, and the comments made in a
+            # cell — the paragraph path's xpath — so a comment there is placed, not lost
+            lit = [h for cell in cells for h in _docx_highlighted(cell)]
+            noted = block.xpath(
+                ".//w:commentRangeStart[not(ancestor::w:txbxContent)]/@w:id | "
+                ".//w:r[not(ancestor::w:txbxContent)]/w:commentReference/@w:id")
             revision = {"original": normalize_text("\n".join(
                 table_row(list(row)) for row in _docx_rows(block, original=True))),
                 "changes": changes} if changes else None
@@ -3708,7 +3751,9 @@ def parse_docx(data: bytes, *, render_pages: bool = False) -> ParseResult:
                 drop(revision)
             emit(text, EvidenceSourceType.TABLE, page,
                  metadata={"table_index": table_index, "rows": len(rows),
-                           **(keep(revision, normalize_text(text)) if rows else {})})
+                           **(keep(revision, normalize_text(text)) if rows else {}),
+                           **({"comment_ids": sorted(set(noted))} if noted else {}),
+                           **({"highlighted": lit} if lit else {})})
         else:
             page = page_of.get(block)
             paragraph(block, page, following[block])

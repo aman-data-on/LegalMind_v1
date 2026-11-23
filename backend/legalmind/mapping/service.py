@@ -87,6 +87,7 @@ def load_clauses(db: DBSession, document_version_id: UUID) -> list[Clause]:
             page_number=e.page_number,
             is_heading=bool((e.evidence_metadata or {}).get("heading")),
             marks=_marks(e.evidence_metadata or {}),
+            highlighted=tuple((e.evidence_metadata or {}).get("highlighted") or ()),
         )
         for e in rows
     ]

@@ -55,6 +55,7 @@ accepted together (`accept_by_effect`, r2).
 """
 from __future__ import annotations
 
+import difflib
 import json
 import re
 import unicodedata
@@ -406,6 +407,8 @@ def _units(clauses: list[Clause]) -> list[dict[str, Any]]:
     for unit in units:
         rows = unit.pop("rows")
         unit["evidence_ids"] = [str(r.evidence_id) for r in rows]
+        # a heading alone (batch 8 R3d-2): a row the reader marked a heading, nothing more
+        unit["heading_only"] = len(rows) == 1 and rows[0].is_heading
         unit["texts"] = [r.content or "" for r in rows]
         unit["text"] = "\n".join(unit["texts"])
         # each row's wording before its tracked changes; "" for text only moved or
@@ -413,6 +416,8 @@ def _units(clauses: list[Clause]) -> list[dict[str, Any]]:
         unit["original"] = "\n".join(r.content or "" if (r.marks or {}).get("original")
                                      is None else r.marks["original"] for r in rows)
         unit["changes"] = [c for r in rows for c in (r.marks or {}).get("changes") or ()]
+        # what the client highlighted on its rows (v13, batch 8 R2.2) — never a change
+        unit["highlighted"] = [h for r in rows for h in r.highlighted]
         # the Word comments made on its rows — a reader's notes, never its text
         unit["comments"] = [{"author": c.get("author") or "", "text": c["text"]}
                             for r in rows for c in (r.marks or {}).get("comments") or ()
@@ -708,6 +713,138 @@ def _align(old: list[dict], new: list[dict], by_number: set[int] | None = None
     return rows
 
 
+def _first_line(unit: dict) -> str:
+    first = unit["texts"][0].split("\n", 1)[0] if unit["texts"] else ""
+    return _typography(first).strip()
+
+
+def _joined(head: dict, unit: dict) -> dict:
+    """``unit`` with the heading-only unit ``head`` above it — keyed as ``unit`` was."""
+    return {**unit, "key": unit.get("key") or unit["evidence_ids"][0],
+            "number": head["number"] or unit["number"],
+            "heading": head["heading"] or unit["heading"],
+            **{k: head[k] + unit[k] for k in ("evidence_ids", "texts", "changes",
+                                               "comments", "highlighted")},
+            "text": f'{head["text"]}\n{unit["text"]}',
+            "original": f'{head["original"]}\n{unit["original"]}'}
+
+
+def fold_headings(old: list[dict], new: list[dict],
+                  rows: list[tuple[int | None, int | None, bool]]
+                  ) -> list[tuple[int | None, int | None, bool]]:
+    """Batch 8 R3d-2 (`AM-462`): a heading one paper reads as a unit of its own and the
+    other as the first line of the clause under it (a heading restyled — the reader's
+    heading flag follows the formatting). A heading-only unit left unpaired is folded
+    into the next paired unit on its side when the unit paired with that one OPENS with
+    the same line (`_typography`-equal): the unit (``old``/``new``, replaced in place)
+    then reads heading + clause, its row keeps the un-folded key (``key``, `AM-253`/
+    `AM-433`), and the unpaired row is dropped. A heading really deleted or added — no
+    such opening line — still shows. Run after `_align`, by `changes` and
+    `reply_plan.reply_rows` alike."""
+    dropped: set[tuple[int | None, int | None]] = set()
+    for side, other, at in ((old, new, 0), (new, old, 1)):
+        pair = {a: b for a, b in ((r[at], r[1 - at]) for r in rows)
+                if a is not None and b is not None}
+        for row in rows:
+            k, mate = row[at], row[1 - at]
+            if k is None or mate is not None or not side[k].get("heading_only"):
+                continue
+            nxt = next((x for x in range(k + 1, len(side)) if x in pair), None)
+            head = _first_line(side[k])
+            if nxt is not None and head and _first_line(other[pair[nxt]]) == head \
+                    and _first_line(side[nxt]) != head \
+                    and _typography(side[k]["text"]).strip() == head:
+                side[nxt] = _joined(side[k], side[nxt])
+                dropped.add((row[0], row[1]))
+    return [r for r in rows if (r[0], r[1]) not in dropped]
+
+
+def _row_by_row(text: str) -> bool:
+    """A row whose change never speaks for the clause it sits in: a table row ("| …",
+    R3c's case — a price table under a clause) or a short title line (one line of at most
+    `_HEADING_WORDS` words with no terminal punctuation — "Legal Terms & Conditions:")."""
+    t = (text or "").strip()
+    if t.startswith("| "):
+        return True
+    words = t.split()
+    # a title reads as one: a colon lead-in or Title Case — "except for data breaches"
+    # (an inserted carve-out with no full stop) is never a title (fail closed)
+    titled = t.endswith(":") or all(w[0].isupper() for w in words if w[0].isalpha()
+                                    and len(w) > 3)
+    return ("\n" not in t and 0 < len(words) <= _HEADING_WORDS and titled
+            and not t.endswith((".", ";", "!", "?")))
+
+
+def changed_rows(o: dict | None, n: dict, deleted: bool = True) -> list[str]:
+    """The returned unit's evidence rows that are not ours. Fail closed (batch 8 R3c,
+    rounds 2–4, rule 15): the rows are paired in order, and the change is marked row by
+    row only when EVERY row on either side of EVERY changed span — inserted, replaced or
+    deleted — is a table row or a short title line (`_row_by_row`): a clause read with a
+    changed price table under it is not changed itself. Any prose row the client
+    inserted, rewrote, split, merged or deleted makes every row of the unit changed.
+    Every row when nothing is paired. ``deleted=False``: the rows themselves only, as
+    `_route` reads them (its test is unchanged)."""
+    o_texts = list((o or {}).get("texts", ()))
+    was = [dc._norm(t) for t in o_texts]
+    now = [dc._norm(t) for t in n["texts"]]
+    if not deleted:
+        return [e for e, t in zip(n["evidence_ids"], now, strict=True)
+                if t not in set(was)]
+    out: list[str] = []
+    for op, i1, i2, j1, j2 in difflib.SequenceMatcher(None, was, now,
+                                                      autojunk=False).get_opcodes():
+        if op == "equal":
+            continue
+        if not all(map(_row_by_row, (*o_texts[i1:i2], *n["texts"][j1:j2]))):
+            return list(n["evidence_ids"])
+        out += n["evidence_ids"][j1:j2]
+    return out
+
+
+def _covered(run: list[str], lit: list[list[str]]) -> bool:
+    """Whether the added words ``run`` are covered, piece by piece in order, by words the
+    client highlighted (each piece inside one highlighted string)."""
+    k = 0
+    while k < len(run):
+        best = max((n for h in lit for a in range(len(h)) for n in [next(
+            (n for n in range(min(len(h) - a, len(run) - k))
+             if h[a + n] != run[k + n]), min(len(h) - a, len(run) - k))]), default=0)
+        if not best:
+            return False
+        k += best
+    return True
+
+
+def _unmarked(kind: str, o: dict | None, n: dict | None) -> bool:
+    """Batch 8 R2.3 (`AM-461`), on a row changed without a tracked mark: whether the
+    client did not mark it at all. Ours against their wording before the marks (their
+    whole deletions out, as `_tracked`), word by word: a word of ours removed or
+    replaced — a deletion can never be marked by a highlight — or a word added that
+    their highlights do not cover. A change in punctuation alone reads as not marked
+    (fail toward "not marked"; a highlight never adds a change)."""
+    if n is None:
+        return True
+    theirs = _tokens(" ".join(_less_lines(_lines(n["original"]), _whole_deletions(n))),
+                     n["number"])
+    ours = _tokens(o["text"], o["number"]) if o is not None and kind == "MODIFIED" \
+        else []
+    ops = difflib.SequenceMatcher(None, ours, theirs, autojunk=False).get_opcodes()
+    added = [theirs[j1:j2] for op, _, _, j1, j2 in ops if op == "insert"]
+    if not added or any(op in ("delete", "replace") for op, *_ in ops):
+        return True
+    lit = [_tokens(h, None) for h in n.get("highlighted") or ()]
+    return not all(_covered(run, lit) for run in added)
+
+
+def not_marked(row: dict) -> bool:
+    """A change the headline counts as not marked (R2.4/R2.5, `AM-434` r1: from the change
+    rows): unmarked and more than typography — a formatting-only row, or one whose two
+    sides differ only in quote marks, dashes or spacing (a measured clause keeps a
+    holder's route, `typography_only`), is no one's ask."""
+    return bool(row.get("unmarked")) and row["route_reason"] != FORMATTING_ONLY \
+        and not row.get("typography_only")
+
+
 #: an Evaluation a lower cap can stand on: compared (DEVIATION) or refused only on the
 #: basis (UNABLE_TO_EVALUATE, affected-services fees — `AM-301`)
 _CAP_READ = (FindingClassification.DEVIATION, FindingClassification.UNABLE_TO_EVALUATE)
@@ -849,9 +986,7 @@ def _route(kind: str, old: dict | None, new: dict | None, before: list[dict],
     if new is not None and after and not (triage or {}).get("reasons") \
             and all(map(_settled, after)) \
             and {f["requirement_code"] for f in before} <= measured:
-        was = {dc._norm(t) for t in (old or {}).get("texts", ())}
-        changed = [e for e, t in zip(new["evidence_ids"], new["texts"], strict=True)
-                   if dc._norm(t) not in was]
+        changed = changed_rows(old, new, deleted=False)
         if changed and all(any(map(_settled, found.get(e, ()))) for e in changed):
             return ((FAVOUR, IN_OUR_FAVOUR) if any(map(_favoured, after))
                     else (OWNER, STILL_MATCHES))
@@ -949,17 +1084,26 @@ _COMPARED = (FindingClassification.MATCH.value, *_MEASURED_AGAINST)
 
 
 def _measured(effect: str, kind: str, before: list[dict], after: list[dict],
-              triage: dict | None) -> dict[str, str]:
+              triage: dict | None, changed: set[str] | None = None) -> dict[str, str]:
     """``{"measured": …}`` on a NEGATIVE row, else nothing (omitted, never nulled).
     WORSE only where something says so: a DEVIATION or CONFLICT not accepted in our
     favour on the returned clause, an `AM-224` reason it moves risk onto us, or our
     measured clause deleted. ABSENT: the client's paper lacks the point (MISSING).
     REVIEW: a standard did measure the clause and nothing says worse (a settled deviation,
     `AM-317` r1's changed words still matching). Anything else — unable to evaluate,
-    nothing measures it — is NOT_MEASURED; neither is ever "worse" (rule 15)."""
+    nothing measures it — is NOT_MEASURED; neither is ever "worse" (rule 15).
+    ``changed`` (batch 8 R3c-2, `AM-462`): the Findings that read a row the client
+    changed. A deviation read only on rows the client left as we sent them is REVIEW —
+    and only where our own version gave the same standard the same result; otherwise it
+    stays WORSE (fail closed). Never a routing input (`AM-299` r1)."""
     if effect != NEGATIVE:
         return {}
-    if (any(f["classification"] in _MEASURED_AGAINST and not _settled(f) for f in after)
+    ours = set() if changed is None else {
+        (f["requirement_code"], f["classification"]) for f in before}
+    if (any(f["classification"] in _MEASURED_AGAINST and not _settled(f)
+            and (changed is None or f["finding_id"] in changed
+                 or (f["requirement_code"], f["classification"]) not in ours)
+            for f in after)
             or (triage or {}).get("reasons") or (kind == "DELETED" and before)):
         return {"measured": WORSE}
     if kind == THEIRS_KIND and any(
@@ -982,8 +1126,13 @@ def _side(unit: dict | None, comments: bool = True) -> dict | None:
 
 def _row_key(kind: str, old: dict | None, new: dict | None) -> str:
     """Stable across reloads: our prefix, the kind and each side's first evidence row."""
-    return f"{KEY_PREFIX}{kind}|{old['evidence_ids'][0] if old else ''}|" \
-           f"{new['evidence_ids'][0] if new else ''}"
+    return f"{KEY_PREFIX}{kind}|{_first(old) if old else ''}|" \
+           f"{_first(new) if new else ''}"
+
+
+def _first(unit: dict) -> str:
+    """A unit's first evidence row — the one it had before a heading was folded in."""
+    return unit.get("key") or unit["evidence_ids"][0]
 
 
 def _latest_review(db: DBSession, version: M.DocumentVersion) -> M.Review | None:
@@ -1068,7 +1217,7 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
     answers = answer_lines(db, contract, before, after, legal_position=legal_position,
                            answered=answered)
     out: list[dict[str, Any]] = []
-    aligned = _align(old, new)
+    aligned = fold_headings(old, new, _align(old, new))          # batch 8 R3d-2
     deleted = dc._norm(" ".join(c.get("deleted") or ""
                                 for u in new for c in u["changes"]))
     twin = {i: j for i, j, _ in aligned if i is not None and j is not None}
@@ -1088,7 +1237,7 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
                 lead=_lead(new, j) if j is not None else _lead(old, i))
             if not code["editorial"]:
                 triage = change_triage.merged(
-                    code, readings.get(n["evidence_ids"][0]) if n else None,
+                    code, readings.get(_first(n)) if n else None,
                     change_triage.topics_for_heading(here["heading"]))
                 if not legal_position:
                     triage["topics"] = [{k: v for k, v in t.items() if k != "position"}
@@ -1096,6 +1245,7 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
         tracked, untracked = _tracked(kind, i, j, old, new, twin, deleted)
         # AM-457: our side IS their text before the marks, so nothing can be unmarked
         untracked = untracked and not (template or {}).get("tracked")
+        unmarked = untracked and _unmarked(kind, o, n)                # batch 8 R2.3
         route, why = _route(kind, o, n, f_before, f_after, triage, found_after)
         if unapplied:                          # fail closed: a person reads it
             route, why = HOLDER, SPECIAL_NOT_APPLIED
@@ -1117,12 +1267,24 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
             # the client's comments on their side; ours (our own notes) only for a reader
             # of positions (LEGAL-02) — omitted otherwise
             "before": _side(o, legal_position), "after": _side(n),
-            "tracked": tracked, "untracked": untracked,
+            "tracked": tracked, "untracked": untracked, "unmarked": unmarked,
+            # D5: quote marks, dashes or spacing only (omitted otherwise) — out of the
+            # not-marked headline even where a measured clause keeps it with a holder
+            **({"typography_only": True} if kind == "MODIFIED" and o and n
+               and _typography(o["text"]) == _typography(n["text"]) else {}),
+            # R3d-1: the same words and letters, only punctuation differing — still with
+            # Legal (Q4); omitted otherwise
+            **({"punctuation_only": True} if kind == "MODIFIED" and o and n
+               and why != FORMATTING_ONLY
+               and same_words(o["text"], n["text"], o["number"], n["number"])
+               else {}),
             "review": {"before": _public(f_before), "after": _public(f_after)},
             "review_delta": _delta(f_before, f_after),
             "triage": triage, "route": route, "route_reason": why,
             "effect_for_us": effect,
-            **_measured(effect, kind, f_before, f_after, triage),
+            **_measured(effect, kind, f_before, f_after, triage, {
+                f["finding_id"] for e in changed_rows(o, n)
+                for f in found_after.get(e, ())} if kind == "MODIFIED" and n else None),
             # AM-302: an answer's left side is the template it was compared with
             # (AM-457: the client's own text before their marks)
             **({"anchor": {"left_key": template["anchor"], "clause_version_id": None}}
@@ -1134,7 +1296,7 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
         # display only, never a decision (owner 2026-11-16, R2 D1/D2/D6)
         out[-1]["lawyer"] = lawyer_rows.lawyer_view(out[-1], vendor, aliases)
     earlier = _earlier(answered - {c["row_key"] for c in out}, out, answers)
-    rowed = {c["after"]["evidence_ids"][0] for c in out if c["after"]}
+    rowed = {e for c in out if c["after"] for e in c["after"]["evidence_ids"]}
     elsewhere = [{"clause": _clause(u), **c} for u in new if u["comments"]
                  and u["evidence_ids"][0] not in rowed for c in u["comments"]]
     return {
@@ -1148,6 +1310,9 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
         "to": {"document_version_id": str(after.id),
                "version_number": after.version_number},
         "summary": {"total": len(out), "untracked": sum(c["untracked"] for c in out),
+                    # batch 8 R2.4: not marked at all; highlights read (v13 and later)
+                    "unmarked": sum(map(not_marked, out)),
+                    "highlights_read": reader_generation.reads_highlights(db, after.id),
                     **{k.lower(): sum(c["kind"] == k for c in out) for k in KINDS},
                     **{r: sum(c["route"] == r for c in out)
                        for r in (OWNER, HOLDER, FAVOUR)},
@@ -1389,6 +1554,7 @@ def paper_first(db: DBSession, contract: M.Contract, after: M.DocumentVersion, *
                 _clause(u) for u in _holding(units, at, f["evidence_ids"])]}),
             "page": here[0]["page"] if here else None,
             "before": None, "after": side, "tracked": False, "untracked": False,
+            "unmarked": False,
             "review": {"before": [], "after": [review]},
             "review_delta": [], "triage": None,
             "route": HOLDER, "route_reason": MEASURED, "effect_for_us": NEGATIVE,
@@ -1401,7 +1567,7 @@ def paper_first(db: DBSession, contract: M.Contract, after: M.DocumentVersion, *
         "contract_id": str(contract.id), "from": None,
         "to": {"document_version_id": str(after.id),
                "version_number": after.version_number},
-        "summary": {"total": len(out), "untracked": 0,
+        "summary": {"total": len(out), "untracked": 0, "unmarked": 0,
                     **{k.lower(): 0 for k in KINDS}, THEIRS_KIND.lower(): len(out),
                     **{r: sum(c["route"] == r for c in out)
                        for r in (OWNER, HOLDER, FAVOUR)},

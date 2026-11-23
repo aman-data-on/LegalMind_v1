@@ -97,6 +97,11 @@ class Clause:
     #: [...]} from the reader (owner, 2026-10-27). Shown to a person beside the clause;
     #: never read by the mapper or an evaluator, and never part of equality or a hash.
     marks: dict | None = field(default=None, compare=False, hash=False)
+    #: The text the client HIGHLIGHTED on this row (`legalmind-ingest-v13`, batch 8 R2.2):
+    #: what they marked without tracking. Apart from ``marks`` (whose readers take any
+    #: mark for a tracked change); read only by `negotiation` to tell a change "not
+    #: marked" — never by the mapper or an evaluator.
+    highlighted: tuple[str, ...] = field(default=(), compare=False, hash=False)
 
 
 @dataclass(frozen=True)

@@ -1319,6 +1319,27 @@ def _starts_clause(clause: Clause) -> bool:
     return bool(_CLAUSE_START.match(first) or _EXECUTION.match(first))
 
 
+#: batch 8 R3b (`AM-462`): a sentence broken by a paragraph mark — the piece after it
+#: opens with a parenthesised figure ("(30) days' notice") or in lowercase, the piece
+#: before it ends with no terminal punctuation
+_FIGURE_OPEN = re.compile(r"\(\d+\)")
+_TERMINAL = (".", ";", ":", "!", "?")
+
+
+def _prose(clause: Clause) -> bool:
+    """Unnumbered, not a heading, not a table row: a piece a sentence can run across."""
+    return not clause.section_number and not clause.is_heading \
+        and not (clause.content or "").lstrip().startswith("| ")
+
+
+def _broken(before: Clause, piece: Clause) -> bool:
+    """``piece`` is the rest of ``before``'s sentence, broken by a paragraph mark."""
+    text = (piece.content or "").lstrip()
+    return _prose(before) and _prose(piece) \
+        and (text[:1].islower() or _FIGURE_OPEN.match(text) is not None) \
+        and not (before.content or "").rstrip().endswith(_TERMINAL)
+
+
 def _with_continuations(clauses: list[Clause], mapping: MappingResult) -> list[Clause]:
     """The confirmed clauses, each with the paragraphs that continue it — "The Company
     will: … give Partner sole control of the defense" under an indemnity, or Word's
@@ -1330,7 +1351,7 @@ def _with_continuations(clauses: list[Clause], mapping: MappingResult) -> list[C
     confirmed = {c.evidence_id for c in mapping.confirmed_clauses}
     out: list[Clause] = []
     run: list[Clause] = []
-    for clause in clauses:
+    for at, clause in enumerate(clauses):
         # a confirmed clause's own sub-clauses (10 → 10.1, 10.2) are its body: a confirmed
         # "10. INDEMNIFICATION" heading is read with what is numbered under it (r34)
         child = bool(run and run[0].section_number and clause.section_number
@@ -1342,6 +1363,13 @@ def _with_continuations(clauses: list[Clause], mapping: MappingResult) -> list[C
         unnumbered_run = bool(run) and not (run[0].section_number or run[0].is_heading)
         if numbered or ((unnumbered_run or not run) and _starts_clause(clause)):
             out, run = out + run, []
+        # batch 8 R3b: a confirmed piece that continues the sentence before it ("…upon
+        # thirty" | "(30) days' prior written notice") is read from that sentence's start
+        if not run and clause.evidence_id in confirmed and at \
+                and _broken(clauses[at - 1], clause) \
+                and not any(c.evidence_id == clauses[at - 1].evidence_id for c in out):
+            run = [clauses[at - 1]]
+            confirmed.add(clauses[at - 1].evidence_id)
         if run or clause.evidence_id in confirmed:
             run.append(clause)
     if run and not (run[0].section_number or run[0].is_heading
@@ -1487,10 +1515,12 @@ _TRAILING_PAGE_NUMBER = re.compile(r"\n\s*\d{1,3}\s*$")
 
 def _page_breaks_joined(clauses: list[Clause]) -> list[Clause]:
     """For reading a figure only: a piece with no number and no heading that opens in
-    lowercase is the rest of the previous clause's sentence, broken by a page ("…written
-    notice" | 7 | "from Leapswitch specifying the breach, or (b) …"). Read alone, its
-    figure contradicted the clause it belongs to (our own MSA 7.4, a false CONFLICT).
-    The evidence rows are untouched; the joined clause cites the clause it continues."""
+    lowercase (or, batch 8 R3b, with a parenthesised figure after prose that ends with
+    no terminal punctuation) is the rest of the previous clause's sentence, broken by a
+    page ("…written notice" | 7 | "from Leapswitch specifying the breach, or (b) …").
+    Read alone, its figure contradicted the clause it belongs to (our own MSA 7.4, a
+    false CONFLICT). The evidence rows are untouched; the joined clause cites the clause
+    it continues."""
     out: list[Clause] = []
     listing = False                         # the last clause is a lead-in and its items
     for clause in clauses:
@@ -1504,7 +1534,8 @@ def _page_breaks_joined(clauses: list[Clause]) -> list[Clause]:
         # non-solicitation, 2026-11-04 — the period was read with no basis)
         item = loose and _LIST_ITEM.match(text) is not None and (
             listing or (out[-1].content or "").rstrip().endswith(":"))
-        if loose and (text[:1].islower() or item):
+        # batch 8 R3b: "(30) days' prior written notice…" after "…upon thirty" too
+        if loose and (text[:1].islower() or item or _broken(out[-1], clause)):
             head = out[-1]
             out[-1] = replace(head, content=_TRAILING_PAGE_NUMBER.sub(
                 "", (head.content or "").rstrip()) + " " + text)

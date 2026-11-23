@@ -26,7 +26,11 @@ from pydantic import (
     model_validator,
 )
 
-from legalmind.domain.client_profile import is_client_status, is_version_role
+from legalmind.domain.client_profile import (
+    CIN_OR_LLPIN,
+    is_client_status,
+    is_version_role,
+)
 from legalmind.domain.document_types import is_document_source, is_document_type
 from legalmind.domain.enums import (
     ContractOutcome,
@@ -283,7 +287,7 @@ _PROFILE_TEXT_FIELDS: tuple[str, ...] = (
 
 #: `AM-286` r3 — shapes only, no lookup service. A CIN (21 characters) or an LLPIN.
 _LEGAL_ID_SHAPES = {
-    "cin_or_llpin": (re.compile(r"[LU]\d{5}[A-Z]{2}\d{4}[A-Z]{3}\d{6}|[A-Z]{3}-\d{4}"),
+    "cin_or_llpin": (CIN_OR_LLPIN,
                      "a CIN (e.g. U72900MH2010PTC123456) or an LLPIN (e.g. AAB-1234)"),
     "pan": (re.compile(r"[A-Z]{5}\d{4}[A-Z]"), "a PAN (e.g. ABCDE1234F)"),
     "gstin": (re.compile(r"\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]"),

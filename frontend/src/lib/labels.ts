@@ -218,7 +218,39 @@ export const CHANGES_COPY = {
   earlierAnswer: "Answered on an earlier reading:",
   earlierAnswerHint: "The clause was paired differently then. Answer it again to confirm.",
   preparingReply: "Preparing our reply. Step 1 of 2: writing the answers into the client's file. Step 2: checking it. About 20 seconds.",
+  /** batch 8 R3d-1: the same words, only punctuation differs — still with Legal (Q4) */
+  punctuationOnly: "Only punctuation changed",
+  unnumbered: "Unnumbered text",
 };
+
+/** Batch 8 R2 (`AM-461`): the changes the client made with no tracked change and no
+ *  highlight — first in the brief and on the Changes tab. The reply line names clauses
+ *  only, never a position (LEGAL-02), and is copied by a person, never sent (Q8). */
+export const NOT_MARKED_COPY = {
+  title: (n: number, total: number) => `${n} of ${plural(total, "change")} not marked`,
+  titleOldFile: (n: number, total: number) => `${n} of ${plural(total, "change")} not marked as tracked changes`,
+  body: "The client made these without a tracked change or a highlight. LegalMind found them by comparing with what we sent.",
+  bodyOldFile: "The client made these without a tracked change. LegalMind found them by comparing with what we sent. LegalMind read this file before it could see highlights.",
+  more: (n: number) => `and ${n} more`,
+  copy: "Copy line for the reply",
+  copied: "Line copied",
+  copyFailed: "The line could not be copied. Select it and copy it.",
+  lineLabel: "Line for the reply",
+  line: (n: number, clauses: string[]) =>
+    `We compared your file with the version we sent. ${plural(n, "change")} ${n === 1 ? "is" : "are"} not marked as a tracked change: ${clauses.join(", ")}. Please mark every change, so both sides can see it.`,
+  clause: (number: string | null, title: string | null | undefined, quote: string) => {
+    const bare = (text: string) => text.replace(/[\s:]+$/, "");    // "Details of Services:"
+    const name = bare(title ?? "");
+    // no heading: the clause's own first words, so a bare "Clause 4" never stands alone
+    const own = quote.split(" ").length > 6 ? `${quote.split(" ").slice(0, 6).join(" ")}…` : bare(quote);
+    return number ? `Clause ${number} (${name || own})` : name || own;
+  },
+  /** round 2: every untracked change was highlighted — said once on the Changes tab */
+  allHighlighted: (n: number, total: number) =>
+    `${n} of ${plural(total, "change")} ${n === 1 ? "was" : "were"} made without a tracked change. The client highlighted ${n === 1 ? "it" : "them"}, so each is tagged "highlighted, not tracked".`,
+  rowNotMarked: ", not marked",
+  rowHighlighted: ", highlighted, not tracked",
+} as const;
 
 /** `AM-411`: said on the contract-decision form while a question to the client is open. */
 export const CONTRACT_DECISION_COPY = {

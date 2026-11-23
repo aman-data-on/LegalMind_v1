@@ -13,9 +13,12 @@ the observation says so (§23.4).
 from __future__ import annotations
 
 import re
+from collections import defaultdict
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 from uuid import UUID
 
+from legalmind.domain.client_profile import CIN
 from legalmind.extraction.liability import parse_number
 from legalmind.mapping.engine import Clause
 
@@ -571,6 +574,217 @@ def _definition_targets(idx: dict) -> list[dict[str, Any]]:
     return out
 
 
+# ---- batch 8 R6 (AM-463): the commercial tables read against themselves -------------
+# No threshold (a figure is compared at the precision the document prints it) and no
+# legal vocabulary: qty, subtotal, tax and total are the table's own commercial words.
+QUANTITY_TWO_WAYS = "QUANTITY_TWO_WAYS"
+BLANK_FIELD = "BLANK_FIELD"
+TOTALS_DIFFER = "TOTALS_DIFFER"
+OUR_CIN = "OUR_CIN"
+
+#: an item's own label, "( GPUN - 1 )" — letters then a number, in brackets
+_ITEM = re.compile(r"\(\s*([A-Za-z]+(?:\s*-\s*|\s+)?\d+[A-Za-z0-9]*)\s*\)")
+_AMOUNT = re.compile(r"\d{1,3}(?:,\d{2,3})+(?:\.\d+)?|\d+(?:\.\d+)?")
+_RATE = re.compile(r"\((\d+(?:\.\d+)?)\s*%\)")
+#: a cell's "Label:" — one to four capitalised words — and what follows it
+_LABEL = re.compile(r"(?<![\w(])([A-Z][A-Za-z]*(?:\s+[A-Z][A-Za-z]*){0,3})\s*:")
+_GLUE = r"[^\s.,;:()\[\]\"'\u2018\u2019\u201c\u201d]"
+_PRINTED_CIN = re.compile(rf"(?P<pre>{_GLUE}?)(?P<cin>{CIN})(?P<post>{_GLUE}?)")
+_US = re.compile(r"\b(?:leap\s?switch|cloudpe)\b", re.I)
+_CIN_BASIS = {"section": "4.1", "quote": "Its CIN, U30007PN2010PTC137171"}
+_OUR_CIN_NUMBER = re.search(CIN, _CIN_BASIS["quote"]).group(0)  # type: ignore[union-attr]
+
+
+def _rows(clause: Clause) -> list[list[str]]:
+    """A TABLE segment's rows as cells (`parsing.table_row`'s "| a | b |")."""
+    return [[c.strip() for c in line.strip()[1:-1].split("|")]
+            for line in (clause.content or "").split("\n")
+            if line.startswith("| ") and line.rstrip().endswith("|")]
+
+
+def _item(cells: list[str], skip: int = -1) -> str | None:
+    """A row's item: its bracketed label ("GPUN-1"), else its first cell with words."""
+    for k, cell in enumerate(cells):
+        if k != skip and (m := _ITEM.search(cell)):
+            return re.sub(r"\s*-\s*|\s+", "-", m.group(1)).upper()
+    return next((c for k, c in enumerate(cells) if k != skip
+                 and re.search(r"[A-Za-z]", c)), None)
+
+
+def _figure(cell: str) -> tuple[Decimal, int] | None:
+    """The first figure printed in a cell, with its decimal places."""
+    m = _AMOUNT.search(cell)
+    if m is None:
+        return None
+    raw = m.group(0).replace(",", "")
+    return Decimal(raw), len(raw.partition(".")[2])
+
+
+def _grouped(value: Decimal, places: int) -> str:
+    """A rupee figure as Indian paper prints it: 66,98,400.00."""
+    whole, _, frac = f"{abs(value):.{places}f}".partition(".")
+    head, tail = whole[:-3], whole[-3:]
+    while len(head) > 2:
+        head, tail = head[:-2], f"{head[-2:]},{tail}"
+    return ("-" if value < 0 else "") + (f"{head},{tail}" if head else tail) \
+        + (f".{frac}" if frac else "")
+
+
+def _commercial(clause: Clause, kind: str, text: str) -> dict[str, Any]:
+    return {"kind": kind, "clauses": [], "evidence_ids": [str(clause.evidence_id)],
+            "text": text, "basis": None}
+
+
+def _quantities(clauses: list[Clause]) -> list[dict[str, Any]]:
+    """R6.1: one item given two different quantities (a "Qty" column) in the tables."""
+    seen: dict[str, list[tuple[str, int, Clause]]] = defaultdict(list)
+    for clause in clauses:
+        col = None
+        for cells in _rows(clause):
+            head = [k for k, c in enumerate(cells) if c.lower() in ("qty", "quantity")]
+            if head:
+                col = head[0]
+            elif col is not None and col < len(cells) and cells[col].isdigit() \
+                    and (item := _item(cells, col)):
+                seen[item].append((cells[col], int(cells[col]), clause))
+    out = []
+    for item, said in seen.items():
+        first = said[0]
+        other = next((s for s in said if s[1] != first[1]), None)
+        if other is not None:
+            out.append({**_commercial(
+                first[2], QUANTITY_TWO_WAYS, f"The quantity of {item} is {first[0]} in "
+                f"one table and {other[0]} in another."),
+                        "evidence_ids": list(dict.fromkeys(
+                            str(s[2].evidence_id) for s in (first, other)))})
+    return out
+
+
+def _blank_fields(clauses: list[Clause]) -> list[dict[str, Any]]:
+    """R6.2: a "Label:" with nothing after it in a table cell, where the same label has a
+    value elsewhere in the tables. No list of labels is kept."""
+    fields: list[tuple[str, bool, str | None, Clause]] = []
+    for clause in clauses:
+        for cells in _rows(clause):
+            for cell in cells:
+                found = list(_LABEL.finditer(cell))
+                for k, m in enumerate(found):
+                    value = cell[m.end():found[k + 1].start() if k + 1 < len(found)
+                                 else len(cell)]
+                    fields.append((m.group(1), bool(re.search(r"\w", value)),
+                                   _item([cell]) if _ITEM.search(cell) else None, clause))
+    out: list[dict[str, Any]] = []
+    for label, filled, item, clause in fields:
+        other = next((f for f in fields if f[0] == label and f[1]), None)
+        if filled or other is None or any(o["label"] == (label, item) for o in out):
+            continue
+        out.append({**_commercial(clause, BLANK_FIELD, f"{label} has no value"
+                                  f"{f' for {item}' if item else ''}. It has one"
+                                  f"{f' for {other[2]}' if other[2] else ' elsewhere'}."),
+                    "label": (label, item)})
+    return [{k: v for k, v in o.items() if k != "label"} for o in out]
+
+
+#: the column a line's amount is read from: its header says amount, total or value
+_AMOUNT_HEAD = re.compile(r"(?:line\s+)?(?:amount|total|value)\b", re.I)
+_TAX_ROW = re.compile(r"(?:tax|gst|cgst|sgst|igst)\b", re.I)
+#: a line that takes away (a discount, "Less:", a rebate, a minus sign): the lines are
+#: then not a plain sum, so they are not summed
+_TAKES_AWAY = re.compile(r"discount|\bless\b|rebate", re.I)
+_MINUS = re.compile(r"[-\u2212]\s*(?:[^\d\s]{0,3}\s*)?\d")
+
+
+def _totals(clauses: list[Clause]) -> list[dict[str, Any]]:
+    """R6.3: in one table, each tax at its stated rate (CGST and SGST each), the line
+    amounts — read from the column headed amount/total/value, else not checked; not
+    summed when a line takes away (a discount, "Less:", a minus) — against the subtotal,
+    and subtotal + every tax against the total (not checked beside a tax row with no
+    stated rate: fail silent); each compared at
+    the precision the stated figure is printed in (paise or rupees), rounded half up.
+    A row missing: that check is not made."""
+    out: list[dict[str, Any]] = []
+    for clause in clauses:
+        rows = _rows(clause)
+        subtotal: tuple[Decimal, int] | None = None
+        total: tuple[Decimal, int] | None = None
+        taxes: list[tuple[Decimal, tuple[Decimal, int]]] = []   # (rate, stated)
+        col: int | None = None
+        lines: list[tuple[Decimal, int] | None] = []
+        untaxed = adjusted = False     # a tax row with no rate; a line that takes away
+        for cells in rows:
+            first, amount = cells[0], _figure(cells[-1]) if len(cells) > 1 else None
+            if re.match(r"sub\s?-?total", first, re.I):
+                # its amount column when the table has one (round 3), else its last cell
+                own = _figure(cells[col]) if col is not None and 0 < col < len(cells) \
+                    else None
+                subtotal = subtotal or own or amount
+            elif amount and (r := _RATE.search(first)) and _TAX_ROW.match(first):
+                taxes.append((Decimal(r.group(1)), amount))
+            elif amount and _TAX_ROW.match(first):
+                untaxed = True             # "Tax adjustment": the total is not checked
+            elif amount and re.match(r"(?:grand\s+)?total\b", first, re.I):
+                total = amount
+            elif subtotal is None and not re.search(r"\d", " ".join(cells)):
+                # a header row: the lines start after it, their amount in its column
+                heads = [k for k, c in enumerate(cells) if _AMOUNT_HEAD.match(c.strip())]
+                col, lines = (heads[-1] if heads else None), []
+            elif subtotal is None:
+                cell = cells[col] if col is not None and col < len(cells) else ""
+                adjusted = adjusted or bool(_TAKES_AWAY.search(first)
+                                            or _MINUS.search(cell))
+                lines.append(_figure(cell) if cell else None)
+        checks = []
+        if subtotal is not None:
+            for rate, tax in taxes:
+                checks.append((subtotal[0] * rate / 100, tax,
+                               f"The tax at {rate}% of {_grouped(*subtotal)} is "
+                               "{computed}, but the table states {stated}"))
+            if col is not None and lines and all(lines) and not adjusted:
+                checks.append((sum((a[0] for a in lines if a), Decimal(0)), subtotal,
+                               "The line amounts add up to {computed}, but the subtotal "
+                               "states {stated}"))
+            if taxes and total is not None and not untaxed:
+                checks.append((subtotal[0] + sum(t[1][0] for t in taxes), total,
+                               "The subtotal and tax add up to {computed}, but the total "
+                               "states {stated}"))
+        for computed, (stated, places), words in checks:
+            at = computed.quantize(Decimal(1).scaleb(-places), ROUND_HALF_UP)
+            if at != stated:
+                out.append(_commercial(clause, TOTALS_DIFFER, words.format(
+                    computed=_grouped(at, places), stated=_grouped(stated, places))
+                    + f" (a difference of {_grouped(abs(at - stated), places)})."))
+    return out
+
+
+def _our_cin(clauses: list[Clause]) -> list[dict[str, Any]]:
+    """R6.4: our CIN as printed. In prose, read forward from OUR name, a CIN with a
+    character glued to it, or a CIN that is not the one §4.1 records; in a table, only
+    a stray character on §4.1's own CIN (a table can hold both parties' details, so
+    which other CIN is ours cannot be told). The value is quoted with its basis, never
+    called wrong (its source is open for Legal, `AM-452` r3)."""
+    out: list[dict[str, Any]] = []
+    said: set[str] = set()
+    for clause in clauses:
+        text = " ".join((clause.content or "").split())
+        table = text.startswith("| ")
+        spans = [(m.end(), m.end() + 300) for m in _US.finditer(text)] if not table \
+            else [(0, len(text))]
+        for m in _PRINTED_CIN.finditer(text):
+            if not any(a <= m.start() <= b and ";" not in text[a:m.start()]
+                       for a, b in spans):
+                continue
+            stray = bool(m.group("pre") or m.group("post"))
+            other = m.group("cin") != _OUR_CIN_NUMBER
+            if (table and other) or not (stray or other) or m.group(0) in said:
+                continue
+            said.add(m.group(0))
+            out.append({**_commercial(
+                clause, OUR_CIN, f"Our CIN is printed with a stray character: "
+                f"“{m.group(0)}”." if stray else f"Our CIN is printed as {m.group(0)}."),
+                "basis": _CIN_BASIS})
+    return out
+
+
 def observe(clauses: list[Clause],
             document_type: str | None = None) -> dict[str, list[dict[str, Any]]]:
     """The document's observations: `structural` ones a person weighs (renewal two ways,
@@ -581,5 +795,7 @@ def observe(clauses: list[Clause],
                            *_renewal(idx), *_notice(idx), *_nonpayment_two_ways(idx),
                            *_subject_to(idx), *_precedence(idx),
                            *_nonpayment(clauses, document_type),
-                           *_our_details(clauses), *_uptime_two_ways(clauses)],
+                           *_our_details(clauses), *_uptime_two_ways(clauses),
+                           *_our_cin(clauses), *_quantities(clauses),
+                           *_blank_fields(clauses), *_totals(clauses)],
             "additional": [*_cross_references(idx), *_definition_targets(idx)]}

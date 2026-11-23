@@ -8,7 +8,7 @@
 import { USER_STATUS_LABELS, readerWord as pointWord, requirementTitle, type UserStatus } from "@/components/workspace/findingLanguage";
 import { clauseName } from "@/lib/documentTypes";
 import { formatDate } from "@/lib/dates";
-import { RETURNED_COPY, ROW_STATUS, SALES_LINE, VERDICT_LABELS } from "@/lib/labels";
+import { CHANGES_COPY, NOT_MARKED_COPY, RETURNED_COPY, ROW_STATUS, SALES_LINE, VERDICT_LABELS } from "@/lib/labels";
 import type { WordComment } from "@/lib/types";
 
 /** THEIRS: the client's paper came first (`AM-290`) — one row per point the review
@@ -107,6 +107,13 @@ export interface ClientChange {
   after: ChangeSide | null;
   tracked: boolean;
   untracked: boolean;
+  /** batch 8 R2.3: changed with no tracked change AND no highlight covering it */
+  unmarked?: boolean;
+  /** batch 8 R3d-1: only punctuation differs (still with Legal); absent otherwise */
+  punctuation_only?: true;
+  /** batch 8 round 2: only quote marks, dashes or spacing differ — never in the
+   *  not-marked headline; absent otherwise */
+  typography_only?: true;
   review: { before: ChangeFinding[]; after: ChangeFinding[] };
   review_delta: { requirement_code: string; before: UserStatus | null; after: UserStatus | null }[];
   triage: {
@@ -175,7 +182,10 @@ export interface ChangeList {
   /** `AM-307`: why a side's Special Conditions (Annexure A) could not be applied — the
    *  list then compares the raw text and every change goes to Legal; absent otherwise */
   special_conditions_not_applied?: string[];
-  summary: { total: number; untracked: number } & Record<string, number>;
+  /** batch 8 R2.4: `unmarked` counts the not-marked changes (formatting aside);
+   *  `highlights_read` is false for a client file read before highlights were read */
+  summary: { total: number; untracked: number; unmarked?: number; highlights_read?: boolean }
+    & Record<string, number | boolean>;
   changes: ClientChange[];
   can_answer: boolean;
   /** May record our version as sent — outlives the round, unlike `can_answer`. */
@@ -319,6 +329,15 @@ export function where(change: ClientChange): string {
   return point ? requirementTitle({ code: point }) : change.page ? `Page ${change.page}` : "Opening text";
 }
 
+/** The changed passage's first words, for a change whose clause has no heading. */
+export function firstWords(change: ClientChange): string {
+  const raw = (change.after ?? change.before)?.text.replace(/\s+/g, " ").trim() ?? "";
+  // the clause's own number is already said beside it
+  const n = change.clause.number;
+  const text = n && raw.startsWith(n) ? raw.slice(n.length).replace(/^[.)\s]+/, "") : raw;
+  return text.length > 64 ? `${text.slice(0, 62).trimEnd()}…` : text;
+}
+
 /** The four actions, by their `AM-291` r2 names. */
 export const ACTION_LABEL: Record<Answer, string> = {
   // PLAIN-LANGUAGE §2.2: the whole object, every time (B3 p1)
@@ -451,8 +470,18 @@ export function rowStatus(change: ClientChange, list: Reader & Pick<ChangeList, 
 
 /** The row's small meta: the kind of change, and whether the client marked it. */
 export function rowMeta(change: ClientChange, allUntracked: boolean): string {
-  return KIND_LABEL[change.kind] + (change.untracked && !allUntracked ? ", untracked" : "");
+  // batch 8 R2.6: "not marked" (no tracked change, no highlight) or "highlighted, not
+  // tracked" — the server's flags; R3d-1: "Only punctuation changed"
+  const mark = !change.untracked ? "" : change.unmarked
+    ? (allUntracked ? "" : NOT_MARKED_COPY.rowNotMarked) : NOT_MARKED_COPY.rowHighlighted;
+  return KIND_LABEL[change.kind] + mark + (change.punctuation_only ? `. ${CHANGES_COPY.punctuationOnly}` : "");
 }
+
+/** The changes the Changes tab lists as not marked — the server's `unmarked`, formatting
+ *  and typography-only rows aside, exactly as `negotiation.not_marked` counts
+ *  `summary.unmarked`. */
+export const notMarkedRows = (list: Pick<ChangeList, "changes">): ClientChange[] =>
+  list.changes.filter((c) => c.unmarked && c.route_reason !== "FORMATTING_ONLY" && !c.typography_only);
 
 /* batch 3+4 round 2: `salesLine` / `salesStatus` are gone — the row says `rowStatus`
    and the deal's status is the server's (`GET …/brief`, rule 18). */

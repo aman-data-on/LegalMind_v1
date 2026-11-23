@@ -33,17 +33,20 @@ MADE_MUTUAL, ONTO_US, ONTO_THEM, MIXED = ("MADE_MUTUAL", "ONE_SIDED_ONTO_LEAPSWI
 # ------------------------------------------------------------------ step 0: origin
 def changed_evidence(ours: list[Clause] | None, theirs: list[Clause]) -> set[str] | None:
     """The client's rows that differ from what we sent: by version diff against our
-    version when there is one, else by the redline's own tracked changes. None when
+    version when there is one (each row of a changed clause against the rows we had),
+    else by the redline's own tracked changes. None when
     neither can tell (a clean paper with no version of ours): nothing is labelled."""
     if ours:
         old, new = N._units(ours), N._units(theirs)
         out: set[str] = set()
-        for i, j, moved in N._align(old, new):
+        for i, j, moved in N.fold_headings(old, new, N._align(old, new)):
             if j is None:
                 continue
             o = old[i] if i is not None else None
             if N._kind(o, new[j], moved) not in (None, "MOVED"):
-                out.update(new[j]["evidence_ids"])
+                # batch 8 R3c-1: row by row — an unchanged paragraph of a changed unit
+                # (a clause read with a changed table under it) is not the client's
+                out.update(N.changed_rows(o, new[j]))
         return out
     if any((c.marks or {}).get("changes") for c in theirs):
         return {str(c.evidence_id) for c in theirs if (c.marks or {}).get("changes")}
