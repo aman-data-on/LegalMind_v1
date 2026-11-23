@@ -31480,3 +31480,115 @@ r3  Open for Legal: our registered office and incorporating Act as printed (Cons
     template); the source of our CIN (MSA.pdf prints a blank; the value is the Constitution's and the published
     policies'); an NDA template.
 ```
+
+## AMENDMENT BATCH AB-221 — `AM-455`–`AM-460` (2026-11-23): our own contract came back marked up
+
+Owner instruction (2026-11-23): "build with your recommendations" — batch 5, "Our contract came back marked up": a
+salesperson whose own MSA came back from the client's counsel as a Word file with tracked changes and comments starts
+from it, picks the client and the deal, uploads, and lands on Changes with the same rows, answers and "Send to Legal"
+as a LegalMind-made deal. Owner decisions the same day: Q1 yes (a new deal asks for the copy we sent first; the
+client's tracked changes alone are the fallback); Q3 no (the blank published template is never offered as a base);
+Q4 later (this batch only rewords the chooser and the "Our draft" hint); Q5 yes (a returned PDF is refused, "Ask the
+client for the Word file"); only our real drafts supply opening figures — never a reply, final contract or final copy
+LegalMind prepared; "Keep our wording" is withheld on the tracked-only base until Legal answers Q2. Product and
+engineering under the owner's "product over locks" delegation and these decisions; no legal position, clause text,
+threshold or tolerance is added (rules 7/21); no authorization is widened (every list row also opens by id, every
+write keeps its guard, out of scope is the byte-identical 404). IDs scanned: AB-221, AB-222, AM-453–465 on origin/main,
+every remote branch, every worktree (code comments included) and the open PRs (#322, #285, #270).
+
+`AM-455` — THE START: "OUR CONTRACT CAME BACK MARKED UP".
+```text
+r1  New contract offers a third start, "Our contract came back marked up", to a reader with contract.create and
+    document.upload (the page is absent otherwise, as /contracts/new). "Upload a contract" reads "The client's own
+    paper, or a draft of ours not yet sent"; under its "Our draft" answer a hint links to the new start.
+r2  The client is required, chosen from the reader's own clients (AB-13 r6); a new deal is created with it in the
+    same call. The deal is one of that client's deals the reader may upload to (AM-460), or "It's not in LegalMind
+    yet". FINAL and SIGNED deals are not listed; a deal whose latest version is the client's (or that is with Legal,
+    ready for the final contract or on hold) is listed but not chosen ("Open the deal").
+r3  An existing deal takes the file as its next version (CLIENT_MODIFIED), compared with `our_previous` — the
+    latest version of ours, a reply that asked the client skipped (`AM-411` r7). No "sent" filter is added: a deal
+    sent by email often records no sent date. The copy we sent is not asked for on an existing deal.
+r4  A new deal asks "Do you have the copy we sent?" before any upload. Yes (recommended): that copy — a Word file
+    only — is uploaded first as our draft (COMPANY_DRAFT) and analysed, then the returned file as the client's; the
+    copy we sent supplies our opening figures as any draft of ours does. No: the returned file alone, compared with
+    its own text before the client's tracked changes (`AM-456`/`AM-457`), with the banner of r6.
+r5  A returned PDF is refused before any request ("Ask the client for the Word file"), with a way on: upload it as
+    the client's own paper. A Word file with no tracked changes under "No" keeps the client and the file and asks
+    for the copy we sent. Two picks of the same file are refused; a returned file already on the deal stops before
+    Changes. A failure after the copy we sent is in resumes with the returned file, never a second deal.
+r6  The Changes tab says: "Compared with the client's tracked changes only. We don't have the copy we sent, so edits
+    made without tracking can't be seen. Every tracked change is read as the client's." Our side is named "Before
+    the client's tracked changes"; no change is "Untracked" there and "Convert to our paper" is not offered.
+```
+
+`AM-456` — "COMPARE WITH THE TRACKED CHANGES ONLY" IS DECLARED AT UPLOAD (rider on `AM-324` r4).
+```text
+r1  The upload takes an optional header X-Compare-With: TRACKED_ORIGINAL, stored with the role and source in the
+    same request as document_versions.metadata.compare_with — no column, no migration, no new role. It is audited
+    on document.uploaded (after.compare_with).
+r2  Refused with 422, after the contract's own 404/409 and before the file is read: any other value; a role other
+    than CLIENT_MODIFIED; a contract that already has a version or a draft (it is the first version only); a file
+    declared other than Word (WORD_FILE_NEEDED). After the one read: version_number other than 1, or no row
+    carrying a tracked change (NO_TRACKED_CHANGES). A refusal keeps no version, no stored bytes, no notice and no
+    audit event.
+r3  It is never set or changed by PATCH: on a version carrying it, a PATCH of version_role or source is 409 (33.7
+    holds; the version can never be recast as ours). It is honoured only while the version is the client's.
+r4  One returned upload gives one "client returned" notice, from the upload only; the copy we sent tells nobody.
+```
+
+`AM-457` — THE CLIENT'S OWN TEXT BEFORE THEIR MARKS (rider on `AM-290` r1/r2 and `AM-302`).
+```text
+r1  A first CLIENT_MODIFIED version declared compare_with = TRACKED_ORIGINAL is compared with its own text before
+    the client's tracked changes: each row's wording before its marks (else its text), a row inserted whole left
+    out. Its rows are its tracked changes through the existing pairing, never paper-first rows (`AM-290`).
+r2  The declaration wins over the template link (`AM-302`): such a version is never "made from our blank template",
+    by ID or by structure. Without the declaration `AM-302` and `AM-290` are unchanged.
+r3  The text before the marks is virtual: never stored, never a version, never COMPANY_DRAFT, never sent,
+    downloaded, packaged or an opening (`AM-458`). The final contract stops at NOT_OUR_TEMPLATE; "Convert to our
+    paper" stops with "This is our own contract, marked up by the client — answer its changes instead."
+r4  Rider on `AM-253`/`AM-433`: the left side's row ids are uuid5(evidence id, "original") and an answer's left key
+    is tracked:<version id>, so a row key and its answers are stable for the life of the version. No row there is
+    untracked; the list says tracked_base and carries no template.
+r5  A paragraph the client deleted whole rides on the row before it (the reader's existing fold) and shows on that
+    clause; writing our wording back there is left to a person ("restore it by hand").
+```
+
+`AM-458` — ONLY OUR REAL DRAFTS SUPPLY OPENING FIGURES (rider on `AM-317` r4 / `AM-305`).
+```text
+r1  The playbook opens at our paper only from the version made from our template, else our earliest declared
+    COMPANY_DRAFT that is a real draft of ours — never a reply (reply_to), final contract (package_of) or final copy
+    (final_copy_of) LegalMind prepared, and never the text before the client's marks. Anything else opens at the
+    ratified standard (as `AM-317` r4). A reply never supplies openings.
+```
+
+`AM-459` — "KEEP OUR WORDING" WITHHELD ON THE TRACKED-ONLY BASE (fail closed until Legal answers Q2).
+```text
+r1  On a list compared with the client's tracked changes only, "Keep our wording" is not offered and the server
+    refuses it (409 NOTHING_OF_OURS), one row or many: the text before the client's marks may hold their untracked
+    edits or our own older ones, and may not go out under our name until Legal says so (rules 15/21). Accept their
+    wording, use our standard wording, write our wording and ask the client are unchanged. `AM-395` is unchanged:
+    counter-wording never quotes that text as "our clause as we sent it".
+r2  Open for Legal (Q2): "When we only have the client's file, 'Keep our wording' would put back the text that was
+    there before their tracked edits. That text may include edits they made without tracking, or our own older
+    edits. May we send it as ours?" A yes lifts r1 by amendment; `AM-457` r5 stays.
+```
+
+`AM-460` — THE DEALS A RETURNED COPY MAY GO TO (list scope).
+```text
+r1  The contract list takes scope=negotiable: the reader's own contracts and those they collaborate on while in the
+    owner's department (`AM-259` r2, `AM-280` r2) — exactly the deals a returned copy may be uploaded to. Every row
+    also opens by id; nothing new is readable. The other scopes are unchanged.
+```
+
+`AM-457` r5 and `AM-456` r2 — CORRECTIONS (2026-11-23, AB-221 independent verification D4 and its outside-spec note;
+appended, the lines above stand as written).
+```text
+c1  AM-457 r5 corrected: only "Keep our wording" on a clause carrying a paragraph the client deleted whole is left to
+    a person ("restore it by hand"); "Use our standard wording" and "Write our wording" write their own paragraphs
+    there as on any other clause.
+c2  AM-456 r2 clarified: NO_TRACKED_CHANGES counts the contract's body only — a tracked change on page furniture (a
+    header, a footer, a table of contents) is not the client's change to the contract.
+c3  The bulk answers ("Accept all with no change for us", "Keep our wording on all formatting changes") store the
+    same left side as one answer: on the tracked-only base its tracked:<version> key, on our blank template its
+    template:<version> key (AM-302) — never no left side, which only a client-paper-first row may have.
+```

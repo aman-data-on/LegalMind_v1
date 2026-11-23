@@ -11,6 +11,11 @@
 
 ---
 
+**2026-11-23 — AB-221 (BUILT, not deployed).** Batch 5: a salesperson whose own MSA came back as a Word file with
+tracked changes starts from "Our contract came back marked up", picks the client and the deal, and lands on the
+Changes tab. Without the copy we sent, the client's tracked changes alone are compared and "Keep our wording" waits
+for Legal's answer (Q2).
+
 **2026-11-23 — AB-220 (DEPLOYED 2026-11-23, 02197bc4).** Batch 7: Legal's client checklist is collected once and
 required before an MSA is made; the GST certificate fills most of it; New contract is redesigned as one
 enterprise intake where a returning client types no client detail.

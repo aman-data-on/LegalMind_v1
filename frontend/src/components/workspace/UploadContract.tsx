@@ -31,14 +31,16 @@
  * (still create → upload → suggest type → analyze), only when it starts.
  */
 
+import Link from "next/link";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { chainAnalysis } from "@/lib/analysisChain";
-import { ApiError, api, describeError, uploadFirstDocument } from "@/lib/api";
+import { ApiError, describeError } from "@/lib/api";
 import { documentTypeLabel, nameFromFilename } from "@/lib/documentTypes";
+import { RETURNED_COPY } from "@/lib/labels";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
+import { preflightProblem, startContract } from "@/lib/upload";
 
 import { IconCheckCircle, IconFile, IconXCircle } from "./icons";
 import { contractHref } from "./model";
@@ -46,27 +48,7 @@ import { FilePicker } from "@/components/FilePicker";
 
 type Stage = "idle" | "selected" | "uploading" | "extracted" | "suggesting" | "analyzing";
 
-/** Mirrors the server default (`LEGALMIND_MAX_UPLOAD_BYTES`, 25 MB — owner, 2026-09-02). A
- *  convenience pre-check for an immediate, friendly message — the server's
- *  own validation stays the authority (34.16). */
-const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
-const SUPPORTED_EXTENSIONS = [".pdf", ".docx", ".md", ".txt"];
-
 const CHECKLIST_ORDER: Stage[] = ["uploading", "extracted", "suggesting", "analyzing"];
-
-function preflightProblem(file: File): string | null {
-  const name = file.name.toLowerCase();
-  if (!SUPPORTED_EXTENSIONS.some((extension) => name.endsWith(extension))) {
-    return "This file type is not supported. Choose a PDF, DOCX, Markdown or text file.";
-  }
-  if (file.size > MAX_UPLOAD_BYTES) {
-    return "This file exceeds the 25 MB limit. Choose a smaller file.";
-  }
-  if (file.size === 0) {
-    return "This file is empty. Choose another file.";
-  }
-  return null;
-}
 
 /** "2.4 MB" / "820 KB" — whichever unit the reference's selected-file row uses. */
 function formatFileSize(bytes: number): string {
@@ -99,9 +81,6 @@ export function UploadContract({ firstRun, onClose }: {
   const [contractType, setContractType] = useState("");
   const [stage, setStage] = useState<Stage>("idle");
   const [error, setError] = useState<unknown>(null);
-  const [contractId, setContractId] = useState<string | null>(null);
-  const contractIdRef = useRef<string | null>(null);
-  const [versionId, setVersionId] = useState<string | null>(null);
   /** The type the intake recorded on the reader's behalf (AM-50) — shown as
    *  "Reviewed as …" while the analysis starts. */
   const [recordedType, setRecordedType] = useState<string | null>(null);
@@ -136,65 +115,28 @@ export function UploadContract({ firstRun, onClose }: {
     if (fileInput.current) fileInput.current.value = "";
   }
 
-  /** The former body of `choose` — create → upload → suggest type → analyze,
-   *  now started explicitly rather than the instant a file is picked. */
+  /** create → upload → suggest type → analyze (`lib/upload.startContract`, one chain for
+   *  every upload page), started explicitly rather than the instant a file is picked. */
   async function startUpload() {
     if (!file) return;
     if (!paper) { setPaperMissing(true); return; }
     setError(null);
     setStage("uploading");
-
-    let uploadedVersionId: string;
     try {
-      const contract = await api.createContract(name || file.name);
-      setContractId(contract.id);
-      contractIdRef.current = contract.id;
-      // verifier item 7 / AM-324 r4: whose paper it is travels with the file — the
-      // server stores the role and Step 6's source in the same request
-      const uploaded = await uploadFirstDocument(contract.id, file,
-                                                 paper === "ours" ? "COMPANY_DRAFT" : "CLIENT_MODIFIED");
-      uploadedVersionId = uploaded.document_version.id;
-      setVersionId(uploadedVersionId);
+      // verifier item 7 / AM-324 r4: whose paper it is travels with the file
+      const { contractId } = await startContract(file, paper === "ours" ? "COMPANY_DRAFT" : "CLIENT_MODIFIED", {
+        name, canReview: can(P.REVIEW_CREATE),
+        onStep: (step, type) => {
+          // AM-50: a confident suggestion is recorded and shown as "Reviewed as …"
+          if (step === "analyzing") { setRecordedType(type); if (type) setContractType(type); }
+          setStage(step);
+        },
+      });
+      router.push(contractHref(contractId));   // AM-263: the contract's own address
     } catch (cause) {
-      setContractId(null);
-      contractIdRef.current = null;
       setError(cause);
       setStage("selected");
-      return;
     }
-    setStage("extracted");
-
-    // The assist lane proposes a type from the document's own opening text.
-    setStage("suggesting");
-    let proposedType: string | null = null;
-    try {
-      const proposed = await api.suggestType(uploadedVersionId);
-      if (proposed.confident && proposed.suggested_type) {
-        proposedType = proposed.suggested_type;
-      }
-    } catch {
-      /* not confident — the one question below */
-    }
-
-    // AM-51 (owner, 2026-09-09): the type is one optional signal, never a gate.
-    // A confident suggestion is recorded (audited as ASSIST_SUGGESTION) so the
-    // reader sees "Reviewed as …" and the engine has the signal; without one the
-    // review still starts — the engine measures the document by its content.
-    if (proposedType) {
-      try {
-        await api.updateContract(contract_id_or_throw(contractIdRef.current), {
-          name: name || file.name, contract_type: proposedType,
-          contract_type_source: "ASSIST_SUGGESTION",
-        });
-        setRecordedType(proposedType);
-        setContractType(proposedType);
-      } catch {
-        setRecordedType(null);
-      }
-    }
-    setStage("analyzing");
-    await chainAnalysis(contractIdRef.current!, can(P.REVIEW_CREATE));
-    router.push(contractHref(contractIdRef.current!));   // AM-263: the contract's own address
   }
 
   if (!file) {
@@ -238,6 +180,10 @@ export function UploadContract({ firstRun, onClose }: {
               <span>{which === "ours" ? "Our draft" : "The client's paper"}</span>
             </label>
           ))}
+          {paper === "ours" ? (   // S5: a returned markup of ours has its own start
+            <p className="ws-pane__note">{RETURNED_COPY.ourDraftHint}{" "}
+              <Link href="/contracts/new/returned">{RETURNED_COPY.ourDraftLink}</Link></p>
+          ) : null}
           {paperMissing ? <p className="ws-field__error" id="ws-upload-paper-error">Choose whose paper it is</p> : null}
         </fieldset>
         {error ? (
@@ -295,11 +241,6 @@ export function UploadContract({ firstRun, onClose }: {
       ) : null}
     </div>
   );
-}
-
-function contract_id_or_throw(id: string | null): string {
-  if (!id) throw new Error("no contract");
-  return id;
 }
 
 function ChecklistRow({

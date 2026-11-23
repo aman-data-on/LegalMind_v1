@@ -37,24 +37,7 @@ import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { Counterparty } from "@/lib/types";
 import { FilePicker } from "@/components/FilePicker";
-
-/** Mirrors the server's own limit (`LEGALMIND_MAX_UPLOAD_BYTES`, 25 MB). A
- *  convenience pre-check for an immediate message — 34.16 keeps the server's
- *  validation the authority, and it sniffs the bytes regardless. */
-const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
-const SUPPORTED = [".pdf", ".docx", ".md", ".txt"];
-
-function preflight(file: File): string | null {
-  const name = file.name.toLowerCase();
-  if (!SUPPORTED.some((ext) => name.endsWith(ext))) {
-    return "This file type is not supported. Choose a PDF, DOCX, Markdown or text file.";
-  }
-  if (file.size === 0) return "This file is empty. Choose another file.";
-  if (file.size > MAX_UPLOAD_BYTES) {
-    return "This file exceeds the 25 MB limit. Choose a smaller file.";
-  }
-  return null;
-}
+import { preflightProblem as preflight } from "@/lib/upload";
 
 export function UploadToClient({ client, onDone, initialContractId }: {
   client: Counterparty;

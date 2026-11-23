@@ -57,9 +57,17 @@ working day gets one entry, newest first, with these headings (omit an empty one
   SpotDraft public material (6 additions) → independent verifier, 2 rounds (round 1: unbounded certificate OCR,
   country free text opening the gate, convert using another client's draft, scope loss, a name change not clearing
   the check; round 2: the certificate reader's regex — all fixed).
+- **AB-221 batch 5 "our contract came back marked up"** (`AM-455`–`AM-460`) built on `feat/returned-markup`
+  (worktree `/root/legalmind-worktrees/returned-markup`): diagnosis → spec → design → independent design review
+  (M1–M8, S1–S11, N1–N8) → owner decisions → build. Not committed; report in the batch folder's BUILD-REPORT.md.
+  Round 2 after the independent verifier (D1 bulk-answer 409 on the tracked-only and template bases, D2–D5) and a
+  separate UI critic (must-fixes 1–5, should-fixes): fixed, re-walked at 1440/390/320; still not committed.
 
 ### Next
 - **Legal:** on MSA.LEAPSWITCH v3 (draft), re-keep the "Partner" wording point, approve, publish.
+- **AB-221:** independent verification of `feat/returned-markup`, then the owner's go to commit, PR and deploy.
+- **Legal (Q2, AB-221 `AM-459`):** may the text before the client's tracked edits go back as ours ("Keep our
+  wording" on the tracked-only base)? Until then it is withheld.
 
 ### Blocked
 - **Legal:** LeapSwitch's standard NDA template; our registered office and incorporating Act (Constitution

@@ -182,3 +182,46 @@ button.ic-steps__go:hover .ic-steps__name { color: var(--c-text); text-decoratio
 /* benchmark 1: the value just edited stays marked in the live contract until the next edit */
 .ic .nc-val[data-fresh] { animation: none; background: var(--c-highlight); border-bottom-color: var(--c-highlight-edge); }
 @media (prefers-reduced-motion: reduce) { .ic-needed__done > summary > svg { transition: none; } }
+
+/* batch 5: "Our contract came back marked up" — the intake layout, radio groups as fieldsets */
+.rm-group { border: 0; padding: 0; margin: 0; min-width: 0; }
+.rm-group > legend { padding: 0; margin-bottom: var(--s-3); }
+.rm-deal { display: grid; gap: var(--s-1); }
+.rm-deal .nc-option[data-disabled] { cursor: default; background: var(--c-page); }
+.rm-deal__why { padding-left: var(--s-4); }
+.rm-copy { display: grid; gap: var(--s-2); padding-left: var(--s-6); }
+.rm-more { justify-self: start; }
+.rm-next__list { margin: 0; padding-left: var(--s-5); display: grid; gap: var(--s-2); font-size: var(--t-dense); line-height: var(--t-dense-lh); color: var(--c-text-2); }
+.rm-next { display: none; }
+/* UI 1: a recovery or warning note reads as a message (the base .ic-note is batch 7's) */
+.ic-note--alert { display: flex; gap: var(--s-2); align-items: flex-start; padding: var(--s-3) var(--s-4);
+  background: var(--c-surface); border: 1px solid var(--c-line); border-left: 3px solid var(--c-state-edge);
+  border-radius: var(--r-card); font-size: var(--t-dense); line-height: var(--t-dense-lh); color: var(--c-text-2); }
+.ic-note--alert > svg { flex: none; margin-top: 2px; color: var(--c-state-edge); }
+.ic-note--alert:focus-visible { outline: 2px solid var(--c-action); outline-offset: 2px; }
+/* UI 3: the deals that cannot take the file, in one closed list */
+.rm-closed { display: grid; gap: var(--s-2); }
+.rm-closed > summary { cursor: pointer; font-size: var(--t-dense); line-height: var(--t-dense-lh); color: var(--c-text-2); min-height: 24px; }
+.rm-closed > summary:focus-visible { outline: 2px solid var(--c-action); outline-offset: 2px; }
+.rm-closed .nc-results { margin: 0; padding: 0; list-style: none; border: 1px solid var(--c-line); border-radius: var(--r-card); background: var(--c-surface); }
+.rm .ic-lead { margin-top: calc(-1 * var(--s-3)); }
+.rm .ic-main > div > .lm-state { inline-size: 100%; max-width: none; box-sizing: border-box; }   /* UI 9: the column width */
+#rm-fail:focus-visible, .rm .ic-section__h[tabindex]:focus-visible { outline: 2px solid var(--c-action); outline-offset: 2px; }
+/* UI 8: focusable while it says why it cannot act */
+.rm-bar .ws-btn--primary[aria-disabled="true"] { opacity: 0.55; cursor: not-allowed; }
+.rm-bar .ws-btn--primary[aria-disabled="true"]:hover { background: var(--ws-accent); border-color: var(--ws-accent); box-shadow: none; }
+.rm-bar .ws-btn--primary { white-space: nowrap; }
+@media (max-width: 1100px) {
+  .rm-next { display: grid; gap: var(--s-3); padding: var(--s-4); border: 1px solid var(--c-line); border-radius: var(--r-card); background: var(--c-surface); }
+  .rm-next > summary { cursor: pointer; }
+  .rm-next > summary:focus-visible { outline: 2px solid var(--c-action); outline-offset: 2px; }
+}
+@media (max-width: 760px) {
+  .rm-copy, .rm-deal__why { padding-left: 0; }
+  .rm-bar { flex-wrap: wrap; }                    /* the hint above, the one button full width */
+  .rm-bar > .ic-quiet { flex: 1 1 100%; }
+  .rm-bar > .ic-quiet:empty { display: none; }
+  .rm-bar > .ws-btn { flex: 1 1 100%; justify-content: center; }
+  .rm-more { min-height: 44px; }
+  html:has(.rm-bar) { scroll-padding-bottom: 128px; }   /* UI 19: taller than the stacked bar */
+}

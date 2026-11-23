@@ -133,6 +133,12 @@ EFFECT_REASON = {negotiation.POSITIVE: "Better for us",
                  # AM-306: audited as a fallback acceptance — inside our standard
                  negotiation.FALLBACK: "Fallback — within what we can offer"}
 
+#: `AM-459`: "Keep ours" on the tracked-only base, refused until Legal says the text
+#: before the client's marks may go back as ours (Q2)
+KEEP_NOT_OFFERED = ("We don't hold the copy we sent, so the text before the client's "
+                    "tracked changes is not offered as ours. Accept their wording, use "
+                    "our standard wording, or write our wording.")
+
 #: the client's change on a point a holder decides: who may accept it, in fixed words
 HOLDER_DECIDES = ("Accepting this change is a Legal Decision — a person with the right "
                   "decides it from the finding.")
@@ -178,8 +184,9 @@ def _changes(guard: Guard, contract: M.Contract, from_version: int | None,
     """``counting`` (`deal_counts`, M4): only what the counts read — an answered row's
     holder state and offers are skipped; never used for a write or a page."""
     before, after = _pair(guard, contract, from_version, to_version)
-    # AM-302: paper made from our blank template is compared with that template
-    template = blank.link(guard.db, contract, after) if before is None else None
+    # AM-302: paper made from our blank template is compared with that template;
+    # AM-457: a version uploaded "tracked changes only" with its own pre-markup text
+    template = blank.base(guard.db, contract, after) if before is None else None
     try:
         listed = negotiation.paper_first(
             guard.db, contract, after, legal_position=guard.sees_legal_position) \
@@ -200,7 +207,7 @@ def _changes(guard: Guard, contract: M.Contract, from_version: int | None,
             change["unmeasured"] = _unmeasured(change)
             change["holder_accepted"] = _holder_accepted(guard, change, before, after)
         change["waiting_for_approval"] = _waiting(guard, change)
-        change["offers"] = _offers(change)
+        change["offers"] = _offers(change, bool(listed.get("tracked_base")))
     return listed, before, after
 
 
@@ -278,10 +285,14 @@ _ALL_ANSWERS = ("keep_ours", "accept_theirs", "use_standard", "write_wording",
                 "ask_client")
 
 
-def _offers(change: dict) -> list[str]:
+def _offers(change: dict, tracked: bool = False) -> list[str]:
     """Paper first (coordinator ruling under the owner's delegation, AB-152): on a
     THEIRS row "Keep ours" IS our standard clause, offered only where a published clause
-    anchors the row; with none, only Accept theirs and Write our wording."""
+    anchors the row; with none, only Accept theirs and Write our wording. ``tracked``
+    (`AM-459`, fail closed until Legal answers Q2): the text before the client's marks
+    may hold their untracked edits, so it is never offered back as ours."""
+    if tracked:
+        return [a for a in _ALL_ANSWERS if a != "keep_ours"]
     if change["kind"] != negotiation.THEIRS_KIND:
         return list(_ALL_ANSWERS)
     if (change.get("anchor") or {}).get("clause_version_id"):
@@ -296,6 +307,16 @@ def _left(before: M.DocumentVersion | None,
     if before is not None:
         return before.id, None
     return None, (change.get("anchor") or {}).get("left_key")
+
+
+def _bulk_left(before: M.DocumentVersion | None, rows: list[dict]
+               ) -> tuple[UUID | None, str | None]:
+    """One left side for a bulk write (review D1): our version; with none, the template
+    or tracked-only anchor every row of the pair shares (`AM-302`, `AM-457`) — so the
+    `left_side` CHECK holds; a client-paper-first (THEIRS) row has no left side."""
+    if before is None and rows and rows[0]["kind"] != negotiation.THEIRS_KIND:
+        return _left(before, rows[0])
+    return (before.id if before else None), None
 
 
 def _current_choice(guard: Guard, before: M.DocumentVersion | None,
@@ -717,6 +738,8 @@ def answer_change(contract_id: UUID, body: NegotiationAnswer,
                        "their latest version.")
     if body.answer == "ask_client":           # AM-399: Legal asks the client (rule 18)
         guard.permission(P.LEGAL_DECISION)
+    if body.answer == "keep_ours" and listed.get("tracked_base"):
+        raise NothingOfOurs(KEEP_NOT_OFFERED)                  # AM-459, server-side
     if body.answer == "keep_ours" and change["kind"] == negotiation.THEIRS_KIND:
         if "keep_ours" not in change["offers"]:
             raise NothingOfOurs("We have no standard clause for this point, so there is "
@@ -826,6 +849,8 @@ def keep_ours_on_formatting(contract_id: UUID, body: FormattingKeepOurs,
         raise Conflict("our reply to this version is already prepared — its answers are "
                        "the record it was written from; answer the client's next version")
     guard.contract_negotiable(contract_id, P.CONTRACT_UPDATE)
+    if listed.get("tracked_base"):
+        raise NothingOfOurs(KEEP_NOT_OFFERED)                  # AM-459, server-side
     rows = {c["row_key"]: c for c in listed["changes"]}
     keys = list(dict.fromkeys(body.row_keys))
     for key in keys:
@@ -837,7 +862,7 @@ def keep_ours_on_formatting(contract_id: UUID, body: FormattingKeepOurs,
             raise Conflict(CHANGED_BY_A_COLLEAGUE)
     try:
         document_comparison.write_choices(
-            guard.db, (before.id if before else None, None), (after.id, None),
+            guard.db, _bulk_left(before, [rows[k] for k in keys]), (after.id, None),
             dict.fromkeys(keys, negotiation.ANSWERS["keep_ours"]), guard.user_id,
             expected=dict.fromkeys(keys, 0))
     except document_comparison.ChoiceChanged as exc:
@@ -884,7 +909,7 @@ def accept_by_effect(contract_id: UUID, body: AcceptByEffect,
     reason = EFFECT_REASON[body.effect]
     try:
         document_comparison.write_choices(
-            guard.db, (before.id if before else None, None), (after.id, None),
+            guard.db, _bulk_left(before, [rows[k] for k in keys]), (after.id, None),
             dict.fromkeys(keys, negotiation.ANSWERS["accept_theirs"]), guard.user_id,
             reason=reason, expected=dict.fromkeys(keys, 0))
     except document_comparison.ChoiceChanged as exc:
@@ -1166,8 +1191,9 @@ def _reply_document(guard: Guard, storage: StorageBackend, contract: M.Contract,
             == "COMPANY_DRAFT":
         raise Conflict("the latest version is already ours — nothing to reply to")
     ours = negotiation.our_previous(versions, versions[-1])
-    # AM-302: paper made from our blank template has the template as ours
-    template = blank.link(guard.db, contract, versions[-1]) if ours is None else None
+    # AM-302: paper made from our blank template has the template as ours (AM-457: or the
+    # client's own text before their marks)
+    template = blank.base(guard.db, contract, versions[-1]) if ours is None else None
     if ours is None and template is None and negotiation.is_ours(versions[-1]):
         raise BusinessRuleRejected("no version of ours comes before the client's — "
                                    "there is nothing of ours to restore")
@@ -1777,6 +1803,9 @@ def _convert_plan(guard: Guard, contract: M.Contract, body: ConvertRequest) -> d
         listed, _, _ = _changes(guard, contract, None, after.version_number)
     except BusinessRuleRejected as exc:
         return stop("NOT_READ", str(exc))
+    if listed.get("tracked_base"):                              # AM-457
+        return stop("NOT_CLIENT_PAPER", "This is our own contract, marked up by the "
+                    "client — answer its changes instead.")
     if any(c["kind"] != negotiation.THEIRS_KIND for c in listed["changes"]):
         return stop("NOT_CLIENT_PAPER", "This paper was made from our blank template — "
                     "answer its changes instead.")

@@ -58,8 +58,10 @@ from __future__ import annotations
 import json
 import re
 import unicodedata
+import uuid
 from collections import Counter
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -144,6 +146,12 @@ THEIRS_PREFIX = "N|THEIRS|"
 CLAUSE_ANCHOR = "clause:"
 #: `AM-302`: a row compared with a blank template — its left side is that version
 TEMPLATE_ANCHOR = "template:"
+#: `AM-457`: a row compared with the client's own text before their tracked changes —
+#: its left side is that version's pre-markup text, ``tracked:<version id>``
+TRACKED_ANCHOR = "tracked:"
+#: `AM-456`: the upload's declaration that our side is the returned file's own text
+#: before its tracked changes (``doc_metadata.compare_with``)
+TRACKED_ORIGINAL = "TRACKED_ORIGINAL"
 _SAID = {v: k for k, v in ANSWERS.items()}
 #: a negotiation row key's own prefix, so Diff-Talk's writer (`PATCH /comparisons/
 #: choices`, the same table) can never write — or overwrite — a negotiation answer
@@ -315,6 +323,29 @@ def our_previous(versions: list[M.DocumentVersion],
                 and not (v.doc_metadata or {}).get("reply_asked"):
             return v
     return None
+
+
+def tracked_only(version: M.DocumentVersion) -> bool:
+    """`AM-456`/`AM-457`: the client's version declared, at upload, to be compared with
+    its own text before their tracked changes — honoured only while it is theirs."""
+    return is_theirs(version) and \
+        (version.doc_metadata or {}).get("compare_with") == TRACKED_ORIGINAL
+
+
+def tracked_original(db: DBSession, version: M.DocumentVersion) -> list[Clause]:
+    """`AM-457`: the client's version as it read before their tracked changes — each
+    row's wording before its marks (else its text), a row inserted whole left out — our
+    side when we do not hold the copy we sent. Virtual: never stored, never a version,
+    never ours (`AM-458`). Each row's id is ``uuid5(evidence id, "original")``, so a
+    row key is stable for the life of the version (`AM-253`/`AM-433`)."""
+    out = []
+    for c in load_clauses(db, version.id):
+        original = (c.marks or {}).get("original")
+        text = c.content if original is None else original
+        if text.strip():
+            out.append(replace(c, evidence_id=uuid.uuid5(c.evidence_id, "original"),
+                               content=text, marks=None))
+    return out
 
 #: typography only: the same words in other quote marks, dashes or spacing (report §9.2a)
 _TYPOGRAPHY = str.maketrans(
@@ -1017,8 +1048,8 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
     # batch 6 D1: two reader generations are compared as one reads them (the older side
     # re-read on read; one generation untouched, so answered rows keep their keys)
     ours, theirs = reader_generation.as_one_reader(
-        db, before.id if template is None and before is not None else None, after.id,
-        ours, theirs)
+        db, before.id if before is not None else (template or {}).get("read_by"),
+        after.id, ours, theirs)
     old, new = _units(ours), _units(theirs)
     if template is not None:
         as_filled(old, new, template)
@@ -1062,6 +1093,8 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
                     triage["topics"] = [{k: v for k, v in t.items() if k != "position"}
                                         for t in triage["topics"]]
         tracked, untracked = _tracked(kind, i, j, old, new, twin, deleted)
+        # AM-457: our side IS their text before the marks, so nothing can be unmarked
+        untracked = untracked and not (template or {}).get("tracked")
         route, why = _route(kind, o, n, f_before, f_after, triage, found_after)
         if unapplied:                          # fail closed: a person reads it
             route, why = HOLDER, SPECIAL_NOT_APPLIED
@@ -1090,9 +1123,9 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
             "effect_for_us": effect,
             **_measured(effect, kind, f_before, f_after, triage),
             # AM-302: an answer's left side is the template it was compared with
-            **({"anchor": {
-                "left_key": f"{TEMPLATE_ANCHOR}{template['template_version'].id}",
-                "clause_version_id": None}} if template else {}),
+            # (AM-457: the client's own text before their marks)
+            **({"anchor": {"left_key": template["anchor"], "clause_version_id": None}}
+               if template else {}),
             **said,                  # the answer here, and every round's before it
             "answer": auto_answer(said["answer"], effect, auto),
         })
@@ -1107,7 +1140,9 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
         "contract_id": str(contract.id),
         "from": {"document_version_id": str(before.id),
                  "version_number": before.version_number} if before else None,
-        **({"template": template["said"]} if template else {}),
+        **({"template": template["said"]} if template and template["said"] else {}),
+        # AM-457: compared with the client's tracked changes only (omitted otherwise)
+        **({"tracked_base": True} if (template or {}).get("tracked") else {}),
         **({"special_conditions_not_applied": unapplied} if unapplied else {}),
         "to": {"document_version_id": str(after.id),
                "version_number": after.version_number},
@@ -1205,7 +1240,8 @@ def answer_lines(db: DBSession, contract: M.Contract, before: M.DocumentVersion 
                C.left_version_id.in_(list(versions))
                | (C.left_version_id.is_(None)
                   & (C.row_key.startswith(THEIRS_PREFIX)
-                     | C.left_key.startswith(TEMPLATE_ANCHOR))),
+                     | C.left_key.startswith(TEMPLATE_ANCHOR)
+                     | C.left_key.startswith(TRACKED_ANCHOR))),
                C.row_key.startswith(KEY_PREFIX))
         .order_by(C.created_at, C.version_number)).all()
     # (right version, its evidence row) -> every answer naming that clause

@@ -56,7 +56,8 @@ from legalmind.drafting import blank
 from legalmind.evaluation.user_status import folded_user_status_counts
 from legalmind.ingestion.service import ingest_document
 from legalmind.ingestion.storage import StorageBackend
-from legalmind.ingestion.validation import MARKDOWN_MIME
+from legalmind.ingestion.validation import DOCX_MIME, MARKDOWN_MIME
+from legalmind.mapping.service import body_rows
 from legalmind.security import audit
 from legalmind.security import permissions as P
 from legalmind.security.authorization import (
@@ -106,7 +107,7 @@ def _status_bucket(item: dict, stage: str | None = None) -> str:
     return "analyzed"
 
 
-SCOPES = ("own", "department", "legal")
+SCOPES = ("own", "department", "legal", "negotiable")
 
 
 def _scoped_contracts(guard: Guard, scope: str, *, archived: bool) -> Select:
@@ -157,6 +158,17 @@ def _scoped_contracts(guard: Guard, scope: str, *, archived: bool) -> Select:
             stmt = (select(M.Contract)
                     .join(M.User, M.User.id == M.Contract.owner_id)
                     .where(M.User.department_id == guard.department_id))
+    elif scope == "negotiable" and guard.department_id is not None:
+        # AM-460 (batch 5, review S1): the deals a returned copy may be uploaded to —
+        # mine, and a colleague's I collaborate on while in its owner's department
+        # (`AM-259` r2, `AM-280` r2: `negotiation_basis`); each opens by id already
+        stmt = select(M.Contract).where(or_(
+            M.Contract.owner_id == guard.user_id, M.Contract.id.in_(
+                select(M.ContractCollaborator.contract_id)
+                .join(M.Contract, M.Contract.id == M.ContractCollaborator.contract_id)
+                .join(M.User, M.User.id == M.Contract.owner_id)
+                .where(M.ContractCollaborator.user_id == guard.user_id,
+                       M.User.department_id == guard.department_id))))
     else:
         stmt = select(M.Contract).where(M.Contract.owner_id == guard.user_id)
     return stmt.where(M.Contract.archived_at.is_not(None) if archived
@@ -589,8 +601,9 @@ def get_contract(contract_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
     if len(versions) == 1:
         # AM-302: one version made from our blank template opens on its Changes, which
         # compare it with that template (the link is read from its own text)
-        link = blank.link(guard.db, contract, versions[0])
-        if link is not None:
+        # AM-457: a version declared "tracked changes only" is never made from a template
+        link = blank.base(guard.db, contract, versions[0])
+        if link is not None and link["said"]:
             payload["document_versions"][0]["made_from_template"] = link["said"]
     stage = negotiation_stages(guard, [contract]).get(contract.id)
     if stage is not None:
@@ -909,6 +922,12 @@ async def upload_document_version(
     x_version_role: str | None = Header(None, description=(
         "`AM-324` r4: whose paper this version is, declared in the same request — "
         "COMPANY_DRAFT (our draft) or CLIENT_MODIFIED (the client's paper or markup)")),
+    x_compare_with: str | None = Header(None, description=(
+        "`AM-456`: TRACKED_ORIGINAL — we do not hold the copy we sent, so compare this "
+        "returned Word file with its own text before the client's tracked changes. Only "
+        "with CLIENT_MODIFIED, on the contract's first version, for a Word file that "
+        "carries tracked changes (422 WORD_FILE_NEEDED / NO_TRACKED_CHANGES otherwise); "
+        "stored in the same request, never changed afterwards")),
     guard: Guard = Depends(get_guard),
     storage: StorageBackend = Depends(get_storage),
 ) -> dict:
@@ -959,7 +978,8 @@ async def upload_document_version(
         raise BusinessRuleRejected("the request body is empty")
     return await run_in_threadpool(
         _ingest_upload, guard, storage, contract_id, payload,
-        original_filename, request.headers.get("content-type", ""), True, x_version_role)
+        original_filename, request.headers.get("content-type", ""), True, x_version_role,
+        x_compare_with)
 
 
 #: the two answers to "whose paper is it?" an upload takes (`AM-324` r4), and the Step 6
@@ -967,9 +987,48 @@ async def upload_document_version(
 UPLOAD_ROLES = {"COMPANY_DRAFT": "ORGANIZATION", "CLIENT_MODIFIED": "COUNTERPARTY"}
 
 
+class WordFileNeeded(BusinessRuleRejected):
+    """422 — "compare with the tracked changes only" on a file that is not Word
+    (`AM-456`): only a Word file carries tracked changes we can read and answer."""
+
+    code = "WORD_FILE_NEEDED"
+
+
+class NoTrackedChanges(BusinessRuleRejected):
+    """422 — "compare with the tracked changes only" on a Word file that carries none
+    (`AM-456`): with no copy we sent and no marks, nothing the client changed shows."""
+
+    code = "NO_TRACKED_CHANGES"
+
+
+def _tracked_only_refusal(guard: Guard, contract_id: UUID, compare_with: str,
+                          version_role: str | None, declared_mime: str) -> None:
+    """`AM-456` (review S2): every refusal that needs no parse, before the file is read —
+    after the contract's own 404/409 (the route's guard ran first)."""
+    if compare_with != negotiation.TRACKED_ORIGINAL:
+        raise BusinessRuleRejected("X-Compare-With takes only TRACKED_ORIGINAL")
+    if version_role != "CLIENT_MODIFIED":
+        raise BusinessRuleRejected("compare with the tracked changes only is for the "
+                                   "client's returned copy (CLIENT_MODIFIED)")
+    db = guard.db
+    if db.execute(select(M.DocumentVersion.id).where(
+            M.DocumentVersion.contract_id == contract_id).limit(1)).first() is not None \
+            or db.execute(select(M.ContractDraft.id).where(
+                M.ContractDraft.contract_id == contract_id).limit(1)).first() is not None:
+        raise BusinessRuleRejected("compare with the tracked changes only is only on a "
+                                   "contract's first version")
+    if declared_mime != DOCX_MIME:
+        raise WordFileNeeded("Ask the client for the Word file — we need it to see their "
+                             "tracked changes and to send our reply.")
+
+
 def _ingest_upload(guard: Guard, storage: StorageBackend, contract_id: UUID,
                    payload: bytes, original_filename: str, declared_mime: str,
-                   render_pages: bool = True, version_role: str | None = None) -> dict:
+                   render_pages: bool = True, version_role: str | None = None,
+                   compare_with: str | None = None) -> dict:
+    if compare_with is not None:
+        _tracked_only_refusal(guard, contract_id, compare_with, version_role,
+                              declared_mime)
     # `defer_ocr` — the ~63s-upload fix (2026-09-03). A document that needs OCR
     # returns from ingest as PROCESSING with no evidence, the request finishes in
     # native-parse time, and the OCR runs as its own background ProcessingRun
@@ -989,9 +1048,23 @@ def _ingest_upload(guard: Guard, storage: StorageBackend, contract_id: UUID,
     )
 
     dv = result.document_version
+    if compare_with is not None and (dv.version_number != 1 or not body_rows(
+            guard.db.execute(select(M.DocumentEvidence).where(
+                M.DocumentEvidence.processing_run_id == result.processing_run.id,
+                M.DocumentEvidence.evidence_metadata.has_key("revision"))).scalars())):
+        # AM-456: read once, the body only (a header's or footer's mark is not the
+        # client's change to the contract); the request rolls back (no version, notice or
+        # audit) and the stored bytes go with it
+        storage.discard(dv.storage_key)
+        if dv.version_number != 1:
+            raise BusinessRuleRejected("compare with the tracked changes only is only on "
+                                       "a contract's first version")
+        raise NoTrackedChanges("The client's file has no tracked changes. To see what "
+                               "they changed, upload the copy we sent.")
     if version_role is not None:              # AM-324 r4: declared in the same request
         dv.doc_metadata = {**(dv.doc_metadata or {}), "version_role": version_role,
-                           "source": UPLOAD_ROLES[version_role]}
+                           "source": UPLOAD_ROLES[version_role],
+                           **({"compare_with": compare_with} if compare_with else {})}
         guard.db.flush()
         if version_role == "CLIENT_MODIFIED":         # AM-273 m3, as the declaration did
             from legalmind import notifications
@@ -1004,7 +1077,8 @@ def _ingest_upload(guard: Guard, storage: StorageBackend, contract_id: UUID,
                  after={"document_version_id": str(dv.id), "version_number":
                         dv.version_number, "filename": dv.original_filename,
                         "file_hash": dv.file_hash, "file_size_bytes": dv.file_size_bytes,
-                        **({"version_role": version_role} if version_role else {})})
+                        **({"version_role": version_role} if version_role else {}),
+                        **({"compare_with": compare_with} if compare_with else {})})
     if result.document_version.processing_status is E.ProcessingStatus.PROCESSING:
         # The deferred path: OCR (and then indexing, over the evidence OCR
         # writes) continues in the background; the response below says

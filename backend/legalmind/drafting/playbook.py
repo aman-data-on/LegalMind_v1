@@ -33,12 +33,19 @@ def template_fallbacks(db: DBSession, tv: M.TemplateVersion | None) -> dict[str,
     return out
 
 
+#: `AM-458` (owner 2026-11-23): versions LegalMind prepared from the client's paper — our
+#: reply, the final contract, its final copy. Ours by role, never our draft: on a deal
+#: that began on the client's paper (or their markup alone) they carry the client's words
+MADE_FROM_THEIRS = ("reply_to", "package_of", "final_copy_of")
+
+
 def for_contract(db: DBSession, contract: M.Contract) -> list[dict[str, Any]]:
     """Our paper's playbook: the version we made from a template (its draft row), else
-    our earliest version DECLARED ours (`COMPANY_DRAFT`). Anything else — the client's
-    paper, or an upload nobody said was ours — opens at the ratified standard's own
-    position, never at the document's figure (`AM-317` r4, audit N9: a client's 90 days
-    read as "We start at 90 days")."""
+    our earliest version DECLARED ours (`COMPANY_DRAFT`) that is a real draft of ours —
+    never a reply, final contract or final copy LegalMind prepared (`AM-458`). Anything
+    else — the client's paper, or an upload nobody said was ours — opens at the ratified
+    standard's own position, never at the document's figure (`AM-317` r4, audit N9: a
+    client's 90 days read as "We start at 90 days")."""
     draft = db.execute(select(M.ContractDraft).where(
         M.ContractDraft.contract_id == contract.id)
         .order_by(M.ContractDraft.created_at)).scalars().first()
@@ -47,7 +54,9 @@ def for_contract(db: DBSession, contract: M.Contract) -> list[dict[str, Any]]:
         .order_by(M.DocumentVersion.version_number)).scalars().all()
     ours = (db.get(M.DocumentVersion, draft.document_version_id) if draft
             else next((v for v in versions if (v.doc_metadata or {}).get("version_role")
-                       == "COMPANY_DRAFT"), None))
+                       == "COMPANY_DRAFT" and not any(
+                           (v.doc_metadata or {}).get(k) for k in MADE_FROM_THEIRS)),
+                      None))
     tv = db.get(M.TemplateVersion, draft.template_version_id) if draft else None
     provider = contract.contract_type in negotiation.PROVIDER_TYPES
     if ours is None:       # not provably ours: its figures are never our opening

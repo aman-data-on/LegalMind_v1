@@ -9,6 +9,21 @@ No version has been released. The V1 specification is complete and implementatio
 ---
 
 ## [Unreleased]
+- AB-221 (2026-11-23, `AM-455`–`AM-460`; batch 5 "our contract came back marked up"; branch `feat/returned-markup`,
+  BUILT, not deployed). A third New-contract start for our own MSA returned as a Word file with tracked changes:
+  client required, the deal chosen (or a new one), and — for a new deal — the copy we sent uploaded first as our draft
+  or, when we do not have it, the file compared with its own text before the client's marks (`X-Compare-With:
+  TRACKED_ORIGINAL`, stored in `metadata.compare_with`; refusals `WORD_FILE_NEEDED` / `NO_TRACKED_CHANGES`; virtual
+  base, never stored, never ours; "Keep our wording" withheld there until Legal answers Q2). Only our real drafts
+  supply opening figures (never a reply, final contract or final copy). Contract list `scope=negotiable`. A PATCH of
+  role/source on a tracked-only version is 409. One shared upload chain and file check for every upload page.
+  An in-app navigation to a contract's `/changes` address now opens the Changes tab (it opened Document: the
+  tab was read from the address bar before Next updated it). No migration; OpenAPI snapshot regenerated.
+  Round 2 (independent verification + UI critique): bulk "Accept all with no change for us" / "Keep our wording
+  on all formatting" store the base's left key on the tracked-only and blank-template bases (were a false 409);
+  NO_TRACKED_CHANGES ignores page furniture; deals that cannot take the file sit in one closed list; new deals
+  are named by type, client and day; alert-styled refusals; the client is locked while sending; a focusable
+  submit that says what is missing; the failure says the copy we sent is saved.
 - AB-220 (2026-11-23, `AM-449`–`AM-452`; batch 7 "client details before drafting"; PR #332, DEPLOYED 2026-11-23 as 02197bc4). Legal's ten-item checklist for an
   MSA & NDA is collected once on the client (registered email, signatory email, line of business, GST certificate
   added; migration `c5e8a2f4d7b1`) and required, with a person's check against the GST certificate and GST/MCA

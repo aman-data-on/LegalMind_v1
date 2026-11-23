@@ -16,7 +16,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 import { ApiError, api, describeError } from "@/lib/api";
-import { ACTION_LABEL, answerFor, isHeading, redline, verdictsFor, where, type Answer, type ChangeList, type ClientChange, type Mark, type Verdict } from "@/lib/changes";
+import { ACTION_LABEL, answerFor, isHeading, oursLabel, redline, verdictsFor, where, type Answer, type ChangeList, type ClientChange, type Mark, type Verdict } from "@/lib/changes";
 import { VERDICT_COPY, VERDICT_LABELS } from "@/lib/labels";
 import { useSeesLegalPosition } from "@/lib/session";
 import type { Evaluation, Finding } from "@/lib/types";
@@ -220,7 +220,7 @@ export function AnswerComposer({ change, list, actions, contractId, details, onA
           client&apos;s answer.</p> : null}
       </>
     ),
-    keep_ours: <p className="cx-panel__what">Our wording from version {list.from?.version_number} stays. The reply restores it
+    keep_ours: <p className="cx-panel__what">{list.from ? `Our wording from version ${list.from.version_number}` : oursLabel(list)} stays. The reply restores it
       as a tracked change.</p>,
     accept_theirs: decides ? (
       <>
@@ -268,7 +268,7 @@ export function AnswerComposer({ change, list, actions, contractId, details, onA
             <div className="cx-editor__ref">
               {change.before ? (
                 <DiffText from={ours} to={theirs} added="client added" removed="client removed"
-                          labels={{ from: `Ours, version ${list.from?.version_number ?? ""}`, to: `The client's, version ${versionTo}` }} />
+                          labels={{ from: oursLabel(list), to: `The client's, version ${versionTo}` }} />
               ) : <p className="cx-marked">{theirs}</p>}
             </div>
           </div>

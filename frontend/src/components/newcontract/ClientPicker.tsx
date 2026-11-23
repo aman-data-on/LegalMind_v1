@@ -15,8 +15,8 @@ import { clientFieldError } from "@/lib/newContract";
 import type { Counterparty } from "@/lib/types";
 
 /** Line 2 of a client: where it is registered, and how many of Legal's details are missing. */
-export function clientLine(c: Counterparty): string {
-  return [c.registered_office ?? c.city, c.gstin, C.detailsMissing(c.details_missing ?? 0)].filter(Boolean).join(". ");
+export function clientLine(c: Counterparty, gaps = true): string {
+  return [c.registered_office ?? c.city, c.gstin, gaps && C.detailsMissing(c.details_missing ?? 0)].filter(Boolean).join(". ");
 }
 
 function NewClient({ named, onAdded, onCancel }: { named: string; onAdded: (c: Counterparty) => void; onCancel: () => void }) {
@@ -49,9 +49,13 @@ function NewClient({ named, onAdded, onCancel }: { named: string; onAdded: (c: C
   );
 }
 
-export function ClientPicker({ value, onChange }: {
+export function ClientPicker({ value, onChange, disabled = false, showGaps = true }: {
   value: Counterparty | null;
   onChange: (c: Counterparty | null) => void;
+  /** batch 5: locked while a file is being sent */
+  disabled?: boolean;
+  /** batch 5: "N details to add" belongs to the New-contract intake, not to every picker */
+  showGaps?: boolean;
 }) {
   const [q, setQ] = useState("");
   const [found, setFound] = useState<Counterparty[] | null>(null);
@@ -75,9 +79,9 @@ export function ClientPicker({ value, onChange }: {
       <div className="nc-chosen">
         <div>
           <p className="nc-item__l1">{value.name}</p>
-          <p className="nc-item__l2">{clientLine(value)}</p>
+          <p className="nc-item__l2">{clientLine(value, showGaps)}</p>
         </div>
-        <button type="button" className="ws-btn ws-btn--sm" onClick={() => onChange(null)}>{C.change}</button>
+        <button type="button" className="ws-btn ws-btn--sm" disabled={disabled} onClick={() => onChange(null)}>{C.change}</button>
       </div>
     );
   }
@@ -104,7 +108,7 @@ export function ClientPicker({ value, onChange }: {
             <li key={c.id}>
               <button type="button" className="nc-item" onClick={() => onChange(c)}>
                 <span className="nc-item__l1">{c.name}</span>
-                <span className="nc-item__l2">{clientLine(c)}</span>
+                <span className="nc-item__l2">{clientLine(c, showGaps)}</span>
               </button>
             </li>
           ))}

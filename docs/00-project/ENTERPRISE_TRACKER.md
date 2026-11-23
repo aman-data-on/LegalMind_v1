@@ -44,10 +44,10 @@ Nothing is committed until the owner says "commit".
 - [x] Batch 6 client misreads — AB-219 `AM-444`–`AM-448` (DEPLOYED 2026-11-23 f695622d)
 - [x] Batch 7 client details before drafting — AB-220 `AM-449`–`AM-452` (DEPLOYED 2026-11-23 02197bc4; MSA v3 draft with our CIN locked awaits Legal: re-keep "Partner", approve, publish)
 - [ ] Owner: client self-fill link (Ironclad/Juro/SpotDraft pattern; outsider-facing page — security review)
-- [ ] Legal: NDA template; our registered office + incorporating Act (Constitution §4.1 vs MSA); source of our CIN; fixed defaults for recital A and the banks' city
+- [ ] Legal: NDA template; our registered office + incorporating Act (Constitution §4.1 vs MSA); source of our CIN; fixed defaults for recital A and the banks' city; **Q2 (AB-221 `AM-459`)**: "When we only have the client's file, 'Keep our wording' would put back the text that was there before their tracked edits. That text may include edits they made without tracking, or our own older edits. May we send it as ours?"
 - [ ] Owner (rule 21 config): finding terms "from termination", "terminates", "subprocessor(s)", data residency / convenience notice / data purge terms
 - [ ] Legal: "paid or payable" cap basis; residuals waiver wording; whether a mutual change is ever onto us; carve-out/precedence/renewal/refund triage rules; data-loss general exclusion; customer-indemnity limbs
-- [ ] Batch 5 "our contract came back marked up" start option
+- [x] Batch 5 "our contract came back marked up" start option — AB-221 `AM-455`–`AM-460` (BUILT 2026-11-23 on `feat/returned-markup`; not deployed; awaiting independent verification and the owner's go)
 - [x] Production-copy answered-keys probe (owner OK): 0 of 12 answered keys lost
 - [ ] Legal: confirm BASELINE for this case; this deal's positions; never-concede list
 

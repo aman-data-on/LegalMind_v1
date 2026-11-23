@@ -54,6 +54,7 @@ import { Thread } from "@/components/ui/thread";
 import { ASK_TIMEOUT_MS, ApiError, api, describeError } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
+import { fileProblem, kindsOf } from "@/lib/upload";
 import type { AskResult, ChatAttachment, ConversationSummary, ConversationTurn } from "@/lib/types";
 
 import {
@@ -91,14 +92,10 @@ const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 /** B1.1: a photo or screenshot is read by OCR in the chat (never on the Dashboard). */
 const SUPPORTED_EXTENSIONS = [".pdf", ".docx", ".md", ".txt", ".png", ".jpg", ".jpeg"];
 
+/** The card's own words for the one shared check (`lib/upload.fileProblem`, review S6). */
 function preflightProblem(file: File): string | null {
-  const name = file.name.toLowerCase();
-  if (!SUPPORTED_EXTENSIONS.some((extension) => name.endsWith(extension))) {
-    return "use PDF, Word, text, PNG or JPG";
-  }
-  if (file.size > MAX_UPLOAD_BYTES) return "larger than 10 MB";
-  if (file.size === 0) return "the file is empty";
-  return null;
+  return { type: `use ${kindsOf(SUPPORTED_EXTENSIONS)}`, size: "larger than 10 MB", empty: "the file is empty",
+           none: null }[fileProblem(file, SUPPORTED_EXTENSIONS, MAX_UPLOAD_BYTES) ?? "none"];
 }
 
 /** A file the server refused: said on its card, so the message log stays quiet. */

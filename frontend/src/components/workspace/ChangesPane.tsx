@@ -27,7 +27,7 @@ import { EmptyState, ErrorState, LoadingState, NoticeState } from "@/components/
 import { SegmentedFilter } from "@/components/SegmentedFilter";
 import { PreviewPanel } from "@/components/PreviewPanel";
 import { StatusChip, chipStatus } from "@/components/StatusChip";
-import { CHANGES_COPY, FEEDBACK_COPY } from "@/lib/labels";
+import { CHANGES_COPY, FEEDBACK_COPY, RETURNED_COPY } from "@/lib/labels";
 import { PointStatusIcon } from "./PointStatus";
 import { ApiError, api, describeError } from "@/lib/api";
 import * as P from "@/lib/permissions";
@@ -301,7 +301,7 @@ export function ChangesPane({
     setDetail(false);
     if (current) focusSoon(`cx-row-${current.row_key}`);
   };
-  const formatting = data.can_answer ? data.changes.filter((c) => formattingOnly(c) && c.answer === null) : [];
+  const formatting = data.can_answer && !data.tracked_base ? data.changes.filter((c) => formattingOnly(c) && c.answer === null) : [];
   const allUntracked = data.summary.untracked > 0 && data.summary.untracked === data.summary.total;
   // `can_answer` is false once our reply is prepared — the round is closed
   const together = Object.fromEntries(ACCEPTABLE_EFFECTS.map((e) => [e, acceptable(data.changes, e, data)])) as Record<AcceptableEffect, ClientChange[]>;
@@ -348,7 +348,7 @@ export function ChangesPane({
           above (reply, final contract) and any banner stay (PLAIN-LANGUAGE §2.6) */}
       {data.changes.length === 0 && !data.template ? (
         <EmptyState heading="h2" icon={<IconCheck size={24} />} title="No changes from the client"
-                    body="This version matches what we sent." />
+                    body={data.tracked_base ? RETURNED_COPY.noChanges : "This version matches what we sent."} />
       ) : <div className="cx-grid">
         <nav className="cx-list" id="cx-list" tabIndex={-1} aria-label="Client changes">
           {shown.length ? (
@@ -359,12 +359,12 @@ export function ChangesPane({
         </nav>
         <section className="cx-doc" aria-label={data.from
           ? `Version ${data.to.version_number} against version ${data.from.version_number}`
-          : `Version ${data.to.version_number}, the client's paper`}>
+          : `Version ${data.to.version_number}, ${data.tracked_base ? "the client's tracked changes" : "the client's paper"}`}>
           {/* the outline's level between the page's h1 and each passage's h3 (UI review) */}
           <h2 className="ws-visually-hidden">The client&rsquo;s changes in the document</h2>
           <p className="cx-legend">
-            {data.from || data.template ? (
-              <>{data.template ? <>Our template (version {data.template.version}) against this copy
+            {data.from || data.template || data.tracked_base ? (
+              <>{data.tracked_base ? <>{RETURNED_COPY.legend}{" "}</> : data.template ? <>Our template (version {data.template.version}) against this copy
                 (version {data.to.version_number}).{" "}</> : null}<ins>Underlined</ins>: the client added. <del>Struck</del>: the client
                 removed.</>
             ) : (
