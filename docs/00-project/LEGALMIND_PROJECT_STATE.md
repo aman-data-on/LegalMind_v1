@@ -11,7 +11,7 @@
 
 ---
 
-**2026-11-23 — AB-220 (built, not deployed).** Batch 7: Legal's client checklist is collected once and
+**2026-11-23 — AB-220 (DEPLOYED 2026-11-23, 02197bc4).** Batch 7: Legal's client checklist is collected once and
 required before an MSA is made; the GST certificate fills most of it; New contract is redesigned as one
 enterprise intake where a returning client types no client detail.
 

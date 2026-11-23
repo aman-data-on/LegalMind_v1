@@ -42,7 +42,7 @@ Nothing is committed until the owner says "commit".
 - [ ] Owner/Legal: a keep-ours / ask-client answer sent with no reason on a measured row still records a system fallback justification ("Answered on the change: …"); the UI no longer reaches it (AB-218) — propose: require the lawyer's reason on the server
 - [ ] Owner note: a lawyer who created a contract (CREATOR, AM-288 r2) may record positions before it is sent to Legal
 - [x] Batch 6 client misreads — AB-219 `AM-444`–`AM-448` (DEPLOYED 2026-11-23 f695622d)
-- [x] Batch 7 client details before drafting — AB-220 `AM-449`–`AM-452` (built + verified on `feat/client-details`)
+- [x] Batch 7 client details before drafting — AB-220 `AM-449`–`AM-452` (DEPLOYED 2026-11-23 02197bc4; MSA v3 draft with our CIN locked awaits Legal: re-keep "Partner", approve, publish)
 - [ ] Owner: client self-fill link (Ironclad/Juro/SpotDraft pattern; outsider-facing page — security review)
 - [ ] Legal: NDA template; our registered office + incorporating Act (Constitution §4.1 vs MSA); source of our CIN; fixed defaults for recital A and the banks' city
 - [ ] Owner (rule 21 config): finding terms "from termination", "terminates", "subprocessor(s)", data residency / convenience notice / data purge terms

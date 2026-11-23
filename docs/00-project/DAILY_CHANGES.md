@@ -43,6 +43,9 @@ working day gets one entry, newest first, with these headings (omit an empty one
 - **`f695622d`** (#330, AB-219 batch 6 "client misreads"). API and site 200, reader legalmind-ingest-v12,
   no errors in the API log; the test contract opens unchanged for the lawyer (its versions are both v11,
   so its rows are untouched by design).
+- **`02197bc4`** (#332, AB-220 batch 7 "client details before drafting"). Migration `c5e8a2f4d7b1` ran in the
+  deploy; API and site 200; the live client record returns `details_missing` (test sales login). MSA.LEAPSWITCH v3
+  created as a DRAFT from published v2 with our CIN locked (ops account); v2 stays live until Legal publishes v3.
 
 ### Decided (owner)
 - Build the "client details before drafting" batch: Legal's 10-item checklist on the MSA form, stored on
@@ -55,10 +58,8 @@ working day gets one entry, newest first, with these headings (omit an empty one
   country free text opening the gate, convert using another client's draft, scope loss, a name change not clearing
   the check; round 2: the certificate reader's regex — all fixed).
 
-### In progress
-- **AB-220** — PR → CI → merge gate → merge; then the owner's deploy OK; after deploy, a new MSA version with our
-  CIN locked (`import_template --from-published … --lock`), Legal re-keeps the "Partner" wording point on it, then
-  approves and publishes.
+### Next
+- **Legal:** on MSA.LEAPSWITCH v3 (draft), re-keep the "Partner" wording point, approve, publish.
 
 ### Blocked
 - **Legal:** LeapSwitch's standard NDA template; our registered office and incorporating Act (Constitution
