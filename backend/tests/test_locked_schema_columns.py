@@ -73,8 +73,9 @@ LOCKED_SCHEMA: dict[str, tuple[str, ...]] = {
     # 2026-09-10 under the owner's Client Profiles instruction (migration
     # e9f2b6c4a173) — the profile fields a client page shows, all nullable but
     # `status`, none backfilled. Recorded here in the same change as the
-    # migration and the model, which is the only way this snapshot may move.
-    "counterparties": ('account_owner_id', 'authority_reference', 'cin_or_llpin', 'city', 'country', 'created_at', 'created_by', 'entity_type', 'gstin', 'id', 'industry', 'legal_contact_email', 'legal_contact_name', 'legal_name', 'name', 'notice_address', 'notice_email', 'pan', 'primary_contact_email', 'primary_contact_name', 'primary_contact_phone', 'registered_office', 'relationship_notes', 'signatory_designation', 'signatory_name', 'state_region', 'status', 'updated_at', 'website'),
+    # migration and the model, which is the only way this snapshot may move. Six more
+    # with batch 7 (AB-220, c5e8a2f4d7b1): the client details checked before drafting.
+    "counterparties": ('account_owner_id', 'authority_reference', 'cin_or_llpin', 'city', 'country', 'created_at', 'created_by', 'details_verified_at', 'details_verified_by', 'entity_type', 'gst_certificate', 'gstin', 'id', 'industry', 'legal_contact_email', 'legal_contact_name', 'legal_name', 'line_of_business', 'name', 'notice_address', 'notice_email', 'pan', 'primary_contact_email', 'primary_contact_name', 'primary_contact_phone', 'registered_email', 'registered_office', 'relationship_notes', 'signatory_designation', 'signatory_email', 'signatory_name', 'state_region', 'status', 'updated_at', 'website'),
     "departments": ('code', 'created_at', 'id', 'name'),
     "document_evidence": ('content', 'created_at', 'document_version_id', 'end_offset', 'id', 'metadata', 'page_number', 'processing_run_id', 'section_number', 'section_title', 'source_type', 'start_offset'),
     "document_processing_runs": ('completed_at', 'created_at', 'document_version_id', 'error_code', 'error_message', 'id', 'metadata', 'processor_version', 'run_type', 'started_at', 'status'),
@@ -226,9 +227,11 @@ def test_the_total_locked_column_count_is_unchanged(db):
     357 with `draft_answers.brand` (one MSA for every brand, AM-341; f3b8c1d6e2a7).
     358 with `review_assignments.note` (Note for Legal, AM-408; e4b9a2d7c318).
     368 with the ten-column `deal_positions` (batch 3+4, AB-218; f1a7c3e9d5b2).
+    374 with `counterparties` + 6 (client details before drafting, batch 7 AB-220;
+    c5e8a2f4d7b1).
     """
     live = _live_columns(db)
-    assert sum(len(c) for c in live.values()) == 368
+    assert sum(len(c) for c in live.values()) == 374
 
 
 # --------------------------------------------------------------------------

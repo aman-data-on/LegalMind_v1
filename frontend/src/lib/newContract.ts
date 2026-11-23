@@ -34,6 +34,8 @@ export interface Question {
 export interface PublishedTemplate extends TemplateCardData {
   title: string | null;
   questions: Question[];
+  /** batch 7: the questions the Client details card owns (read from the client record) */
+  client_questions?: string[];
   annexures: { key: string; title: string | null; when?: unknown }[];
 }
 
@@ -197,6 +199,11 @@ export function toAnswers(questions: Question[], local: Answers): Answers {
       : asInt(q, value);
   }
   return out;
+}
+
+/** Required questions asked now (answered or not) — the deal's count in the steps and the panel. */
+export function askedNow(questions: Question[], local: Answers): Question[] {
+  return visibleQuestions(questions, local).filter((q) => required(q) && !locked(q));
 }
 
 /** Required questions asked now and not answered — what "Still to fill in" lists first. */

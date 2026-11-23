@@ -800,6 +800,18 @@
       ],
       "title": "Legal Name"
      },
+     "line_of_business": {
+      "anyOf": [
+       {
+        "maxLength": 500,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Line Of Business"
+     },
      "name": {
       "maxLength": 500,
       "minLength": 1,
@@ -878,6 +890,18 @@
       ],
       "title": "Primary Contact Phone"
      },
+     "registered_email": {
+      "anyOf": [
+       {
+        "maxLength": 320,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Registered Email"
+     },
      "registered_office": {
       "anyOf": [
        {
@@ -913,6 +937,18 @@
        }
       ],
       "title": "Signatory Designation"
+     },
+     "signatory_email": {
+      "anyOf": [
+       {
+        "maxLength": 320,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Signatory Email"
      },
      "signatory_name": {
       "anyOf": [
@@ -1105,6 +1141,18 @@
       ],
       "title": "Legal Name"
      },
+     "line_of_business": {
+      "anyOf": [
+       {
+        "maxLength": 500,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Line Of Business"
+     },
      "name": {
       "anyOf": [
        {
@@ -1190,6 +1238,18 @@
       ],
       "title": "Primary Contact Phone"
      },
+     "registered_email": {
+      "anyOf": [
+       {
+        "maxLength": 320,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Registered Email"
+     },
      "registered_office": {
       "anyOf": [
        {
@@ -1225,6 +1285,18 @@
        }
       ],
       "title": "Signatory Designation"
+     },
+     "signatory_email": {
+      "anyOf": [
+       {
+        "maxLength": 320,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Signatory Email"
      },
      "signatory_name": {
       "anyOf": [
@@ -6933,6 +7005,148 @@
     ]
    }
   },
+  "/api/v1/counterparties/{counterparty_id}/details-verified": {
+   "post": {
+    "description": "Batch 7 (spec \u00a73): a person records that they checked the legal name, address and\nemail against the GST certificate and the GST/MCA records \u2014 who and when, audited.\nRefused (409) while an item it attests is missing or needs a fix.",
+    "operationId": "verify_details_api_v1_counterparties__counterparty_id__details_verified_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "counterparty_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Counterparty Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Verify Details Api V1 Counterparties  Counterparty Id  Details Verified Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Verify Details",
+    "tags": [
+     "counterparties"
+    ]
+   }
+  },
+  "/api/v1/counterparties/{counterparty_id}/gst-certificate": {
+   "get": {
+    "description": "The certificate, for whoever may read the profile \u2014 to check it before the tick.",
+    "operationId": "download_gst_certificate_api_v1_counterparties__counterparty_id__gst_certificate_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "counterparty_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Counterparty Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Download Gst Certificate",
+    "tags": [
+     "counterparties"
+    ]
+   },
+   "post": {
+    "description": "Batch 7 (AB-220): the client's one current GST certificate \u2014 the body is the file\n(PDF, JPG or PNG, checked by its bytes), as a document upload takes it. Filing a new\none replaces the current one (the old object stays in write-once storage), is audited\nand clears the GST/MCA tick. Never part of anything that goes to the client.",
+    "operationId": "upload_gst_certificate_api_v1_counterparties__counterparty_id__gst_certificate_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "counterparty_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Counterparty Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-filename",
+      "required": true,
+      "schema": {
+       "maxLength": 400,
+       "title": "X-Filename",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Upload Gst Certificate Api V1 Counterparties  Counterparty Id  Gst Certificate Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Upload Gst Certificate",
+    "tags": [
+     "counterparties"
+    ]
+   }
+  },
   "/api/v1/departments": {
    "get": {
     "description": "Departments with their lead and member counts.\n\nCounts only \u2014 never the deals. A department is a boundary around contract\nvisibility, and listing it tells an administrator how many people it contains\nand who oversees them, which is account administration (Step 24 r9). It\ndiscloses nothing about what those people are working on.",
@@ -7979,6 +8193,52 @@
      }
     },
     "summary": "Check Draft",
+    "tags": [
+     "drafts"
+    ]
+   }
+  },
+  "/api/v1/drafts/{draft_id}/client-details": {
+   "get": {
+    "description": "Batch 7 (AB-220): Legal's ten client details for this deal \u2014 each present, missing,\nnot needed or to fix, from this deal's answers or the client record as it is now \u2014 the\nchecks' warnings and the GST/MCA tick. What `create` refuses on (409).",
+    "operationId": "draft_client_details_api_v1_drafts__draft_id__client_details_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "draft_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Draft Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Draft Client Details Api V1 Drafts  Draft Id  Client Details Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Draft Client Details",
     "tags": [
      "drafts"
     ]

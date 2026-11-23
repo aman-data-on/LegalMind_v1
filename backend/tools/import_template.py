@@ -54,6 +54,7 @@ from legalmind.db import models as M
 from legalmind.drafting import conditions
 from legalmind.drafting.library import DRAFT_LABEL, TEMPLATE_FIELDS, template_hash, texts
 from legalmind.drafting.model import ROLE_TEXT, clause_hash
+from legalmind.drafting.model import _coerce as model_coerce
 
 _KEY = re.compile(r"^[A-Z][A-Z0-9_.]{0,39}$")
 
@@ -725,6 +726,81 @@ def load_pdf(path: Path, *, template_key: str, doc_type: str, brand: str | None,
                          doc_type=doc_type, brand=brand, prefix=prefix)
 
 
+def lock_values(template: dict[str, Any], locks: list[str]) -> list[str]:
+    """``--lock KEY=VALUE`` (batch 7, AB-220): fix a declared variable to a value a person
+    supplies from a named source — our CIN, which the MSA reference prints as a blank —
+    as the reference's own printed facts are fixed (``locked_value``). The value passes
+    the variable's own check; an unknown key or a bad value is refused. No text changes."""
+    by_key = {v["key"]: v for v in template.get("variables", [])}
+    lines = []
+    for lock in locks:
+        key, sep, value = lock.partition("=")
+        if not sep or key not in by_key or not value.strip():
+            raise ImportRefused(f"--lock {key}: name a declared variable as KEY=VALUE")
+        role = by_key[key].get("role") or key
+        if role in ("our_cin", "counterparty_cin") and not _CIN.fullmatch(value.strip()):
+            raise ImportRefused(f"--lock {key}: is not a CIN (21 characters, "
+                                "for example U72900MH2010PTC123456)")
+        try:
+            by_key[key]["locked_value"] = model_coerce(by_key[key], value.strip())
+        except ValueError as exc:
+            raise ImportRefused(f"--lock {key}: {exc}") from exc
+        (template.get("layout") or {}).get("check_values", {}).pop(key, None)
+        lines.append(f"locked {key}")
+    return lines
+
+
+#: what makes two versions the same contract (the source line records where one came from)
+_SAME = ("doc_type", "brand", "layout", "clauses", "variables", "annexures", "assets")
+
+
+def next_version_locked(db: Session, template_key: str, locks: list[str], *,
+                        actor_id: Any) -> list[str]:
+    """``--from-published KEY --lock K=V`` (batch 7 round 2, D6): the next DRAFT version of
+    the PUBLISHED one with every variable, fill-in field, annexure, Special Conditions
+    setting, existing lock and layout unchanged and the same approved clause versions
+    pinned — only the named variables fixed. Idempotent: a version already saying so is
+    "unchanged"; another open DRAFT of the key is refused. Legal publishes it in the app."""
+    import copy
+
+    from sqlalchemy import func
+
+    from legalmind.drafting.library import _rehash
+    published = db.execute(select(M.TemplateVersion).where(
+        M.TemplateVersion.template_key == template_key,
+        M.TemplateVersion.status == "PUBLISHED")
+        .order_by(M.TemplateVersion.version.desc())).scalars().first()
+    if published is None:
+        raise ImportRefused(f"{template_key} has no published version to start from")
+    made: dict[str, Any] = {k: copy.deepcopy(getattr(published, k)) for k in TEMPLATE_FIELDS}
+    lines = lock_values(made, locks)
+    latest = db.execute(select(M.TemplateVersion).where(
+        M.TemplateVersion.template_key == template_key)
+        .order_by(M.TemplateVersion.version.desc())).scalars().first()
+    assert latest is not None
+    if all(getattr(latest, k) == made[k] for k in _SAME):
+        return [*lines, f"unchanged template {template_key}@{latest.version} "
+                        f"({latest.status}) already says so"]
+    if latest.status == "DRAFT":
+        raise ImportRefused(f"template {template_key}@{latest.version} is still a DRAFT with "
+                            "different content: change it on the Template page, or "
+                            "withdraw it first")
+    version = db.execute(select(func.max(M.TemplateVersion.version)).where(
+        M.TemplateVersion.template_key == template_key)).scalar_one() + 1
+    made["source"] = {**(made.get("source") or {}),
+                      "based_on": {"version": published.version,
+                                   "content_hash": published.content_hash},
+                      "locked_by_import": sorted(k.partition("=")[0] for k in locks)}
+    row = M.TemplateVersion(template_key=template_key, version=version, status="DRAFT",
+                            content_hash="", created_by=actor_id, **made)
+    db.add(row)
+    db.flush()
+    _rehash(db, row)
+    db.flush()
+    return [*lines, f"DRAFT template {template_key}@{version} from published "
+                    f"@{published.version}"]
+
+
 # ---------------------------------------------------------------- database
 def import_rows(db: Session, template: dict[str, Any], clauses: dict[tuple[str, int], dict],
                 *, actor_id: Any) -> list[str]:
@@ -910,6 +986,12 @@ def main() -> int:
     parser.add_argument("--approval-ref")
     parser.add_argument("--actor-email", required=True)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--from-published", metavar="TEMPLATE_KEY",
+                        help="with --lock: the next DRAFT version of this key's published "
+                             "one, everything else unchanged (batch 7, D6)")
+    parser.add_argument("--lock", action="append", default=[], metavar="KEY=VALUE",
+                        help="fix a declared variable to this value (e.g. our_cin=…), "
+                             "from a source the operator names in the change record")
     parser.add_argument("--special-conditions", metavar="TEMPLATE_KEY",
                         help="attach the DRAFT Special Conditions frame and precedence "
                              "clause to the latest DRAFT version of this template")
@@ -923,6 +1005,18 @@ def main() -> int:
     args = parser.parse_args()
     try:
         flagged: list[str] = []
+        if args.from_published:
+            if not args.lock:
+                raise ImportRefused("--from-published needs at least one --lock KEY=VALUE")
+            with Session(create_engine(config.database_url())) as db:
+                actor = db.execute(select(M.User).where(
+                    M.User.email == args.actor_email)).scalar_one_or_none()
+                if actor is None:
+                    raise ImportRefused(f"no user {args.actor_email}")
+                print("\n".join(next_version_locked(db, args.from_published, args.lock,
+                                                    actor_id=actor.id)))
+                db.rollback() if args.dry_run else db.commit()
+            return 0
         if args.special_conditions:
             with Session(create_engine(config.database_url())) as db:
                 actor = db.execute(select(M.User).where(
@@ -960,13 +1054,14 @@ def main() -> int:
             template, clauses = load_json(Path(args.path))
         else:
             raise ImportRefused("name a template JSON or --docx")
+        locked = lock_values(template, args.lock)
         engine = create_engine(config.database_url())
         with Session(engine) as db:
             actor = db.execute(select(M.User).where(M.User.email == args.actor_email)
                                ).scalar_one_or_none()
             if actor is None:
                 raise ImportRefused(f"no user {args.actor_email}")
-            lines = import_rows(db, template, clauses, actor_id=actor.id)
+            lines = locked + import_rows(db, template, clauses, actor_id=actor.id)
             if args.dry_run:
                 db.rollback()
             else:

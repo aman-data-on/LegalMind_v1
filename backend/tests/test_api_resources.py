@@ -1744,6 +1744,12 @@ def test_no_endpoint_lists_every_counterparty(api, db, owner):
         ("GET", f"{V1}/counterparties/{{counterparty_id}}/activity"),
         ("PATCH", f"{V1}/counterparties/{{counterparty_id}}"),
         ("DELETE", f"{V1}/counterparties/{{counterparty_id}}"),
+        # AB-220 (2026-11-23): the client's GST certificate and the person's check — each
+        # resolves the ONE profile through `_readable` / `_editable`, as GET and PATCH do,
+        # so they widen nothing (r6); reads `contract.view`, writes `contract.update` (r5)
+        ("GET", f"{V1}/counterparties/{{counterparty_id}}/gst-certificate"),
+        ("POST", f"{V1}/counterparties/{{counterparty_id}}/gst-certificate"),
+        ("POST", f"{V1}/counterparties/{{counterparty_id}}/details-verified"),
     }
     # Every one of them is a contract-scoped permission, never an admin one
     # (r5) — and in particular the activity feed is NOT `audit.view`, which

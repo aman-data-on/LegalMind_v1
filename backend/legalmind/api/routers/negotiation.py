@@ -90,6 +90,7 @@ from legalmind.domain.user_status import ACCEPTABLE
 from legalmind.drafting import (
     blank,
     clean,
+    client_details,
     effective,
     instrument,
     pdf,
@@ -1744,7 +1745,12 @@ def _convert_plan(guard: Guard, contract: M.Contract, body: ConvertRequest) -> d
     Annexure 2. Nothing else of their paper carries over. Every reason it cannot be
     made yet is a blocker; ``choices`` are our clauses an unanchored point may be added
     after (``ANCHOR_REQUIRED``). Nothing written."""
-    from legalmind.api.routers.drafts import _clauses, _own, _template  # circular
+    from legalmind.api.routers.drafts import (  # circular
+        _clauses,
+        _own,
+        _template,
+        visible_client,
+    )
     db = guard.db
     out: dict = {"available": False, "blockers": [], "entries": [], "precedence": None,
                  "entries_sha256": None, "choices": []}
@@ -1779,9 +1785,18 @@ def _convert_plan(guard: Guard, contract: M.Contract, body: ConvertRequest) -> d
     if tv.status != "PUBLISHED":
         return stop("TEMPLATE_NOT_PUBLISHED", "The template of these answers is not "
                     "published any more; start again from the published one.")
+    # batch 7 (AB-220): converting to our paper is generating it — the same gate
+    if row.counterparty_id != contract.counterparty_id:          # D3: this deal's client
+        return stop("CLIENT_MISMATCH", "These answers are for another client than this "
+                    "deal's. Start them again from this deal.")
+    client = visible_client(guard, contract.counterparty_id)        # D4: in scope only
+    held = client_details.gate_problems(tv, row.answers, client)
+    if held:
+        return stop(client_details.ClientDetailsIncomplete.code, held)
     clauses = _clauses(guard, tv)
     try:
-        base = model_.resolve(publish.template_dict(tv), clauses, row.answers)
+        base = model_.resolve(publish.template_dict(tv), clauses,
+                              client_details.effective_answers(tv, row.answers, client))
     except model_.ModelError as exc:
         return stop("DRAFT_INVALID", "Finish the contract's answers first: "
                     + "; ".join(f"{p['field']}: {p['problem']}" for p in exc.problems))

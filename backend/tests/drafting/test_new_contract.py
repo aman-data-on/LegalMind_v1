@@ -296,7 +296,7 @@ def test_a_deals_own_figure_is_never_carried_from_another_deal():
 
 
 def test_client_profile_fields_prefill_the_importers_client_questions(db, published):
-    """All ten legal fields (`AM-286` r1), by the variable's ROLE — a key such as the
+    """All ten legal fields (`AM-286` r1) and batch 7's signatory email, by the variable's ROLE — a key such as the
     placeholder's ``party_two_cin`` is filled when its role is ``counterparty_cin``."""
     from legalmind.api.routers import drafts
 
@@ -304,7 +304,8 @@ def test_client_profile_fields_prefill_the_importers_client_questions(db, publis
                "cin_or_llpin": "AAB-1234", "pan": "ABCDE1234F", "gstin": "27ABCDE1234F1Z5",
                "registered_office": "1 Synthetic Road", "notice_address": "2 Notice Road",
                "notice_email": "n@example.test", "signatory_name": "Synthetic Signer",
-               "signatory_designation": "Director", "authority_reference": "Board, 1 Jan"}
+               "signatory_designation": "Director", "authority_reference": "Board, 1 Jan",
+               "signatory_email": "signer@example.test"}             # batch 7 (AB-220)
     cp = M.Counterparty(name="Synthetic", created_by=published.created_by, **profile)
     roles = list(drafts.CLIENT_FIELDS)
     tv = M.TemplateVersion(template_key="SYN", variables=[

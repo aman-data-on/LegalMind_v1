@@ -532,4 +532,3 @@ export const changedSincePublished = (clauses: TemplateClause[]) =>
 export const blankPath = (t: { template_key: string }) => `/templates/${encodeURIComponent(t.template_key)}/blank`;
 /** `AM-302`: a draft's full text for management to approve */
 export const reviewCopyPath = (t: { id: string }) => `/templates/${t.id}/review-copy`;
-export const BLANK_NOTE = "For filling outside LegalMind. Upload what you send or sign, so we can check it.";
