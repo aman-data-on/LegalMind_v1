@@ -28,12 +28,14 @@ from legalmind.db.lookup import latest_completed_run_id
 from legalmind.ingestion.parsing import reread
 from legalmind.mapping.engine import Clause
 
-__all__ = ["REREAD_FROM", "as_one_reader", "generation", "older", "reread",
-           "reread_clauses"]
+__all__ = ["HIGHLIGHTS_FROM", "REREAD_FROM", "as_one_reader", "generation", "older",
+           "reads_highlights", "reread", "reread_clauses"]
 
 _INGEST_N = re.compile(r"legalmind-ingest-v(\d+)$")
 #: the reader generation whose numbering and heading rules `parsing.reread` replays
 REREAD_FROM = 12
+#: the first generation that records a DOCX run's highlight (batch 8 R2.1, `AM-461`)
+HIGHLIGHTS_FROM = 13
 
 
 def generation(db: DBSession, version_id: UUID | None) -> float | None:
@@ -45,6 +47,12 @@ def generation(db: DBSession, version_id: UUID | None) -> float | None:
     run = db.get(M.DocumentProcessingRun, run_id) if run_id else None
     m = _INGEST_N.match((run.processor_version or "") if run else "")
     return int(m.group(1)) if m else None
+
+
+def reads_highlights(db: DBSession, version_id: UUID) -> bool:
+    """Whether the version was read by a reader that records highlights — an older file
+    says "not read", never "nothing highlighted" (stored rows are never re-read)."""
+    return (generation(db, version_id) or 0) >= HIGHLIGHTS_FROM
 
 
 def older(db: DBSession, a: UUID | None, b: UUID | None

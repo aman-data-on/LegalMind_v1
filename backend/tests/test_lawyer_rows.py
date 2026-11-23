@@ -110,3 +110,19 @@ def test_duplicate_sentence():
     notes = L.notes_for_legal(ours, theirs)
     assert [n["kind"] for n in notes] == ["DUPLICATE"]
     assert notes[0]["clauses"] == ["4.2", "4.1"]
+
+
+def test_an_unchanged_paragraph_beside_a_changed_table_is_already_ours():
+    """Batch 8 R3c-1: a venue paragraph read in one unit with a price table under it —
+    only the table changed, so a point on the paragraph is ours, not the client's."""
+    venue = "9. Disputes go to the courts at City A."
+    ours = [Clause(uuid4(), venue, "9"), Clause(uuid4(), "| Item | Qty |"),
+            Clause(uuid4(), "| Node | 4 |")]
+    theirs = [Clause(uuid4(), venue, "9"), Clause(uuid4(), "| Item | Qty |"),
+              Clause(uuid4(), "| Node | 5 |")]
+    changed = L.changed_evidence(ours, theirs)
+    assert changed == {str(theirs[2].evidence_id)}
+    assert L.origin([str(theirs[0].evidence_id)], "VENUE", "DEVIATION", changed,
+                    {"VENUE": "DEVIATION"}) == L.ALREADY_OURS
+    assert L.origin([str(theirs[2].evidence_id)], "QTY", "DEVIATION", changed,
+                    {"QTY": "DEVIATION"}) == L.CLIENT_CHANGED

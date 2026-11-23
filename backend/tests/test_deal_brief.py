@@ -533,3 +533,31 @@ def test_positions_wait_for_the_deal_to_be_with_legal(api, db, owner, tmp_path):
     assert refused.status_code == 403, refused.text
     assert _get(api, f"/contracts/{c.id}/brief")["legal"]["can_record"] is False
     assert db.scalar(select(func.count()).select_from(M.DealPosition)) == 0
+
+
+# ----------------------------------------------- batch 8 R2.5 (AM-461): not marked, first
+def test_brief_lists_not_marked_changes_first_for_both_personas(api, db, owner, tmp_path):
+    """Clause 2 changed silently, clause 3 deleted, clause 5 added — none marked; the
+    tracked clause 1 and the typography-only clause 4 are not in it. The block comes
+    before the asks and carries no position, so sales and Legal get the same one."""
+    c, theirs, review, lawyer = _deal(api, db, owner, tmp_path)
+    sales = _get(api, f"/contracts/{c.id}/brief")
+    sign_in(api, db, lawyer)
+    legal = _get(api, f"/contracts/{c.id}/brief")
+    assert sales["not_marked"] == legal["not_marked"]
+    block = sales["not_marked"]
+    assert (block["count"], block["total"], block["more"]) == (3, 5, 0)
+    assert block["highlights_read"] is True
+    assert [r["clause"] for r in block["rows"]] == ["2", "3", "5"]
+    keys = list(sales)
+    assert keys.index("not_marked") < keys.index("asks")
+    listed = _changes(api, c)
+    assert listed["summary"]["unmarked"] == 3
+
+
+def test_brief_omits_not_marked_when_every_change_is_marked(api, db, owner, tmp_path):
+    c = _contract(db, owner)
+    _ingest(db, tmp_path, c, _docx(*OURS), "ours.docx")
+    _ingest(db, tmp_path, c, _docx(THEIRS[0], *OURS[1:]), "theirs.docx")
+    brief = _get(api, f"/contracts/{c.id}/brief")
+    assert "not_marked" not in brief and brief["asks"]

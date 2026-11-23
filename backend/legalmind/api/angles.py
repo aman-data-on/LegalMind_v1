@@ -695,6 +695,11 @@ _OBSERVATION_ACTION = {
     consistency.NO_TERM_LENGTH: "State the term, here or in the order form",
     consistency.BLANK_FIGURE: "Fill in the figure before signing",
     consistency.NONPAYMENT_TWO_WAYS: CONFLICT_DECIDE,
+    # batch 8 R6.5 (AM-463)
+    consistency.QUANTITY_TWO_WAYS: "Check the quantities against the quote",
+    consistency.BLANK_FIELD: "Fill in the blank before signing",
+    consistency.TOTALS_DIFFER: "Check the totals before signing",
+    consistency.OUR_CIN: "Correct our own details before signing",
 }
 
 

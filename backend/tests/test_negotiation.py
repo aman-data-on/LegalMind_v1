@@ -186,8 +186,10 @@ def test_a_renumbered_clause_is_no_change_and_a_schedule_is_a_new_annexure(db, o
 
 
 # ------------------------------------------------------------- R3 / R4 routing
-def _review(db, version, findings):
-    """A recorded Review on ``version``: (evidence index, classification, outcome)."""
+def _review(db, version, findings, code=None):
+    """A recorded Review on ``version``: (evidence index, classification, outcome);
+    ``code``: one requirement code for every finding (the same standard on two
+    versions), else a fresh one each."""
     snap = M.ConfigurationSnapshot(snapshot_hash=uuid.uuid4().hex,
                                    created_by=version.uploaded_by)
     db.add(snap)
@@ -201,14 +203,22 @@ def _review(db, version, findings):
                           .where(M.DocumentEvidence.document_version_id == version.id)
                           .order_by(M.DocumentEvidence.start_offset)).all()
     for index, cls, outcome in findings:
-        req = M.Requirement(code=f"LIAB-{uuid.uuid4().hex[:6]}", status=E.ConfigStatus.ACTIVE)
-        db.add(req)
-        db.flush()
-        rv = M.RequirementVersion(requirement_id=req.id, version_number=1, name="Liability",
-                                  evaluator_type=E.EvaluatorType.NUMERIC_COMPARISON,
-                                  created_by=version.uploaded_by)
-        db.add(rv)
-        db.flush()
+        req = db.scalar(select(M.Requirement).where(M.Requirement.code == code)) \
+            if code else None
+        if req is None:
+            req = M.Requirement(code=code or f"LIAB-{uuid.uuid4().hex[:6]}",
+                                status=E.ConfigStatus.ACTIVE)
+            db.add(req)
+            db.flush()
+        rv = db.scalar(select(M.RequirementVersion).where(
+            M.RequirementVersion.requirement_id == req.id))
+        if rv is None:
+            rv = M.RequirementVersion(requirement_id=req.id, version_number=1,
+                                      name="Liability",
+                                      evaluator_type=E.EvaluatorType.NUMERIC_COMPARISON,
+                                      created_by=version.uploaded_by)
+            db.add(rv)
+            db.flush()
         finding = make_finding(db, review, rv, classification=cls)
         ev = make_evaluation(db, finding, classification=cls, rule_outcome=outcome)
         # as the evaluator stamps every Evaluation (D-2): the mapping was CONFIRMED
@@ -807,3 +817,372 @@ def test_a_point_on_our_own_unchanged_text_is_labelled_already_ours(db, owner):
     by_clause = {r["sections"][0]: got[str(r["finding"].id)]
                  for r in angles._rows(db, review)}
     assert by_clause == {"8": "ALREADY_OURS", "9": "CLIENT_CHANGED"}
+
+
+# ------------------------------------------ batch 8 (AB-222): what the client did not mark
+def _lit(t: str) -> str:
+    """A run the client highlighted (`legalmind-ingest-v13`)."""
+    return (f'<w:r {W}><w:rPr><w:highlight w:val="yellow"/></w:rPr>'
+            f'<w:t xml:space="preserve">{t}</w:t></w:r>')
+
+
+def _round(db, owner, tmp_path, *theirs):
+    c = _contract(db, owner)
+    ours = _ingest(db, tmp_path, c, _docx(*OURS), "ours.docx")
+    after = _ingest(db, tmp_path, c, _docx(*theirs), "theirs.docx")
+    return c, ours, after, negotiation.changes(db, c, ours, after, legal_position=True)
+
+
+def _row(listed, number):
+    return next(r for r in listed["changes"] if r["clause"]["number"] == number)
+
+
+def test_an_untracked_change_fully_highlighted_is_not_unmarked(db, owner, tmp_path):
+    """R2.3/Q3: words the client ADDED and highlighted were marked — by the highlight."""
+    *_, listed = _round(db, owner, tmp_path, OURS[0], [
+        _run("2. This Agreement is governed by the laws of India"),
+        _lit(" and of Singapore"), _run(".")], *OURS[2:])
+    row = _row(listed, "2")
+    assert row["untracked"] is True and row["unmarked"] is False
+    assert listed["summary"]["unmarked"] == 0 and listed["summary"]["untracked"] == 1
+    assert listed["summary"]["highlights_read"] is True
+
+
+def test_an_untracked_deletion_is_unmarked_even_beside_a_highlight(db, owner, tmp_path):
+    """A word of ours removed or replaced can never be marked by a highlight."""
+    *_, listed = _round(db, owner, tmp_path, OURS[0], [
+        _run("2. This Agreement is governed by the laws of "), _lit("Singapore"), _run(".")],
+        OURS[2], "4. The Term is one year.")
+    assert _row(listed, "2")["unmarked"] is True       # India -> Singapore, lit
+    assert _row(listed, "4")["unmarked"] is True       # words deleted, nothing lit
+    assert listed["summary"]["unmarked"] == 2
+
+
+def test_a_partly_highlighted_untracked_change_is_unmarked(db, owner, tmp_path):
+    *_, listed = _round(db, owner, tmp_path, OURS[0], [
+        _run("2. This Agreement and every order is governed by the laws of India"),
+        _lit(" and of Singapore"), _run(".")], *OURS[2:])
+    assert _row(listed, "2")["unmarked"] is True       # "and every order" is not lit
+
+
+def test_tracked_only_rows_are_never_unmarked(db, owner, tmp_path):
+    *_, listed = _round(db, owner, tmp_path, [
+        _run("1. Fees are payable within "), _mark("del", "30", 1), _mark("ins", "60", 2),
+        _run(" days of invoice.")], *OURS[1:])
+    [row] = listed["changes"]
+    assert (row["tracked"], row["untracked"], row["unmarked"]) == (True, False, False)
+
+
+def test_a_v12_client_version_says_highlights_not_read(db, owner, tmp_path):
+    """A file read before v13 has no highlight data: the list says so, never "nothing
+    was highlighted", and a v12/v13 pair is not re-read (one structure)."""
+    from legalmind.analysis import reader_generation
+    c, ours, after, _ = _round(db, owner, tmp_path, OURS[0],
+                               "2. This Agreement is governed by the laws of Singapore.",
+                               *OURS[2:])
+    run = db.scalars(select(M.DocumentProcessingRun).where(
+        M.DocumentProcessingRun.document_version_id == after.id)).one()
+    run.processor_version = "legalmind-ingest-v12"
+    db.flush()
+    listed = negotiation.changes(db, c, ours, after, legal_position=True)
+    assert listed["summary"]["highlights_read"] is False
+    assert reader_generation.older(db, ours.id, after.id) is None
+
+
+def test_a_table_comment_shows_on_its_change_row(db, owner, tmp_path):
+    """R3a: the client's comment in a signature-table cell rides on that row."""
+    import re
+
+    from tests.test_docx_reading import _IN_CELL, _with_comment
+    c = _contract(db, owner)
+    ours = _ingest(db, tmp_path, c, _with_comment(lambda doc: doc), "ours.docx")
+    cell = _IN_CELL.replace("PLACEHOLDER", "TO BE DATED")
+    after = _ingest(db, tmp_path, c, _with_comment(lambda doc: re.sub(
+        r"<w:r>(?:(?!<w:r>).)*?PLACEHOLDER</w:t></w:r>", cell, doc, count=1)),
+        "theirs.docx")
+    [row] = negotiation.changes(db, c, ours, after, legal_position=True)["changes"]
+    assert row["after"]["comments"] == [{"author": "x", "text": "Date of signing needed"}]
+
+
+#: a clause with a table under it it does not introduce (batch 8 R3c)
+_VENUE = [("9", "Disputes", "9. Disputes go to the courts at City A."),
+          (None, None, "| Item | Qty |"), (None, None, "| Node | 4 |")]
+
+
+def _venue_pair(db, owner, cls_row):
+    c = _contract(db, owner)
+    v1 = _version(db, c, 1, _VENUE)
+    v2 = _version(db, c, 2, [*_VENUE[:2], (None, None, "| Node | 5 |")])
+    v1.doc_metadata, v2.doc_metadata = ({"version_role": "COMPANY_DRAFT"},
+                                        {"version_role": "CLIENT_MODIFIED"})
+    db.flush()
+    # our version gave the venue standard the same result (round 2 D1 b)
+    code = f"VENUE-{uuid.uuid4().hex[:6]}"
+    _review(db, v1, [(0, E.FindingClassification.DEVIATION, E.RuleOutcome.UNACCEPTABLE)],
+            code=code)
+    _review(db, v2, [(cls_row, E.FindingClassification.DEVIATION,
+                      E.RuleOutcome.UNACCEPTABLE)], code=code)
+    return negotiation.changes(db, c, v1, v2, legal_position=True)["changes"]
+
+
+def test_a_deviation_on_an_unchanged_row_does_not_make_the_row_worse(db, owner):
+    """R3c-2: the venue paragraph is ours word for word; only the table under it
+    changed. Its deviation is REVIEW there — WORSE only on a row the client changed."""
+    [row] = _venue_pair(db, owner, 0)
+    assert row["kind"] == "MODIFIED" and row["measured"] == negotiation.REVIEW
+    [changed] = _venue_pair(db, owner, 2)
+    assert changed["measured"] == negotiation.WORSE
+
+
+def test_route_is_unchanged_by_row_level_measurement(db, owner):
+    """`AM-299` r1: `measured` is never a routing input — the row still goes to Legal."""
+    [row] = _venue_pair(db, owner, 0)
+    assert (row["route"], row["effect_for_us"]) == ("holder", negotiation.NEGATIVE)
+
+
+def _headed(db, contract, number, rows):
+    """A version of (number, title, text, heading) rows — the heading flag as the reader
+    records it."""
+    version = _version(db, contract, number, [r[:3] for r in rows])
+    stored = db.scalars(select(M.DocumentEvidence).where(
+        M.DocumentEvidence.document_version_id == version.id)
+        .order_by(M.DocumentEvidence.start_offset)).all()
+    for evidence, row in zip(stored, rows, strict=True):
+        evidence.evidence_metadata = {"heading": True} if row[3] else {}
+    version.doc_metadata = {"version_role": "COMPANY_DRAFT" if number == 1
+                            else "CLIENT_MODIFIED"}
+    db.flush()
+    return version
+
+
+FM = "Force Majeure"
+NO_LIABILITY = "No liability for delays due to events beyond control"
+#: ours reads the body's first line as a heading too (a short Normal line); theirs,
+#: restyled, reads only the title as one — R3d-2's case
+OURS_FM = [("1", None, "1. Fees are payable monthly.", False), (None, FM, FM, True),
+           (None, NO_LIABILITY, NO_LIABILITY, True),
+           (None, None, "Includes floods and strikes.", False)]
+
+
+def _fm(db, owner, *theirs):
+    c = _contract(db, owner)
+    v1, v2 = _headed(db, c, 1, OURS_FM), _headed(db, c, 2, list(theirs))
+    return v1, v2, negotiation.changes(db, c, v1, v2, legal_position=True)["changes"]
+
+
+def test_a_heading_reformatted_into_the_next_clause_is_not_deleted(db, owner):
+    *_, rows = _fm(db, owner, OURS_FM[0], (None, FM, FM, True),
+                   (None, None, NO_LIABILITY, False), OURS_FM[3])
+    assert rows == []                     # the same words, only cut differently
+
+
+def test_the_folded_row_keeps_its_key(db, owner, monkeypatch):
+    """`AM-253`/`AM-433`: the folded row's key is the un-folded pair's, so an answer to
+    it never detaches; the heading's DELETED row is gone."""
+    theirs = (OURS_FM[0], (None, FM, FM, True), (None, None, NO_LIABILITY, False),
+              (None, None, "Includes floods, strikes and pandemics.", False))
+    v1, v2, rows = _fm(db, owner, *theirs)
+    assert [r["kind"] for r in rows] == ["MODIFIED"]
+    monkeypatch.setattr(negotiation, "fold_headings", lambda old, new, rows: rows)
+    c = db.get(M.Contract, v1.contract_id)
+    unfolded = negotiation.changes(db, c, v1, v2, legal_position=True)["changes"]
+    assert sorted(r["kind"] for r in unfolded) == ["DELETED", "MODIFIED"]
+    assert rows[0]["row_key"] == next(r["row_key"] for r in unfolded
+                                      if r["kind"] == "MODIFIED")
+    assert rows[0]["before"]["text"].startswith(FM + "\n")      # heading + clause
+
+
+def test_a_heading_really_deleted_still_shows(db, owner):
+    *_, rows = _fm(db, owner, OURS_FM[0], (None, None, NO_LIABILITY, True), OURS_FM[3])
+    assert [(r["kind"], r["before"]["text"]) for r in rows] == [("DELETED", FM)]
+
+
+def test_a_dash_and_full_stop_change_is_punctuation_only_and_still_with_legal(db, owner):
+    """R3d-1 / Q4: a dash and a dropped full stop are labelled, never routed past Legal."""
+    c = _contract(db, owner)
+    long = "9. The server has a shared port with a bandwidth of 8 mbps"
+    v1, v2 = _pair(db, c, f"{long} - 30 mbps.", f"{long} \u2013 30 mbps")
+    [row] = negotiation.changes(db, c, v1, v2, legal_position=True)["changes"]
+    assert row["punctuation_only"] is True and row["route"] == "holder"
+    v3, v4 = _pair(db, _contract(db, owner), "9. Bandwidth is 8 mbps.",
+                   "9. Bandwidth is 9 mbps")
+    [words] = negotiation.changes(db, db.get(M.Contract, v3.contract_id), v3, v4,
+                                  legal_position=True)["changes"]
+    assert "punctuation_only" not in words                    # omitted, never false
+
+
+# ------------------------------------------------------------- batch 8 A, round 2
+def test_a_carve_out_row_deleted_inside_a_unit_is_worse_and_client_changed(db, owner):
+    """Round 2 D1 (rule 15): the client deleted our carve-out paragraph inside the
+    liability clause. No row of theirs differs from ours, but the unit lost a row: every
+    row of it is the client's change, so its deviation is WORSE and its point is
+    CLIENT_CHANGED — never "already ours"."""
+    from legalmind.analysis import lawyer_rows
+    from legalmind.mapping.service import load_clauses
+    c = _contract(db, owner)
+    cap = "9. Liability is capped at the fees paid in the preceding twelve months."
+    v1 = _version(db, c, 1, [(*LIAB, cap), (None, None, "The cap does not apply to fraud.")])
+    v2 = _version(db, c, 2, [(*LIAB, cap)])
+    v1.doc_metadata, v2.doc_metadata = ({"version_role": "COMPANY_DRAFT"},
+                                        {"version_role": "CLIENT_MODIFIED"})
+    db.flush()
+    _review(db, v2, [(0, E.FindingClassification.DEVIATION, E.RuleOutcome.UNACCEPTABLE)])
+    [row] = negotiation.changes(db, c, v1, v2, legal_position=True)["changes"]
+    assert row["kind"] == "MODIFIED" and row["measured"] == negotiation.WORSE
+    changed = lawyer_rows.changed_evidence(load_clauses(db, v1.id), load_clauses(db, v2.id))
+    assert changed == set(row["after"]["evidence_ids"])
+    assert lawyer_rows.origin(row["after"]["evidence_ids"], "X", "DEVIATION", changed,
+                              {"X": "DEVIATION"}) == lawyer_rows.CLIENT_CHANGED
+
+
+def test_an_unchanged_rows_deviation_is_review_only_where_ours_read_the_same():
+    """Round 2 D1 (b): a deviation read only on rows the client left alone is REVIEW
+    only when our version gave that standard the same result; else it stays WORSE."""
+    after = [{"finding_id": "f", "requirement_code": "V", "classification": "DEVIATION",
+              "user_status": "REQUIRES_MODIFICATION", "lower_cap_ours": False}]
+    same = [{**after[0], "finding_id": "g"}]
+    other = [{**same[0], "classification": "MATCH", "user_status": "ACCEPTABLE"}]
+    measure = negotiation._measured
+    assert measure(negotiation.NEGATIVE, "MODIFIED", same, after, None, set()) == {
+        "measured": negotiation.REVIEW}
+    assert measure(negotiation.NEGATIVE, "MODIFIED", other, after, None, set()) == {
+        "measured": negotiation.WORSE}
+    assert measure(negotiation.NEGATIVE, "MODIFIED", [], after, None, set()) == {
+        "measured": negotiation.WORSE}
+
+
+def test_a_joined_word_is_never_only_punctuation(db, owner):
+    """Round 2 D4: the label is `same_words` (`AM-321` r2), not "the same letters". A
+    joined word ("of Confidential" -> "ofConfidential") is never labelled punctuation
+    only, and neither is a figure whose separator moved ("1,000" -> "1.000"), which
+    keeps every letter and digit."""
+    long = "9. Each Party shall protect the other Party's records of Confidential"
+    for before, after in ((f"{long} Information.",
+                           long.replace("of Confidential", "ofConfidential")
+                           + " Information."),
+                          (f"{long} Information worth Rs. 1,000 each.",
+                           f"{long} Information worth Rs. 1.000 each.")):
+        c = _contract(db, owner)
+        v1, v2 = _pair(db, c, before, after)
+        rows = negotiation.changes(db, c, v1, v2, legal_position=True)["changes"]
+        assert not any("punctuation_only" in r for r in rows), (before, rows)
+    assert rows and rows[0]["kind"] == "MODIFIED"                 # the figure is a row
+
+
+def test_a_typography_change_on_a_measured_clause_is_not_in_the_headline(db, owner):
+    """Round 2 D5: curly quotes made straight on a clause a standard measures — still a
+    holder's row (measured), tagged, but not one of the "not marked" changes."""
+    c = _contract(db, owner)
+    v1, v2 = _pair(db, c, "9. The Customer\u2019s liability \u2014 capped at fees paid.",
+                   "9. The Customer's liability - capped at fees paid.")
+    _review(db, v2, [(0, E.FindingClassification.DEVIATION, E.RuleOutcome.UNACCEPTABLE)])
+    listed = negotiation.changes(db, c, v1, v2, legal_position=True)
+    [row] = listed["changes"]
+    assert row["route"] == "holder" and row["typography_only"] is True
+    assert row["unmarked"] is True and listed["summary"]["unmarked"] == 0
+
+
+# ------------------------------------------------------- round 3: a carve-out rewritten
+CAP9 = "9. Liability is capped at the fees of twelve months."
+CARVE = "The cap does not apply to the Customer's payment obligations."
+MITIGATE = "Each party must mitigate its loss."
+
+
+@pytest.mark.parametrize("theirs", [
+    # replaced 1 -> 1 by an unrelated row
+    [CAP9, "Liability for data loss is limited to restoring the last backup.", MITIGATE],
+    # reworded to weaken it
+    [CAP9, "The cap applies to the Customer's payment obligations.", MITIGATE],
+    # split in two, a word changed in the split
+    [CAP9, "The cap does not apply", "to payment obligations.", MITIGATE],
+], ids=["replaced", "weakened", "split"])
+def test_a_carve_out_rewritten_in_place_is_the_whole_clauses_change(theirs):
+    """Round 3 (rule 15): a prose row of ours rewritten in place is the whole clause's
+    change, as a deletion is — a point reading only the unchanged cap row is never
+    "already ours", and a deviation there is never only "review"."""
+    from legalmind.analysis import lawyer_rows
+    from legalmind.mapping.engine import Clause
+    ours = [Clause(uuid.uuid4(), t, "9" if t.startswith("9.") else None)
+            for t in (CAP9, CARVE, MITIGATE)]
+    new = [Clause(uuid.uuid4(), t, "9" if t.startswith("9.") else None) for t in theirs]
+    [o], [n] = negotiation._units(ours), negotiation._units(new)
+    assert negotiation.changed_rows(o, n) == n["evidence_ids"]
+    changed = lawyer_rows.changed_evidence(ours, new)
+    cap = [str(new[0].evidence_id)]
+    assert lawyer_rows.origin(cap, "LIAB", "DEVIATION", changed, None) \
+        == lawyer_rows.CLIENT_CHANGED
+    dev = {"finding_id": "F1", "requirement_code": "LIAB", "classification": "DEVIATION",
+           "user_status": "REQUIRES_MODIFICATION", "lower_cap_ours": False}
+    on_changed = {"F1"} if cap[0] in negotiation.changed_rows(o, n) else set()
+    assert negotiation._measured(negotiation.NEGATIVE, "MODIFIED", [{**dev,
+                                 "finding_id": "F0"}], [dev], None, on_changed) == {
+        "measured": negotiation.WORSE}
+
+
+def test_a_table_row_rewritten_alone_is_still_row_by_row():
+    """R3c holds: only a price-table row rewritten — that row alone is the client's."""
+    from legalmind.mapping.engine import Clause
+    ours = [Clause(uuid.uuid4(), t, "9" if t.startswith("9.") else None)
+            for t in (CAP9, "| Node | Qty |", "| GPU | 4 |")]
+    new = [Clause(uuid.uuid4(), t, "9" if t.startswith("9.") else None)
+           for t in (CAP9, "| Node | Qty |", "| GPU | 5 |")]
+    [o], [n] = negotiation._units(ours), negotiation._units(new)
+    assert negotiation.changed_rows(o, n) == [str(new[2].evidence_id)]
+
+
+# ------------------------------------------- round 4: one fail-closed rule for every span
+_BREACH = "The cap shall not apply to LeapSwitch's liability for any data breach."
+
+
+@pytest.mark.parametrize(("ours", "theirs"), [
+    ((CAP9, MITIGATE), (CAP9, _BREACH, MITIGATE)),                  # inserted, middle
+    ((CAP9, MITIGATE), (CAP9, MITIGATE, _BREACH)),                  # inserted, end
+    ((CAP9, "| Node | 4 |"), (CAP9, "The cap does not apply to any node.")),  # table->prose
+], ids=["inserted-middle", "inserted-end", "table-row-to-prose"])
+def test_a_prose_row_inserted_or_put_in_a_tables_place_is_the_whole_clauses_change(
+        ours, theirs):
+    """Round 4 (rule 15, the case's own lesson R2): a carve-out the client INSERTS into
+    our clause, or prose put where our table row was, is the whole clause's change — a
+    point on our unchanged cap is never "already ours", nor only "review"."""
+    from legalmind.analysis import lawyer_rows
+    from legalmind.mapping.engine import Clause
+    def rows(texts):
+        return [Clause(uuid.uuid4(), t, "9" if t.startswith("9.") else None) for t in texts]
+    o_rows, n_rows = rows(ours), rows(theirs)
+    [o], [n] = negotiation._units(o_rows), negotiation._units(n_rows)
+    assert negotiation.changed_rows(o, n) == n["evidence_ids"]
+    changed = lawyer_rows.changed_evidence(o_rows, n_rows)
+    cap = [str(n_rows[0].evidence_id)]
+    assert lawyer_rows.origin(cap, "LIAB", "DEVIATION", changed, None) \
+        == lawyer_rows.CLIENT_CHANGED                            # no review of ours
+    dev = {"finding_id": "F1", "requirement_code": "LIAB", "classification": "DEVIATION",
+           "user_status": "REQUIRES_MODIFICATION", "lower_cap_ours": False}
+    assert negotiation._measured(negotiation.NEGATIVE, "MODIFIED", [{**dev,
+                                 "finding_id": "F0"}], [dev], None, {"F1"}) == {
+        "measured": negotiation.WORSE}                          # ours already DEVIATION
+
+
+def test_a_title_line_added_beside_a_rewritten_table_stays_row_by_row():
+    """Round 4: a short title line ("Legal Terms & Conditions:") the client added beside
+    a rewritten price table is no prose change — the clause above is still ours (R3c)."""
+    from legalmind.mapping.engine import Clause
+    ours = [Clause(uuid.uuid4(), t, "9" if t.startswith("9.") else None)
+            for t in (CAP9, "| GPU | 4 |")]
+    new = [Clause(uuid.uuid4(), t, "9" if t.startswith("9.") else None)
+           for t in (CAP9, "| GPU | 5 |", "Legal Terms & Conditions:")]
+    [o], [n] = negotiation._units(ours), negotiation._units(new)
+    assert negotiation.changed_rows(o, n) == [str(new[1].evidence_id),
+                                              str(new[2].evidence_id)]
+
+
+def test_a_short_untitled_line_is_never_a_title():
+    """A carve-out inserted without a full stop is prose, not a title: only a colon
+    lead-in or a Title Case line is read row by row (batch 8 R3c, fail closed)."""
+    from legalmind.analysis.negotiation import _row_by_row
+
+    assert _row_by_row("Legal Terms & Conditions:")
+    assert _row_by_row("Limitation of Liability")
+    assert _row_by_row("| GPUN-1 | 4 | 29,98,400 |")
+    assert not _row_by_row("except for data breaches")
+    assert not _row_by_row("The cap does not apply to data breach")
+    assert not _row_by_row("The cap does not apply.")

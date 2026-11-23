@@ -18,12 +18,13 @@ import { useCallback, useEffect, useId, useState, type ReactNode } from "react";
 import { api, describeError } from "@/lib/api";
 import { formatDate } from "@/lib/dates";
 import { openChange, statusWords, type DealBrief as Brief, type Told } from "@/lib/dealBrief";
-import { BRIEF_COPY, plainClauseSigns, withoutSectionRefs, type StageViewer } from "@/lib/labels";
+import { BRIEF_COPY, NOT_MARKED_COPY, plainClauseSigns, withoutSectionRefs, type StageViewer } from "@/lib/labels";
 import type { NegotiationStage } from "@/lib/types";
 import { ErrorState } from "@/components/Feedback";
 import { toast } from "@/components/Toast";
 
 import { AttentionLine } from "./AnalysisPanel";
+import { NotMarked } from "./NotMarked";
 import { useFindingsStateOptional } from "./findingsState";
 import "./brief.css";
 
@@ -89,12 +90,16 @@ export function BriefView({ brief, contractId, points, stale = null, expanded, o
   const legal = brief.legal;
   const status = statusWords(brief);         // the server's code, in words (rule 18)
   const asks = brief.asks ?? [];
-  // collapsed: three lines — the status, the first line under it, the toggle
-  const lead = legal ? (legal.beyond.length ? BRIEF_COPY.startHere(legal.beyond.length) : null)
+  const unmarked = brief.not_marked;
+  // collapsed: three lines — the status, the first line under it (batch 8: the changes
+  // not marked come first), the toggle
+  const lead = unmarked ? `${(unmarked.highlights_read ? NOT_MARKED_COPY.title : NOT_MARKED_COPY.titleOldFile)(
+    unmarked.count, unmarked.total)}.`
+    : legal ? (legal.beyond.length ? BRIEF_COPY.startHere(legal.beyond.length) : null)
     : asks.length ? `${BRIEF_COPY.asks}: ${asks.slice(0, 3).map((a) => a.title).join(", ")}${
       asks.length + (brief.asks_more ?? 0) > 3 ? ` ${BRIEF_COPY.asksMore(asks.length + (brief.asks_more ?? 0) - 3)}` : ""}.`
       : null;
-  if (!status && !points && !asks.length && !brief.told?.length && !brief.our_mistake && !legal) return null;
+  if (!status && !points && !asks.length && !brief.told?.length && !brief.our_mistake && !legal && !unmarked) return null;
   return (
     <section className="lm-brief" aria-labelledby={`${id}-h`} data-testid="deal-brief"
              data-open={expanded || undefined}>
@@ -103,11 +108,21 @@ export function BriefView({ brief, contractId, points, stale = null, expanded, o
       {stale}
       {!expanded ? (lead ? <p className="lm-brief__lead">{lead}</p> : null) : (
         <div className="lm-brief__body" id={`${id}-body`}>
+          {unmarked ? (
+            <div className="lm-brief__first">
+              <NotMarked count={unmarked.count} total={unmarked.total} highlightsRead={unmarked.highlights_read}
+                         more={unmarked.more} onOpen={onOpen}
+                         // the quote only beside a heading: a name made of the client's own
+                         // first words is not said twice
+                         items={unmarked.rows.map((r) => ({ rowKey: r.row_key, quote: r.title ? r.quote : undefined,
+                                                            name: NOT_MARKED_COPY.clause(r.clause, r.title, r.quote) }))} />
+            </div>
+          ) : null}
           {legal ? <LegalPart brief={brief} contractId={contractId} onOpen={onOpen} onChanged={onChanged} />
             : <SalesPart brief={brief} />}
         </div>
       )}
-      {legal || asks.length || brief.told?.length || brief.our_mistake ? (
+      {legal || asks.length || brief.told?.length || brief.our_mistake || unmarked ? (
         <button type="button" className="ws-linkbtn lm-brief__toggle" aria-expanded={expanded}
                 aria-controls={`${id}-body`} onClick={onToggle}>
           {expanded ? BRIEF_COPY.showLess : BRIEF_COPY.showAll}

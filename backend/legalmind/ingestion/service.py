@@ -87,7 +87,11 @@ from legalmind.ingestion.validation import validate_upload
 # is numbered; an unnumbered title-shaped paragraph in a Word Heading/Title style is a
 # heading.
 # New readings only — existing evidence is never re-parsed by this bump.
-PROCESSOR_VERSION = "legalmind-ingest-v12"
+# v13 (2026-11-23, batch 8, AM-461/AM-462): a DOCX run's highlight is recorded on its
+# paragraph or table (`metadata.highlighted`), and a comment made in a table cell is kept
+# beside the table. Metadata only: content, boundaries and evidence ids are v12's.
+# New readings only — existing evidence is never re-parsed by this bump.
+PROCESSOR_VERSION = "legalmind-ingest-v13"
 
 
 @dataclass(frozen=True)

@@ -221,3 +221,174 @@ def test_only_our_own_right_for_non_payment_is_a_remedy(not_ours):
     doc = _doc(("25", "Termination", "25.2 The Service Provider may terminate on 60 days' "
                 f"notice. {not_ours}"))
     assert K.NO_NONPAYMENT_REMEDY in _kinds(doc)
+
+
+# ---------------------------------------- batch 8 R6 (AM-463): the commercial tables
+def _table(*lines: str) -> Clause:
+    return Clause(evidence_id=uuid4(), content="\n".join(lines))
+
+
+def _said(clauses: list[Clause], kind: str) -> list[str]:
+    return [o["text"] for o in K.observe(clauses)["structural"] if o["kind"] == kind]
+
+
+CONFIG_1 = _table("| Description | QTY | Amount |",
+                  "| Bare Metal Configuration ( GPUN - 1 ) GPU: 8x card Data Disk: 1 x 7.68 "
+                  "TB | 04 | ₹ 29,98,400.00 |")
+SUMMARY = ("| # | Service | Qty | Original | Discount | Amount |",
+           "| 1 | Bare Metal ( GPUN - 1 ) | 1 | ₹ 29,98,400.00 /mo | - | ₹ 29,98,400.00 /mo |",
+           "| 2 | Bare Metal ( GPUN - 2 ) | 1 | ₹ 37,00,000.00 /mo | - | ₹ 37,00,000.00 /mo |")
+
+
+def test_the_same_item_with_two_quantities_is_observed():
+    assert _said([CONFIG_1, _table(*SUMMARY)], K.QUANTITY_TWO_WAYS) == [
+        "The quantity of GPUN-1 is 04 in one table and 1 in another."]
+
+
+def test_one_quantity_per_item_is_silent():
+    same = _table("| Description | Qty |", "| Node ( GPUN - 1 ) | 1 |")
+    assert _said([same, _table(*SUMMARY)], K.QUANTITY_TWO_WAYS) == []
+
+
+def test_a_blank_label_with_a_value_elsewhere_is_observed():
+    blank = _table("| Description | QTY |", "| Bare Metal Configuration ( GPUN - 2 ) GPU: "
+                   "8x card Data Disk: | 05 |")
+    assert _said([CONFIG_1, blank], K.BLANK_FIELD) == [
+        "Data Disk has no value for GPUN-2. It has one for GPUN-1."]
+
+
+def test_a_label_blank_everywhere_is_silent():
+    blank = _table("| Recipient: | | From, |", "| Node ( GPUN - 2 ) Data Disk: | 05 |")
+    assert _said([blank], K.BLANK_FIELD) == []
+
+
+def _totals(tax: str, total: str = "₹ 79,04,112.00 /mo",
+            subtotal: str = "₹ 66,98,400.00 /mo") -> list[str]:
+    return _said([_table(*SUMMARY, f"| Subtotal (excl. GST) | {subtotal} |",
+                         f"| Tax (18%) | {tax} |", f"| Grand Total | {total} |")],
+                 K.TOTALS_DIFFER)
+
+
+def test_tax_at_the_stated_rate_matching_is_silent():
+    assert _totals("₹ 12,05,712.00") == []
+
+
+def test_tax_off_by_a_rupee_is_observed_with_both_figures():
+    assert _totals("₹ 12,05,713.00", total="₹ 79,04,113.00 /mo") == [
+        "The tax at 18% of 66,98,400.00 is 12,05,712.00, but the table states "
+        "12,05,713.00 (a difference of 1.00)."]
+
+
+def test_rupee_rounded_tax_is_compared_at_rupees():
+    """A tax printed in rupees is compared in rupees: 12,05,712 is right as printed."""
+    assert _totals("₹ 12,05,712", total="₹ 79,04,112") == []
+
+
+def test_line_amounts_not_adding_up_is_observed():
+    assert _totals("₹ 12,05,712.00", subtotal="₹ 66,98,500.00 /mo",
+                   total="₹ 79,04,212.00 /mo") == [
+        "The tax at 18% of 66,98,500.00 is 12,05,730.00, but the table states "
+        "12,05,712.00 (a difference of 18.00).",
+        "The line amounts add up to 66,98,400.00, but the subtotal states 66,98,500.00 "
+        "(a difference of 100.00)."]
+
+
+_US = ("Leapswitch Networks Private Limited, a company incorporated under the Companies "
+       "Act, 2013, bearing CIN {cin}, the FIRST PART;")
+
+
+def test_a_stray_character_on_our_cin_is_observed():
+    said = _said(_doc((None, None, _US.format(cin="U30007PN2010PTC137171_"))), K.OUR_CIN)
+    assert said == ["Our CIN is printed with a stray character: “U30007PN2010PTC137171_”."]
+    assert _said(_doc((None, None, _US.format(cin="U30007PN2010PTC137171"))),
+                 K.OUR_CIN) == []
+    [other] = [o for o in K.observe(_doc((None, None, _US.format(
+        cin="U30007PN2010PTC999999"))))["structural"] if o["kind"] == K.OUR_CIN]
+    assert other["text"] == "Our CIN is printed as U30007PN2010PTC999999."
+    assert other["basis"]["section"] == "4.1"
+
+
+def test_the_clients_cin_is_never_checked_as_ours():
+    client = ("The Customer, a company incorporated under the Companies Act, 2013, "
+              "bearing CIN number U72200KA2022PTC000001_ hereinafter the SECOND PART.")
+    both = _table("| From, | Recipient |", "| CIN: U30007PN2010PTC137171 | "
+                  "CIN: U72200KA2022PTC000002 |", "| LeapSwitch Networks Pvt. Ltd. | x |")
+    assert _said([*_doc((None, None, client)), both], K.OUR_CIN) == []
+
+
+def test_observations_never_make_a_finding():
+    """Each new kind is an observation with its own action words — never a Finding,
+    a Classification or a Rule Outcome (rules 10/13)."""
+    from legalmind.api.angles import _OBSERVATION_ACTION
+    observed = K.observe([CONFIG_1, _table(*SUMMARY, "| Subtotal | ₹ 1.00 |")])
+    kinds = {o["kind"] for o in observed["structural"]}
+    assert {K.QUANTITY_TWO_WAYS, K.TOTALS_DIFFER} <= kinds
+    for o in observed["structural"]:
+        assert set(o) == {"kind", "clauses", "evidence_ids", "text", "basis"}
+        assert _OBSERVATION_ACTION[o["kind"]]
+
+
+def _gst(*tax_rows: str, total: str) -> list[str]:
+    return _said([_table(*SUMMARY, "| Subtotal (excl. GST) | ₹ 66,98,400.00 |", *tax_rows,
+                         f"| Grand Total | {total} |")], K.TOTALS_DIFFER)
+
+
+def test_cgst_and_sgst_adding_up_are_silent():
+    """Round 2 D2: two tax rows (9% + 9%) are each checked, and the total is subtotal
+    plus both — the second never overwrites the first."""
+    assert _gst("| CGST (9%) | ₹ 6,02,856.00 |", "| SGST (9%) | ₹ 6,02,856.00 |",
+                total="₹ 79,04,112.00") == []
+    assert _gst("| CGST (9%) | ₹ 6,02,856.00 |", "| SGST (9%) | ₹ 6,02,857.00 |",
+                total="₹ 79,04,113.00") == [
+        "The tax at 9% of 66,98,400.00 is 6,02,856.00, but the table states 6,02,857.00 "
+        "(a difference of 1.00)."]
+
+
+def test_igst_alone_adding_up_is_silent():
+    assert _gst("| IGST (18%) | ₹ 12,05,712.00 |", total="₹ 79,04,112.00") == []
+
+
+def test_line_amounts_are_read_from_the_amount_column_only():
+    """Round 2 D3: the line sum reads the column headed amount/total/value; a table with
+    no such column is not summed (here the last cell is a note, not an amount)."""
+    noted = _table("| Item | Price | Note |", "| Node A | ₹ 10.00 | 2 units |",
+                   "| Node B | ₹ 20.00 | 3 units |", "| Subtotal | ₹ 30.00 |")
+    assert _said([noted], K.TOTALS_DIFFER) == []
+    priced = _table("| Item | Value | Note |", "| Node A | ₹ 10.00 | 2 units |",
+                    "| Node B | ₹ 20.00 | 3 units |", "| Subtotal | ₹ 31.00 |")
+    assert _said([priced], K.TOTALS_DIFFER) == [
+        "The line amounts add up to 30.00, but the subtotal states 31.00 (a difference "
+        "of 1.00)."]
+
+
+# ------------------------------------------------------------- round 3 (low items)
+def test_a_discount_line_is_never_summed_as_an_amount():
+    """A discount line — a minus sign, or "Less:" / discount / rebate — is not a plain
+    sum: the line check is not made, never a false difference."""
+    for discount in ("| Discount | ₹ -100.00 |", "| Less: Discount | ₹ 100.00 |",
+                     "| Rebate | ₹ 100.00 |"):
+        table = _table("| Item | Amount |", "| Node A | ₹ 1,000.00 |", discount,
+                       "| Subtotal | ₹ 900.00 |")
+        assert _said([table], K.TOTALS_DIFFER) == [], discount
+
+
+def test_a_tax_row_with_no_rate_leaves_the_total_unchecked():
+    """"Tax adjustment" states no rate: the total cannot be read without it, so subtotal
+    + tax is not compared (fail silent); each rated tax is still checked."""
+    table = _table("| Item | Amount |", "| Node A | ₹ 1,000.00 |",
+                   "| Subtotal | ₹ 1,000.00 |", "| GST (18%) | ₹ 180.00 |",
+                   "| Tax adjustment | ₹ 5.00 |", "| Grand Total | ₹ 1,185.00 |")
+    assert _said([table], K.TOTALS_DIFFER) == []
+    wrong = _table("| Item | Amount |", "| Node A | ₹ 1,000.00 |",
+                   "| Subtotal | ₹ 1,000.00 |", "| GST (18%) | ₹ 181.00 |",
+                   "| Tax adjustment | ₹ 5.00 |", "| Grand Total | ₹ 1,186.00 |")
+    assert _said([wrong], K.TOTALS_DIFFER) == [
+        "The tax at 18% of 1,000.00 is 180.00, but the table states 181.00 (a difference "
+        "of 1.00)."]
+
+
+def test_the_subtotal_is_read_from_the_amount_column():
+    """A full-width subtotal row: its figure is in the amount column, not a later note."""
+    table = _table("| Item | Amount | Note |", "| Node A | ₹ 400.00 | 2 units |",
+                   "| Node B | ₹ 600.00 | 3 units |", "| Subtotal | ₹ 1,000.00 | 5 units |")
+    assert _said([table], K.TOTALS_DIFFER) == []

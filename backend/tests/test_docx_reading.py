@@ -385,3 +385,64 @@ def test_imported_content_it_cannot_read_makes_the_reading_partial() -> None:
     result = parse_docx(_save(d))
     assert result.status is E.ExtractionStatus.PARTIAL
     assert "1 embedded object(s) not read" in result.diagnostics
+
+
+# ---------------------------------------------- batch 8 R3a (AM-462): a table's comments
+def _with_comment(place) -> bytes:
+    """A paragraph, a two-cell table and a paragraph, with comment 0 ("Date of signing
+    needed") placed by ``place(document_xml) -> document_xml``."""
+    d = docx.Document()
+    d.add_paragraph("1. The Parties sign below.")
+    t = d.add_table(rows=1, cols=2)
+    t.cell(0, 0).text, t.cell(0, 1).text = "Date of sign", "PLACEHOLDER"
+    d.add_paragraph("2. Counterparts are allowed.")
+    with zipfile.ZipFile(io.BytesIO(_save(d))) as z:
+        files = {n: z.read(n) for n in z.namelist()}
+    files["word/document.xml"] = place(files["word/document.xml"].decode()).encode()
+    files["word/comments.xml"] = (
+        f'<w:comments {_W}><w:comment w:id="0" w:author="x"><w:p>'
+        f'{_run("Date of signing needed")}</w:p></w:comment></w:comments>').encode()
+    files["word/_rels/document.xml.rels"] = files["word/_rels/document.xml.rels"].decode(
+    ).replace("</Relationships>", f'<Relationship Id="rIdX9" Type="{_RELS}comments" '
+              'Target="comments.xml"/></Relationships>').encode()
+    files["[Content_Types].xml"] = files["[Content_Types].xml"].decode().replace(
+        "</Types>", f'<Override PartName="/word/comments.xml" ContentType="{_CT}comments'
+        '+xml"/></Types>').encode()
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
+        for name, blob in files.items():
+            z.writestr(name, blob)
+    return out.getvalue()
+
+
+_IN_CELL = ('<w:commentRangeStart w:id="0"/><w:r><w:t>PLACEHOLDER</w:t></w:r>'
+            '<w:commentRangeEnd w:id="0"/><w:r><w:commentReference w:id="0"/></w:r>')
+
+
+def test_a_comment_in_a_table_cell_rides_on_the_table() -> None:
+    """Before v13 the table branch never collected a cell's comment ids, so a comment
+    on a signature block was counted and dropped ("0 of 1")."""
+    data = _with_comment(lambda doc: re.sub(r"<w:r>(?:(?!<w:r>).)*?PLACEHOLDER</w:t></w:r>",
+                                            _IN_CELL, doc, count=1))
+    result = parse_docx(data)
+    noted = [s for s in result.segments if s.metadata.get("comments")]
+    assert [s.source_type for s in noted] == [E.EvidenceSourceType.TABLE]
+    assert noted[0].metadata["comments"] == [{"author": "x",
+                                               "text": "Date of signing needed"}]
+    assert "1 of 1 comment(s) kept beside their clause (reviewer notes, never contract " \
+           "text)" in result.diagnostics
+    assert not any("comment_ids" in s.metadata for s in result.segments)
+
+
+def test_a_comment_range_spanning_a_table_is_placed_once() -> None:
+    """A range opened in the paragraph above and closed in a cell: kept where it starts,
+    once — never again on the table."""
+    def place(doc: str) -> str:
+        doc = doc.replace("1. The Parties sign below.</w:t></w:r>",
+                          '1. The Parties sign below.</w:t></w:r><w:commentRangeStart '
+                          'w:id="0"/>', 1)
+        return doc.replace("PLACEHOLDER</w:t></w:r>", 'PLACEHOLDER</w:t></w:r><w:comment'
+                           'RangeEnd w:id="0"/><w:r><w:commentReference w:id="0"/></w:r>', 1)
+    noted = [s for s in parse_docx(_with_comment(place)).segments
+             if s.metadata.get("comments")]
+    assert [s.content for s in noted] == ["1. The Parties sign below."]

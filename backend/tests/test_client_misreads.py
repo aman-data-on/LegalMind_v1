@@ -345,7 +345,8 @@ def test_diff_talk_compares_two_readers_as_one(build, db, tmp_path, monkeypatch)
         ours = _ingest(db, tmp_path, contract, data, "ours.docx")
     theirs = _ingest(db, tmp_path, contract, data, "theirs.docx")
     older = reader_generation.older(db, ours.id, theirs.id)
-    assert older == (ours.id, 11, 12)
+    # the newer side is today's reader (v13 since batch 8: highlights, metadata only)
+    assert older == (ours.id, 11, reader_generation.HIGHLIGHTS_FROM)
     def shape(side):
         return [(c["ref"], c["title"], len(c["evidence_ids"])) for c in side["clauses"]]
     new = dc.version_side(db, contract, theirs)

@@ -63,3 +63,41 @@
 }
 /* round 4: Legal's candidate clauses under a whole-contract point — a quiet second line */
 .ws-case__candidates { display: block; margin-top: var(--s-1); }
+/* batch 8 R2.6: the not-marked block spans the brief, above both columns */
+.lm-brief__first { grid-column: 1 / -1; min-width: 0; }
+.lm-brief__first .lm-notmarked { margin: 0 0 var(--s-3); }
+/* Batch 8 R2.6: the not-marked block — the brief's and the Changes tab's first block.
+   One attention rule on the left (with an icon and words, never colour alone); the
+   client's own words in the serif we read contracts in. Tokens only. */
+.lm-notmarked {
+  display: grid; gap: var(--s-1); margin: 0 0 var(--s-3); padding: var(--s-3) var(--s-4);
+  border-left: 2px solid var(--attention); background: var(--attention-bg);
+  border-radius: 0 var(--r-card) var(--r-card) 0;
+  font-size: var(--t-dense); line-height: var(--t-dense-lh); color: var(--c-text);
+}
+.lm-notmarked__title {
+  display: flex; align-items: center; gap: var(--s-2); margin: 0;
+  font-size: var(--t-body); line-height: var(--t-body-lh); font-weight: 600;
+}
+.lm-notmarked__icon { flex: none; color: var(--attention); }
+.lm-notmarked__body, .lm-notmarked__more { margin: 0; color: var(--c-text-2); }
+.lm-notmarked__list { margin: var(--s-1) 0 0; padding: 0; list-style: none; display: grid; gap: var(--s-1); }
+.lm-notmarked__list { max-inline-size: 68ch; }
+.lm-notmarked__list li { min-width: 0; overflow-wrap: anywhere; }
+.lm-notmarked__list--inline { display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-4); max-inline-size: none; }
+.lm-notmarked__fallback label { font-size: var(--t-dense); color: var(--c-text-2); }
+.lm-notmarked__open { min-height: 24px; text-align: start; font-weight: 500; }
+.lm-notmarked__quote { font-family: var(--font-serif); color: var(--c-text-2); }
+.lm-notmarked__copy { justify-self: start; margin-top: var(--s-1); background: var(--c-surface); }
+.lm-notmarked__fallback { display: grid; gap: var(--s-1); }
+.lm-notmarked__fallback textarea {
+  font: inherit; padding: var(--s-2); border: 1px solid var(--c-line-strong);
+  border-radius: var(--r-control); background: var(--c-surface); color: var(--c-text);
+}
+@media (max-width: 600px) {
+  /* the phone: clause names only (the full name is the link's own text), a full-width button */
+  .lm-notmarked__quote { display: none; }
+  /* beats `.ws-record .ws-linkbtn` (24px): a phone's targets are 44 */
+  .lm-notmarked .ws-linkbtn.lm-notmarked__open, .lm-notmarked .lm-notmarked__copy { min-height: 44px; }
+  .lm-notmarked__copy { justify-self: stretch; }
+}

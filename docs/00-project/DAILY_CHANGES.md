@@ -70,9 +70,16 @@ working day gets one entry, newest first, with these headings (omit an empty one
   Round 2 after the independent verifier (D1 bulk-answer 409 on the tracked-only and template bases, D2–D5) and a
   separate UI critic (must-fixes 1–5, should-fixes): fixed, re-walked at 1440/390/320; still not committed.
 
+- **AB-222 batch 8 sub-batch A** (`AM-461`–`AM-463`) built on `feat/case-lessons-a` (worktree
+  `/root/legalmind-worktrees/case-lessons-a`): not marked first (highlights read, reader v13), reading fixes
+  (table comment, broken figure, row-level origin, restyled heading, punctuation only), commercial observations;
+  C-34 registered. Production-copy probe 0 of 12 answered keys moved. Not committed; report in the batch folder's
+  BUILD-REPORT-A.md.
+
 ### Next
 - P1: independent verification → PR → CI → merge; deploy only on the owner's OK. Then P2 once batch 5 merges.
 - P3: independent verification → PR → CI → merge; deploy only on the owner's OK, then run the ops/README index check. DB-8 needs an owner decision on 49.4.
+- **AB-222:** independent verification of `feat/case-lessons-a`, then git; then sub-batch B (items 1, 4, 5).
 - **Legal:** on MSA.LEAPSWITCH v3 (draft), re-keep the "Partner" wording point, approve, publish.
 - **AB-221:** independent verification of `feat/returned-markup`, then the owner's go to commit, PR and deploy.
 - **Legal (Q2, AB-221 `AM-459`):** may the text before the client's tracked edits go back as ours ("Keep our
