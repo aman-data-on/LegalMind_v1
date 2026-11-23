@@ -311,6 +311,9 @@
   color: var(--ws-ink-700); transition: background-color var(--ws-t);
 }
 .ws-context__back:hover { background: var(--ws-paper); }
+/* UI-12: the back control says where it goes ("Contract", "Reviews"), not an icon alone */
+.ws-context__back--said { width: auto; gap: var(--ws-s1); padding: 0 var(--ws-s2); text-decoration: none;
+  font-size: var(--ws-text-sm); }
 .ws-context__spacer { flex: 1; }
 .ws-context__acts { display: flex; align-items: center; gap: var(--ws-s2); }
 .ws-context__acts .ws-btn { display: inline-flex; align-items: center; gap: 8px; }
@@ -2777,8 +2780,8 @@
 
 /* A long name truncates on one line rather than wrapping the row taller; the
    full value stays reachable via the link's own title attribute. */
-.ws-docs--queue .ws-docs__table td:nth-child(1) > * {
-  display: block; max-width: 100%;
+.ws-docs--queue .ws-docs__table td:nth-child(1) > a {
+  display: block; max-width: 100%; font-weight: 500;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
@@ -2787,7 +2790,6 @@
    it, without the affordance, so absence of a link reads as a fact rather
    than as a broken control. */
 .ws-docs__name { color: var(--ws-ink-900); font-weight: 500; }
-.ws-docs__type { margin-left: var(--ws-s2); }
 
 /* Report lead (2026-09-04): the one number a reviewer must act on, given its
    own row above the rest — not a fifth equal tile. */
@@ -7403,7 +7405,8 @@ button.ws-open__go:hover { background: var(--ws-paper); }
 .ws-hq__list { box-shadow: none; }
 .ws-hq__doc, .ws-hometable__facts { display: flex; flex-wrap: wrap; gap: 0 var(--ws-s3); white-space: normal; }
 .ws-hq__doc > span, .ws-hometable__facts > span { white-space: nowrap; }
-.ws-home .ws-home__counts { display: flex; flex-direction: column; gap: 2px; font-variant-numeric: tabular-nums; }
+/* UI-05: the counts stack wherever CountsCell renders (home, the client profile) — one fact a line */
+.ws-home__counts { display: flex; flex-direction: column; gap: var(--ws-s1); font-variant-numeric: tabular-nums; }
 .ws-hometable th:nth-child(2) { width: 13rem; }
 .ws-hometable th:nth-child(3) { width: 15rem; }
 .cx-dialog__foot--start { justify-content: flex-start; flex-wrap: wrap; }
@@ -7830,3 +7833,23 @@ a.ws-askglobal > span { position: absolute; width: 1px; height: 1px; overflow: h
    final height, so it is never pushed down; the client's name holds its place in the header */
 .ws-hq[aria-busy="true"] ~ .ws-home__list, .ws-hq[aria-busy="true"] ~ .ws-home__all { visibility: hidden; }
 .ws-record__hold { display: inline-block; inline-size: 14em; }
+
+/* UI-10 (2026-11-23, round 2). The owner's one-line rule (2026-09-22, at `.ws-cl__docname`)
+   STANDS in desktop tables: a name is one line with its full text in the link (its
+   accessible name) and the title, and rows of one template are told apart by the facts line
+   under it (client, type, version, who has it). Only where there is no hover — the phone
+   cards — does a name get two lines, then an ellipsis; the client rail keeps one line. */
+@media (max-width: 720px) {
+  .ws-hometable a.ws-hometable__name { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+    line-clamp: 2; white-space: normal; overflow-wrap: anywhere; }
+}
+@media (max-width: 760px) {
+  .ws-cl__docname { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
+    white-space: normal; overflow-wrap: anywhere; }
+}
+/* the facts line reads as facts in the phone card's bold title cell too */
+.ws-docs--queue .ws-hometable__facts { font-weight: 400; font-size: var(--ws-text-sm); color: var(--ws-ink-500); }
+@media (max-width: 640px) {
+  .ws-docs--queue .ws-docs__table td:nth-child(1) > a { display: -webkit-box; -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2; line-clamp: 2; white-space: normal; overflow-wrap: anywhere; }
+}

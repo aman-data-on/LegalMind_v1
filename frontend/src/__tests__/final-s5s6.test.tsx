@@ -69,7 +69,7 @@ describe("the Final card (S6)", () => {
     const v = { id: "v2", version_number: 2, mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       final_copy: { of_version_id: "v1", mode: "copy", agreed: [] } } as unknown as DocumentVersion;
     const html = renderToStaticMarkup(<FinalCard version={v} versions={[v]} since="2026-11-16T10:00:00Z" />);
-    expect(html).toContain("Final contract ready for signature");
+    expect(html).toContain(">Final contract</h2>");     // U1 r2: the brief says "ready"
     expect(html.indexOf("PDF for signature")).toBeLessThan(html.indexOf("Word copy (not for signing)"));
     const pdfOnly = renderToStaticMarkup(<FinalCard version={{ ...v, mime_type: "application/pdf" } as DocumentVersion}
                                                     versions={[v]} since="2026-11-16T10:00:00Z" />);

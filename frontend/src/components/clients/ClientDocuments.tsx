@@ -47,6 +47,7 @@ import type { ClientContract, Counterparty, DocumentVersion } from "@/lib/types"
 
 import { Dialog } from "@/components/Dialog";
 import {
+  contractHref,
   documentStatusBucket,
   relativeTime,
   stageViewer,
@@ -482,6 +483,7 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
   const versions = contract.versions ?? [];
   const current = currentVersion(versions);
   const currentRole = versionRoleLabel(current?.version_role);
+  const uploaded = current?.created_at ? shortDate(current.created_at) : null;   // the row's facts line (UI-10)
   const panelId = `ws-cl-versions-${contract.id}`;
   // Presentation only (rule 18) — the server re-checks ownership on every
   // write regardless of what this screen offers, the same gate the
@@ -512,13 +514,10 @@ function DocumentRow({ contract, onChanged, onUploadNewVersion }: {
       {/* B3 p5: no unexplained row rule — the status in the row says it */}
       <tr>
         <td>
-          {/* `title` keeps the full name reachable when the CSS below clamps
-              a long one to two lines — a hover/long-press affordance, not a
-              replacement for the visible text (rule 18: presentation only). */}
-          <Link className="ws-cl__docname" href={`/dashboard?id=${contract.id}`}
-                title={contract.name}>
-            {contract.name}
-          </Link>
+          {/* one line on a desktop, `title` for the rest; the facts line tells rows apart (UI-10) */}
+          <Link className="ws-cl__docname" href={contractHref(contract.id)} title={contract.name}>{contract.name}</Link>
+          {current ? <span className="ws-hometable__facts">Version {current.version_number}{uploaded
+            ? `, uploaded ${uploaded}` : ""}</span> : null}
           {contract.archived_at ? (
             <span className="ws-chip">Archived</span>
           ) : null}

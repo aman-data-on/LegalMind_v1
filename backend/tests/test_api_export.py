@@ -266,7 +266,27 @@ def test_clauses_no_standard_covers_are_summarised_by_section():
                                 report={"unmatched_provisions_detail": unmatched},
                                 findings=[], exported_at="2026-10-22T10:00:00")
     lines = [b.text for b in blocks if b.kind == "bullet"]
-    assert lines == ["§1 Definitions — 12 clauses, p.2-4", "§7 — 1 clause, p.8"]
+    # UI-12: plain words — no § and no "p." for a reader
+    assert lines == ["Clause 1 Definitions — 12 clauses, pages 2-4", "Clause 7 — 1 clause, page 8"]
+
+
+def test_the_cover_says_the_version_and_dates_without_a_file_name_or_engine_words():
+    """UI-12 (2026-11-23): no ".docx", no "analysed", no § or "p." on the cover or a clause."""
+    from legalmind.api.export_render import _clause, build_export_model
+    blocks = build_export_model(
+        contract={"name": "C"}, review={"completed_at": "2026-11-19T10:00:00"}, report={},
+        version={"version_number": 2, "original_filename": "markup.docx",
+                 "version_role": "CLIENT_MODIFIED"},
+        findings=[], exported_at="2026-11-23T10:00:00")
+    cover = {b.label: b.text for b in blocks if b.kind == "kv"}
+    assert cover["Document"] == "Version 2, the client's markup"
+    # D4: the file's own name stays on the record — in the audit appendix only
+    at = next(i for i, b in enumerate(blocks) if b.text == "Appendix — audit record")
+    assert any(b.label == "File" and b.text == "markup.docx" for b in blocks[at:])
+    assert not any(".docx" in b.text for b in blocks[:at])
+    assert cover["Dates"] == "Checked 19 Nov 2026. Report made 23 Nov 2026."
+    assert _clause({"section_number": "11", "page_number": 8}) == "Clause 11, page 8"
+    assert _clause({"page_number": 8}) == "Page 8"
 
 
 def test_why_a_standard_was_not_measured_is_said_in_words():
@@ -345,7 +365,7 @@ def test_a_marked_up_contract_lists_every_change_in_plain_words():
     blocks = _marked_blocks()
     heads = [b.text for b in blocks if b.kind in ("h2", "h3")]
     assert "Tracked edits in the client's file (2 clauses)" in heads
-    assert "§7 Term and termination" in heads and "§11" in heads   # sentence case
+    assert "Clause 7 Term and termination" in heads and "Clause 11" in heads  # sentence case
     changes = [b for b in blocks if b.kind == "change"]
     assert [b.rows[0][:2] for b in changes] == [("7.2", "Changed"), ("7.5", "Added"),
                                                ("11.2", "Removed")]

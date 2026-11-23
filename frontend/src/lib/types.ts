@@ -474,6 +474,11 @@ export interface Review {
   yours?: boolean;
   /** AM-174 — the current decision on the whole contract, if one was recorded */
   contract_outcome?: ContractOutcome | null;
+  /** U1 r2 (UI-10): the reviewed version, its declared role (absent when undeclared) and
+   *  the client — absent where this caller may not read the contract (SEC-07) */
+  version_number?: number;
+  version_role?: string;
+  client_name?: string;
 }
 
 /** AM-174 (owner, 2026-10-22) — what to do with the contract, after every point. */

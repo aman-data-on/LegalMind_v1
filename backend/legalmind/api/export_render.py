@@ -193,24 +193,26 @@ def _position(finding: dict[str, Any], said: str) -> str:
 
 
 def _evidence_location(e: dict[str, Any]) -> str:
-    parts: list[str] = []
-    if e.get("section_number"):
-        parts.append(f"§{e['section_number']}")
+    """UI-12 (2026-11-23): "Clause 11, Liability, page 8" — no § or "p." for a reader."""
+    parts = [f"Clause {e['section_number']}"] if e.get("section_number") else []
     if e.get("section_title"):
         parts.append(str(e["section_title"]))
     if e.get("page_number") is not None:
-        parts.append(f"p.{e['page_number']}")
-    return " · ".join(parts) if parts else "location not recorded"
+        parts.append(f"page {e['page_number']}")
+    said = ", ".join(parts) or "Place not recorded"
+    return said[:1].upper() + said[1:]
 
 
 def _clause(e: dict[str, Any] | None) -> str:
-    """Clause and page only — the short form a table cell can carry."""
+    """Clause and page only, the short form a cell carries ("Clause 11, page 8")."""
     if not e:
         return "Not in the contract"
-    parts = [f"§{e['section_number']}"] if e.get("section_number") else []
-    if e.get("page_number") is not None:
-        parts.append(f"p.{e['page_number']}")
-    return " · ".join(parts) or "location not recorded"
+    return _evidence_location({**e, "section_title": None})
+
+
+#: whose version the report is on, in the workspace's words (`ROLE_WORDS`, UI-12)
+_ROLE_WORDS = {"CLIENT_MODIFIED": "the client's markup", "COMPANY_DRAFT": "our draft",
+               "FINAL_SIGNED": "the signed copy"}
 
 
 def _day(iso: str | None) -> str:
@@ -422,9 +424,12 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
     blocks: list[Block] = [Block("h1", contract.get("name") or "Review report")]
     if contract.get("client_name"):
         blocks.append(Block("kv", contract["client_name"], label="Client"))
-    blocks.append(Block("kv", f"v{version.get('version_number')}"
-                              f" — {version.get('original_filename') or ''}".rstrip(" —"),
-                        label="Document"))
+    # UI-12: the version and whose it is — never the file's name (no ".docx")
+    role = ("the final contract" if version.get("package") or version.get("final_copy")
+            else "our reply" if version.get("reply")
+            else _ROLE_WORDS.get(str(version.get("version_role"))))
+    blocks.append(Block("kv", f"Version {version.get('version_number')}"
+                              + (f", {role}" if role else ""), label="Document"))
     declared, analysed = contract.get("contract_type"), report.get("analysed_as")
     words = _TYPE_WORDS.get
     kind = (words(declared, declared) if declared
@@ -439,7 +444,7 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
         blocks.append(Block("kv", progress["assignee"]["name"], label="Reviewer"))
     analysed = _day(review.get("completed_at") or review.get("created_at"))
     prepared = _day(exported_at)
-    blocks.append(Block("kv", f"analysed {analysed} · report prepared {prepared}",
+    blocks.append(Block("kv", f"Checked {analysed}. Report made {prepared}.",
                         label="Dates"))
 
     # ---- 1. summary: three sentences, all from the record ----------------------------
@@ -644,7 +649,7 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
                                     if marked.get("onto") else "")))
         for group in marked["sections"]:
             title = f" {group['title'].capitalize()}" if group["title"] else ""
-            head = (f"§{group['section']}{title}" if group["section"]
+            head = (f"Clause {group['section']}{title}" if group["section"]
                     else "Unnumbered text")
             many = len(group["changes"])
             unread = sum(not c["measured_by"] for c in group["changes"])
@@ -793,10 +798,10 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
             if top == "list" and group["n"] == 1:
                 top = group["first"]               # one item keeps its own number
             pages = sorted(group["pages"])
-            where = (f"p.{pages[0]}" if len(pages) == 1
-                     else f"p.{pages[0]}-{pages[-1]}" if pages else "")
+            where = (f"page {pages[0]}" if len(pages) == 1
+                     else f"pages {pages[0]}-{pages[-1]}" if pages else "")
             head = ("Numbered items without headings" if top == "list"
-                    else f"§{top}" if top != "—" else "Unnumbered text")
+                    else f"Clause {top}" if top != "—" else "Unnumbered text")
             title = f" {capwords(group['title'].lower())}" if group["title"] else ""
             count = f"{group['n']} clause{'s' * (group['n'] != 1)}"
             blocks.append(Block("bullet", f"{head}{title} — {count}"
@@ -828,6 +833,8 @@ def build_export_model(*, contract: dict[str, Any], version: dict[str, Any],
     # S1b (AM-291 r5): plain labels; this appendix is the one place the record's own
     # codes and our standards' section numbers stay
     blocks.append(Block("kv", str(review.get("status") or ""), label="Review status"))
+    if version.get("original_filename"):        # U1 r2 (D4): the cover names no file
+        blocks.append(Block("kv", str(version["original_filename"]), label="File"))
     blocks.append(Block("kv", str(review.get("configuration_snapshot_id") or ""),
                         label="Standards version"))
     if sources:

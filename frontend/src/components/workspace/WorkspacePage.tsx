@@ -59,6 +59,7 @@ import { HighlightProvider } from "./highlight";
 import { contractHref, contractTabFromPath, pickVersion, shortDate, stageViewer, versionRoleLabel } from "./model";
 import { RecordSigning } from "./SigningSheet";
 import { SendToLegal } from "./SendToLegal";
+import { TakeBackFromLegal } from "./TakeBackFromLegal";
 import { DealBrief } from "./DealBrief";
 import { FinalCard, FinalCheckFailed, PrepareFinal, ClosedPanel } from "./FinalCopy";
 import { StageBadge } from "./StageBadge";
@@ -153,7 +154,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
   const refreshSeq = useRef(0);
   const refresh = useCallback(() => {
     const mine = ++refreshSeq.current;
-    api.contract(contractId).then((fresh) => {
+    return api.contract(contractId).then((fresh) => {
       if (mine !== refreshSeq.current) return;          // a later re-read wins
       setState((prev) => prev.kind === "ready" ? { ...prev, contract: { ...prev.contract,
         counts: fresh.counts, negotiation_stage: fresh.negotiation_stage } } as Load : prev);
@@ -429,7 +430,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
                         {versionOption(version.version_number, roleOf(version), false)}
                       </span>
                     )) : null}
-                    onCompany={() => setCompanyOpen(true)} onView={chooseView} onReload={() => void load()}
+                    onCompany={() => setCompanyOpen(true)} onView={chooseView} onReload={() => void load()} onRefresh={refresh}
                     secondary={<>
                       {copied ? <span className="ws-record__copied" role="status">{copied}</span> : null}
                       {/* prelaunch U2: while the paper is with the client, the owner's next act
@@ -684,7 +685,7 @@ function ReportMenuItem() {
  *  ONE primary step `nextStep` resolves for this reader from the server's stage, counts
  *  and permissions. The pane that owns each act does it (`useStep`); this only asks. */
 function RecordHeader({
-  contract, latest, version, view, viewer, canAnswer, company, onCompany, onView, onReload, secondary, children,
+  contract, latest, version, view, viewer, canAnswer, company, onCompany, onView, onReload, onRefresh, secondary, children,
   packageReady = false, versionMeta,
 }: {
   packageReady?: boolean;
@@ -692,7 +693,7 @@ function RecordHeader({
   versionMeta?: React.ReactNode;
   contract: Contract; latest: DocumentVersion | null; version: DocumentVersion | null;
   view: "document" | "changes"; viewer: StageViewer; canAnswer: boolean; company: Counterparty | null;
-  onCompany: () => void; onView: (which: "document" | "changes") => void; onReload: () => void;
+  onCompany: () => void; onView: (which: "document" | "changes") => void; onReload: () => void; onRefresh: () => Promise<void>;
   secondary: React.ReactNode; children: React.ReactNode;
 }) {
   const { identity } = useSession();
@@ -801,12 +802,9 @@ function RecordHeader({
             With <strong>{holder.name || holder.email}</strong> since {shortDate(holder.assigned_at)}
             {/* batch 3+4: Legal reads the note in the deal brief, beside "Add what we told them" */}
             {holder.note && viewer !== "legal" ? <span className="lm-sendlegal__said">Note for Legal: “{holder.note}”</span> : null}
+            {/* UI-02: asks first; the stage and brief are re-read silently after (no page flash) */}
             {assign?.can_send && reviewId ? (
-              <button type="button" className="ws-linkbtn"
-                      onClick={() => void api.withdrawReview(reviewId, holder.user_id)
-                        .then((got) => assigned({ ...assign, assigned: got.assigned })).catch(toastFailure("The review was not withdrawn"))}>
-                Withdraw
-              </button>
+              <TakeBackFromLegal reviewId={reviewId} holder={holder} onDone={(got) => { assigned({ ...assign, assigned: got }); return onRefresh(); }} />
             ) : null}
           </span>
         ) : null}

@@ -75,7 +75,7 @@ describe("Final (AM-318)", () => {
     const row = { id: "c", name: "MSA", counts: { points_open: 0 },
       negotiation_stage: { stage: "FINAL", since, days: 0 } } as unknown as Contract;
     const cell = renderToStaticMarkup(<CountsCell contract={row} viewer="owner" />);
-    expect(cell).toContain("Final copy ready");
+    expect(cell).toContain("Final contract ready");     // U1 r2: one name, as the brief
     expect(cell).not.toMatch(/point|change/);
   });
   it("a Final deal's tabs show one closed state, the points one click away", () => {

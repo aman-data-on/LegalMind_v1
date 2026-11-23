@@ -24,11 +24,12 @@ import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { ReportBlock, Review, ReviewReport } from "@/lib/types";
 
-import { STAGE_LABELS } from "@/lib/labels";
+import { REPORT_COPY, STAGE_LABELS } from "@/lib/labels";
 
 import { ExportControl } from "./ExportControl";
 import { USER_STATUS_LABELS, type UserStatus } from "./findingLanguage";
 import { IconArrowLeft } from "./icons";
+import { contractHref } from "./model";
 import { StatusChip, chipStatus } from "@/components/StatusChip";
 import { EmptyState, ErrorState } from "@/components/Feedback";
 
@@ -107,9 +108,11 @@ export function ReviewReportPage({ reviewId }: { reviewId: string }) {
     <>
       <div className="ws-context">
         {/* back to where the reader came from: Legal's queue, or the contract (UX Batch 2) */}
-        <Link className="ws-context__back" href={can(P.LEGAL_REVIEW) ? "/dashboard/reviews" : `/contracts/${review.contract_id}`}
-              aria-label={can(P.LEGAL_REVIEW) ? "Back to reviews" : "Back to the contract"}>
-          <IconArrowLeft size={18} />
+        {/* UI-12: the back control says where it goes */}
+        <Link className="ws-context__back ws-context__back--said"
+              href={can(P.LEGAL_REVIEW) ? "/dashboard/reviews" : contractHref(review.contract_id)}>
+          <IconArrowLeft size={16} aria-hidden="true" />
+          {can(P.LEGAL_REVIEW) ? REPORT_COPY.backToReviews : REPORT_COPY.backToContract}
         </Link>
         <h1>{review.document_name ?? "Review report"}</h1>
         <div className="ws-context__meta">
@@ -121,7 +124,7 @@ export function ReviewReportPage({ reviewId }: { reviewId: string }) {
           {/* Offered only when the workspace will actually open for this
               caller — see the queue's own note. */}
           {review.document_accessible ? (
-            <Link href={`/dashboard?id=${review.contract_id}`}>Open the workspace</Link>
+            <Link href={contractHref(review.contract_id)}>{REPORT_COPY.openContract}</Link>
           ) : null}
           <ExportControl reviewId={review.id} />
         </div>
@@ -171,7 +174,7 @@ function Blocks({ blocks }: { blocks: ReportBlock[] }) {
     if (b.kind === "bullet") { bullets.push(b.text); return; }
     flush(`ul-${i}`);
     const key = `b-${i}`;
-    if (b.kind === "h3") out.push(<h4 key={key} className="ws-reportdoc__h3">{b.text}</h4>);
+    if (b.kind === "h3") out.push(<h3 key={key} className="ws-reportdoc__h3">{b.text}</h3>);
     else if (b.kind === "kv" && b.label === "Recommendation") out.push(
       <p key={key} className="ws-reportdoc__lead">{capitalise(b.text)}</p>);
     else if (b.kind === "kv" && STATUS_OF_WORD[b.label]) out.push(     // the key
@@ -312,13 +315,13 @@ export function ReportDocumentView({ blocks }: { blocks: ReportBlock[] }) {
           if (left.length === 0) return null;
           return (
             <section key={i} className="ws-reportdoc__section">
-              <h3 className="ws-report__h">{title}</h3>
+              <h2 className="ws-report__h">{title}</h2>
               {left.map((name) => <PointCard key={name} name={name} blocks={detail.get(name)!} />)}
             </section>);
         }
         return (
           <section key={i} className="ws-reportdoc__section">
-            <h3 className="ws-report__h">{title}</h3>
+            <h2 className="ws-report__h">{title}</h2>
             <Blocks blocks={body.filter((b) => !pointsTable(b))} />
             {body.map((b, j) => {
               if (!pointsTable(b)) return null;

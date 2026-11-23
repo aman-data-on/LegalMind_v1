@@ -161,7 +161,14 @@ LEGAL_QUEUE, LEGAL_POINTS, LEGAL_NOTHING = "LEGAL_QUEUE", "LEGAL_POINTS", "LEGAL
 #: round 5: no analysed Review of the client's version yet (reading, or failed) — the
 #: points are unknown, so nothing is "ready to send" and nothing is "answered"
 CHECKING = "CHECKING"
-_STAGE_STATUS = {"READY_TO_SEND": REPLY_READY, "WITH_CLIENT": WITH_CLIENT}  # AM-260
+#: UI-01 (2026-11-23): stages whose next act is not a reply. FINAL ends the deal cycle
+#: (`AM-318`) and SIGNED says itself (no line), so both win over every count;
+#: READY_TO_SIGN makes the final contract, ON_HOLD waits on the client — never "Send our
+#: reply"
+FINAL_READY, PREPARE_FINAL, ON_HOLD = "FINAL_READY", "PREPARE_FINAL", "ON_HOLD"
+_ENDED: dict[str, str | None] = {"FINAL": FINAL_READY, "SIGNED": None}
+_STAGE_STATUS = {"READY_TO_SEND": REPLY_READY, "WITH_CLIENT": WITH_CLIENT,  # AM-260
+                 "READY_TO_SIGN": PREPARE_FINAL, "ON_HOLD": ON_HOLD}
 
 
 def status(counts: dict, stage: str | None, *, legal: bool,
@@ -172,7 +179,8 @@ def status(counts: dict, stage: str | None, *, legal: bool,
     (an open point is never hidden: round 3, D1), then the reply — "Legal answered every
     change" only where a change went to Legal (``had_legal``); None with no round (the
     Summary's points line stands in). Points unknown (no analysed Review — round 5):
-    never a send or "answered" code, CHECKING instead."""
+    never a send or "answered" code, CHECKING instead. A stage with no reply to send
+    says so (UI-01): the deal's end first, then Ready to sign and On hold."""
     points = counts.get("points_open") or 0
     known = "points_open" in counts
     if legal:
@@ -181,6 +189,8 @@ def status(counts: dict, stage: str | None, *, legal: bool,
         if not known:
             return CHECKING
         return LEGAL_POINTS if points else LEGAL_NOTHING
+    if stage in _ENDED:
+        return _ENDED[stage]
     if "changes_total" not in counts:
         return None
     left_legal = counts.get("changes_left_legal") or 0
@@ -199,6 +209,12 @@ def status(counts: dict, stage: str | None, *, legal: bool,
         return None
     if stage in _STAGE_STATUS:
         return _STAGE_STATUS[stage]
+    # U1 r2 (D1): the client's version is back, every change accepted and nothing waits on
+    # the client — no reply to send, the final contract is next: the To-do's own test
+    # (`todo.py` prepare_final, CLIENT_RETURNED only; never once the final waits on Legal)
+    if stage == "CLIENT_RETURNED" and not counts.get("changes_ours") \
+            and not counts.get("points_waiting"):
+        return PREPARE_FINAL
     return SEND_REPLY if had_legal else ALL_ANSWERED
 
 

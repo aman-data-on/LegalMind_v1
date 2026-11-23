@@ -9,6 +9,30 @@ No version has been released. The V1 specification is complete and implementatio
 ---
 
 ## [Unreleased]
+- Full-stack audit U1 "UI wrong or risky" (2026-11-23; branch `fix/ui-u1`, BUILT, browser-checked, not deployed;
+  no lock amended, no migration, no API schema change). **UI-01:** the deal brief's status (`deal_brief.status()`)
+  no longer falls through to "Send our reply" on a stage with no reply to send: FINAL → `FINAL_READY` ("Final contract
+  ready. Sign it in your signing tool."), SIGNED → no line (the stage says it), both before every count;
+  READY_TO_SIGN → `PREPARE_FINAL`, ON_HOLD → `ON_HOLD` at the fall-through. **UI-02:** "Withdraw" in the contract
+  header is now "Take back" behind a confirm dialog (`TakeBackFromLegal.tsx`: Cancel first, focus trapped and
+  returned, error inline, toast "Taken back from Legal", the contract re-read after). **UI-05:** the client
+  profile's counts stack (the CountsCell rule unscoped from home). **UI-10:** contract and client names clamp to two
+  lines, whole on keyboard focus (home table, client documents, client rail, Reviews queue). **UI-09:** the Reviews
+  queue uses SegmentedFilter (All / With Legal / Checked / Decided / Closed — the row chips' words), the type is a
+  caption, no unexplained row stripe or enum `title`, links via `contractHref`; review states read "Being read",
+  "Checked", "Could not be read". **UI-12:** the report (screen and download, `export_render.py`) says "Version 2,
+  the client's version" (no file name), "Checked … Report made …", "Clause 11, page 8" (no § or "p.");
+  headings h1 → h2 → h3; the back control says "Contract"/"Reviews"; Export reads "Download the report shown
+  below: PDF / Word". Report: `/root/legalmind-clm-local/audit/fullstack-audit-20261123/U1-BUILD-REPORT.md`.
+  **Round 2 (critic + verifier):** Take back copy says only what the server does ("Take back from Legal"; the
+  lawyer is not told, the note goes); the owner's 2026-09-22 one-line rule restored in desktop tables (two lines
+  only in phone cards and the client rail) and rows told apart by a facts line — `GET /reviews` items now carry
+  `version_number`, `version_role` and `client_name` (only where the caller may read the contract, omitted
+  otherwise); `status()` returns `PREPARE_FINAL` when every change is accepted and nothing waits on the client
+  (the To-do's test); focus goes to the page heading after a take-back, re-read silently; the report's audit
+  appendix keeps the file name ("File"); "Checked" filter dropped (ANALYSIS_COMPLETE lasts one call); one name,
+  "Final contract ready" (brief and list; the card is headed "Final contract"); no raw status `title` on the
+  Legal queue.
 - AB-222 (2026-11-23, `AM-461`–`AM-463`; batch 8 sub-batch A "lessons from a real client MoU"; branch
   `feat/case-lessons-a`, BUILT, independently verified, not deployed). **Not marked:** reader `legalmind-ingest-v13` records
   a DOCX run's highlight (`metadata.highlighted`, metadata only — `REREAD_FROM` stays 12) and a table cell's comment;

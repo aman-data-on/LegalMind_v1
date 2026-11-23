@@ -8,7 +8,7 @@
  * permission gating is presentation only).
  *
  * Queue bias, not urgency theater: rows whose status asks for legal attention
- * carry the attention stripe and a filled chip; nothing blinks, nothing counts
+ * carry a filled chip (UI-09: no row stripe without a legend); nothing blinks, nothing counts
  * down. Filters are the API's own allow-list (49.6), one status at a time.
  *
  * Starting a Review is deliberately absent — the snapshot-choice UX is
@@ -28,7 +28,10 @@ import { api, describeError } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import { TodoViews } from "@/components/workspace/TodoViews";
-import { reviewStatusLabel } from "@/lib/labels";
+import { REVIEWS_QUEUE_COPY as COPY, reviewStatusLabel } from "@/lib/labels";
+import { SegmentedFilter } from "@/components/SegmentedFilter";
+import { ROLE_WORDS, contractHref } from "@/components/workspace/model";
+import { documentTypeChip } from "@/lib/documentTypes";
 import type { Pagination, Review } from "@/lib/types";
 
 import { ReviewReportPage } from "@/components/workspace/ReviewReportPage";
@@ -39,15 +42,6 @@ import { PageHeader } from "@/components/page/PageHeader";
 import { StackTable } from "@/components/StackTable";
 
 const PAGE_SIZE = 25;
-
-/** Step 30 states worth queueing on; "" leaves the filter off. */
-const STATUS_FILTERS = [
-  { value: "", label: "All" },
-  { value: "LEGAL_REVIEW", label: "Needs legal review" },
-  { value: "ANALYSIS_COMPLETE", label: "Analysis complete" },
-  { value: "RESOLVED", label: "Resolved" },
-  { value: "CLOSED", label: "Closed" },
-] as const;
 
 const ATTENTION_STATUSES = new Set(["LEGAL_REVIEW"]);
 
@@ -97,22 +91,10 @@ function ReviewsQueueView() {
           sizing — so a longer document name in one run moved every column and
           failed job 15 on 7% of pixels with no visible change. */}
       <TodoViews />
-        <div className="ws-filter" role="group" aria-label="Filter by status">
-          {STATUS_FILTERS.map((filter) => (
-            <button
-              key={filter.value}
-              type="button"
-              aria-pressed={status === filter.value}
-              onClick={() => {
-                setPage(1);
-                setStatus(filter.value);
-                setReviews(null);
-              }}
-            >
-              {filter.label}
-            </button>
-          ))}
-        </div>
+        {/* UI-09: the one filter control, in the row chips' own words (Step 30 states) */}
+        <SegmentedFilter label={COPY.filter} value={status}
+                         onChange={(next) => { setPage(1); setStatus(next); setReviews(null); }}
+                         segments={COPY.filters.map((f) => ({ id: f.id, label: f.text, text: f.text }))} />
 
         {error ? (
           <ErrorState title="Reviews could not be loaded" error={error} onRetry={() => void load()} />
@@ -135,21 +117,18 @@ function ReviewsQueueView() {
 
         {reviews !== null && reviews.length === 0 ? (
           <div className="ws-state">
-            <h2>No Reviews here.</h2>
-            <p>
-              {status
-                ? "Nothing visible to your account has this status."
-                : "Reviews appear once a document is analysed. Upload a contract on the Dashboard to start."}
-            </p>
+            <h2>{COPY.emptyTitle}</h2>
+            <p>{status ? COPY.emptyFiltered : COPY.emptyAll}</p>
           </div>
         ) : null}
 
         {reviews !== null && reviews.length > 0 ? (
-          <StackTable columns={[{ label: "Document" }, { label: "Status" }, { label: "Analysed" }]}>
+          <StackTable columns={[{ label: COPY.columns.document }, { label: COPY.columns.status }, { label: COPY.columns.checked }]}>
                 {reviews.map((review) => {
                   const attention = ATTENTION_STATUSES.has(review.status);
                   return (
-                    <tr key={review.id} data-review-id={review.id} className={attention ? "ws-tr--attention" : undefined}>
+                    // UI-09: no unexplained row stripe — the status chip says "With Legal"
+                    <tr key={review.id} data-review-id={review.id}>
                       {/* The document's name, always — and a link to its
                           workspace only when this caller can actually open it.
                           A Review reachable through Legal scope (`REC-09`)
@@ -158,7 +137,7 @@ function ReviewsQueueView() {
                           "Not found." while the Report beside it worked. */}
                       <td>
                         {review.document_accessible ? (
-                          <Link href={`/dashboard?id=${review.contract_id}`}>
+                          <Link href={contractHref(review.contract_id)}>
                             {review.document_name ?? review.contract_id.slice(0, 8)}
                           </Link>
                         ) : (
@@ -167,13 +146,17 @@ function ReviewsQueueView() {
                             {review.document_name ?? review.contract_id.slice(0, 8)}
                           </Link>
                         )}
-                        {review.document_type ? (
-                          <span className="ws-chip ws-chip--type ws-docs__type">{review.document_type}</span>
-                        ) : null}
+                        {/* U1 r2: the facts line Contracts uses — what tells one template's rows apart */}
+                        <span className="ws-hometable__facts">
+                          {[review.client_name, documentTypeChip(review.document_type),
+                            review.version_number ? COPY.version(review.version_number, ROLE_WORDS[review.version_role ?? ""]) : null,
+                            // who holds it, only while it is with Legal (a closed review keeps no holder)
+                            review.status === "LEGAL_REVIEW" && review.assigned_to?.[0] ? COPY.withWhom(review.assigned_to[0]) : null,
+                          ].filter(Boolean).map((part) => <span key={part}>{part}</span>)}
+                        </span>
                       </td>
                       <td>
-                        <span className={`ws-chip${attention ? " lm-lozenge" : ""}`}
-                              title={review.status}>
+                        <span className={`ws-chip${attention ? " lm-lozenge" : ""}`}>
                           {reviewStatusLabel(review.status)}
                         </span>
                       </td>

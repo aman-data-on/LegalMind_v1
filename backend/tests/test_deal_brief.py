@@ -465,7 +465,7 @@ def test_the_brief_decides_who_acts_next_on_the_server(api, db, owner, tmp_path)
     # round 3 (D1): an open point never sent to Legal is said, never "send our reply"
     assert owner_says(changes_left_legal=0, changes_left=0,
                       sent_to_legal=False) == B.SEND_POINTS_TO_LEGAL
-    done = {"changes_left_legal": 0, "changes_left": 0, "points_open": 0}
+    done = {"changes_left_legal": 0, "changes_left": 0, "points_open": 0, "changes_ours": 2}
     assert owner_says(**done) == B.SEND_REPLY
     assert B.status({**base, **done}, None, legal=False, had_legal=False) == B.ALL_ANSWERED
     assert owner_says("READY_TO_SEND", **done) == B.REPLY_READY
@@ -487,6 +487,35 @@ def test_the_brief_decides_who_acts_next_on_the_server(api, db, owner, tmp_path)
     assert _get(api, f"/contracts/{c.id}/brief")["status"] == B.WITH_LEGAL_AND_YOURS
     sign_in(api, db, lawyer)
     assert _get(api, f"/contracts/{c.id}/brief")["status"] == B.LEGAL_QUEUE
+
+
+def test_a_stage_with_no_reply_to_send_never_says_send_our_reply():
+    """UI-01 (2026-11-23): a Final contract told Sales "Send our reply". The deal's end
+    wins over every count; Ready to sign and On hold say their own next act; every other
+    stage keeps the count's code."""
+    from legalmind.api.routers import deal_brief as B
+    done = {"changes_total": 5, "changes_left": 0, "changes_left_legal": 0,
+            "changes_left_for_me": 0, "points_open": 0, "sent_to_legal": True,
+            "changes_ours": 2}
+    busy = {**done, "changes_left": 2, "changes_left_for_me": 2}
+    says = lambda counts, stage: B.status(counts, stage, legal=False)  # noqa: E731
+    for counts in (done, busy, {"points_open": 0}, {}):    # whatever the counts say
+        assert says(counts, "FINAL") == B.FINAL_READY
+        assert says(counts, "SIGNED") is None              # the stage says it
+    assert says(done, "READY_TO_SIGN") == B.PREPARE_FINAL
+    assert says(done, "ON_HOLD") == B.ON_HOLD
+    assert says(busy, "ON_HOLD") == B.YOURS_TO_ANSWER     # real work still comes first
+    for stage in (None, "DRAFTING", "CLIENT_RETURNED", "INTERNAL_REVIEW"):
+        assert says(done, stage) == B.SEND_REPLY
+    # D1 (round 2): every change accepted and nothing waits on the client — the final
+    # contract is next, as the To-do says (`todo.py` prepare_final); a wait keeps the reply
+    accepted = {**done, "changes_ours": 0}
+    assert says(accepted, "CLIENT_RETURNED") == B.PREPARE_FINAL
+    assert says({**accepted, "points_waiting": 1}, "CLIENT_RETURNED") == B.SEND_REPLY
+    for stage in (None, "DRAFTING", "INTERNAL_REVIEW"):   # the final may wait on Legal
+        assert says(accepted, stage) != B.PREPARE_FINAL
+    # Legal's codes read the queue, never the stage
+    assert B.status(done, "FINAL", legal=True) == B.LEGAL_NOTHING
 
 
 # ------------------------------------------------------------------ round 3

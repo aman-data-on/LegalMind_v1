@@ -55,7 +55,7 @@ export interface TellBody { text: string; told_on?: string | null; ties?: Record
 /** Who acts next — the server's code (`GET …/brief`, rule 18); the screen only words it. */
 export type BriefStatus = "NOT_SENT" | "WITH_LEGAL" | "WITH_LEGAL_AND_YOURS" | "YOURS_TO_ANSWER" | "POINTS_OPEN"
   | "SEND_POINTS_TO_LEGAL" | "SEND_REPLY" | "ALL_ANSWERED" | "REPLY_READY" | "WITH_CLIENT" | "LEGAL_QUEUE"
-  | "LEGAL_POINTS" | "LEGAL_NOTHING" | "CHECKING";
+  | "LEGAL_POINTS" | "LEGAL_NOTHING" | "CHECKING" | "FINAL_READY" | "PREPARE_FINAL" | "ON_HOLD";
 
 /** The status line in words: the server's code, its numbers from the one count. */
 export function statusWords(brief: Pick<DealBrief, "status" | "counts">): string | null {

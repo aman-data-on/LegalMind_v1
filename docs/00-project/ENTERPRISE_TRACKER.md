@@ -39,7 +39,7 @@ Nothing is committed until the owner says "commit".
 - [ ] P2 comparison cache (after batch 5 merges) — BE-2/DB-1, BE-3, BE-5, BE-6, DB-7, BE-9
 - [x] P3 database hygiene (migrations) — DB-2, DB-5, DB-10, BE-13 + P1 leftovers (BUILT 2026-11-23 on `perf/db-hygiene`, migration `d340ac8e60fd`, NOT deployed; `P3-BUILD-REPORT.md`). Not built: DB-8 (proposal — locked 49.4 keeps `pagination.total`), BE-8 (not in this batch's brief)
 - [ ] P3 remainder — DB-8 audit-log exact count (owner decision on locked 49.4), BE-8 one helper for the versions-of-a-contract query (31 inline copies)
-- [ ] U1 UI wrong or risky (after batch 5 merges) — UI-01, UI-02, UI-05, UI-10, UI-09, UI-12
+- [x] U1 UI wrong or risky — UI-01, UI-02, UI-05, UI-10, UI-09, UI-12 (BUILT 2026-11-23 on `fix/ui-u1`, browser-checked 1440/390/320, NOT deployed; `U1-BUILD-REPORT.md`). Round 2 done (critic must-fixes, D1/D3/D4). Follow-ups: brief status for a final copy waiting on Legal / an archived contract (needs the call site, perf-p2 owns it); Take back into the ⋯ menu (U2, UI-03); owner: notify the lawyer and keep the note on take-back?; `evidenceLocation` "§" shared by Sales and Legal; report body copy pass (position, em dashes, "-analysis.docx" file name); D2 INTERNAL_REVIEW wording (product call)
 - [ ] U2 UI workspace layout — UI-03, UI-04, UI-06, UI-07
 - [ ] U3 UI consistency — UI-11, mediums/lows, UI-08 (presentation-only amendment to AM-264/AM-291)
 - [ ] Later / owner — BE-10 nginx gzip, BE-12 OCR to the worker (rule 19), DB-4/DB-6 statute search, DB-9 duplicate indexes, BE-14–19, a fresh production copy
