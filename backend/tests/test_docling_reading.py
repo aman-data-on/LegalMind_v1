@@ -11,6 +11,7 @@ corpus ones only where the source material is present too (never on CI).
 
 from __future__ import annotations
 
+import logging
 import re
 import subprocess
 import sys
@@ -189,6 +190,32 @@ def test_a_docling_step_that_raises_falls_back(monkeypatch):
     result = parse_pdf(_pdf())
     assert result.segments == parse_pdf(_pdf(), docling=False).segments
     assert result.reader["fallback_reasons"] == {1: "Docling failed (MemoryError)"}
+
+
+@pytest.mark.parametrize("stage", ["gate", "inline_tables", "splice"])
+def test_a_swallowed_docling_failure_is_logged_and_the_page_still_reads(
+        monkeypatch, caplog, docling, stage):
+    """BE-13: each of the three fallbacks keeps the standard read AND says so — the event,
+    the stage and the error's type, never its message or the page's words (53.3)."""
+    standard = parse_pdf(_pdf(), docling=False)
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("Less than 99.9%")
+    with caplog.at_level(logging.WARNING, logger="legalmind"):
+        if stage == "splice":       # a table with no bbox: the splice loop itself raises
+            page = pymupdf.open(stream=_pdf(), filetype="pdf")[0]
+            blocks = [b for b in page.get_text("blocks") if b[6] == 0]
+            assert parsing._inline_tables(page, list(blocks), [{"rows": ROWS}], None) \
+                == blocks
+        else:
+            monkeypatch.setattr(parsing, {"gate": "_table_rules",
+                                          "inline_tables": "_inline_tables"}[stage], boom)
+            assert parse_pdf(_pdf()).segments == standard.segments
+    said = [r.legalmind_fields for r in caplog.records
+            if r.getMessage() == "ingest.docling.fallback"]
+    error = "KeyError" if stage == "splice" else "RuntimeError"
+    assert said and all(f == {"stage": stage, "error": error, "operational_failure": True}
+                        for f in said)
 
 
 def test_only_pages_that_can_hold_a_table_are_sent(docling):

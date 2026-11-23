@@ -676,6 +676,9 @@ class FindingEvidence(Base):
     relationship_type = mapped_column(
         _enum(E.EvidenceRelationshipType, "evidence_relationship_type"), nullable=False)
 
+    # 41.25; the evidence delete cascade's FK check (DB-2, migration d340ac8e60fd)
+    __table_args__ = (Index("ix_finding_evidence_evidence_id", "evidence_id"),)
+
 
 class EvaluationEvidence(Base):
     """AB-1.5 — per-scope evidence attribution.
@@ -691,6 +694,8 @@ class EvaluationEvidence(Base):
     evidence_id = fk_uuid("document_evidence.id", primary_key=True, ondelete="CASCADE")
     relationship_type = mapped_column(
         _enum(E.EvidenceRelationshipType, "evidence_relationship_type"), nullable=False)
+
+    __table_args__ = (Index("ix_evaluation_evidence_evidence_id", "evidence_id"),)  # DB-2
 
 
 class SemanticRecognitionCache(Base):
@@ -813,6 +818,7 @@ class UnmatchedProvision(Base):
     __table_args__ = (
         UniqueConstraint("review_id", "evidence_id",
                          name="uq_unmatched_provisions_review_evidence"),
+        Index("ix_unmatched_provisions_evidence_id", "evidence_id"),          # DB-2
     )
 
 
@@ -899,6 +905,9 @@ class AuditEvent(Base):
         Index("ix_audit_events_actor_id", "actor_id"),
         Index("ix_audit_events_entity", "entity_type", "entity_id"),
         Index("ix_audit_events_timestamp", "timestamp"),
+        # the reads by action (+ entity, newest first), DB-5, migration d340ac8e60fd
+        Index("ix_audit_events_action_entity_id_timestamp", "action", "entity_id",
+              "timestamp"),
     )
 
 

@@ -730,9 +730,9 @@ def check_template(template_id: UUID, guard: Guard = Depends(get_guard)) -> dict
     if tv.status != "DRAFT":  # its clauses are fixed: there is nothing left to check
         raise Conflict(f"this template is {tv.status}; only a draft is checked")
     positions = guard.sees_legal_position
-    # the check takes seconds: end the request's own transaction first, so the session
-    # row it touched is not held locked while this reader's other requests wait on it
-    guard.db.commit()
+    # nothing before the savepoint writes or locks (the session stamp commits on its own
+    # since P1, 2026-11-23); the savepoint's own approve-all writes stay held until its
+    # rollback, as before
     savepoint = guard.db.begin_nested()
     try:
         for (key, _), row in publish.pinned_clauses(guard.db, tv).items():

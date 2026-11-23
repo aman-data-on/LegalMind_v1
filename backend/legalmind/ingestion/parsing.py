@@ -18,6 +18,7 @@ Locked rules implemented:
 
 from __future__ import annotations
 
+import logging
 import math
 import os
 import re
@@ -36,6 +37,7 @@ from legalmind.ingestion.validation import (
     PDF_MIME,
     TEXT_MIME_TYPES,
 )
+from legalmind.observability.logs import log_event
 
 # A page yielding fewer than this many characters of native text is treated as
 # having no usable text (34.7). Deliberately low: the threshold decides whether
@@ -1002,8 +1004,10 @@ def _inline_tables(page, blocks: list, docling_tables: list[dict] | None = None,
                               _DOCLING_BLOCK, 0),
                           [(c["text"], c["bbox"]) for c in table["cells"]])
             blocks = blocks if kept is None else kept
-    except Exception:                       # pragma: no cover - defensive
-        pass            # a Docling table must never cost the page its own tables
+    except Exception as exc:
+        # a Docling table must never cost the page its own tables; said, never silent
+        log_event("ingest.docling.fallback", level=logging.WARNING, stage="splice",
+                  error=type(exc).__name__, operational_failure=True)
     return blocks
 
 
@@ -1701,8 +1705,10 @@ def _page_blocks_in_reading_order(page, docling_tables: list[dict] | None = None
             [b for b in page.get_text("blocks") if b[6] == 0])   # 0 = text, 1 = image
     try:
         kept = _inline_tables(page, kept, docling_tables, revision)
-    except Exception:                       # pragma: no cover - defensive
-        pass        # the table is an improvement; its failure must not cost the page
+    except Exception as exc:
+        # the table is an improvement; its failure must not cost the page (BE-13)
+        log_event("ingest.docling.fallback", level=logging.WARNING, stage="inline_tables",
+                  error=type(exc).__name__, operational_failure=True)
     if _reads_in_columns(kept, page.cropbox.height) and not _mostly_vertical(page):
         kept.sort(key=lambda b: (round(b[1] / 6), b[0]))
     return ("\n".join(b[4].strip() for b in kept if b[4].strip()),
@@ -1774,8 +1780,10 @@ def parse_pdf(data: bytes, *, defer_ocr: bool = False, ocr: bool = True,
         try:
             docling_pages = [index for index, page in enumerate(doc, start=1)  # type: ignore[arg-type,var-annotated]
                              if _table_rules(page) >= DOCLING_MIN_RULES]
-        except Exception:                   # pragma: no cover - defensive
-            pass                            # no gate, no Docling: the standard read
+        except Exception as exc:
+            # no gate, no Docling: the standard read (BE-13)
+            log_event("ingest.docling.fallback", level=logging.WARNING, stage="gate",
+                      error=type(exc).__name__, operational_failure=True)
     if defer_ocr and 0 < len(docling_pages) <= DOCLING_MAX_PAGES_TOTAL:
         pages_total = doc.page_count
         doc.close()

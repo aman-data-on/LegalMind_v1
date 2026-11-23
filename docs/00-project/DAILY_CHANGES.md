@@ -63,6 +63,7 @@ working day gets one entry, newest first, with these headings (omit an empty one
   copy of the production copy: same-session `/auth/session` beside `/contracts` 1,245 → 39 ms; `/contracts` −15 %,
   `/todo` −14 %; permission queries on the legal list 21 → 1; Ask chat reopen 45 → 0.2 ms SQL.
   Report: `audit/fullstack-audit-20261123/P1-BUILD-REPORT.md`.
+- **Full-stack audit P3 "database hygiene"** on `perf/db-hygiene` (BUILT, not committed, not deployed): migration `d340ac8e60fd` (six indexes built CONCURRENTLY: DB-2, DB-5), DB-10 lookup, BE-13 Docling logs, P1 leftovers (template check commit removed, upload docstring). Measured on a scratch production copy: largest contract delete 463–487 → 69–76 ms; audit reads at 50× 3–42 ms → ≤0.08 ms. DB-8 proposed only (locked 49.4). Report: `audit/fullstack-audit-20261123/P3-BUILD-REPORT.md`.
 - **AB-221 batch 5 "our contract came back marked up"** (`AM-455`–`AM-460`) built on `feat/returned-markup`
   (worktree `/root/legalmind-worktrees/returned-markup`): diagnosis → spec → design → independent design review
   (M1–M8, S1–S11, N1–N8) → owner decisions → build. Not committed; report in the batch folder's BUILD-REPORT.md.
@@ -71,6 +72,7 @@ working day gets one entry, newest first, with these headings (omit an empty one
 
 ### Next
 - P1: independent verification → PR → CI → merge; deploy only on the owner's OK. Then P2 once batch 5 merges.
+- P3: independent verification → PR → CI → merge; deploy only on the owner's OK, then run the ops/README index check. DB-8 needs an owner decision on 49.4.
 - **Legal:** on MSA.LEAPSWITCH v3 (draft), re-keep the "Partner" wording point, approve, publish.
 - **AB-221:** independent verification of `feat/returned-markup`, then the owner's go to commit, PR and deploy.
 - **Legal (Q2, AB-221 `AM-459`):** may the text before the client's tracked edits go back as ours ("Keep our

@@ -11,6 +11,7 @@
 
 ---
 
+**2026-11-23 — Database batch P3 (BUILT, not deployed).** Deleting a contract is about six times faster (0.47 s → 0.07 s for the largest), the audit-trail reads that To-do and the template pages make stay instant as the trail grows (tested at 50× today's size), and a failed table read in a PDF is now logged instead of silent. One database change, built without pausing the live site; the audit log's page count stays exact (a locked rule).
 **2026-11-23 — Speed batch P1 (BUILT, not deployed).** From the full-stack audit: one person's screens no
 longer wait for each other (a second request beside the contracts list: 1.2 s → 0.04 s), the contracts
 list and To-do are about 15 % faster, reopening a long Ask chat no longer scans every stored passage, and a

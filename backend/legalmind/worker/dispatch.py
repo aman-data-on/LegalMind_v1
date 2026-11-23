@@ -680,8 +680,9 @@ def _run_ocr_in_background(document_version_id: UUID,
                     row.processing_status = E.ProcessingStatus.FAILED
                     row.extraction_status = E.ExtractionStatus.FAILED
                     db.commit()
-        except Exception:                        # pragma: no cover - double fault
-            pass
+        except Exception as exc:                 # pragma: no cover - double fault
+            log_event("ingest.mark_failed_failed", level=logging.ERROR,
+                      error=type(exc).__name__)
 
 
 def open_after_ocr(db: DBSession, document_version_id: UUID, *,

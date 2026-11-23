@@ -161,6 +161,44 @@ def test_check_previews_the_gate_and_keeps_nothing(db, api, template, lawyer, st
     assert db.get(M.TemplateVersion, template.id).status == "DRAFT"
 
 
+def test_the_check_takes_no_row_lock_before_its_savepoint(db, api, template, lawyer, user,
+                                                    monkeypatch):
+    """The check used to commit before its seconds-long savepoint "so the session row it
+    touched is not held locked" (`templates.py`). Since P1 the request writes nothing
+    before the check: every statement up to the savepoint is a plain read, so there is no
+    row lock to release and no commit is needed. A write or a locking read added there
+    fails this (pre-P1 code issued `UPDATE sessions` here)."""
+    from sqlalchemy import event
+
+    from legalmind.drafting import publish
+    monkeypatch.delenv("LEGALMIND_SOFFICE", raising=False)
+    db.add(M.ConfigurationSnapshot(snapshot_hash=uuid.uuid4().hex, created_by=user.id))
+    db.flush()
+    sign_in(api, db, lawyer)
+    seen: list[str] = []
+    before_check: list[list[str]] = []      # what the request issued before the savepoint
+    pinned = publish.pinned_clauses
+
+    def first_step_of_the_check(*args, **kwargs):
+        before_check.append(list(seen))
+        return pinned(*args, **kwargs)
+
+    def record(conn, cursor, statement, *rest):
+        seen.append(statement)
+    monkeypatch.setattr(publish, "pinned_clauses", first_step_of_the_check)
+    conn = db.connection()
+    event.listen(conn, "before_cursor_execute", record)
+    try:
+        assert api.get(_url(template, "/check")).status_code == 200
+    finally:
+        event.remove(conn, "before_cursor_execute", record)
+    issued = [s.strip().upper() for s in before_check[0]]
+    assert issued and all(s.startswith(("SELECT", "SAVEPOINT", "RELEASE SAVEPOINT"))
+                          for s in issued), issued
+    assert not any(" FOR UPDATE" in s or " FOR SHARE" in s or " FOR NO KEY" in s
+                   or " FOR KEY SHARE" in s for s in issued), issued
+
+
 def test_only_a_hand_published_demo_label_is_shown_as_one():
     from legalmind.drafting.blank import demo_label
     demo = "DEMO — not approved by Legal"

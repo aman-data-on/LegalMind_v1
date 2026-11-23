@@ -322,10 +322,13 @@ def _bulk_left(before: M.DocumentVersion | None, rows: list[dict]
 def _current_choice(guard: Guard, before: M.DocumentVersion | None,
                     after: M.DocumentVersion, row_key: str) -> M.ComparisonChoice | None:
     C = M.ComparisonChoice
+    # DB-10: the key columns' NULLs (implied by the `right_side`/`left_side` CHECKs) are
+    # named so every column of `uq_comparison_choices_pair_row_version` is used, in order
+    left = ((C.left_version_id == before.id, C.left_key.is_(None)) if before is not None
+            else (C.left_version_id.is_(None),))
     return guard.db.execute(
-        select(C).where(C.left_version_id == before.id if before is not None
-                        else C.left_version_id.is_(None),
-                        C.right_version_id == after.id, C.row_key == row_key)
+        select(C).where(C.right_version_id == after.id, C.right_key.is_(None), *left,
+                        C.row_key == row_key)
         .order_by(C.version_number.desc()).limit(1)).scalars().first()
 
 

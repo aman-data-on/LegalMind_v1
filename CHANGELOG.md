@@ -9,6 +9,17 @@ No version has been released. The V1 specification is complete and implementatio
 ---
 
 ## [Unreleased]
+- Full-stack audit 2026-11-23, batch P3 "database hygiene" (branch `perf/db-hygiene`; BUILT, NOT deployed; one
+  migration `d340ac8e60fd`, no API schema change, no lock touched). Six indexes built `CONCURRENTLY` (autocommit
+  block, `if_not_exists`, `lock_timeout` 60 s, an INVALID leftover dropped and rebuilt, the migration refuses to
+  finish with an invalid one): the four `evidence_id` FKs and `assist.conversation_evidence.chunk_id` (DB-2 —
+  deleting the largest contract 463–487 → 69–76 ms) and `audit_events (action, entity_id, timestamp)` (DB-5 — the
+  nine reads by action at 50× volume 3–42 ms → 0.01–0.08 ms). The comparison-choice lookup names its key columns'
+  NULLs so it uses the unique index's columns in order (DB-10, 30 → 4 buffers). The three Docling fallbacks in
+  `ingestion/parsing.py` now log `ingest.docling.fallback` with the stage and error type (BE-13). The template
+  check no longer commits before its savepoint (P1 made it redundant; a test proves the request has only read).
+  DB-8 (audit log "has more") is proposed, not built: locked 49.4 fixes `pagination.total`. Report:
+  `audit/fullstack-audit-20261123/P3-BUILD-REPORT.md`.
 - Full-stack audit 2026-11-23, batch P1 "speed quick wins" (branch `perf/quick-wins`; BUILT, NOT deployed; no
   migration, no API schema change, no lock touched). `last_seen_at` is stamped at most once a minute in its own
   `SKIP LOCKED` transaction before the request reads anything, so one user's parallel requests no longer queue on
