@@ -483,3 +483,13 @@ def require_second_person(db, review, finding) -> None:
         company_standard_version_id=std.id, mapping_rule_version_id=mapping.id,
         evaluation_rule_version_id=rules.id))
     db.flush()
+
+
+@pytest.fixture(autouse=True)
+def _fresh_comparison_cache():
+    """P2: the comparison cache is a process global — a test that swaps a pure function
+    after an earlier comparison must never read the earlier result (verifier D2)."""
+    from legalmind.analysis import negotiation
+    with negotiation._CORE_LOCK:
+        negotiation._CORE.clear()
+    yield

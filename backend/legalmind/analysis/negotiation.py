@@ -56,13 +56,16 @@ accepted together (`accept_by_effect`, r2).
 from __future__ import annotations
 
 import difflib
+import hashlib
 import json
+import pickle
 import re
+import threading
 import unicodedata
 import uuid
-from collections import Counter
+from collections import Counter, OrderedDict
 from collections.abc import Callable
-from dataclasses import replace
+from dataclasses import fields, replace
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -86,10 +89,12 @@ from legalmind.domain.enums import (
 )
 from legalmind.domain.user_status import in_our_favour
 from legalmind.evaluation.constitution_boundaries import constitution_prohibition_for
+from legalmind.evaluation.registry import EVALUATOR_VERSIONS
 from legalmind.evaluation.rule_config import accepts_good_and_neutral
 from legalmind.evaluation.user_status import ACCEPTABLE, by_finding
 from legalmind.evaluation.workflow import derive_finding_status, waits_on_client_only
 from legalmind.extraction.parties import PROVIDER_TYPES
+from legalmind.ingestion.service import PROCESSOR_VERSION
 from legalmind.mapping.engine import Clause
 from legalmind.mapping.service import load_clauses
 from legalmind.security import audit
@@ -1161,10 +1166,124 @@ def read_clauses(db: DBSession, version_id: UUID, loader: ClauseLoader = raw_cla
     return clauses, (reason if status in (READ_NOT_APPLIED, READ_ABSENT) else None)
 
 
+#: BE-2 (P2, full-stack audit 2026-11-23): the PURE part of a comparison — the clause
+#: units, their alignment, each row's kind, marks and pure readings (``core``), and the
+#: display-only notes and lettered points (``display``) — kept per process, pickled (each
+#: reader gets its own copy), under a content hash of everything that part reads
+#: (`_core_key`). Findings, answers, decisions, routes, effects and the automatic
+#: acceptance are never kept: they are read live on every call.
+# ponytail: one in-process LRU of 128 entries (a comparison's two parts, or a template
+# publish check's verdict — BE-9), per API worker (two workers = two caches), cold after
+# every deploy or restart; a stored table keyed the same way is the upgrade (rule 19:
+# owner approval) if the first read after a deploy hurts.
+_CORE_SIZE = 64
+_CORE: OrderedDict[tuple[str, str], bytes] = OrderedDict()
+_CORE_LOCK = threading.Lock()
+
+
+def process_memo(key: str, part: str, build: Callable[[], Any]) -> Any:
+    """``build()`` for (``key``, ``part``), made once per process while it stays among
+    the last ``2 * _CORE_SIZE`` used; always a fresh copy (unpickled), on a miss as on a
+    hit. ``key`` must hash every input ``build`` reads."""
+    with _CORE_LOCK:
+        blob = _CORE.get((key, part))
+        if blob is not None:
+            _CORE.move_to_end((key, part))
+    if blob is None:
+        blob = pickle.dumps(build(), protocol=pickle.HIGHEST_PROTOCOL)
+        with _CORE_LOCK:
+            _CORE[(key, part)] = blob
+            while len(_CORE) > 2 * _CORE_SIZE:
+                _CORE.popitem(last=False)
+    return pickle.loads(blob)  # noqa: S301 — bytes this process pickled, never input
+
+
+def _core_key(db: DBSession, before: M.DocumentVersion | None, after: M.DocumentVersion,
+              template: dict[str, Any] | None, vendor: bool, ours: list[Clause],
+              theirs: list[Clause]) -> str:
+    """sha256 of every input of the pure part: both sides' clauses as compared (after
+    the loader, the Special Conditions and the reader-generation re-read: each row's
+    every field — id, text, number, title, heading, page, marks, highlights), the two
+    version ids, the base kind and its anchor, optional parts and placeholders, the
+    vendor reading, the latest configuration snapshot and the reader/engine versions."""
+    snapshot = db.execute(select(M.ConfigurationSnapshot.id).order_by(
+        M.ConfigurationSnapshot.created_at.desc(), M.ConfigurationSnapshot.id.desc())
+        .limit(1)).scalar()
+    t = template or {}
+    base = "ours" if before is not None else (
+        "tracked_original" if t.get("tracked") else "template")
+    payload = {
+        "pair": [before and before.id, after.id, t.get("read_by")], "base": base,
+        "anchor": t.get("anchor"), "note_open": t.get("note_open"),
+        "optional": sorted(t.get("optional") or ()),
+        "fields": sorted(t.get("fields") or ()), "vendor": vendor,
+        "snapshot": snapshot,
+        "versions": [PROCESSOR_VERSION, reader_generation.REREAD_FROM,
+                     reader_generation.HIGHLIGHTS_FROM,
+                     sorted((k.value, v) for k, v in EVALUATOR_VERSIONS.items())],
+        "sides": [[[getattr(c, f.name) for f in fields(c)] for c in side]
+                  for side in (ours, theirs)]}
+    return hashlib.sha256(json.dumps(payload, default=str, sort_keys=True)
+                          .encode()).hexdigest()
+
+
+def _core(ours: list[Clause], theirs: list[Clause],
+          template: dict[str, Any] | None) -> dict[str, Any]:
+    """The pure part of `changes`: the units (headings folded), the raw alignment and,
+    per listed row, everything read from the two texts alone."""
+    old, new = _units(ours), _units(theirs)
+    if template is not None:
+        as_filled(old, new, template)
+    raw = _align(old, new)
+    aligned = fold_headings(old, new, raw)                       # batch 8 R3d-2
+    deleted = dc._norm(" ".join(c.get("deleted") or ""
+                                for u in new for c in u["changes"]))
+    twin = {i: j for i, j, _ in aligned if i is not None and j is not None}
+    rows = []
+    for i, j, moved in aligned:
+        o, n = (old[i] if i is not None else None), (new[j] if j is not None else None)
+        kind = _kind(o, n, moved)
+        if kind is None or (kind == "DELETED" and template is not None and o
+                            and all(dc._norm(t) in template["optional"]
+                                    for t in o["texts"])):
+            continue       # a blank template's optional part, deleted as its note says
+        tracked, untracked = _tracked(kind, i, j, old, new, twin, deleted)
+        # AM-457: our side IS their text before the marks, so nothing can be unmarked
+        untracked = untracked and not (template or {}).get("tracked")
+        rows.append({
+            "i": i, "j": j, "moved": moved, "kind": kind, "tracked": tracked,
+            "untracked": untracked,
+            "unmarked": untracked and _unmarked(kind, o, n),          # batch 8 R2.3
+            "lead": None if kind == "MOVED" else (
+                _lead(new, j) if j is not None else _lead(old, i)),
+            "clause": row_clause(o, n, old, new, twin),
+            "same_words": bool(o and n and same_words(o["text"], n["text"], o["number"],
+                                                       n["number"])),
+            "typography_only": bool(kind == "MODIFIED" and o and n and _typography(
+                o["text"]) == _typography(n["text"])),
+            "changed_rows": changed_rows(o, n) if kind == "MODIFIED" and n else None})
+    return {"old": old, "new": new, "raw": raw if template is None else None,
+            "rows": rows, "aliases": reading._aliases(theirs)}
+
+
+def _display(ours: list[Clause], theirs: list[Clause], core: dict[str, Any],
+             vendor: bool) -> dict[str, Any]:
+    """The display-only part (owner 2026-11-16, R2 D1/D2/D4–D6): the notes across
+    clauses — on the alignment `_core` already made (BE-3) — and each row's lettered
+    points and mutuality. Never a decision."""
+    old, new, aliases = core["old"], core["new"], core["aliases"]
+    return {"notes": lawyer_rows.notes_for_legal(ours, theirs, aligned=core["raw"]),
+            "lettered": [lawyer_rows.lettered(
+                old[r["i"]]["text"] if r["i"] is not None else None,
+                new[r["j"]]["text"] if r["j"] is not None else None, r["kind"], vendor,
+                aliases) for r in core["rows"]]}
+
+
 def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | None,
             after: M.DocumentVersion, *, legal_position: bool,
             template: dict[str, Any] | None = None,
-            clause_loader: ClauseLoader = raw_clauses) -> dict[str, Any]:
+            clause_loader: ClauseLoader = raw_clauses,
+            counting: bool = False) -> dict[str, Any]:
     """The change list from ``before`` (our version) to ``after`` (the client's). The
     Constitution's Company Position beside a change's topic only with
     ``legal_position`` — omitted, never blanked (LEGAL-02, SEC-07). ``template`` (a
@@ -1173,10 +1292,11 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
     ``clause_loader`` (`AM-307`): with drafting's effective loader each side reads as its
     Special Conditions vary it; where a side's cannot be applied, both are read raw, the
     list says so (``special_conditions_not_applied``) and every row goes to a holder. The
-    default reads raw (a signed copy is compared so)."""
+    default reads raw (a signed copy is compared so). ``counting`` (BE-3): the
+    display-only ``lawyer`` and ``notes_for_legal`` are left out — no count reads them."""
     unapplied: list[str] = []
     if template is not None:
-        ours, optional = template["clauses"], template["optional"]
+        ours = template["clauses"]
         theirs = [c for c in load_clauses(db, after.id)
                   if not c.content.startswith(template["note_open"])]
     else:
@@ -1200,33 +1320,27 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
     ours, theirs = reader_generation.as_one_reader(
         db, before.id if before is not None else (template or {}).get("read_by"),
         after.id, ours, theirs)
-    old, new = _units(ours), _units(theirs)
-    if template is not None:
-        as_filled(old, new, template)
+    vendor = contract.contract_type == "VENDOR_AGREEMENT"
+    key = _core_key(db, before, after, template, vendor, ours, theirs)
+    core = process_memo(key, "core", lambda: _core(ours, theirs, template))
+    shown = None if counting else process_memo(
+        key, "display", lambda: _display(ours, theirs, core, vendor))
+    old, new, aliases = core["old"], core["new"], core["aliases"]
     found_before = _findings(db, _latest_review(db, before)) if before else {}
     after_review = _latest_review(db, after)
     found_after = _findings(db, after_review,
                             provider=contract.contract_type in PROVIDER_TYPES)
     directions = _directions(db, after_review)
     auto = auto_rule(db, after_review)
-    vendor = contract.contract_type == "VENDOR_AGREEMENT"
-    aliases = reading._aliases(theirs)
     readings = change_triage.read_back(db, after.id) \
         if any(u["changes"] for u in new) else {}
     answered: set[str] = set()
     answers = answer_lines(db, contract, before, after, legal_position=legal_position,
                            answered=answered)
     out: list[dict[str, Any]] = []
-    aligned = fold_headings(old, new, _align(old, new))          # batch 8 R3d-2
-    deleted = dc._norm(" ".join(c.get("deleted") or ""
-                                for u in new for c in u["changes"]))
-    twin = {i: j for i, j, _ in aligned if i is not None and j is not None}
-    for i, j, moved in aligned:
+    for at, r in enumerate(core["rows"]):
+        i, j, kind = r["i"], r["j"], r["kind"]
         o, n = (old[i] if i is not None else None), (new[j] if j is not None else None)
-        kind = _kind(o, n, moved)
-        if kind is None or (kind == "DELETED" and template is not None and o
-                            and all(dc._norm(t) in optional for t in o["texts"])):
-            continue       # a blank template's optional part, deleted as its note says
         here = n or o
         assert here is not None
         f_before, f_after = _on(o, found_before), _on(n, found_after)
@@ -1234,7 +1348,7 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
         if kind != "MOVED":
             code = change_triage.code_reading(
                 o["text"] if o else "", n["text"] if n else "", vendor, aliases,
-                lead=_lead(new, j) if j is not None else _lead(old, i))
+                lead=r["lead"])
             if not code["editorial"]:
                 triage = change_triage.merged(
                     code, readings.get(_first(n)) if n else None,
@@ -1242,17 +1356,11 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
                 if not legal_position:
                     triage["topics"] = [{k: v for k, v in t.items() if k != "position"}
                                         for t in triage["topics"]]
-        tracked, untracked = _tracked(kind, i, j, old, new, twin, deleted)
-        # AM-457: our side IS their text before the marks, so nothing can be unmarked
-        untracked = untracked and not (template or {}).get("tracked")
-        unmarked = untracked and _unmarked(kind, o, n)                # batch 8 R2.3
         route, why = _route(kind, o, n, f_before, f_after, triage, found_after)
         if unapplied:                          # fail closed: a person reads it
             route, why = HOLDER, SPECIAL_NOT_APPLIED
         effect = effect_against_ours(route, why, f_before, f_after, directions)
-        if why == STILL_MATCHES and effect == NEUTRAL \
-                and not (o and n and same_words(o["text"], n["text"], o["number"],
-                                                n["number"])):
+        if why == STILL_MATCHES and effect == NEUTRAL and not r["same_words"]:
             route, why, effect = HOLDER, MEASURED, NEGATIVE    # AM-317 r1: words changed
         if NEVER_CONCEDE_CODES & {f["requirement_code"] for f in f_before + f_after}:
             route, why, effect = HOLDER, NEVER_CONCEDE, NEGATIVE
@@ -1261,30 +1369,29 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
         out.append({
             "row_key": key, "kind": kind,
             # a clause both moved and reworded is MODIFIED, and says it moved
-            "moved": moved and kind == "MODIFIED",
-            "clause": row_clause(o, n, old, new, twin),
+            "moved": r["moved"] and kind == "MODIFIED",
+            "clause": r["clause"],
             "page": here["page"],
             # the client's comments on their side; ours (our own notes) only for a reader
             # of positions (LEGAL-02) — omitted otherwise
             "before": _side(o, legal_position), "after": _side(n),
-            "tracked": tracked, "untracked": untracked, "unmarked": unmarked,
+            "tracked": r["tracked"], "untracked": r["untracked"],
+            "unmarked": r["unmarked"],
             # D5: quote marks, dashes or spacing only (omitted otherwise) — out of the
             # not-marked headline even where a measured clause keeps it with a holder
-            **({"typography_only": True} if kind == "MODIFIED" and o and n
-               and _typography(o["text"]) == _typography(n["text"]) else {}),
+            **({"typography_only": True} if r["typography_only"] else {}),
             # R3d-1: the same words and letters, only punctuation differing — still with
             # Legal (Q4); omitted otherwise
             **({"punctuation_only": True} if kind == "MODIFIED" and o and n
-               and why != FORMATTING_ONLY
-               and same_words(o["text"], n["text"], o["number"], n["number"])
-               else {}),
+               and why != FORMATTING_ONLY and r["same_words"] else {}),
             "review": {"before": _public(f_before), "after": _public(f_after)},
             "review_delta": _delta(f_before, f_after),
             "triage": triage, "route": route, "route_reason": why,
             "effect_for_us": effect,
             **_measured(effect, kind, f_before, f_after, triage, {
-                f["finding_id"] for e in changed_rows(o, n)
-                for f in found_after.get(e, ())} if kind == "MODIFIED" and n else None),
+                f["finding_id"] for e in r["changed_rows"]
+                for f in found_after.get(e, ())} if r["changed_rows"] is not None
+                else None),
             # AM-302: an answer's left side is the template it was compared with
             # (AM-457: the client's own text before their marks)
             **({"anchor": {"left_key": template["anchor"], "clause_version_id": None}}
@@ -1292,9 +1399,11 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
             **said,                  # the answer here, and every round's before it
             "answer": auto_answer(said["answer"], effect, auto),
         })
-        # what a lawyer reads off the change: lettered points, standards, mutuality —
-        # display only, never a decision (owner 2026-11-16, R2 D1/D2/D6)
-        out[-1]["lawyer"] = lawyer_rows.lawyer_view(out[-1], vendor, aliases)
+        if shown is not None:
+            # what a lawyer reads off the change: lettered points, standards, mutuality —
+            # display only, never a decision (owner 2026-11-16, R2 D1/D2/D6)
+            out[-1]["lawyer"] = lawyer_rows.lawyer_view(out[-1],
+                                                        read=shown["lettered"][at])
     earlier = _earlier(answered - {c["row_key"] for c in out}, out, answers)
     rowed = {e for c in out if c["after"] for e in c["after"]["evidence_ids"]}
     elsewhere = [{"clause": _clause(u), **c} for u in new if u["comments"]
@@ -1325,7 +1434,7 @@ def changes(db: DBSession, contract: M.Contract, before: M.DocumentVersion | Non
         # answers to a row this reading no longer lists (omitted when none)
         **({"answered_earlier": earlier} if earlier else {}),
         # R2 D4/D5: notes across clauses for Legal — never findings
-        "notes_for_legal": lawyer_rows.notes_for_legal(ours, theirs),
+        **({"notes_for_legal": shown["notes"]} if shown is not None else {}),
     }
 
 

@@ -67,7 +67,9 @@ def evidence_refs(db: DBSession, evaluation_id: UUID) -> list[str]:
 def serialize_evaluation(db: DBSession, ev: M.Evaluation, *,
                          legal_position: bool,
                          escalated: bool = False,
-                         requirement_code: str | None = None) -> dict[str, Any]:
+                         requirement_code: str | None = None,
+                         ahead: dict[str, Any] | None = None) -> dict[str, Any]:
+    """``ahead``: `read_ahead` for a list — the same rows, read once for the page."""
     result = ev.result or {}
     payload: dict[str, Any] = {
         "id": str(ev.id),
@@ -87,7 +89,8 @@ def serialize_evaluation(db: DBSession, ev: M.Evaluation, *,
         # produce or alter a legal finding, and they are not a legal position.
         "diagnostics": list(result.get("diagnostics") or []),
         "evaluated_facts": result.get("evaluated_facts"),
-        "evidence_refs": evidence_refs(db, ev.id),
+        "evidence_refs": (ahead["refs"].get(ev.id, []) if ahead is not None
+                          else evidence_refs(db, ev.id)),
         "evaluator_type": ev.evaluator_type.value,
         "evaluator_version": ev.evaluator_version,
         "legal_rule_version_id": (str(ev.legal_rule_version_id)
@@ -109,7 +112,8 @@ def serialize_evaluation(db: DBSession, ev: M.Evaluation, *,
     # USER sees it without seeing the rule behind it.
     payload["user_status"] = user_status(ev.classification, ev.rule_outcome,
                                          prohibition is not None)
-    decision = current_decision(db, ev.id)
+    decision = (ahead["decisions"].get(ev.id) if ahead is not None
+                else current_decision(db, ev.id))
     if decision is not None:
         payload["current_decision"] = serialize_decision(decision, db=db)
     return redact_legal_position(payload, legal_position)
@@ -132,11 +136,58 @@ def _constitution_for(db: DBSession, finding: M.Finding) -> dict[str, Any] | Non
                M.ConfigurationSnapshotItem.requirement_version_id
                == finding.requirement_version_id)
     ).scalar_one_or_none()
+    return _constitution_block(row)
+
+
+def _constitution_block(row: Any) -> dict[str, Any] | None:
     block = (row or {}).get("constitution") if isinstance(row, dict) else None
     if not isinstance(block, dict):
         return None
     return {"section": block.get("section"), "topic": block.get("topic"),
             "basis": block.get("basis")}
+
+
+def read_ahead(db: DBSession, findings: list[M.Finding]) -> dict[str, Any]:
+    """DB-7 (P2): what `serialize_finding` reads per Finding — its active escalation,
+    Evaluations, requirement, pinned Constitution block, each Evaluation's evidence ids
+    and current decision — read for a whole page in one query each, with the same
+    predicates and order."""
+    ids = [f.id for f in findings]
+    rvs = {f.requirement_version_id for f in findings}
+    E, D = M.Evaluation, M.LegalDecision
+    evaluations: dict[UUID, list[M.Evaluation]] = {}
+    for ev in db.execute(select(E).where(E.finding_id.in_(ids))
+                         .order_by(E.finding_id, E.scope_key, E.id)).scalars():
+        evaluations.setdefault(ev.finding_id, []).append(ev)
+    ev_ids = [ev.id for evs in evaluations.values() for ev in evs]
+    refs: dict[UUID, list[str]] = {}
+    for ev_id, evidence_id in db.execute(
+            select(M.EvaluationEvidence.evaluation_id, M.EvaluationEvidence.evidence_id)
+            .where(M.EvaluationEvidence.evaluation_id.in_(ev_ids))
+            .order_by(M.EvaluationEvidence.evaluation_id,
+                      M.EvaluationEvidence.evidence_id)):
+        refs.setdefault(ev_id, []).append(str(evidence_id))
+    decisions: dict[UUID, M.LegalDecision] = {}
+    for d in db.execute(select(D).where(D.evaluation_id.in_(ev_ids))
+                        .order_by(D.evaluation_id, D.version_number.desc())).scalars():
+        decisions.setdefault(d.evaluation_id, d)          # the highest version_number
+    item = M.ConfigurationSnapshotItem
+    return {
+        "escalated": set(db.execute(select(M.Escalation.finding_id).where(
+            M.Escalation.finding_id.in_(ids),
+            M.Escalation.withdrawn_at.is_(None))).scalars()),
+        "evaluations": evaluations, "refs": refs, "decisions": decisions,
+        "requirements": {rv.id: (rv, req) for rv, req in db.execute(
+            select(M.RequirementVersion, M.Requirement)
+            .join(M.Requirement, M.Requirement.id == M.RequirementVersion.requirement_id)
+            .where(M.RequirementVersion.id.in_(rvs)))},
+        "constitution": {(review_id, rv): config for review_id, rv, config in db.execute(
+            select(M.Review.id, item.requirement_version_id,
+                   M.CompanyStandardVersion.configuration)
+            .join(item, item.company_standard_version_id == M.CompanyStandardVersion.id)
+            .join(M.Review, M.Review.configuration_snapshot_id == item.snapshot_id)
+            .where(M.Review.id.in_({f.review_id for f in findings}),
+                   item.requirement_version_id.in_(rvs)))}}
 
 
 #: B3 page 1: a standard's own words that name where they come from — Legal's vocabulary,
@@ -147,7 +198,8 @@ _NAMES_SOURCE = re.compile(r"Constitution|§")
 def serialize_finding(db: DBSession, finding: M.Finding, *,
                       legal_position: bool,
                       legal_sources: bool = True,
-                      names: dict[str, str] | None = None) -> dict[str, Any]:
+                      names: dict[str, str] | None = None,
+                      ahead: dict[str, Any] | None = None) -> dict[str, Any]:
     """49.7 r1 — ``classification`` and ``evaluations`` travel together, always.
 
     There is deliberately no Finding-level ``rule_outcome``: none is persisted
@@ -158,24 +210,30 @@ def serialize_finding(db: DBSession, finding: M.Finding, *,
     ("the Constitution", a "§") is omitted, never reworded (rules 7/21: ratified text
     is not edited here); the page then says the point in words built from the data.
     """
-    escalated = is_escalated(db, finding.id)
-    evaluations = db.execute(
-        select(M.Evaluation)
-        .where(M.Evaluation.finding_id == finding.id)
-        .order_by(M.Evaluation.scope_key, M.Evaluation.id)
-    ).scalars().all()
-
-    requirement = db.execute(
-        select(M.RequirementVersion, M.Requirement)
-        .join(M.Requirement, M.Requirement.id == M.RequirementVersion.requirement_id)
-        .where(M.RequirementVersion.id == finding.requirement_version_id)
-    ).first()
+    if ahead is not None:                          # DB-7: read once for the page
+        escalated = finding.id in ahead["escalated"]
+        evaluations = ahead["evaluations"].get(finding.id, [])
+        requirement = ahead["requirements"].get(finding.requirement_version_id)
+        constitution = _constitution_block(ahead["constitution"].get(
+            (finding.review_id, finding.requirement_version_id)))
+    else:
+        escalated = is_escalated(db, finding.id)
+        evaluations = db.execute(
+            select(M.Evaluation)
+            .where(M.Evaluation.finding_id == finding.id)
+            .order_by(M.Evaluation.scope_key, M.Evaluation.id)
+        ).scalars().all()
+        requirement = db.execute(
+            select(M.RequirementVersion, M.Requirement)
+            .join(M.Requirement, M.Requirement.id == M.RequirementVersion.requirement_id)
+            .where(M.RequirementVersion.id == finding.requirement_version_id)
+        ).first()
+        constitution = _constitution_for(db, finding)
     rv, req = requirement if requirement else (None, None)
-    constitution = _constitution_for(db, finding)
     serialized = [
         serialize_evaluation(db, ev, legal_position=legal_position,
                              escalated=escalated,
-                             requirement_code=req.code if req else None)
+                             requirement_code=req.code if req else None, ahead=ahead)
         for ev in evaluations
     ]
     status = worst([e["user_status"] for e in serialized],

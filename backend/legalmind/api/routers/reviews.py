@@ -36,7 +36,7 @@ from legalmind.api.errors import BusinessRuleRejected, Conflict
 from legalmind.api.pagination import Page, page_params, run
 from legalmind.api.reporting import outcome_payload, report_payload
 from legalmind.api.schemas import ContractOutcomeCreate, ReviewAssign, ReviewCreate
-from legalmind.api.serializers import serialize_finding, serialize_review
+from legalmind.api.serializers import read_ahead, serialize_finding, serialize_review
 from legalmind.db import models as M
 from legalmind.db.lookup import contract_principals
 from legalmind.domain import enums as E
@@ -257,8 +257,11 @@ def _with_document(guard: Guard, reviews: list[M.Review]) -> list[dict]:
         select(M.Counterparty.id, M.Counterparty.name)
         .where(M.Counterparty.id.in_(party_ids))).tuples().all())
     payload = []
+    readable: dict[UUID, bool] = {}     # DB-7: one read basis per contract, not per row
     for review in reviews:
         contract = contracts.get(review.contract_id)
+        if contract is not None and contract.id not in readable:
+            readable[contract.id] = can_read_contract(guard.db, guard.user_id, contract)
         item = serialize_review(review)
         if (version := versions.get(review.document_version_id)) is not None:
             item["version_number"] = version.version_number
@@ -272,8 +275,7 @@ def _with_document(guard: Guard, reviews: list[M.Review]) -> list[dict]:
         # has to move with that rule; otherwise the UI would withhold a link that
         # now works, which is what it did for Legal until this changed.
         item["document_accessible"] = bool(
-            contract is not None
-            and can_read_contract(guard.db, guard.user_id, contract)
+            contract is not None and readable[contract.id]
         )
         if (contract is not None and item["document_accessible"]
                 and contract.counterparty_id in parties):
@@ -552,9 +554,10 @@ def list_findings(
     groups = group_ids(guard.db, [review_id], legal_position=guard.sees_legal_position)
     names = review_unit_names(guard.db, review_id)
     sources = P.LEGAL_REVIEW in guard.permissions
+    ahead = read_ahead(guard.db, list(rows))                      # DB-7
     return paginated(
         [{**serialize_finding(guard.db, f, legal_position=guard.sees_legal_position,
-                              legal_sources=sources, names=names),
+                              legal_sources=sources, names=names, ahead=ahead),
           "group_id": groups.get(f.id, str(f.id))}
          for f in rows],
         page=page.page, page_size=page.page_size, total=total)
@@ -566,10 +569,10 @@ def review_angles(review_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
     built by code from the Findings, the document's own figures and the Constitution's
     own drafting language; never generated. Same access as the Findings."""
     review = guard.review(review_id, P.FINDING_VIEW)
-    from legalmind.api.routers.negotiation import round_counts  # circular at import
+    from legalmind.api.routers.negotiation import legal_left  # circular at import
     return data(angles.review_angles(
         guard.db, review, legal_position=guard.sees_legal_position,
-        legal_open=round_counts(guard, review).get("changes_left_legal", 0),
+        legal_open=legal_left(guard, review),                    # BE-5: one number
         legal_review=P.LEGAL_REVIEW in guard.permissions))
 
 

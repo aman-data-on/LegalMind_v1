@@ -13,7 +13,7 @@
  * (`can_record`) — every write checks again (rule 18).
  */
 
-import { useCallback, useEffect, useId, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 
 import { api, describeError } from "@/lib/api";
 import { formatDate } from "@/lib/dates";
@@ -28,17 +28,42 @@ import { NotMarked } from "./NotMarked";
 import { useFindingsStateOptional } from "./findingsState";
 import "./brief.css";
 
-/** The brief, read again whenever the server's counts or stage change (`refreshKey`). */
+/** The brief, read again whenever the server's counts or stage change (`refreshKey`).
+ *  P2 BE-5: on a page's first load the key settles while the first read is still out (the
+ *  page's change list arrives after the brief is asked); that read already answers it, so
+ *  the brief is not asked twice. A key change after an answer, or a reload, reads again. */
 export function useDealBrief(contractId: string, refreshKey: string) {
   const [state, setState] = useState<{ brief: Brief | null; error: unknown }>({ brief: null, error: null });
   const [seq, setSeq] = useState(0);
   const reload = useCallback(() => setSeq((n) => n + 1), []);
+  const firstOut = useRef<string | null>(null);   // the contract whose first read is out
+  const shown = useRef<string | null>(null);      // the contract the brief shown is of
+  const latest = useRef(0);
+  // changes skipped while the first read is out: the page's own settle is at most one key
+  // change; a second key change or any reload (an answer made meanwhile) reads again
+  const skipped = useRef({ keys: 0, seq: seq });
   useEffect(() => {
-    let cancelled = false;
+    if (firstOut.current === contractId) {
+      if (seq !== skipped.current.seq) skipped.current = { keys: 2, seq };
+      else skipped.current.keys += 1;
+      return;
+    }
+    const mine = ++latest.current;
+    if (shown.current !== contractId) { firstOut.current = contractId; skipped.current = { keys: 0, seq }; }
+    const settle = () => {
+      if (firstOut.current !== contractId) return;
+      firstOut.current = null;
+      if (skipped.current.keys > 1) setSeq((n) => n + 1);   // missed a real change: read again
+    };
     api.dealBrief(contractId).then(
-      (brief) => { if (!cancelled) setState({ brief, error: null }); },
-      (error: unknown) => { if (!cancelled) setState((was) => ({ brief: was.brief, error })); });
-    return () => { cancelled = true; };
+      (brief) => {
+        settle();
+        if (latest.current === mine) { shown.current = contractId; setState({ brief, error: null }); }
+      },
+      (error: unknown) => {
+        settle();
+        if (latest.current === mine) setState((was) => ({ brief: was.brief, error }));
+      });
   }, [contractId, refreshKey, seq]);
   return { ...state, reload };
 }

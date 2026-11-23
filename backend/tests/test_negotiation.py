@@ -984,6 +984,7 @@ def test_the_folded_row_keeps_its_key(db, owner, monkeypatch):
     v1, v2, rows = _fm(db, owner, *theirs)
     assert [r["kind"] for r in rows] == ["MODIFIED"]
     monkeypatch.setattr(negotiation, "fold_headings", lambda old, new, rows: rows)
+    monkeypatch.setattr(negotiation, "_CORE", type(negotiation._CORE)())  # P2: rebuild
     c = db.get(M.Contract, v1.contract_id)
     unfolded = negotiation.changes(db, c, v1, v2, legal_position=True)["changes"]
     assert sorted(r["kind"] for r in unfolded) == ["DELETED", "MODIFIED"]

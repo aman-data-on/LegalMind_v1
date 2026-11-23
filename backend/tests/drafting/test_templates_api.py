@@ -2,10 +2,12 @@
 (`AM-282`, `AM-283`). The STRUCTURAL placeholder only — synthetic text (rule 21)."""
 
 import uuid
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import text
 
+from legalmind.api.routers import templates as templates_router
 from legalmind.db import models as M
 from legalmind.drafting import library
 from legalmind.security import permissions as P
@@ -358,3 +360,39 @@ def test_a_clause_shows_every_version_and_what_the_published_template_uses(
     assert api.get(_url(v2, "/clauses/NOT_A_CLAUSE/versions")).status_code == 404
     sign_in(api, db, staff)
     assert api.get(_url(v2, "/clauses/CLAUSE_A/versions")).status_code == 404
+
+
+def test_the_publish_check_is_made_once_per_inputs_and_never_across_an_edit(
+        db, api, template, lawyer, staff, user, monkeypatch):
+    """BE-9: rule 9's triple — the draft as it stands, the latest snapshot, the engine
+    version — keys the verdict. A clause edit or a snapshot publish makes it again; the
+    permission check runs before the kept verdict is ever read."""
+    monkeypatch.delenv("LEGALMIND_SOFFICE", raising=False)
+    db.add(M.ConfigurationSnapshot(snapshot_hash=uuid.uuid4().hex, created_by=user.id))
+    db.flush()
+    made: list[int] = []
+    engine = templates_router._engine_check
+
+    def counted(*args, **kwargs):
+        made.append(1)
+        return engine(*args, **kwargs)
+    monkeypatch.setattr(templates_router, "_engine_check", counted)
+    sign_in(api, db, lawyer)
+    first = api.get(_url(template, "/check"))
+    assert first.status_code == 200, first.text
+    assert api.get(_url(template, "/check")).json() == first.json()
+    assert made == [1]
+    sign_in(api, db, staff)                          # warm, and still not theirs to read
+    assert api.get(_url(template, "/check")).status_code == 404
+    sign_in(api, db, lawyer)
+    edit = api.post(_url(template, "/clauses/CLAUSE_B/replace"),
+                    json={"text": "Synthetic replacement wording.", "reason": "test"})
+    assert edit.status_code == 200, edit.text
+    assert api.get(_url(template, "/check")).status_code == 200
+    assert made == [1, 1]
+    # published after the first (one test transaction would give both the same now())
+    db.add(M.ConfigurationSnapshot(snapshot_hash=uuid.uuid4().hex, created_by=user.id,
+                                   created_at=datetime.now(UTC) + timedelta(minutes=1)))
+    db.flush()
+    assert api.get(_url(template, "/check")).status_code == 200
+    assert made == [1, 1, 1]
