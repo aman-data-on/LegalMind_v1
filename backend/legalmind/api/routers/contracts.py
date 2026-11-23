@@ -944,11 +944,13 @@ async def upload_document_version(
     re-upload is a new contractual version is a business decision (Step 33.9).
 
     **Async only to read the body; every database call runs in the threadpool**
-    (2026-10-13). Each request updates its session row (`last_seen_at`), and a
-    synchronous request commits on the event loop. A blocking query here, waiting
-    on that row's lock, stopped the very loop the lock holder needed to commit:
-    the whole API froze, permanently, whenever the Dashboard loaded during an
-    upload. Pinned by `test_upload_does_not_block_the_event_loop.py`.
+    (2026-10-13). A blocking query on the event loop stops every other request: here
+    one waited on the session row's lock (then written by every request) and stopped
+    the very loop the lock holder needed to commit, freezing the whole API whenever the
+    Dashboard loaded during an upload. Since 2026-11-23 (P1) the `last_seen_at` stamp
+    commits on its own at most once a minute and the request commit runs in the
+    threadpool, but a database call here still never runs on the loop. Pinned by
+    `test_upload_does_not_block_the_event_loop.py`.
     """
     # AM-259 r2: the owner or a collaborator uploads the client's returned copy
     await run_in_threadpool(guard.contract_negotiable, contract_id, P.DOCUMENT_UPLOAD)

@@ -37,7 +37,8 @@ Nothing is committed until the owner says "commit".
 ## Open — Full-stack audit 2026-11-23 (`/root/legalmind-clm-local/audit/fullstack-audit-20261123/AUDIT-SUMMARY.md`)
 - [x] P1 speed quick wins — BE-1 session stamp, BE-11 commit off the loop, DB-3 Ask chunk by uuid, BE-4 token cache, BE-7 permissions once per request, request DB timeouts (BUILT 2026-11-23 on `perf/quick-wins`, NOT deployed; `P1-BUILD-REPORT.md`)
 - [ ] P2 comparison cache (after batch 5 merges) — BE-2/DB-1, BE-3, BE-5, BE-6, DB-7, BE-9
-- [ ] P3 database hygiene (migrations) — DB-2, DB-5, DB-8, DB-10, BE-8, BE-13
+- [x] P3 database hygiene (migrations) — DB-2, DB-5, DB-10, BE-13 + P1 leftovers (BUILT 2026-11-23 on `perf/db-hygiene`, migration `d340ac8e60fd`, NOT deployed; `P3-BUILD-REPORT.md`). Not built: DB-8 (proposal — locked 49.4 keeps `pagination.total`), BE-8 (not in this batch's brief)
+- [ ] P3 remainder — DB-8 audit-log exact count (owner decision on locked 49.4), BE-8 one helper for the versions-of-a-contract query (31 inline copies)
 - [ ] U1 UI wrong or risky (after batch 5 merges) — UI-01, UI-02, UI-05, UI-10, UI-09, UI-12
 - [ ] U2 UI workspace layout — UI-03, UI-04, UI-06, UI-07
 - [ ] U3 UI consistency — UI-11, mediums/lows, UI-08 (presentation-only amendment to AM-264/AM-291)

@@ -316,6 +316,33 @@ the `last_seen_at` stamp or Alembic — they open their own sessions and keep th
 If a legitimate request is ever cancelled, raise the env value in the API unit and restart; do not
 switch it off.
 
+### After the deploy of migration `d340ac8e60fd` — six indexes built `CONCURRENTLY` (P3, 2026-11-23)
+
+The migration builds the FK indexes for the contract delete cascade (DB-2) and
+`ix_audit_events_action_entity_id_timestamp` (DB-5) without blocking writes, under
+`lock_timeout = 60s` per wait. A concurrent build waits for every open transaction, so a session
+left idle in a transaction makes it fail with `canceling statement due to lock timeout`: the deploy
+then stops before restarting the API (the old code keeps serving; `alembic_version` has not moved)
+and may leave an INVALID index. **Re-run the deploy** — the migration drops its own INVALID
+leftover and rebuilds it. After the deploy, read-only:
+
+```sql
+-- expect six rows, every one valid = t, ready = t
+SELECT i.indexrelid::regclass AS index, i.indisvalid AS valid, i.indisready AS ready
+  FROM pg_index i
+ WHERE i.indexrelid::regclass::text IN (
+       'ix_unmatched_provisions_evidence_id', 'ix_evaluation_evidence_evidence_id',
+       'ix_finding_evidence_evidence_id', 'ix_audit_events_action_entity_id_timestamp',
+       'assist.ix_obligation_extractions_evidence_id', 'assist.ix_conversation_evidence_chunk_id');
+-- expect zero rows: no INVALID index anywhere in the database
+SELECT indexrelid::regclass FROM pg_index WHERE NOT indisvalid;
+SELECT version_num FROM alembic_version;   -- d340ac8e60fd
+```
+
+If an index is still INVALID after a second deploy, find the blocking session with
+`SELECT pid, state, xact_start, left(query, 60) FROM pg_stat_activity WHERE xact_start < now() - interval '1 minute';`
+and re-run the deploy once it has ended — never `DROP INDEX` by hand on the live database.
+
 ## 2 · Network egress (row: `egress_allow_list`)
 
 `AM-30` t8/t10, deny-by-default:
