@@ -252,6 +252,43 @@ export const NOT_MARKED_COPY = {
   rowHighlighted: ", highlighted, not tracked",
 } as const;
 
+/** Batch 8 R1 (`AM-464`/`AM-465`): an earlier contract we signed or finalised with this
+ *  client, beside a change or a point — information, never a decision. Named and dated. */
+const PRIOR_ROW = { SAME: "Same as", CHANGED: "Changed since", NEW: "New since", IN_SIGNED: "Was in" } as const;
+const ourPaper = (kind: string) => `our ${kind === "FINAL" ? "final" : "signed"} contract`;
+export const PRIOR_COPY = {
+  row: (state: keyof typeof PRIOR_ROW, kind: string, date: string) => `${PRIOR_ROW[state]} ${ourPaper(kind)} (${date})`,
+  point: (state: string, kind: string, date: string) =>
+    `${state === "SAME" ? "Same result as" : "Different from"} ${ourPaper(kind)} (${date})`,
+  brief: (n: number, kind: string, name: string, date: string) =>
+    // the date is never split across lines
+    `${plural(n, "change")} ${n === 1 ? "was" : "were"} already in ${ourPaper(kind)} \u201c${name}\u201d (${date.replace(/ /g, "\u00a0")}).`,
+  briefHint: (n: number) => `The client may say we agreed to ${n === 1 ? "this" : "these"} before. Legal still decides ${n === 1 ? "it" : "each one"}.`,
+  open: (kind: string) => `Open ${ourPaper(kind).replace("our ", "the ")}`,
+  uploadRole: "Signed earlier, for reference",
+  uploadHint: "A contract we already signed with this client outside LegalMind. Nothing is negotiated on it.",
+  filing: "Filing it as signed…",
+  filed: "Filed as signed",
+} as const;
+
+/** Batch 8 R5 (`AM-467`, C-34 open): which of our standard sets measured the paper. */
+const MEASURED_SET: Record<string, string> = {      // in this order: our MSA first
+  OUR_MSA: "our MSA", CONSTITUTION: "our general contract terms", PUBLISHED_POLICY: "our published terms",
+  OTHER_DOCUMENT: "our other agreements",
+};
+const KINDS = Object.keys(MEASURED_SET);
+export const MEASURED_COPY = {
+  line: (kinds: string[]) => {
+    const sets = KINDS.filter((k) => kinds.includes(k)).map((k) => MEASURED_SET[k]!);
+    const named = sets.length > 1 ? `${sets.slice(0, -1).join(", ")} and ${sets.at(-1)}` : sets[0] ?? MEASURED_SET.OTHER_DOCUMENT;
+    return `Checked against our standards as ${named} ${sets.length > 1 ? "state" : "states"} them.`;
+  },
+  otherPaper: "Legal has not yet confirmed which of our standards apply to paper that is not an MSA.",
+  detailsTitle: "Legal details: where each point's standard comes from",
+  detailsRow: (name: string, points: number) => `${name}: ${plural(points, "point")}`,
+  conflict: "Open question for Legal (C-34): which of our standards measure paper that is not an MSA.",
+} as const;
+
 /** `AM-411`: said on the contract-decision form while a question to the client is open. */
 export const CONTRACT_DECISION_COPY = {
   waitingOnClient: "Your question to the client is still open. It goes out in our reply, so you can decide the "

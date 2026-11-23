@@ -8,8 +8,8 @@
 import { USER_STATUS_LABELS, readerWord as pointWord, requirementTitle, type UserStatus } from "@/components/workspace/findingLanguage";
 import { clauseName } from "@/lib/documentTypes";
 import { formatDate } from "@/lib/dates";
-import { CHANGES_COPY, NOT_MARKED_COPY, RETURNED_COPY, ROW_STATUS, SALES_LINE, VERDICT_LABELS } from "@/lib/labels";
-import type { WordComment } from "@/lib/types";
+import { CHANGES_COPY, NOT_MARKED_COPY, PRIOR_COPY, RETURNED_COPY, ROW_STATUS, SALES_LINE, VERDICT_LABELS } from "@/lib/labels";
+import type { Prior, PriorPaper, WordComment } from "@/lib/types";
 
 /** THEIRS: the client's paper came first (`AM-290`) — one row per point the review
  *  found, with no wording of ours before it. */
@@ -94,6 +94,8 @@ export interface ChangeSide { evidence_ids: string[]; text: string; comments?: W
 export interface ClientChange {
   /** R2: lettered points, standards touched, who is bound (absent on client paper first) */
   lawyer?: LawyerView;
+  /** batch 8 R1.2: this clause beside an earlier signed or final contract (absent: none) */
+  prior?: Prior;
   row_key: string;
   kind: ChangeKind;
   moved: boolean;
@@ -171,6 +173,8 @@ export function oursLabel(list: Pick<ChangeList, "from" | "template" | "tracked_
 
 export interface ChangeList {
   contract_id: string;
+  /** batch 8 R1.2: the earlier signed or final contracts read (absent: none) */
+  prior_papers?: PriorPaper[];
   /** null: the client's paper came first — no version of ours before it (`AM-290`) */
   from: { document_version_id: string; version_number: number } | null;
   to: { document_version_id: string; version_number: number };
@@ -474,7 +478,9 @@ export function rowMeta(change: ClientChange, allUntracked: boolean): string {
   // tracked" — the server's flags; R3d-1: "Only punctuation changed"
   const mark = !change.untracked ? "" : change.unmarked
     ? (allUntracked ? "" : NOT_MARKED_COPY.rowNotMarked) : NOT_MARKED_COPY.rowHighlighted;
-  return KIND_LABEL[change.kind] + mark + (change.punctuation_only ? `. ${CHANGES_COPY.punctuationOnly}` : "");
+  return KIND_LABEL[change.kind] + mark + (change.punctuation_only ? `. ${CHANGES_COPY.punctuationOnly}` : "")
+    // batch 8 R1.2: beside an earlier signed or final contract, named by its date
+    + (change.prior ? `. ${PRIOR_COPY.row(change.prior.state, change.prior.kind, formatDate(change.prior.agreed_on))}` : "");
 }
 
 /** The changes the Changes tab lists as not marked — the server's `unmarked`, formatting

@@ -1187,3 +1187,31 @@ def test_a_short_untitled_line_is_never_a_title():
     assert not _row_by_row("except for data breaches")
     assert not _row_by_row("The cap does not apply to data breach")
     assert not _row_by_row("The cap does not apply.")
+
+
+# ----------------------------------- batch 8 R4 (AM-466): shown, never a routing input
+def test_a_structural_risk_reason_never_moves_the_route_or_the_measured_word(
+        db, owner, monkeypatch):
+    """A deadline shortened on LeapSwitch on a clause its standard still matches: the row
+    says why it moves risk onto us, and its route, effect, measured word and answer are
+    byte-identical to the same row read with no structural reason at all."""
+    from legalmind.analysis import change_triage
+    c = _contract(db, owner)
+    v1, v2 = _pair(db, c, "9. LeapSwitch shall notify the Customer within 24 hours.",
+                   "9. LeapSwitch shall notify the Customer within 4 hours.")
+    _review(db, v2, [(0, E.FindingClassification.MATCH, E.RuleOutcome.ACCEPTABLE)])
+
+    def read():
+        [row] = negotiation.changes(db, c, v1, v2, legal_position=True)["changes"]
+        return row, [row[k] for k in ("row_key", "route", "route_reason", "effect_for_us",
+                                      "answer")] + [row.get("measured")]
+    shown, routed = read()
+    assert [r["reason"] for r in shown["triage"]["reasons"]] == [
+        "Gives LeapSwitch less time: 24 hours → 4 hours"]
+    assert shown["triage"]["effect"] == change_triage.ONTO
+    monkeypatch.setattr(change_triage, "_risks", lambda *a: [])
+    change_triage._code_reading.cache_clear()
+    plain, unrouted = read()
+    change_triage._code_reading.cache_clear()
+    assert plain["triage"]["reasons"] == [] and routed == unrouted
+    assert routed[1:3] == ["holder", negotiation.MEASURED]          # AM-317 r1, as before

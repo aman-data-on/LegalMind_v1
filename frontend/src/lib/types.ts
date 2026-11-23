@@ -1401,9 +1401,16 @@ interface EnforceabilityNote {
 /** Step 0 (owner, 2026-11-16): the client's change, or already in the paper we sent. */
 export type PointOrigin = "CLIENT_CHANGED" | "ALREADY_OURS";
 
+/** batch 8 R1 (`AM-464`): an earlier contract we signed or finalised with this client
+ *  — information only, absent when none the reader may read qualifies */
+export interface PriorPaper { contract_id: string; name: string; agreed_on: string; kind: "SIGNED" | "FINAL" }
+export interface Prior extends PriorPaper { state: "SAME" | "CHANGED" | "NEW" | "IN_SIGNED" }
+
 export interface LegalItem {
   finding_id: string;
   origin?: PointOrigin;
+  /** batch 8 R1.3: the same point on an earlier signed or final contract (absent: none measured it) */
+  prior?: Prior;
   /** AM-179 — the point, and whether a person has decided it (server-built). */
   group_id?: string;
   decided?: boolean;

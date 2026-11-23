@@ -30,6 +30,7 @@ import re
 from collections.abc import Iterable, Iterator
 
 from legalmind.analysis import reading as R
+from legalmind.extraction import liability as L
 from legalmind.mapping.engine import Clause
 from legalmind.mapping.scoring import normalize
 
@@ -106,14 +107,14 @@ def _key(s: str) -> str:
 
 
 def _first_actor(sentence: str, vendor: bool, aliases: tuple[list[str], list[str]],
-                 roles: bool = False) -> str | None:
+                 roles: bool = False, nouns: bool = False) -> str | None:
     """origin/main's reading, unchanged: whom the sentence binds from the FIRST party
     that ACTS in it — OUR_/THEIR_ DUTY, RIGHT or SHIELD, MUTUAL ("each/either party"),
     or None. ``roles``: a role or "neither party" acting first is MUTUAL too (the
     reading `helps` is made from, batch 6 R2-1). In a vendor agreement we are the
     customer."""
     mutual = rf"{R._MUTUAL_PARTY}|{_ROLE_PARTY}" if roles else R._MUTUAL_PARTY
-    for party, after, acts in _parties(sentence, vendor, aliases, mutual):
+    for party, after, acts in _parties(sentence, vendor, aliases, mutual, nouns):
         if not acts or party.group("pronoun") is not None:
             continue
         if party.group("mutual") is not None:
@@ -146,9 +147,10 @@ def _who(sentence: str, vendor: bool, aliases: tuple[list[str], list[str]],
 
 
 def _parties(sentence: str, vendor: bool, aliases: tuple[list[str], list[str]],
-             mutual: str) -> Iterator[tuple[re.Match, str, bool]]:
+             mutual: str, nouns: bool = False) -> Iterator[tuple[re.Match, str, bool]]:
     """Each party mention (ours, theirs, ``mutual``, a pronoun), the words after it and
-    whether it ACTS there."""
+    whether it ACTS there. ``nouns`` (R4.4, the structural reasons only): a party word
+    followed by up to three words and a passive verb is a noun modifier, not acting."""
     mine_base, other_base = (R._BUYER, R._PROVIDER) if vendor else (R._PROVIDER, R._BUYER)
     mine = R._party_regex([*mine_base, *(aliases[1] if vendor else aliases[0])])
     other = R._party_regex([*other_base, *(aliases[0] if vendor else aliases[1])])
@@ -159,7 +161,8 @@ def _parties(sentence: str, vendor: bool, aliases: tuple[list[str], list[str]],
         # "consent of the Customer shall be obtained": a party after a preposition is
         # its object, never the one who acts
         yield party, after, bool(R._ACTS.match(after)) and not (
-            _OBJECT.search(sentence[:party.start()]) or _PASSIVE.match(after))
+            _OBJECT.search(sentence[:party.start()]) or _PASSIVE.match(after)
+            or (nouns and _NOUN_PASSIVE.match(after)))
 
 
 def _bound(side: str, after: str, sentence: str) -> str:
@@ -174,16 +177,146 @@ def _defines(sentence: str) -> bool:
     return m is not None and not _A_VERB.search(sentence[:m.start()])
 
 
+# ------------------------------------------- batch 8 R4 (`AM-466`): a rewrite's structure
+#: what a rewritten sentence's structure says moves risk onto LeapSwitch — fixed words,
+#: information only: never a routing input (unlike `REASONS`), never "helps us"
+RISK_CAP = "Takes more claims out of LeapSwitch's liability cap"
+RISK_DUTY = "Widens a duty on LeapSwitch"
+RISK_LESS_TIME = "Gives LeapSwitch less time"
+RISK_MORE_TIME = "Gives the client more time"
+#: a word that narrows what it sits in: an insert carrying one may LIMIT the duty, so it
+#: is never read as widening it (the guard only suppresses a reason, never makes one)
+_NARROWS = re.compile(r"\b(?:except|excluding|other than|save|unless|provided|only|"
+                      r"solely|to the extent|limited to)\b", re.I)
+_WORD = re.compile(r"[\w\u2019']+")
+_PROHIBITS = re.compile(r"\b(?:shall|will|must|may)\s+not\b|\bnever\b", re.I)
+_SEPARATED_BEFORE = re.compile(r"(?:[,;]|\b(?:or|and))\s*$", re.I)
+_SEPARATED_AFTER = re.compile(r"\s*(?:[,;]|(?:or|and)\b)", re.I)
+#: a deadline: "within 24 hours", "no later than thirty (30) days" — never a minimum
+#: notice ("at least 30 days"), whose longer figure binds the one who gives it
+_DEADLINE = re.compile(
+    r"\b(?:within|(?:no|not) later than)\s+(?:a\s+period\s+of\s+)?"
+    r"(?:[a-z]+(?:[\s-][a-z]+)?\s*\(\s*(?P<spelt>\d+)\s*\)|(?P<digits>\d+))\s*"
+    r"(?:\([a-z -]+\)\s*)?-?\s*"
+    r"(?P<unit>(?:(?:consecutive|calendar|business|working|clear)\s+)?"
+    r"(?:day|week|month|year|hour|minute)s?)(?!\w)", re.I)
+#: R4.4: a party word used as a noun modifier ("Customer data shall be notified") does
+#: not act; a passive duty owed TO a party ("… shall be notified to the Customer")
+_NOUN_PASSIVE = re.compile(r"\s+(?:[\w\u2019']+\s+){1,3}?(?:shall|will|must)\s+"
+                           r"(?:not\s+)?be\s+\w+(?:ed|en)\b", re.I)
+_OWED_TO = re.compile(r"\b(?:shall|will|must)\s+(?:not\s+)?be\s+"
+                      r"(?:\w+(?:ed|en)|paid|sent|made)\b[^.;]*?\bto\s+(?:the\s+)?$",
+                      re.I)
+
+
+def _binder(sentence: str, vendor: bool, aliases: tuple[list[str], list[str]]
+            ) -> str | None:
+    """R4.4: whom a sentence binds for the structural reasons — `_first_actor`, with a
+    party named as a noun modifier before a passive verb not acting, and, where nobody
+    acts, a passive duty owed to one party binding the other. Read only here, so every
+    `AM-224` reading (and the route it feeds) stays as it was."""
+    got = _first_actor(sentence, vendor, aliases, nouns=True)
+    if got is not None:
+        return got
+    for party, _, _ in _parties(sentence, vendor, aliases, R._MUTUAL_PARTY):
+        if party.group("mutual") is None and party.group("pronoun") is None \
+                and _OWED_TO.search(sentence[:party.start()]):
+            return "THEIR_DUTY" if party.group("ours") is not None else "OUR_DUTY"
+    return None
+
+
+def _class_words(item: str) -> set[str]:
+    return {w.removesuffix("s") for w in L._words(item)} - L._NO_CLASS
+
+
+def _carved(sentence: str, floor: tuple[str, ...], provider: bool) -> list[str]:
+    """R4.1: the classes a sentence takes out of the cap beyond the lawful floor — the
+    `AM-195`/`AM-304` reading (`liability.cap_carved_out`), every listed item."""
+    if L._uncaps_only_customer(sentence, provider):                        # AM-388
+        return []
+    m = L._CAP_NOT_FOR.search(sentence)
+    said = next((g for g in m.groups() if g), "") if m else ""
+    if m and m.group("list") and not re.search(r"\bliab", said, re.I):
+        return []
+    beyond = _class_words(" ".join(floor))
+    return [" ".join(i.split()) for i in L._ITEM_MARK.split(said)
+            if _class_words(i) - beyond]
+
+
+def _deadline(sentence: str) -> tuple[int, str] | None:
+    """The one deadline a sentence states (figure, unit), else None (none or several)."""
+    found = [(int(m.group("spelt") or m.group("digits")),
+              " ".join(m.group("unit").lower().split()).removesuffix("s"))
+             for m in _DEADLINE.finditer(sentence)]
+    return found[0] if len(found) == 1 else None
+
+
+def _inserted(old: str, new: str) -> list[str]:
+    """The words a rewrite only inserted, each run where a list separator sits on both
+    sides of it — [] when the rewrite removed or replaced any word, when a narrowing word
+    sits in the insert or anywhere before it in the sentence (an item added to an
+    exception list narrows the duty), or when the duty is a prohibition ("shall not …":
+    one more item may be one more thing allowed) (R4.2; round 2, D2)."""
+    if _PROHIBITS.search(new):
+        return []
+    was = [w.lower() for w in _WORD.findall(old)]
+    spans = list(_WORD.finditer(new))
+    ops = difflib.SequenceMatcher(None, was, [m.group().lower() for m in spans],
+                                  autojunk=False).get_opcodes()
+    if any(op not in ("equal", "insert") for op, *_ in ops):
+        return []
+    out = []
+    for op, _, _, j1, j2 in ops:
+        if op != "insert":
+            continue
+        start, end = spans[j1].start(), spans[j2 - 1].end()
+        if not (_SEPARATED_BEFORE.search(new[:start])
+                and _SEPARATED_AFTER.match(new[end:])):
+            return []
+        if _NARROWS.search(new[:end]):
+            return []
+        out.append(" ".join(new[start:end].split()))
+    return out
+
+
+def _risks(old: str, new: str, vendor: bool, aliases: tuple[list[str], list[str]],
+           floor: tuple[str, ...]) -> list[dict[str, str]]:
+    """What one rewritten sentence's structure says moves risk onto LeapSwitch
+    (R4.1–R4.3): a class taken out of the cap that was not out before; a list item added
+    to a duty on LeapSwitch; a deadline shortened on LeapSwitch or lengthened for the
+    client — one figure a side, the same unit (no conversion, `AM-154`)."""
+    out = []
+    was = set().union(*map(_class_words, _carved(old, floor, not vendor)))
+    grown = [i for i in _carved(new, floor, not vendor) if _class_words(i) - was]
+    if grown:
+        out.append({"reason": RISK_CAP, "quote": grown[0]})
+    who = (_binder(old, vendor, aliases), _binder(new, vendor, aliases))
+    if who == ("OUR_DUTY", "OUR_DUTY") and not grown \
+            and (added := _inserted(old, new)):
+        out.append({"reason": RISK_DUTY, "quote": added[0]})
+    a, b = _deadline(old), _deadline(new)
+    if a and b and a[1] == b[1] and who[0] == who[1]:
+        figure = " \u2192 ".join(f"{n} {unit}{'s' if n != 1 else ''}"
+                                for n, unit in (a, b))
+        said = (RISK_LESS_TIME if who[1] == "OUR_DUTY" and b[0] < a[0] else
+                RISK_MORE_TIME if who[1] == "THEIR_DUTY" and b[0] > a[0] else None)
+        if said:
+            out.append({"reason": f"{said}: {figure}", "quote": " ".join(new.split())})
+    return out
+
+
 def changed_sentences(before: str | None, after: str | None, vendor: bool = False,
                       aliases: tuple[list[str], list[str]] = ([], []),
-                      lead: str | None = None
+                      lead: str | None = None,
+                      pairs: list[tuple[str, str]] | None = None
                       ) -> tuple[list[tuple[str, str, str | None]], list[str]]:
     """The sentences the change added or removed, each with whom it binds — and the
     rewrites: an added sentence close to a removed one that binds the same way ("within
     10 days" → "within 30 days") is one rewritten sentence, whose effect only its meaning
     decides, never a removal plus an addition. ``lead``: the parent clause's lead-in
     ("The Customer shall indemnify … arising from:") — a list item that names no acting
-    party is read as a reader reads it, after its lead-in (batch 6)."""
+    party is read as a reader reads it, after its lead-in (batch 6). ``pairs``, when
+    given, collects each rewritten (removed, added) pair (batch 8 R4)."""
     old, new = _sentences(before), _sentences(after)
     kept_old, kept_new = {_key(s) for s in old}, {_key(s) for s in new}
     added = [s for s in new if _key(s) not in kept_old]
@@ -209,6 +342,10 @@ def changed_sentences(before: str | None, after: str | None, vendor: bool = Fals
             # only extended, though the extension changed whom it binds: the old
             # sentence was not taken away — the added words are read on their own
             rewritten.append(twin)
+        else:
+            continue
+        if pairs is not None:
+            pairs.append((twin, s))
     moved = [("added", s, who[s]) for s in added if s not in rewritten] + \
         [("removed", s, who[s]) for s in removed if s not in rewritten]
     return moved, rewritten
@@ -216,22 +353,27 @@ def changed_sentences(before: str | None, after: str | None, vendor: bool = Fals
 
 def code_reading(before: str | None, after: str | None, vendor: bool = False,
                  aliases: tuple[list[str], list[str]] = ([], []),
-                 lead: str | None = None) -> dict:
+                 lead: str | None = None, floor: tuple[str, ...] = ()) -> dict:
     """What code can say about one changed clause: each reason with its sentence, and
     whether some sentence reads the other way (used only to agree with the model).
-    A pure function of the two texts (and the parent's lead-in), so read once per
-    process (M4: every list page re-reads each round's changes) — a copy each time, the
-    caller may change it."""
+    ``risks`` (batch 8 R4, `AM-466`): what a REWRITTEN sentence's structure says moves
+    risk onto LeapSwitch — information only, never a routing input. ``floor``: the
+    lawful floor of the client's version's liability standards (R4.1; none: every new
+    class counts). A pure function of its inputs, so read once per process (M4: every
+    list page re-reads each round's changes) — a copy each time, the caller may change
+    it."""
     return copy.deepcopy(_code_reading(before, after, vendor,
-                                       (tuple(aliases[0]), tuple(aliases[1])), lead))
+                                       (tuple(aliases[0]), tuple(aliases[1])), lead,
+                                       tuple(floor)))
 
 
 @functools.lru_cache(maxsize=4096)
 def _code_reading(before: str | None, after: str | None, vendor: bool,
                   aliases: tuple[tuple[str, ...], tuple[str, ...]],
-                  lead: str | None = None) -> dict:
-    moved, rewritten = changed_sentences(before, after, vendor,
-                                         (list(aliases[0]), list(aliases[1])), lead)
+                  lead: str | None = None, floor: tuple[str, ...] = ()) -> dict:
+    pairs: list[tuple[str, str]] = []
+    listed = (list(aliases[0]), list(aliases[1]))
+    moved, rewritten = changed_sentences(before, after, vendor, listed, lead, pairs)
     reasons = [{"reason": said, "quote": " ".join(s.split())}
                for how, s, who in moved if (said := REASONS.get((how, who or "")))]
     # batch 6 D3: whether a sentence helps us is read from the sentence alone — a lead-in
@@ -241,7 +383,9 @@ def _code_reading(before: str | None, after: str | None, vendor: bool,
             "helps": any((how, _first_actor(s, vendor, alone, roles=True)) in _HELPS
                          for how, s, _ in moved if not _defines(s)),
             "editorial": _key(before or "") == _key(after or ""),
-            "changed": [s for _, s, _ in moved] + rewritten}
+            "changed": [s for _, s, _ in moved] + rewritten,
+            "risks": [r for old, new in pairs
+                      for r in _risks(old, new, vendor, listed, floor)]}
 
 
 def lead_in(text: str | None) -> str | None:
@@ -398,15 +542,17 @@ def merged(code: dict, read: dict | None, heading_topics: list[str]) -> dict:
     """One changed clause as a reader sees it. Moves risk onto LeapSwitch when code reads
     a reason or the model reads it so; away from LeapSwitch only when both agree;
     otherwise a person reads it. The topic is the model's checked choice, else the
-    heading's."""
-    if code["reasons"] or (read and read["effect"] == ONTO):
+    heading's. The structural ``risks`` (`AM-466`) are shown among the reasons; the route
+    reads only code's sentence reasons (`negotiation.changes`), so they never move it."""
+    reasons = code["reasons"] + code.get("risks", [])
+    if reasons or (read and read["effect"] == ONTO):
         effect = ONTO
     elif read and read["effect"] == AWAY and code["helps"]:
         effect = AWAY
     else:
         effect = None
     numbers = [read["topic"]] if read and read["topic"] else heading_topics
-    return {"effect": effect, "reasons": code["reasons"],
+    return {"effect": effect, "reasons": reasons,
             **({"reading": {"label": LABEL, "quote": read["quote"]}}
                if read and read["effect"] == effect else {}),
             "topics": [topic_entry(n) for n in numbers]}

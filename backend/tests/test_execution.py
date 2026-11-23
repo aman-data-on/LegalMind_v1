@@ -11,7 +11,7 @@ LegalMind computes no duty: what is typed is stored. Every document here is synt
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import select, text
@@ -332,6 +332,18 @@ def test_a_negotiated_contract_is_never_filed_as_signed(api, db, owner, tmp_path
                   json={"version_role": "FINAL_SIGNED"})
     assert r.status_code == 409 and "Mark signed" in r.json()["error"]["message"]
     assert _role_of(db, executed) is None and _stage(api, c) != "SIGNED"
+
+
+def test_a_one_version_deal_already_sent_is_never_filed_as_signed(api, db, owner, tmp_path):
+    """Batch 8 B round 2 (`AM-465` r3): the deal's only version went to the client — it was
+    negotiated in LegalMind, so declaring it signed is refused as any negotiated one is."""
+    c = _contract(db, owner)
+    ours = _ingest(db, tmp_path, c, _docx(*AGREED), "ours.docx")
+    ours.sent_at, ours.sent_by = datetime.now(UTC), owner.id
+    db.flush()
+    r = api.patch(f"{V1}/document-versions/{ours.id}", json={"version_role": "FINAL_SIGNED"})
+    assert r.status_code == 409 and "Mark signed" in r.json()["error"]["message"]
+    assert _role_of(db, ours) == "COMPANY_DRAFT" and _stage(api, c) != "SIGNED"
 
 
 def _role_of(db, version):

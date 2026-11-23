@@ -973,3 +973,5 @@ only on unmeasured changes (amends `AM-399` r2).
 **Options (not chosen):** (A) keep MSA.pdf positions for every customer-service paper and amend §31.13; (B) give the nine topics general-position standards quoting §9–22 for non-MSA paper (`not_applicable_to` / an `applies_to` split, AM-153 style), re-imported as a new snapshot; (C) measure non-MSA paper against both and send any difference to Legal.
 
 **Until decided:** the review says which set measured it ("Checked against our MSA terms"), and for non-MSA paper that Legal confirms which terms apply (batch 8 R5.4, sub-batch B).
+
+**2026-11-24 (AB-223, `AM-467`; still OPEN, no side chosen):** built as "Checked against our standards as our MSA states them." plus, on paper analysed as anything but an MSA, "Legal has not yet confirmed which of our standards apply to paper that is not an MSA." — each standard's source read from its ratified file when the brief is served (nothing re-imported or published, no configuration changed). Lawyers see each source and this question under "Legal details".

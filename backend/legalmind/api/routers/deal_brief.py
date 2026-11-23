@@ -21,18 +21,23 @@ annexure, send or export reads it (`workflow.positions`).
 """
 from __future__ import annotations
 
+import functools
+import json
 import re
+from collections import Counter
 from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Path
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from legalmind.analysis import consistency, negotiation
+from legalmind.api import prior_paper
 from legalmind.api.angles import whole_contract_points
 from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
 from legalmind.api.envelope import data
 from legalmind.api.errors import BusinessRuleRejected, Conflict
+from legalmind.api.reporting import _analysed_as
 from legalmind.api.routers.contracts import negotiation_stages
 from legalmind.api.routers.negotiation import (
     _changes,
@@ -42,8 +47,11 @@ from legalmind.api.routers.negotiation import (
     deal_counts,
 )
 from legalmind.api.schemas import DealPositionWrite
+from legalmind.assist.knowledge.authority import of_standard
+from legalmind.assist.knowledge.positions import public_source_name
 from legalmind.db import models as M
 from legalmind.db.lookup import contract_signed
+from legalmind.evaluation.corpus import RATIFIED_STANDARDS_DIR
 from legalmind.mapping.service import load_clauses
 from legalmind.security import permissions as P
 from legalmind.security.authorization import LEGAL_BASES, negotiation_basis
@@ -149,6 +157,74 @@ def _headings(db, version_id: UUID) -> dict[str, str]:
         number = (unit["number"] or "").rstrip(".")
         if number and "." not in number and unit["heading"]:
             out.setdefault(number, unit["heading"])
+    return out
+
+
+#: batch 8 R5.4 (`AM-467`, C-34 open): our MSA's terms measured paper that is not an MSA
+MSA_TERMS_ON_OTHER_PAPER = "MSA_TERMS_ON_OTHER_PAPER"
+#: R5.2: a published page of ours (TOS/SLA/AUP/Privacy), by its own provenance line
+_PUBLISHED = re.compile(
+    r"Terms of Service|Service Level Agreement|Acceptable Use|Privacy", re.I)
+
+
+@functools.lru_cache(maxsize=1)
+def standard_sources() -> dict[str, dict[str, str]]:
+    """R5.2 (round 2, D1): each ratified standard's source set, read at serve time from
+    the fields its file already has (``source_document``, ``source_clause``) — never
+    written to configuration, so no standard is re-versioned and nothing carried moves
+    (`AM-317` r7). OUR_MSA: it quotes our MSA (`AM-380`); CONSTITUTION: the Legal
+    Constitution; PUBLISHED_POLICY: a published page of ours; else OTHER_DOCUMENT.
+    ``name`` is the reader-facing name (`positions.public_source_name`, no locator).
+    ponytail: read once per process; a ratified file changes only with a deploy."""
+    out = {}
+    for path in sorted(RATIFIED_STANDARDS_DIR.glob("*.json")):
+        payload = json.loads(path.read_text())
+        document = payload.get("source_document")
+        if not isinstance(document, str) or not payload.get("requirement_code"):
+            continue                     # no provenance: no source, never a guess
+        kind = ("OUR_MSA" if "Master Services Agreement" in document
+                else "CONSTITUTION" if of_standard(document) == "COMPANY_CONSTITUTION"
+                else "PUBLISHED_POLICY" if _PUBLISHED.search(document)
+                else "OTHER_DOCUMENT")
+        out[payload["requirement_code"]] = {"kind": kind,
+                                            "name": public_source_name(document)}
+    return out
+
+
+def measured_against(db, review: M.Review, *, legal: bool) -> dict[str, Any]:
+    """R5.3: which of our standard sets measured the Review — its points grouped by each
+    standard's source (`standard_sources`); the note when our MSA's terms measured paper
+    analysed as another type (C-34 is open: nothing is chosen or re-measured). Only
+    ``legal`` readers (Legal details, D5) get each set's source name and point count —
+    the keys are omitted otherwise, never nulled. A point whose standard has no ratified
+    file is left out; ``{}`` when none has one. A point measured by an OLDER version of
+    its standard than the one the file now describes is left out too (re-check N1): an
+    older Review never takes today's source — never guessed (R5.3).
+    ponytail: "latest version" stands for "the file as now"; a source edit with no
+    configuration change makes no new version — compare configurations if that happens."""
+    rv = M.RequirementVersion
+    latest = (select(rv.requirement_id, func.max(rv.version_number).label("n"))
+              .group_by(rv.requirement_id).subquery())
+    codes = db.execute(
+        select(M.Requirement.code)
+        .join(rv, rv.requirement_id == M.Requirement.id)
+        .join(latest, (latest.c.requirement_id == rv.requirement_id)
+              & (latest.c.n == rv.version_number))
+        .join(M.Finding, M.Finding.requirement_version_id == rv.id)
+        .where(M.Finding.review_id == review.id)).scalars().all()
+    known = standard_sources()
+    sources = [known[c] for c in codes if c in known]
+    if not sources:
+        return {}
+    if legal:
+        groups = Counter((s["kind"], s["name"]) for s in sources)
+        sets = [{"kind": k, "name": n, "points": c}
+                for (k, n), c in sorted(groups.items())]
+    else:
+        sets = [{"kind": k} for k in sorted({s["kind"] for s in sources})]
+    out: dict[str, Any] = {"measured_against": sets}
+    if _analysed_as(db, review) != "MSA" and any(s["kind"] == "OUR_MSA" for s in sources):
+        out["measured_against_note"] = MSA_TERMS_ON_OTHER_PAPER
     return out
 
 
@@ -277,6 +353,9 @@ def deal_brief(contract_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
         headings = _headings(db, after.id)
         if (unmarked := _not_marked(listed, headings)) is not None:
             out["not_marked"] = unmarked                          # batch 8 R2.5, first
+        prior_paper.label_rows(guard, contract, listed)           # batch 8 R1.4
+        if (agreed := prior_paper.already_agreed(listed)) is not None:
+            out["already_agreed"] = agreed
         asks = _asks(rows, headings)
         out.update(asks=asks[:ASKS_SHOWN], asks_more=max(0, len(asks) - ASKS_SHOWN))
     if (code := status(counts, stage.get("stage"),
@@ -293,9 +372,12 @@ def deal_brief(contract_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
                         ["structural"] if o["kind"] == consistency.OUR_ENTITY), None)
         if mistake is not None:
             out["our_mistake"] = mistake["text"]
+    review = (negotiation._latest_review(db, latest)
+              if latest is not None and P.REVIEW_VIEW in guard.permissions else None)
+    if review is not None:                                        # batch 8 R5.3/R5.4
+        out.update(measured_against(
+            db, review, legal=P.LEGAL_DECISION in guard.permissions))
     if P.LEGAL_DECISION in guard.permissions:
-        review = (negotiation._latest_review(db, latest)
-                  if latest is not None and P.REVIEW_VIEW in guard.permissions else None)
         out["legal"] = {**_legal(guard, rows, listed or {"contract_id": str(contract.id)},
                                  review), "can_record": writer}
     return data(out)
