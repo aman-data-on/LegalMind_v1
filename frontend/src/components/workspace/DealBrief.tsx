@@ -32,37 +32,59 @@ import { AlreadyAgreed, CheckedAgainst } from "./PriorAndStandards";
 import { useFindingsStateOptional } from "./findingsState";
 import "./brief.css";
 
-/** The brief, read again whenever the server's counts or stage change (`refreshKey`).
- *  P2 BE-5: on a page's first load the key settles while the first read is still out (the
- *  page's change list arrives after the brief is asked); that read already answers it, so
- *  the brief is not asked twice. A key change after an answer, or a reload, reads again. */
-export function useDealBrief(contractId: string, refreshKey: string) {
+/** When the brief is read (P2 BE-5, W1-4): kept pure so a test can play a page's load
+ *  through it. On a first load the key settles while the first read is still out (the
+ *  page's change list arrives after the brief is asked); that read already answers it. The
+ *  key's first value (null → the change list landed) is part of the first load too. A key
+ *  change after an answer, or a reload, reads again. */
+export interface BriefReads {
+  firstOut: string | null;   // the contract whose first read is out
+  shown: string | null;      // the contract the brief shown is of
+  // changes skipped while the first read is out: the page's own settle is at most one key
+  // change; a second key change or any reload (an answer made meanwhile) reads again
+  skipped: { keys: number; seq: number };
+  last: { key: string | null; seq: number };
+}
+export const briefReads = (key: string | null, seq: number): BriefReads =>
+  ({ firstOut: null, shown: null, skipped: { keys: 0, seq }, last: { key, seq } });
+
+/** One effect run: read the brief now? (updates `m`) */
+export function briefShouldRead(m: BriefReads, contractId: string, key: string | null, seq: number): boolean {
+  const arrived = m.last.key === null && key !== null && m.last.seq === seq;
+  m.last = { key, seq };
+  if (arrived && m.shown === contractId) return false;
+  if (m.firstOut === contractId) {
+    if (seq !== m.skipped.seq) m.skipped = { keys: 2, seq };
+    else m.skipped.keys += 1;
+    return false;
+  }
+  if (m.shown !== contractId) { m.firstOut = contractId; m.skipped = { keys: 0, seq }; }
+  return true;
+}
+
+/** A read came back: true when a real change was missed meanwhile, so read again. */
+export function briefSettled(m: BriefReads, contractId: string): boolean {
+  if (m.firstOut !== contractId) return false;
+  m.firstOut = null;
+  return m.skipped.keys > 1;
+}
+
+/** The brief, read again whenever the server's counts or stage change (`refreshKey`). */
+export function useDealBrief(contractId: string, refreshKey: string | null) {
   const [state, setState] = useState<{ brief: Brief | null; error: unknown }>({ brief: null, error: null });
   const [seq, setSeq] = useState(0);
   const reload = useCallback(() => setSeq((n) => n + 1), []);
-  const firstOut = useRef<string | null>(null);   // the contract whose first read is out
-  const shown = useRef<string | null>(null);      // the contract the brief shown is of
+  const reads = useRef<BriefReads | null>(null);
   const latest = useRef(0);
-  // changes skipped while the first read is out: the page's own settle is at most one key
-  // change; a second key change or any reload (an answer made meanwhile) reads again
-  const skipped = useRef({ keys: 0, seq: seq });
   useEffect(() => {
-    if (firstOut.current === contractId) {
-      if (seq !== skipped.current.seq) skipped.current = { keys: 2, seq };
-      else skipped.current.keys += 1;
-      return;
-    }
+    const m = (reads.current ??= briefReads(refreshKey, seq));
+    if (!briefShouldRead(m, contractId, refreshKey, seq)) return;
     const mine = ++latest.current;
-    if (shown.current !== contractId) { firstOut.current = contractId; skipped.current = { keys: 0, seq }; }
-    const settle = () => {
-      if (firstOut.current !== contractId) return;
-      firstOut.current = null;
-      if (skipped.current.keys > 1) setSeq((n) => n + 1);   // missed a real change: read again
-    };
+    const settle = () => { if (briefSettled(m, contractId)) setSeq((n) => n + 1); };
     api.dealBrief(contractId).then(
       (brief) => {
         settle();
-        if (latest.current === mine) { shown.current = contractId; setState({ brief, error: null }); }
+        if (latest.current === mine) { m.shown = contractId; setState({ brief, error: null }); }
       },
       (error: unknown) => {
         settle();
@@ -76,7 +98,8 @@ export function DealBrief({ contractId, stage, viewer, refreshKey, onOpen, onCha
   contractId: string;
   stage: NegotiationStage | null;
   viewer: StageViewer;
-  refreshKey: string;
+  /** null while the page's change list is still loading (W1-4) */
+  refreshKey: string | null;
   /** a change named in the brief: the page switches to Changes and opens it */
   onOpen: (rowKey: string) => void;
   /** what we told them changed: the Changes rows re-read their labels */

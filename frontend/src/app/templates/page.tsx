@@ -14,9 +14,7 @@ export default function TemplatesPage() {
   const { can } = useSession();
   if (!can(P.CONTRACT_CREATE) && !can(P.LEGAL_APPROVE_CUSTOMIZATION)) return <NotHere />;
   return (
-    <>
-      <TemplateLibrary />
-      {can(P.LEGAL_POSITION_VIEW) ? <div className="lm-page tpl tpl--list"><TemplatePlaybooks /></div> : null}
-    </>
+    <TemplateLibrary below={can(P.LEGAL_POSITION_VIEW)
+      ? <div className="lm-page tpl tpl--list"><TemplatePlaybooks /></div> : null} />
   );
 }

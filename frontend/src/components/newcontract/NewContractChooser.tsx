@@ -5,7 +5,7 @@
  *  upload). Two lines each; the first names only the types published now (`AM-316`), and is
  *  no link when none is. The returned-markup row needs the same rights as its page (N8). */
 
-import Link from "next/link";
+import Link from "@/components/AppLink";
 import { useEffect, useState } from "react";
 
 import { api } from "@/lib/api";

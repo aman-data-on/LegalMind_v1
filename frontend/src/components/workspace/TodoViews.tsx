@@ -9,7 +9,7 @@
  * one per contract (`oneTaskPerContract`). Nothing here filters by role name or decides.
  */
 
-import Link from "next/link";
+import Link from "@/components/AppLink";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -115,7 +115,9 @@ export function TaskList({ tasks, contracts, companies = [] }: {
  *  "For my review" is the lawyer's page title already, so it is not said twice. The page
  *  loads the tasks once (`useTasks`) and shares them with the list's turn marker. */
 export function HomeQueue({ companies, todo }: {
-  companies: Counterparty[]; todo: ReturnType<typeof useTasks>;
+  /** null while the client names load: a row naming a linked client waits for them — drawn
+   *  first, it grew a line when they came (W1-5) */
+  companies: Counterparty[] | null; todo: ReturnType<typeof useTasks>;
 }) {
   const { can } = useSession();
   const legal = personaFor(can) === "legal";
@@ -130,7 +132,9 @@ export function HomeQueue({ companies, todo }: {
             Your turn{tasks ? <span className="ws-home__qn">{tasks.length}</span> : null}
           </h2>
         )}
-        {tasks === null ? <LoadingState rows={1} /> : tasks.length ? <TaskList tasks={tasks} contracts={contracts} companies={companies} />
+        {tasks === null || (!companies && tasks.some((t) => contracts.get(t.contract_id)?.counterparty_id))
+          ? <LoadingState rows={Math.min(tasks?.length ?? 1, 5)} />
+          : tasks.length ? <TaskList tasks={tasks} contracts={contracts} companies={companies ?? []} />
           : <p className="ws-hq__clear">{legal ? "Nothing is waiting for your review." : "Nothing is waiting on you."}</p>}
       </section>
       <TemplatesToApprove />

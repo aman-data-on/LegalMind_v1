@@ -31,7 +31,7 @@
  * (still create → upload → suggest type → analyze), only when it starts.
  */
 
-import Link from "next/link";
+import Link from "@/components/AppLink";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 

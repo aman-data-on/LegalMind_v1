@@ -32,7 +32,7 @@
  * the genuine second company unrecordable.
  */
 
-import Link from "next/link";
+import Link from "@/components/AppLink";
 import { useEffect, useRef, useState } from "react";
 
 import { api, describeError } from "@/lib/api";

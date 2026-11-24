@@ -7,7 +7,7 @@
  * need from the client.
  */
 
-import Link from "next/link";
+import Link from "@/components/AppLink";
 import { useEffect, useState } from "react";
 
 import { api, describeError } from "@/lib/api";

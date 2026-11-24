@@ -8,7 +8,7 @@
  * server-side (rule 18).
  */
 
-import Link from "next/link";
+import Link from "@/components/AppLink";
 import { useEffect, useRef, useState } from "react";
 
 import { api } from "@/lib/api";

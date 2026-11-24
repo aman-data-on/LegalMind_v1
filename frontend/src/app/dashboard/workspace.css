@@ -244,6 +244,9 @@
 .ws-shell__nav a[aria-current="page"] {
   color: var(--c-on-action); background: var(--ws-accent);
 }
+/* W1-1 r2 (M3): a tapped section answers at once while its page loads — the pill the
+   reader will land on, at half strength; colour only, so nothing moves */
+.ws-shell__nav a[data-pending] { color: var(--c-on-action); background: color-mix(in srgb, var(--ws-accent) 55%, transparent); }
 .ws-shell__spacer { flex: 1; }
 .ws-shell__avatar {
   width: 26px; height: 26px; border-radius: 50%; background: var(--ws-accent);
@@ -1225,6 +1228,8 @@
  * (AI-01 keeps every model out of that path). See WorkspaceLayout's LABEL.
  * ========================================================================== */
 .ws-analysis { padding: var(--ws-s4); display: flex; flex-direction: column; gap: var(--ws-s5); }
+/* W1-5: a late Summary part's place, about its loaded height (one line of points ≈ 48px) */
+.ws-slot { min-block-size: calc(var(--rows, 2) * 48px + var(--s-7)); }
 .ws-analysis__updated { display: flex; align-items: center; justify-content: space-between; gap: var(--ws-s2); }
 .ws-analysis__section { display: flex; flex-direction: column; gap: var(--ws-s3); }
 .ws-analysis__head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--ws-s2); }
@@ -6936,6 +6941,23 @@ button.ws-open__go:hover { background: var(--ws-paper); }
  * One rhythm: 1.55 leading, a paragraph space of 0.55em, a heading's space before
  * three times its space after. */
 .ws-row { padding: 2px var(--ws-s3); margin: 0 0 0.55em calc(-1 * var(--ws-s3)); }
+/* W1-2 (RC-5): the browser lays out and paints only the chunks (≈ 40 rows) near the screen.
+   `auto` keeps a chunk's real height once drawn; until then its rows × a mean row height
+   stands in, by the width of the text pane (container) and the reader's zoom. Measured on
+   two contracts at 17px (MSA / generated DOCX): 189/154 at a 751px pane, 267/217 at 574,
+   453/375 at 450 (desktop page padding), 288/227 at 390, 372/295 at 320. A jump (`data-drawn`, DocumentPane) draws every chunk, so estimates never move a
+   landing. The chunk reaches one gutter left so a row's change bar and highlight (its
+   negative margin) are not clipped by the chunk's paint containment. Print draws everything. */
+.ws-text { container: ws-text / inline-size; }
+.ws-chunk { --ws-row-est: 170px; content-visibility: auto;
+  contain-intrinsic-block-size: auto calc(var(--rows, 40) * var(--ws-row-est) * var(--ws-zoom, 1));
+  margin-inline-start: calc(-1 * var(--ws-s3)); padding-inline-start: var(--ws-s3); }
+@container ws-text (max-width: 699px) { .ws-chunk { --ws-row-est: 240px; } }
+@container ws-text (max-width: 459px) { .ws-chunk { --ws-row-est: 410px; } }
+@container ws-text (max-width: 399px) { .ws-chunk { --ws-row-est: 260px; } }
+@container ws-text (max-width: 359px) { .ws-chunk { --ws-row-est: 330px; } }
+.ws-text[data-drawn] .ws-chunk { content-visibility: visible; }
+@media print { .ws-chunk { content-visibility: visible; } }
 .ws-row__text { line-height: var(--t-legal-lh); text-align: left; margin-left: var(--indent, 0); max-width: 68ch; }
 .ws-row__text[data-hang] { padding-left: var(--hang); text-indent: calc(-1 * var(--hang)); }
 .ws-row__num, .ws-row__text[data-num]::before {
@@ -7509,6 +7531,25 @@ a.ws-askglobal[data-away]:not(:focus-visible) {
   padding-bottom: 4px; margin-bottom: 4px; }
 .ws-menu__group [aria-checked="true"] { font-weight: 600; color: var(--ws-ink-900); }
 .ws-menu__group [aria-checked="true"]::after { content: "✓"; margin-left: auto; padding-left: var(--ws-s3); color: var(--ws-accent); }
+/* W1-7 (M-01): the phone workspace (`data-phone`, below 900px — the same switch the header
+   uses) puts ⋯ and "Send to Legal" at the left: their pop-ups open rightwards, on screen.
+   Keyed on the attribute, not a second breakpoint, so the two cannot drift apart again. */
+/* r2 (M1): ⋯ opens as a sheet resting on the phone bar (68px tall) — on screen at any height, scrolling
+   inside itself; "Send to Legal" is a modal sheet on the phone (`SendToLegal`, `.lm-sendsheet`) */
+.ws-workmain[data-phone] .ws-cl__headmenu .ws-menu__list {
+  position: fixed; inset: auto 0 calc(68px + env(safe-area-inset-bottom)); z-index: var(--ws-z-dialog);
+  min-inline-size: 0; max-inline-size: none; max-block-size: calc(100% - 68px - var(--s-7));
+  overflow-y: auto; border-radius: var(--r-dialog) var(--r-dialog) 0 0;
+}
+.lm-sendsheet .ws-modal__box {
+  position: fixed; inset: auto 0 0; inline-size: 100vw; max-inline-size: none;
+  max-block-size: calc(100% - var(--s-7)); overflow-y: auto; margin: 0;
+  border-radius: var(--r-dialog) var(--r-dialog) 0 0; padding: var(--s-4) var(--s-4) env(safe-area-inset-bottom);
+}
+.lm-sendsheet__title { margin: 0 0 var(--s-3); font-size: var(--t-section); line-height: var(--t-section-lh); font-weight: 600; }
+.lm-sendlegal__pop[data-sheet] { position: static; inline-size: auto; border: 0; box-shadow: none; padding: 0; }
+.lm-sendlegal__pop[data-sheet] .lm-sendlegal__foot { position: sticky; bottom: 0; background: var(--ws-surface);
+  padding-block: var(--s-3); }
 /* below 760px ⋯ is the first action at the left edge: its menu opens rightwards, on screen */
 @media (max-width: 760px) {
   .lm-ph__acts .ws-cl__headmenu .ws-menu__list { left: 0; right: auto; min-width: min(18rem, calc(100vw - 32px)); }
@@ -7935,9 +7976,6 @@ a.ws-askglobal > span { position: absolute; width: 1px; height: 1px; overflow: h
 @media (max-width: 640px) {
   /* the first screen is the contract's: colleagues are under ⋯ on a phone */
   .ws-record .lm-ph__acts .ws-collab__toggle { display: none; }
-  /* "Send to Legal" opens as a sheet at the foot of the screen, wherever the page is */
-  .ws-record .lm-sendlegal__pop { position: fixed; inset: auto 0 0; inline-size: 100vw;
-    border-radius: var(--r-dialog) var(--r-dialog) 0 0; z-index: var(--ws-z-dialog); }
 }
 @media (max-width: 900px) {
   /* r4: "Fill-in fields N of M" is one 44px row in the phone strip */

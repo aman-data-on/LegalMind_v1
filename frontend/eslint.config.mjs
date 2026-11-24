@@ -10,6 +10,12 @@ export default [
     files: ["src/**/*.{ts,tsx}"],
     languageOptions: { parser: tsParser, parserOptions: { ecmaFeatures: { jsx: true } } },
     plugins: { "react-hooks": reactHooks },
-    rules: reactHooks.configs.recommended.rules,
+    rules: {
+      ...reactHooks.configs.recommended.rules,
+      // W1-1: every link prefetches on intent only — through the one wrapper
+      "no-restricted-imports": ["error", { paths: [{ name: "next/link",
+        message: "Import Link from \"@/components/AppLink\" (prefetch on intent, W1-1)." }] }],
+    },
   },
+  { files: ["src/components/AppLink.tsx", "src/__tests__/**"], rules: { "no-restricted-imports": "off" } },
 ];

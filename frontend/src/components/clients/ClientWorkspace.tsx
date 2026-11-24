@@ -23,7 +23,7 @@
  */
 
 import { Plus } from "lucide-react";
-import Link from "next/link";
+import Link from "@/components/AppLink";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
 import { api, describeError } from "@/lib/api";

@@ -41,6 +41,9 @@ Nothing is committed until the owner says "commit".
 - [ ] P3 remainder — DB-8 audit-log exact count (owner decision on locked 49.4), BE-8 one helper for the versions-of-a-contract query (31 inline copies)
 - [x] U1 UI wrong or risky — UI-01, UI-02, UI-05, UI-10, UI-09, UI-12 (DEPLOYED 2026-11-24 2c40bfcf, PR #339; `U1-BUILD-REPORT.md`). Round 2 done (critic must-fixes, D1/D3/D4). Follow-ups: brief status for a final copy waiting on Legal / an archived contract (needs the call site, perf-p2 owns it); Take back into the ⋯ menu (U2, UI-03); owner: notify the lawyer and keep the note on take-back?; `evidenceLocation` "§" shared by Sales and Legal; report body copy pass (position, em dashes, "-analysis.docx" file name); D2 INTERNAL_REVIEW wording (product call)
 - [x] U2 UI workspace layout — UI-03, UI-04, UI-06, UI-07, UI-13, UI-35 + riders UI-14/21/22 + take-back notice and note history (AB-225 `AM-471`–`AM-474`; DEPLOYED 2026-11-24 7ce8a014, PR #343; `U2-DESIGN.md`, `U2-BUILD-REPORT.md`). Verifier owed.
+- [x] E1 edge — HTTP/2, gzip, keep-alive, probe-and-restore deploy (DEPLOYED 2026-11-24 fa76a395, PR #345)
+- [x] W1 fast first screen + nothing off screen (perf audit F1 + mobile M-01/M-05; verified 10/10; merge pending, NOT deployed)
+- [ ] W2 lighter pages — CSS split, lazy tab panes, labels split, font preload/trim · M2 touch targets + lists as cards + phone sheets · M3 workspace bars (AM-471 amendment) · S1 cache warm-up + slow reads · B1 analysis waits (PREFETCH_WORKERS 16 owner-approved)
 - [ ] U3 UI consistency — UI-11, mediums/lows, UI-08 (presentation-only amendment to AM-264/AM-291)
 - [ ] Later / owner — BE-10 nginx gzip, BE-12 OCR to the worker (rule 19), DB-4/DB-6 statute search, DB-9 duplicate indexes, BE-14–19, a fresh production copy
 

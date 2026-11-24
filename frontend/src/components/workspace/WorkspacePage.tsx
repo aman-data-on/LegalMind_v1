@@ -24,7 +24,7 @@
  * state, the one sanctioned disclosure level.
  */
 
-import Link from "next/link";
+import Link from "@/components/AppLink";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -449,8 +449,8 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
                     </>} overflow={overflow}
                     brief={version ? (who) => (
                       <DealBrief contractId={contract.id} stage={contract.negotiation_stage ?? null} viewer={viewer}
-                                 refreshKey={`${JSON.stringify(contract.counts ?? {})}${stageCode ?? ""}${
-                                   changeList?.changes.map((c) => c.told?.tie ?? "").join() ?? ""}`}
+                                 refreshKey={changesFeed.enabled && changesFeed.state.kind === "loading" ? null   // W1-4
+                                   : `${JSON.stringify(contract.counts ?? {})}${stageCode ?? ""}${changeList?.changes.map((c) => c.told?.tie ?? "").join() ?? ""}`}
                                  who={who} onChanges={() => chooseView("changes")}
                                  onOpen={() => chooseView("changes")} onChanged={changesFeed.reload} />) : undefined}>
       {version && !phone && changesFeed.enabled ? (

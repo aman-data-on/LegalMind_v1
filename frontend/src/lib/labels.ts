@@ -809,6 +809,14 @@ export const ROW_STATUS = {
 
 /** Batch 3+4: the one-minute brief above the contract's tabs. Plain words for sales: no
  *  clause signs, codes or engine words (PLAIN-LANGUAGE §2). */
+/** The Summary tab (W1-5). */
+export const SUMMARY_COPY = { loading: "Loading the summary…" } as const;
+/** The contract text (W1-3 r2): the rest of a long document loads after its first page. */
+export const DOCUMENT_COPY = {
+  loadingRest: "Loading the rest of the document…",
+  restFailed: "The rest of the document could not be loaded",
+} as const;
+
 export const BRIEF_COPY = {
   title: "Deal brief",
   showAll: "Show the whole brief",

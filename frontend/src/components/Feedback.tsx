@@ -12,7 +12,7 @@
  * - Not-found stays the one identical sentence for every cause (49.5 r1 / 52.4).
  */
 
-import Link from "next/link";
+import Link from "@/components/AppLink";
 
 import { ApiError, describeError } from "@/lib/api";
 import { FEEDBACK_COPY } from "@/lib/labels";

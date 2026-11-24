@@ -10,7 +10,7 @@
  *   apply. The lawyer also sees each set's source and points under "Legal details".
  * Everything is the server's (rule 18); nothing here is counted or chosen.
  */
-import Link from "next/link";
+import Link from "@/components/AppLink";
 import { FileCheck2 } from "lucide-react";
 
 import { formatDate } from "@/lib/dates";

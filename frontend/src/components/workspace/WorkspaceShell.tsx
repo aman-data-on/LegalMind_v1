@@ -10,9 +10,9 @@
  * never obscures focus (content gets scroll-margin), landmarks for assistive tech.
  */
 
-import Link from "next/link";
+import Link from "@/components/AppLink";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import * as P from "@/lib/permissions";
 import { loginPath, useSession } from "@/lib/session";
@@ -75,11 +75,48 @@ export function Avatar({ name, picture }: { name: string; picture?: string | nul
   );
 }
 
+/** W1 r3: Ask's route asked for once per page session (module scope survives client navigation). */
+let askWarmed = false;
+
+/** W1 r3/r4: Ask's route — its chunk is the app's largest — prefetched once the page has gone
+ *  network-quiet (after `load`, no resource finished for 1s: the page's own data and its paint
+ *  are in) and the main thread is idle; never before, never on Save-Data or a 2G link. A
+ *  page that never goes quiet (a poll) warms it 10s after load. Other routes: on intent. */
+function useWarmAsk(on: boolean, warm: () => void) {
+  useEffect(() => {
+    if (!on || askWarmed) return;
+    const net = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
+    if (net?.saveData || net?.effectiveType === "2g" || net?.effectiveType === "slow-2g") return;
+    let idle: number | undefined;
+    let poll: number | undefined;
+    const lastEnd = () => Math.max(0, ...performance.getEntriesByType("resource").map((e) => (e as PerformanceResourceTiming).responseEnd));
+    const run = () => { if (!askWarmed) { askWarmed = true; warm(); } };
+    const go = () => {
+      const loaded = performance.now();
+      poll = window.setInterval(() => {
+        const now = performance.now();
+        if (now - lastEnd() < 1000 && now - loaded < 10_000) return;   // still fetching
+        window.clearInterval(poll);
+        // Safari has no requestIdleCallback: a short timeout stands in
+        idle = typeof window.requestIdleCallback === "function" ? window.requestIdleCallback(run, { timeout: 4000 }) : window.setTimeout(run, 500);
+      }, 250);
+    };
+    if (document.readyState === "complete") go(); else window.addEventListener("load", go, { once: true });
+    return () => {
+      window.removeEventListener("load", go);
+      window.clearInterval(poll);
+      if (idle === undefined) return;
+      if (typeof window.cancelIdleCallback === "function") window.cancelIdleCallback(idle); else window.clearTimeout(idle);
+    };
+  }, [on, warm]);
+}
+
 export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const { identity, loading, can, signOut } = useSession();
   const pathname = usePathname();
   const router = useRouter();
   const items = navItemsFor(can);
+  useWarmAsk(!!identity && can(P.ASSIST_ASK), useCallback(() => router.prefetch("/dashboard/ask"), [router]));
   // One popover open at a time: the bell's panel or the account menu.
   const [open, setOpen] = useState<"bell" | "user" | null>(null);
   /** page 2 — on a phone the sections are a menu, not a strip clipped at "Asi" */
@@ -164,12 +201,13 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
           accessible name is unaffected either way: both spans are plain text
           inside one link, so it is announced as "LegalMind, link".
         */}
-        <Link className="ws-shell__word" href="/dashboard">
+        <Link className="ws-shell__word" href="/contracts">
           <span className="ws-shell__word-a">Legal</span><span className="ws-shell__word-b">Mind</span>
         </Link>
         <button type="button" className="ws-shell__navtoggle" aria-expanded={navOpen}
                 aria-controls="ws-shell-nav" aria-label="Menu"
-                onClick={() => setNavOpen((o) => !o)}
+                // W1-1 r2 (M3): opening the phone menu is the intent — its sections load meanwhile
+                onClick={() => { if (!navOpen) items.forEach((item) => router.prefetch(item.href)); setNavOpen((o) => !o); }}
                 onKeyDown={(e) => { if (e.key === "Escape") setNavOpen(false); }}>
           <IconMenu size={20} />
         </button>
