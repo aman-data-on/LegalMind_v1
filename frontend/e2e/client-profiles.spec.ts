@@ -481,6 +481,10 @@ test("a document's Edit, Remove from client and Delete permanently all do what t
   await row.getByRole("button", { name: /more actions/i }).click();
   await page.getByRole("menuitem", { name: "Remove from client" }).click();
   await page.getByRole("button", { name: "Remove from client" }).click();
+  // The open dialog aria-hides the table (Radix modal), so the row's link reads as gone
+  // while the request is still in flight; the dialog closes only once the server answered.
+  await expect(page.getByRole("dialog", { name: "Remove this document from the client?" }))
+    .toHaveCount(0);
   await expect(page.getByRole("link", { name: `Actions Doc Renamed ${stamp}` }))
     .toHaveCount(0);
   const stillThere = await page.request.get(`/api/v1/contracts/${contract.id}`);
@@ -496,6 +500,8 @@ test("a document's Edit, Remove from client and Delete permanently all do what t
   await row.getByRole("button", { name: /more actions/i }).click();
   await page.getByRole("menuitem", { name: "Delete permanently" }).click();
   await page.getByRole("button", { name: "Delete permanently" }).click();
+  await expect(page.getByRole("dialog", { name: "Delete this document permanently?" }))
+    .toHaveCount(0);
   await expect(page.getByRole("link", { name: `Actions Doc Renamed ${stamp}` }))
     .toHaveCount(0);
   const gone = await page.request.get(`/api/v1/contracts/${contract.id}`);

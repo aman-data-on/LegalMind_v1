@@ -16,18 +16,27 @@ import { createAnalysedReview, storageStatePath } from "./support";
 test.use({ storageState: storageStatePath("admin") });
 test("the retired URLs land on the screens that replaced them", async ({ page }) => {
   const { reviewId, contractId } = await createAnalysedReview(page);
-  for (const [from, expected] of [
-    ["/dashboard", "/contracts"],
-    [`/dashboard?id=${contractId}`, `/contracts/${contractId}`],
-    [`/contracts?id=${contractId}`, `/contracts/${contractId}`],
-    ["/reviews", "/dashboard/reviews"],
-    [`/reviews?id=${reviewId}`, `/dashboard/reviews?id=${reviewId}`],
-    ["/audit", "/dashboard/admin/audit"],
-    ["/configuration", "/dashboard/configuration"],
-    ["/admin", "/dashboard/admin"],
+  const byId = `/contracts/${contractId}`;
+  // [retired URL, the server's redirect, the screen the reader ends on]. The last two
+  // differ where the screen moves on by itself: the contract page drops the carried-over
+  // `?id=`, and the Reviews queue sends a reader without `legal.review` (this admin) to
+  // Contracts once the session loads (reviews.spec.ts). Checking the screen against the
+  // server's address raced that second move (CI 2026-11-24).
+  for (const [from, redirect, screen] of [
+    ["/dashboard", "/contracts", "/contracts"],
+    [`/dashboard?id=${contractId}`, `${byId}?id=${contractId}`, byId],
+    [`/contracts?id=${contractId}`, `${byId}?id=${contractId}`, byId],
+    ["/reviews", "/dashboard/reviews", "/contracts"],
+    [`/reviews?id=${reviewId}`, `/dashboard/reviews?id=${reviewId}`, `/dashboard/reviews?id=${reviewId}`],
+    ["/audit", "/dashboard/admin/audit", "/dashboard/admin/audit"],
+    ["/configuration", "/dashboard/configuration", "/dashboard/configuration"],
+    ["/admin", "/dashboard/admin", "/dashboard/admin"],
   ] as const) {
-    await page.goto(from);
-    await expect(page).toHaveURL(new RegExp(expected.replace(/[?]/g, "\\?") + "$"));
-    console.log(`  ${from}  ->  ${new URL(page.url()).pathname}${new URL(page.url()).search}`);
+    // `goto` resolves with the last redirect's response: the server's answer, before
+    // any script on the page has run
+    const landed = new URL((await page.goto(from))!.url());
+    expect(landed.pathname + landed.search).toBe(redirect);
+    await expect(page).toHaveURL(new RegExp(screen.replace(/[?]/g, "\\?") + "$"));
+    console.log(`  ${from}  ->  ${landed.pathname}${landed.search}  ->  ${screen}`);
   }
 });
