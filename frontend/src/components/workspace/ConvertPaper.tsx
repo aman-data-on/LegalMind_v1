@@ -8,7 +8,7 @@
  * Everything that decides is the server's (rule 18).
  */
 
-import Link from "next/link";
+import Link from "@/components/AppLink";
 import { useEffect, useState } from "react";
 
 import { ErrorState, LoadingState } from "@/components/Feedback";

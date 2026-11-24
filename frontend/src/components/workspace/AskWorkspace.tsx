@@ -45,9 +45,9 @@
  */
 
 import { AssistantRuntimeProvider, useAuiState } from "@assistant-ui/react";
-import Link from "next/link";
+import Link from "@/components/AppLink";
 import { useRouter, useSearchParams } from "next/navigation";
-import { type ClipboardEvent, useCallback, useEffect, useRef, useState } from "react";
+import { type ClipboardEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { Dialog } from "@/components/Dialog";
 import { Thread } from "@/components/ui/thread";
@@ -536,9 +536,9 @@ export function AskWorkspace() {
   /* The rail is a native <details>: open on a desktop, closed on a phone, where
    * it is a drawer and would otherwise cost half the screen before a single
    * word is read. Set once, imperatively, because `open` is the element's own
-   * state from then on — the reader's toggle must not be overridden on every
-   * render. Matches the CSS breakpoint that turns the summary into a control. */
-  useEffect(() => {
+   * state from then on — the reader's toggle must not be overridden on every render. Same
+   * breakpoint as the CSS drawer. Before first paint (W1-5): after it, the welcome moved. */
+  useLayoutEffect(() => {
     const rail = railRef.current;
     if (rail) rail.open = !window.matchMedia("(max-width: 860px)").matches;
   }, []);

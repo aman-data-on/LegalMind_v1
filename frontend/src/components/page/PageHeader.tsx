@@ -10,7 +10,7 @@
  * Presentation only; every action it holds checks again server-side (rule 18).
  */
 
-import Link from "next/link";
+import Link from "@/components/AppLink";
 import type { ReactNode } from "react";
 
 import { IconArrowLeft } from "@/components/workspace/icons";

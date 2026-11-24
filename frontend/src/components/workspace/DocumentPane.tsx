@@ -25,7 +25,7 @@ import { ApiError, api, describeError } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { DocumentVersion, EvidenceRow } from "@/lib/types";
-import { UNREADABLE_WHY } from "@/lib/labels";
+import { DOCUMENT_COPY, UNREADABLE_WHY } from "@/lib/labels";
 
 import { segmentContent, selectionInRow, useAnnotations, type Annotation } from "./annotations";
 import { readingLayout, readingPieces, type ReadingLine } from "./reading";
@@ -35,6 +35,7 @@ import { hasTable, isFigure, textBlocks, type TableCell } from "./tableText";
 const HOUSE_KIND: Record<string, "title" | "heading"> = {
   "LM Title": "title", "LM Schedule Title": "title", "LM Heading 1": "heading" };
 import { useFindingsStateOptional } from "./findingsState";
+import { EVIDENCE_PAGE_SIZE, chunkRows, loadEvidence, plainRow, type EvidencePages } from "./evidenceLoad";
 import { useHighlight } from "./highlight";
 import { useMinWidth, useSideTabs } from "./WorkspaceLayout";
 import {
@@ -72,7 +73,6 @@ import { CommentLines } from "./WordComments";
 const CONTENTS_KEY = "legalmind.workspace.contentsOpen";
 const ZOOM_KEY = "legalmind.workspace.zoom";
 const MARKS_KEY = "legalmind.workspace.marks";
-const PAGE_SIZE = 100;
 const ZOOM_STEPS = [85, 100, 115, 130, 150];
 
 const EMPTY_FINDINGS = new Map<string, never[]>();
@@ -238,33 +238,23 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
     }, 0);
   }
 
-  // Progressive load: page after page until the total is reached.
-  useEffect(() => {
-    let cancelled = false;
-    setRows(null);
-    setTotal(null);
+  // W1-3: page 1 at once, the rest in parallel and committed once; "Try again" after a failed
+  // page asks only for the pages still missing (`loadEvidence`, `got`)
+  const got = useRef<EvidencePages>({ pages: [], total: null });
+  const abort = useRef<AbortController | null>(null);
+  const loadText = useCallback((fresh: boolean) => {
+    abort.current?.abort();
+    const mine = (abort.current = new AbortController());
+    if (fresh) { got.current = { pages: [], total: null }; setRows(null); setTotal(null); }
     setError(null);
-    (async () => {
-      const collected: EvidenceRow[] = [];
-      let page = 1;
-      try {
-        for (;;) {
-          const result = await api.documentEvidence(version.id, page, PAGE_SIZE);
-          if (cancelled) return;
-          collected.push(...result.items);
-          setRows([...collected]);
-          setTotal(result.pagination.total);
-          if (collected.length >= result.pagination.total || result.items.length === 0) break;
-          page += 1;
-        }
-      } catch (cause) {
-        if (!cancelled) setError(cause);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [version.id, reloadNonce]);
+    loadEvidence((page) => api.documentEvidence(version.id, page, EVIDENCE_PAGE_SIZE, mine.signal), got.current,
+                 (loaded, count) => { setRows(loaded); setTotal(count); }, () => !mine.signal.aborted)
+      .catch((cause: unknown) => { if (!mine.signal.aborted) setError(cause); });
+  }, [version.id]);
+  useEffect(() => {
+    loadText(true);
+    return () => abort.current?.abort();
+  }, [loadText, reloadNonce]);
 
   /*
    * Answer a highlight — WITHOUT ejecting the reader from the document they
@@ -317,7 +307,11 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
     if (!target || !rows || view !== "text") return;
     const node = textRef.current?.querySelector<HTMLElement>(`[data-evidence-id="${target}"]`);
     if (!node) return;
+    // W1-2 r2: a jump first lays the whole text out (`data-drawn`), as one piece — skipped
+    // chunks' estimated heights then cannot move the landing; once more on the next frame
+    textRef.current!.dataset.drawn = "";
     node.scrollIntoView({ block: "center" });
+    requestAnimationFrame(() => node.scrollIntoView({ block: "center" }));
     node.focus({ preventScroll: true });
   }, [target, rows, view]);
 
@@ -429,7 +423,9 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
   function jumpToPage(page: number) {
     const node = textRef.current?.querySelector<HTMLElement>(`[data-page-marker="${page}"]`);
     if (!node) return;
+    textRef.current!.dataset.drawn = "";   // W1-2 r2, as above
     node.scrollIntoView({ block: "start" });
+    requestAnimationFrame(() => node.scrollIntoView({ block: "start" }));
     setCurrentPage(page);
   }
 
@@ -520,11 +516,10 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
     });
   }, [target, rows, tree, outline]);
 
-  if (error) {
+  if (error && rows === null) {
     return (
       <div className="ws-card ws-card--pad">
-        <ErrorState heading="h3" title="The document text could not be loaded" error={error}
-                    onRetry={() => window.location.reload()} />
+        <ErrorState heading="h3" title="The document text could not be loaded" error={error} onRetry={() => loadText(true)} />
       </div>
     );
   }
@@ -988,12 +983,15 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
           >
             {pageGroups.map((group, index) => (
               <div key={`${group.page ?? "np"}-${index}`} className="ws-page">
+                {/* W1-2: chunks laid out only near the screen (a DOCX is ONE group); the marker in the first */}
+                {chunkRows(group.rows, (r) => plainRow(r, rowKinds.get(r.id), lines.get(r.id)?.shape)).map((chunk, c) => (
+                <div key={c} className="ws-chunk" style={{ ["--rows" as string]: chunk.length }}>
                 {/* When the WHOLE document has no page model (a DOCX has none
                     until printed), a lone "Unnumbered pages" banner is noise,
                     not information — every group is the same non-fact. Shown
                     only when it distinguishes this group from a numbered one
                     elsewhere in the same document. */}
-                {group.page != null || pageGroups.length > 1 ? (
+                {c === 0 && (group.page != null || pageGroups.length > 1) ? (
                   <p className="ws-page__marker" data-page-marker={group.page ?? undefined}>
                     {group.page != null ? `Page ${group.page}` : "Unnumbered pages"}
                     {/* 34.8 — OCR-derived content is identified. Identified at
@@ -1009,7 +1007,7 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                     ) : null}
                   </p>
                 ) : null}
-                {group.rows.map((row) => (
+                {chunk.map((row) => (
                   <article
                     key={row.id}
                     className={`ws-row${target === row.id ? " ws-row--lit" : ""}`}
@@ -1049,6 +1047,8 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                                id, ...cardPoint(el.getBoundingClientRect()) })} />
                   </article>
                 ))}
+                </div>
+                ))}
               </div>
             ))}
             {furniture.length ? (
@@ -1059,11 +1059,9 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                 ))}
               </details>
             ) : null}
-            {total !== null && rows.length < total ? (
-              <p className="ws-pane__note" role="status" aria-live="polite">
-                Loading the rest of the document… {rows.length} of {total} passages
-              </p>
-            ) : null}
+            {total !== null && rows.length < total ? (error
+              ? <ErrorState heading="h3" title={DOCUMENT_COPY.restFailed} error={error} onRetry={() => loadText(false)} />
+              : <p className="ws-pane__note" role="status" aria-live="polite">{DOCUMENT_COPY.loadingRest}</p>) : null}
           </div>
           )}
           {/* Select some document text → this small control marks it (DD-14).

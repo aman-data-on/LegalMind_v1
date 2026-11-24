@@ -17,7 +17,7 @@
  * included); never signed, never stamped, never a version of the contract.
  */
 
-import Link from "next/link";
+import Link from "@/components/AppLink";
 import { useEffect, useMemo, useState } from "react";
 
 import { PageHeader } from "@/components/page/PageHeader";

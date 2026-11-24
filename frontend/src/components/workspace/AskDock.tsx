@@ -63,7 +63,7 @@
  */
 
 import { AssistantRuntimeProvider } from "@assistant-ui/react";
-import Link from "next/link";
+import Link from "@/components/AppLink";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { sectionRef } from "@/lib/documentTypes";
 import { classificationLabel } from "@/lib/labels";

@@ -22,7 +22,7 @@
  */
 
 import { Disclosure } from "@/components/Disclosure";
-import { BusinessAngle, LegalAngle, useReviewAngles } from "./Angles";
+import { BusinessAngleView, LegalAngleView, useReviewAngles } from "./Angles";
 import { ContractDecision } from "./ContractDecision";
 import { ReanalyseNotice } from "./ReanalyseNotice";
 import { useMemo, useState } from "react";
@@ -61,11 +61,11 @@ import {
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import { ObligationsPanel } from "./ObligationsPanel";
-import { OfferSection } from "./OfferPlaybook";
+import { OfferSection, usePlaybook } from "./OfferPlaybook";
 import { useSideTabs } from "./WorkspaceLayout";
 import { chipStatus } from "@/components/StatusChip";
 import { EmptyState, ErrorState, LoadingState } from "@/components/Feedback";
-import { STATUS_CHIP_WORDS, plural } from "@/lib/labels";
+import { STATUS_CHIP_WORDS, SUMMARY_COPY, plural } from "@/lib/labels";
 
 /** The Summary speaks the card's three words (owner, 2026-09-09 — reversing
  *  the 2026-09-01 tile correction; AM-50 r4), in the one order and the one set
@@ -179,6 +179,10 @@ export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner
   const refreshKey = state.kind === "ready"
     ? state.findings.map((f) => f.status).join() : "";
   const angles = useReviewAngles(state.kind === "ready" ? state.review.id : null, refreshKey);
+  const offers = !reference && stage?.stage !== "FINAL" && state.kind === "ready";
+  // W1-5: the two late parts hold their place while they load (`Slot`); drawn as each
+  // arrived, the parts below jumped twice (CLS 0.06 at 1440)
+  const offer = usePlaybook("contract", offers ? state.review.contract_id : null);
 
   return (
     <div className="ws-analysis">
@@ -197,7 +201,7 @@ export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner
         </button>
       </div>
       {state.kind === "loading" ? (
-        <LoadingState label="Loading the summary…" rows={3} />
+        <LoadingState label={SUMMARY_COPY.loading} rows={3} />
       ) : state.kind === "no-review" && signedCopy ? (
         // round 3: nothing to settle on a signed copy — one empty state, not a muted line
         <EmptyState heading="h3" icon={<IconCheckCircle size={24} />} title="Nothing to settle"
@@ -250,7 +254,8 @@ export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner
             {/* AM-318: a Final deal has nothing open and nothing left to offer. L10: the
                 lawyer's analysis ("where it differs", once all is decided) is Legal's — the deal
                 owner keeps the open points and who has each */}
-            {reference || stage?.stage === "FINAL" || (!legal && counts?.points_open === 0) ? null : <LegalAngle reviewId={state.review.id} refreshKey={refreshKey} withRecommendation={false}
+            {reference || stage?.stage === "FINAL" || (!legal && counts?.points_open === 0) ? null
+              : angles === undefined ? <Slot rows={state.findings.filter((f) => OPEN_STATES.has(pointState(f))).length} /> : <LegalAngleView angles={angles} withRecommendation={false}
                         allDecided={counts?.points_open === 0}
                         decided={new Set(state.findings.filter((f) => !OPEN_STATES.has(pointState(f)))
                                                       .map((f) => f.id))}
@@ -263,10 +268,11 @@ export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner
                                               state.progress?.stage !== "NOT_SENT") }]))} />}
           </section>
           {/* AM-305: how far the deal owner may go without Legal */}
-          {reference || stage?.stage === "FINAL" ? null : <OfferSection contractId={state.review.contract_id} />}
+          {offer === "loading" ? <Slot rows={2} /> : offers ? <OfferSection contractId={state.review.contract_id} /> : null}
           <section className="ws-summary__part" aria-labelledby="ws-sum-terms">
             <h3 id="ws-sum-terms" className="ws-summary__title">Key terms</h3>
-            <BusinessAngle reviewId={state.review.id} refreshKey={refreshKey} />
+            {/* the panel's own angles (one read, no blank first render that collapsed and regrew) */}
+            <BusinessAngleView angles={angles} />
             {legal ? <ObligationsPanel documentVersionId={documentVersionId} /> : null}
           </section>
           {legal ? (
@@ -281,6 +287,17 @@ export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner
           ) : null}
         </>
       )}
+    </div>
+  );
+}
+
+/** W1-5: a late part's place, held at about its loaded height (`rows` lines), so the parts
+ *  below do not move when it arrives; one plain line says it is loading. */
+function Slot({ rows }: { rows: number }) {
+  return (
+    <div className="ws-slot" style={{ ["--rows" as string]: Math.min(rows, 12) }} aria-busy="true">
+      <span className="ws-visually-hidden" role="status">{SUMMARY_COPY.loading}</span>
+      <span className="ws-skel" aria-hidden="true" />
     </div>
   );
 }

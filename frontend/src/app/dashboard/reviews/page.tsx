@@ -20,7 +20,7 @@
  * path segment, so no Review id appears in the URL path itself.
  */
 
-import Link from "next/link";
+import Link from "@/components/AppLink";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 

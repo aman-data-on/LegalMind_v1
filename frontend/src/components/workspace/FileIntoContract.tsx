@@ -11,7 +11,7 @@
  * session it is sent again; otherwise the reader chooses it again, and the server
  * checks it is the same file.
  */
-import Link from "next/link";
+import Link from "@/components/AppLink";
 import { useRef, useState } from "react";
 
 import { api, attachedFiles, describeError } from "@/lib/api";

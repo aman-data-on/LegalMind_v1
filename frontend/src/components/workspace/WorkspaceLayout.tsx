@@ -19,7 +19,7 @@
 
 import { useStep } from "@/lib/nextStep";
 import { FileText, GitCompareArrows, LayoutList, ListChecks, PanelLeftClose, PanelLeftOpen } from "lucide-react";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { KeyboardShortcutsHelp } from "@/components/KeyboardShortcuts";
 
 import { CONTRACT_DECISION_ID } from "./ContractDecision";
@@ -162,18 +162,18 @@ export function arrowTab(event: React.KeyboardEvent<HTMLElement>, index: number,
   event.preventDefault();
 }
 
-/** `null` until measured: the server has no viewport, so the first client render
- *  cannot know it either without a hydration mismatch. */
+/** The viewport answer, read synchronously on the client's first render (W1-0): a phone
+ *  renders its one-column tree once, instead of the wide tree first and then every pane
+ *  remounted and fetched again. `null` only while hydrating server HTML (the server has no
+ *  viewport); the workspace itself mounts after the session gate, so it never sees it. */
 export function useMinWidth(px: number): boolean | null {
-  const [matches, setMatches] = useState<boolean | null>(null);
-  useEffect(() => {
-    const query = window.matchMedia(`(min-width: ${px}px)`);
-    const apply = () => setMatches(query.matches);
-    apply();
-    query.addEventListener("change", apply);
-    return () => query.removeEventListener("change", apply);
-  }, [px]);
-  return matches;
+  const query = `(min-width: ${px}px)`;
+  const subscribe = useCallback((onChange: () => void) => {
+    const list = window.matchMedia(query);
+    list.addEventListener("change", onChange);
+    return () => list.removeEventListener("change", onChange);
+  }, [query]);
+  return useSyncExternalStore(subscribe, () => window.matchMedia(query).matches, () => null);
 }
 
 function useMode(): Mode {
@@ -219,8 +219,8 @@ export function WorkspaceLayout({
   ask?: React.ReactNode;
 }) {
   const mode = useMode();
-  /* Placed once the width is known: the narrow layout mounts it elsewhere, and a
-     first render in the wrong place would remount it — two history requests. */
+  /* Placed once the width is known (only ever unknown while hydrating server HTML): the
+     narrow layout mounts it elsewhere, and a render in the wrong place would remount it. */
   const askPlaced = useMinWidth(900) === null ? null : ask;
   /* Above the narrow-mode early return below: a hook after a conditional return
      runs on some renders and not others, which is React error #310 — and it

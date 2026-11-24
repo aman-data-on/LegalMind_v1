@@ -19,7 +19,7 @@
  * to this caller (AB-13 r6).
  */
 
-import Link from "next/link";
+import Link from "@/components/AppLink";
 import { useCallback, useEffect, useState } from "react";
 
 import { api, describeError } from "@/lib/api";

@@ -29,9 +29,9 @@ export function forgetAngles(reviewId: string): void {
 }
 
 /** The angles of one Review, fetched once per page and again when `refreshKey` changes
- *  (a decision recorded); null while loading or unavailable. */
+ *  (a decision recorded); undefined while the first read is out, null when unavailable. */
 export function useReviewAngles(reviewId: string | null | undefined,
-                                refreshKey?: string): ReviewAngles | null {
+                                refreshKey?: string): ReviewAngles | null | undefined {
   // the value is kept WITH its Review: another Review's angles are never shown while
   // this one's are still loading (its ₹ figures would read as this document's)
   const [loaded, setLoaded] = useState<{ id: string; value: ReviewAngles | null } | null>(
@@ -57,7 +57,7 @@ export function useReviewAngles(reviewId: string | null | undefined,
       cancelled = true;
     };
   }, [reviewId, refreshKey]);
-  return reviewId && loaded?.id === reviewId ? loaded.value : null;
+  return !reviewId ? null : loaded?.id === reviewId ? loaded.value : undefined;
 }
 
 /** One business point: the headline, what it means, and the money when the document
@@ -82,7 +82,7 @@ export function BusinessAngle({ reviewId, refreshKey }: {
   return <BusinessAngleView angles={useReviewAngles(reviewId, refreshKey)} />;
 }
 
-export function BusinessAngleView({ angles }: { angles: ReviewAngles | null }) {
+export function BusinessAngleView({ angles }: { angles: ReviewAngles | null | undefined }) {
   const money = (angles?.business ?? []).filter((point) => point.money);
   if (!angles || (money.length === 0 && !angles.commercial.committed_value_text
                   && !angles.commercial.missing)) {
@@ -193,7 +193,7 @@ export function LegalAngle({ reviewId, onOpen, decided, refreshKey, words, withR
 }
 
 export function LegalAngleView({ angles, onOpen, decided, words, withRecommendation = true, allDecided = false }: {
-  angles: ReviewAngles | null;
+  angles: ReviewAngles | null | undefined;
   allDecided?: boolean;
   /** the Summary moves the recommendation and the marks count to Legal details and its
    *  own first lines (page 2); other callers keep them */
@@ -431,7 +431,7 @@ export function AnswerLead({ reviewId, evidenceIds, topicCodes }: {
 }
 
 export function AnswerLeadView({ angles, evidenceIds, topicCodes = [] }: {
-  angles: ReviewAngles | null;
+  angles: ReviewAngles | null | undefined;
   evidenceIds: string[];
   topicCodes?: string[];
 }) {
@@ -466,7 +466,7 @@ export function AnswerAngles({ reviewId, evidenceIds, topicCodes }: {
 }
 
 export function AnswerAnglesView({ angles, evidenceIds, topicCodes = [] }: {
-  angles: ReviewAngles | null;
+  angles: ReviewAngles | null | undefined;
   evidenceIds: string[];
   topicCodes?: string[];
 }) {

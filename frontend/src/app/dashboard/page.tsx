@@ -10,7 +10,7 @@
  * lawyer the queue is the page and the list sits behind "All contracts".
  */
 
-import Link from "next/link";
+import Link from "@/components/AppLink";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -80,7 +80,7 @@ function DocumentsListView() {
   } | null>(null);
   const [editing, setEditing] = useState<Contract | null>(null);
   /** AB-13 r6 — the companies THIS caller deals with; the server scopes it. */
-  const [companies, setCompanies] = useState<Counterparty[]>([]);
+  const [companies, setCompanies] = useState<Counterparty[] | null>(null);   // null: not yet read (W1-5)
   const [archiving, setArchiving] = useState<Contract | null>(null);
   const [deleting, setDeleting] = useState<Contract | null>(null);
   const [transferring, setTransferring] = useState<Contract | null>(null);
@@ -150,6 +150,9 @@ function DocumentsListView() {
     loadSeq.current = seq;
     const current = () => seq === loadSeq.current;
     setError(null);
+    // The companies this caller deals with — names the client on each row and feeds the
+    // edit dialog's picker. Best-effort: the list works without it. Asked beside the list (W1-5).
+    const companyList = api.counterparties().catch(() => [] as Counterparty[]);
     try {
       const result = await api.contracts(page, PAGE_SIZE, {
         q: q || undefined,
@@ -166,14 +169,8 @@ function DocumentsListView() {
         const fresh = result.items.map((c) => c.contract_type).filter((t): t is string => !!t && !seen.has(t));
         return fresh.length ? new Set([...seen, ...fresh]) : seen;
       });
-      // The companies this caller deals with — names the client on each row and feeds the
-      // edit dialog's picker. Best-effort: the list works without it.
-      try {
-        const companyList = await api.counterparties();
-        if (current()) setCompanies(companyList);
-      } catch {
-        if (current()) setCompanies([]);
-      }
+      const companiesNow = await companyList;
+      if (current()) setCompanies(companiesNow);
     } catch (cause) {
       // A superseded request's failure is not this view's failure.
       if (current()) setError(cause);
@@ -184,18 +181,16 @@ function DocumentsListView() {
     void load();
   }, [load]);
 
-  // The stage counts are scope-wide, not page-wide; refreshed whenever the list reloads.
+  // The stage counts are scope-wide, not page-wide: read per scope and after each mutation
+  // (`summarySeq`) — not when the rows land, which read them twice per open (W1-4).
+  const [summarySeq, setSummarySeq] = useState(0);
   useEffect(() => {
     let cancelled = false;
-    api.contractsSummary(scope).then((s) => {
-      if (!cancelled) setSummary(s);
-    }).catch(() => {
+    api.contractsSummary(scope).then((s) => { if (!cancelled) setSummary(s); }).catch(() => {
       // The chips are a convenience; the table still works without them.
     });
-    return () => {
-      cancelled = true;
-    };
-  }, [contracts, scope]);
+    return () => { cancelled = true; };
+  }, [summarySeq, scope]);
 
   // Debounce the search box so every keystroke doesn't fire a request.
   useEffect(() => {
@@ -286,7 +281,7 @@ function DocumentsListView() {
    *  offered Edit/Archive on it — Transfer is how they take it on. */
   const isMine = (contract: Contract) => contract.owner_id === identity?.user_id;
   const clientOf = (contract: Contract) =>
-    companies.find((co) => co.id === contract.counterparty_id)?.name;
+    companies?.find((co) => co.id === contract.counterparty_id)?.name;
   /** A genuinely empty ACCOUNT — the only state that may invite a first upload. An empty
    *  shelf, a filter or a department view is not an empty account (2026-09-08). */
   const noFilters = !q && !typeFilter && !stageFilter;
@@ -306,6 +301,7 @@ function DocumentsListView() {
   /** Every mutation refetches: the server owns the row. */
   async function refresh() {
     closeMenu();
+    setSummarySeq((n) => n + 1);
     await load();
   }
 
@@ -605,7 +601,7 @@ function DocumentsListView() {
                         <IconPlus size={15} /> New contract
                       </button>
                     ) : null} />
-        <HomeQueue companies={companies} todo={todo} />
+        <HomeQueue companies={companies ?? (error ? [] : null)} todo={todo} />
         {persona === "legal" ? (
           <details className="ws-home__all">
             <summary className="ws-home__qtitle">
@@ -642,7 +638,7 @@ function DocumentsListView() {
         <EditContractDialog
           contract={editing}
           counterparties={knownCounterparties(contracts)}
-          companies={companies}
+          companies={companies ?? []}
           onClose={() => setEditing(null)}
           onSaved={() => { setEditing(null); void refresh(); }}
         />

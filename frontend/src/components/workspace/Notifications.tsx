@@ -6,7 +6,7 @@
  * count said in words, never a red badge (no urgency theatre). The list is re-read when
  * the panel opens and every two minutes while the tab is visible.
  */
-import Link from "next/link";
+import Link from "@/components/AppLink";
 import { useCallback, useEffect, useState } from "react";
 
 import { api, type NotificationList } from "@/lib/api";

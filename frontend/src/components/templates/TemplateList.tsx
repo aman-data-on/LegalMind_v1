@@ -7,8 +7,8 @@
  * run once per draft). Plus the home's "Templates to approve" section (Legal only).
  */
 
-import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import Link from "@/components/AppLink";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 
 import { api, describeError } from "@/lib/api";
 import * as P from "@/lib/permissions";
@@ -127,7 +127,11 @@ function DraftRows({ rows, checks, runCheck }: {
  *  grouped by type and company, and what is awaiting approval (seen, never used); for
  *  Legal also the drafts being prepared and the recommendation. Presentation only: the
  *  server decides who sees and may do what (rule 18). */
-export function TemplateLibrary() {
+export function TemplateLibrary({ below }: {
+  /** W1-5: the section under the library is mounted (its data loads) but drawn only once
+   *  the library has its list — drawn earlier, the list arriving pushed it down (CLS 0.15–0.25) */
+  below?: ReactNode;
+}) {
   const { can } = useSession();
   const approver = can(P.LEGAL_APPROVE_CUSTOMIZATION);
   const { list, checks, error, runCheck, reload } = useTemplates(true);
@@ -145,6 +149,7 @@ export function TemplateLibrary() {
   }
 
   return (
+    <>
     <div className="lm-page tpl tpl--list">
       <PageHeader title="Templates" meta={<span>Our contracts, ready to fill in. Download a blank one or start a contract from it.</span>} />
       {failure ? <p className="tpl-error" role="alert">{failure}</p> : null}
@@ -224,6 +229,8 @@ export function TemplateLibrary() {
         )}
       {uploading ? <UploadContractDialog firstRun={false} onClose={() => setUploading(false)} /> : null}
     </div>
+    {below ? <div hidden={!list && !error}>{below}</div> : null}
+    </>
   );
 }
 

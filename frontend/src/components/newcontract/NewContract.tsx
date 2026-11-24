@@ -10,7 +10,7 @@
 
 import { PageHeader } from "@/components/page/PageHeader";
 import { ACTION, CONVERT_COPY, INTAKE_COPY as C } from "@/lib/labels";
-import Link from "next/link";
+import Link from "@/components/AppLink";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 

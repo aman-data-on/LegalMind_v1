@@ -16,7 +16,7 @@
  * on their own screens rather than by a dynamic route.
  */
 
-import Link from "next/link";
+import Link from "@/components/AppLink";
 import { usePathname } from "next/navigation";
 
 import type { RoleTier, User } from "@/lib/types";

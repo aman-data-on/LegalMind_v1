@@ -16,7 +16,7 @@
  * exactly that — never confidence (AI-03 item 16; rule 12).
  */
 
-import Link from "next/link";
+import Link from "@/components/AppLink";
 import { memo, type ReactNode, useEffect, useId, useState } from "react";
 
 import { feedback, type FeedbackKind } from "@/lib/api";

@@ -8,7 +8,7 @@
  * only: no row, base or status is computed here (rule 18).
  */
 
-import Link from "next/link";
+import Link from "@/components/AppLink";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 

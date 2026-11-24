@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/AppLink";
 import { Fragment, type ReactNode, useId, useState } from "react";
 
 import { Dialog } from "@/components/Dialog";

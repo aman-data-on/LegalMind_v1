@@ -667,9 +667,10 @@ export const api = {
       { method: "POST" },
     ),
   /** Evidence rows in reading order — the document pane and every citation target. */
-  documentEvidence: (id: string, page = 1, pageSize = 100) =>
+  documentEvidence: (id: string, page = 1, pageSize = 100, signal?: AbortSignal) =>
     requestPage<EvidenceRow>(p`/document-versions/${id}/evidence`, {
       query: { page, page_size: pageSize },
+      ...(signal ? { signal } : {}),
     }),
   /** Clause-level comparison of two versions of one contract (locked 33.15).
    *  Deterministic and server-side: the client renders the answer and derives
