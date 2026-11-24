@@ -280,6 +280,71 @@ test. Both run in the nightly `legalmind-hard-benchmark` unit (daily 05:00 IST,
 - After changing the unit file, re-install it:
   `sudo cp ops/production/legalmind-hard-benchmark.service /etc/systemd/system/ && sudo systemctl daemon-reload`.
 
+## Host change of 2026-11-24: CPU share for production (owner-approved, no deploy)
+
+The host is shared with development work. On cgroup v2 the CPU is split between `system.slice` (production
+services) and `user.slice` (development sessions, test servers, browsers), and before this change it was an even
+split under load. Applied live with `systemctl set-property` (persistent drop-ins under
+`/etc/systemd/system.control/`, no restart):
+
+| Unit | CPUWeight |
+|---|---|
+| `system.slice` | 400 (`user.slice` stays at the default 100) |
+| `legalmind-api`, `postgresql@16-main`, `nginx` | 400 (equal: the API mostly waits on Postgres) |
+| `legalmind-frontend` | 300 |
+| `legalmind-worker` | 150 (analysis jobs never starve the API) |
+
+The weights only matter when the CPU is contended; at the time of the change there was no CPU pressure, so the gain
+is unmeasured. Test databases share the `postgresql@16-main` cluster and get the same weight (accepted).
+Check: `systemctl show -p CPUWeight system.slice legalmind-api`. Undo: `sudo rm -r /etc/systemd/system.control`
+then `sudo systemctl daemon-reload`.
+
+## After the deploy of E1 — the edge: HTTP/2, gzip, keep-alive (owner 2026-11-24)
+
+**What changed** (`production/nginx-legalmind.lsnw.io.conf`, installed by the deploy's Edge step):
+
+- `listen 443 ssl http2` (the nginx 1.24 form). One TLS connection per reader instead of up
+  to six, and the ~15 API reads plus ~19 assets of a contract page share it.
+- gzip for proxied JSON, JS, CSS, SVG and text (`gzip_proxied any`, `gzip_vary on`, level 5,
+  1 KB minimum). The large contract reads shrink by about 76–87%.
+- Keep-alive to both upstreams (`keepalive 16`, `keepalive_timeout 4s`, below uvicorn's and
+  Node's 5 s), with `proxy_http_version 1.1` and the `Connection` header set at server level,
+  so the API locations still inherit Host, X-Real-IP, X-Forwarded-For/-Proto/-Host. The `/`
+  location keeps `Host 127.0.0.1:3000`, exactly what Next.js received before.
+- The Edge step of `deploy.sh` now probes the edge after the reload (`/login` 200 HTML,
+  `/api/v1/auth/session` 401 JSON, one `/_next/static` script 200). If a probe fails, it
+  restores the `.bak-<timestamp>` file it just wrote, runs `nginx -t`, reloads, probes again
+  and exits non-zero. A config that passes `nginx -t` but breaks routing no longer ships as a
+  success.
+
+**Checks right after the deploy** (from any machine):
+
+    curl -s --http2 -o /dev/null -w '%{http_version}\n' https://legalmind.lsnw.io/login   # 2
+    curl -sI https://legalmind.lsnw.io/login | grep -i -E 'strict-transport|x-frame'       # both present
+
+- gzip on the API needs a signed-in read (a 401 body is under the 1 KB minimum). In the
+  browser's Network tab, `/api/v1/contracts` shows `content-encoding: gzip` and
+  `vary: Accept-Encoding`. Or with the session cookie copied from the browser:
+  `curl -s -o /dev/null -D - --http2 -H 'Accept-Encoding: gzip' -b 'legalmind_session=<value>' https://legalmind.lsnw.io/api/v1/contracts | grep -i -E 'content-encoding|vary'`.
+- Forwarded headers: `journalctl -u legalmind-api -n 20 --no-pager` shows each request with
+  the **reader's** address (uvicorn takes it from X-Forwarded-For) and now `HTTP/1.1`, where it
+  said `HTTP/1.0` before E1. A `127.0.0.1` client address means the headers are lost.
+- Sign-in works, and a contract page opens.
+
+**Rollback.**
+
+1. Now, on the host:
+   `cp /etc/nginx/sites-available/legalmind.lsnw.io.bak-<ts> /etc/nginx/sites-available/legalmind.lsnw.io && nginx -t && systemctl reload nginx`
+   (`ls -t /etc/nginx/sites-available/legalmind.lsnw.io.bak-* | head -1` is the file the deploy replaced).
+2. Then a **revert PR** before the next deploy. The deploy re-installs the repository file
+   whenever it differs from `/etc`, so a hot rollback alone is undone by the next deploy.
+
+**Watch the DB pool for 48 h.** HTTP/2 raises the API requests one reader has in flight from
+at most 6 to about 20. The pool is 2 workers × 15. Watch for `QueuePool limit` in
+`journalctl -u legalmind-api` and the p95 of the cheap reads.
+
+**After any `certbot --nginx` re-install**, check that both `listen … ssl http2` lines survived.
+
 ## 1 · Database (rows: `database`, `migrations`, `database_roles`, `invariant_triggers`, `pgvector`, `assist_role`)
 
 ```sql

@@ -21,7 +21,9 @@ LegalMind units comes from `/root/.legalmind.env` (mode 600).
 config, and `ops/deploy.sh` installs it to `/etc/nginx/sites-available/legalmind.lsnw.io`,
 tests it, and reloads. Edit it here, never in `/etc`. A mismatch is repaired on the next
 deploy; the replaced file is kept as `…/legalmind.lsnw.io.bak-<timestamp>` and restored
-automatically if `nginx -t` rejects the candidate.
+automatically if `nginx -t` rejects the candidate. Since E1 (2026-11-24) it is also restored
+when the reloaded edge fails its probes (a page, the API, a static asset); see
+[../README.md](../README.md) § *After the deploy of E1*.
 
 Before this, the edge config existed only in `/etc` — unversioned, unreviewed, backed up
 by hand into `/root/nginx-legalmind.bak-*`. Three defects had accumulated there
