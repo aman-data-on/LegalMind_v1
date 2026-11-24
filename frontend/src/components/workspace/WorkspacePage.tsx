@@ -292,6 +292,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
     setView(which);
     const url = new URL(window.location.href);
     url.searchParams.delete("tab");
+    if (which !== "document") url.searchParams.delete("evidence");   // a document-view focus only
     if (url.pathname.startsWith("/contracts/")) {
       url.pathname = contractHref(contract.id, which === "document" ? undefined : which);
     } else if (which === "changes") url.searchParams.set("tab", "changes");
