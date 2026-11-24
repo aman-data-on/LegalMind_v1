@@ -29,13 +29,12 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { chainAnalysis } from "@/lib/analysisChain";
-import { ApiError, api, describeError } from "@/lib/api";
+import { ApiError, api } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
-import type { Contract, Counterparty, DocumentVersion, ReviewAssignments } from "@/lib/types";
-import { ACTION, READER_OUTDATED, contractStatusLabel, type StageViewer } from "@/lib/labels";
-import { canSendToLegalFor, nextStep, runStep, type StepKind } from "@/lib/nextStep";
-import { PageHeader } from "@/components/page/PageHeader";
+import type { Contract, Counterparty, DocumentVersion } from "@/lib/types";
+import { ACTION, MENU_COPY, READER_OUTDATED } from "@/lib/labels";
+import { runStep } from "@/lib/nextStep";
 import { documentSourceChip, isOurs } from "@/lib/documentTypes";
 
 import { Dialog } from "@/components/Dialog";
@@ -43,33 +42,27 @@ import { Dialog } from "@/components/Dialog";
 import { AnalysisPanel } from "./AnalysisPanel";
 import { AskDockLazy } from "./AskDockLazy";
 import { AskIntentProvider } from "./askIntent";
-import { ChangesPane, ReplyNotice, SendOut, useClientChanges } from "./ChangesPane";
+import { ChangesPane, ReplyNotice, useClientChanges } from "./ChangesPane";
 import { ConvertPaper } from "./ConvertPaper";
 import { PackageBar, PackageCard, usePackagePlan, usePreparedEntries } from "./Package";
 import { FillInFields } from "./FillInFields";
-import { AmendmentsPanel, GovernedByLink } from "./Amendments";
+import { AmendmentsPanel } from "./Amendments";
 import { AMENDMENT_PLACE, convertOffered, packageLine } from "@/lib/package";
-import { ClientMenu } from "@/components/clients/ClientWorkspace";
-import { CollaboratorsControl } from "./CollaboratorsControl";
 import { WEBSITE_KEY_BY_TYPE } from "@/components/diff-talk/text";
 import { DocumentPane } from "./DocumentPane";
 import { FindingsPane } from "./FindingsPane";
-import { FindingsProvider, primeReviews, useFindingsState, useFindingsStateOptional } from "./findingsState";
+import { FindingsProvider, primeReviews } from "./findingsState";
 import { HighlightProvider } from "./highlight";
-import { contractHref, contractTabFromPath, pickVersion, shortDate, stageViewer, versionRoleLabel } from "./model";
-import { RecordSigning } from "./SigningSheet";
-import { SendToLegal } from "./SendToLegal";
-import { TakeBackFromLegal } from "./TakeBackFromLegal";
+import { contractHref, contractTabFromPath, phoneView, pickVersion, stageViewer, versionRoleLabel } from "./model";
+import { CompanyDocuments, RecordHeader, ReportMenuItem, ReportTabGate, ReportView, versionOption,
+         type View } from "./WorkspaceHeader";
 import { DealBrief } from "./DealBrief";
 import { FinalCard, FinalCheckFailed, PrepareFinal, ClosedPanel } from "./FinalCopy";
-import { StageBadge } from "./StageBadge";
 import { UploadDocument } from "./UploadDocument";
 import { VersionComparison } from "./VersionComparison";
 import { PaneBoundary } from "./PaneBoundary";
-import { IconCheck, IconUploadCloud, IconX } from "./icons";
+import { IconUploadCloud, IconX } from "./icons";
 import { PhoneBar, WorkspaceLayout, arrowTab, useMinWidth, type PhoneView, type Region } from "./WorkspaceLayout";
-import { templateName } from "@/lib/templates";
-import { toastFailure } from "@/components/Toast";
 import { EmptyState, ErrorState, NoticeState } from "@/components/Feedback";
 
 type Load =
@@ -109,8 +102,9 @@ function comparisonRequested(): boolean {
 /** `/contracts/{id}/changes` (`AM-263`) — or the older `?tab=changes` — opens the client's changes
  *  (CLM Phase 1, UX §3.4). The router's path, not `window.location`: an in-app navigation renders
  *  the page before the address bar changes (batch 5: "Upload and compare" landed on Document). */
-function initialView(path: string, params: { get: (key: string) => string | null }): "document" | "changes" {
-  return contractTabFromPath(path).tab === "changes" || params.get("tab") === "changes" ? "changes" : "document";
+function initialView(path: string, params: { get: (key: string) => string | null }): View {
+  const tab = contractTabFromPath(path).tab;
+  return tab === "changes" || tab === "report" ? tab : params.get("tab") === "changes" ? "changes" : "document";
 }
 
 export function WorkspacePage({ contractId }: { contractId: string }) {
@@ -294,12 +288,13 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
   }
 
   /** The tab is the address (`AM-263`): /contracts/{id}/changes. */
-  function chooseView(which: "document" | "changes") {
+  function chooseView(which: View) {
     setView(which);
     const url = new URL(window.location.href);
     url.searchParams.delete("tab");
+    if (which !== "document") url.searchParams.delete("evidence");   // a document-view focus only
     if (url.pathname.startsWith("/contracts/")) {
-      url.pathname = contractHref(contract.id, which === "changes" ? "changes" : undefined);
+      url.pathname = contractHref(contract.id, which === "document" ? undefined : which);
     } else if (which === "changes") url.searchParams.set("tab", "changes");
     window.history.replaceState(window.history.state, "", url);
   }
@@ -327,9 +322,10 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
   const isOwner = contract.owner_id === identity?.user_id;
   const viewer = stageViewer(can, isOwner);
   const canAnswer = changeList ? !!(changeList.can_answer || changeList.can_send) : isOwner;
-  const overflow: React.ReactNode[] = [];
+  // U2 r4: the ⋯ menu in groups — the file, comparing, sharing (the header adds the rest)
+  const files: React.ReactNode[] = [], comparing: React.ReactNode[] = [], sharing: React.ReactNode[] = [];
   if (canUpload) {
-    overflow.push(<button key="up" type="button" role="menuitem" className="ws-menu__item"
+    files.push(<button key="up" type="button" role="menuitem" className="ws-menu__item"
                           onClick={(event) => {
                             // the item unmounts with the menu: the dialog hands focus back to ⋯
                             uploadReturn.current = event.currentTarget.closest(".ws-menu")
@@ -338,58 +334,68 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
                           }}>Upload new version</button>);
   }
   if (versions.length > 1) {
-    overflow.push(<button key="cmp" type="button" role="menuitem" className="ws-menu__item"
+    comparing.push(<button key="cmp" type="button" role="menuitem" className="ws-menu__item"
                           onClick={() => setCompareOpen((open) => !open)}>
-      {compareOpen ? "Hide version comparison" : "Compare versions"}</button>);
+      {compareOpen ? MENU_COPY.hideCompare : MENU_COPY.compare}</button>);
   }
   // B3 p7: the phone chooses a version in the header select, not in ⋯
   // N5: our own version downloads from ⋯ at any stage — said to be a draft while a point
   // is open; the server still gates a reply or final contract with an open point (AM-293)
   if (version && can(P.DOCUMENT_DOWNLOAD) && !version.reply && !version.package && !version.final_copy) {
     const draft = (contract.counts?.points_open ?? 0) > 0 && isOurs(version);
-    overflow.push(<a key="dl" role="menuitem" className="ws-menu__item"
+    files.push(<a key="dl" role="menuitem" className="ws-menu__item"
                      href={`/api/v1/document-versions/${encodeURIComponent(version.id)}/content`} download>
-      Download version {version.version_number}{draft ? " (draft — not yet cleared by Legal)" : ""}</a>);
+      {MENU_COPY.download(version.version_number, version.mime_type, draft)}</a>);
   }
   // AM-318 A4: the client accepted our version as it was — its final copy
   const ourLatest = !!latest && latest.version_role === "COMPANY_DRAFT" && !latest.package && !latest.final_copy;
   if (ourLatest && canAnswer && (stageCode === "WITH_CLIENT" || stageCode === "READY_TO_SEND"
                                      || stageCode === "DRAFTING")) {
-    overflow.push(<button key="fin" type="button" role="menuitem" className="ws-menu__item"
+    files.push(<button key="fin" type="button" role="menuitem" className="ws-menu__item"
                           onClick={() => runStep("prepareFinal")}>
       Prepare final contract (client accepted version {latest!.version_number})</button>);
   }
   const canAmend = (stageCode === "FINAL" || stageCode === "SIGNED") && contract.contract_type !== "AMENDMENT"
     && !contract.governed_by && !contract.archived_at && can(P.CONTRACT_CREATE) && can(P.CONTRACT_UPDATE);
   if (canAmend && view === "document") {
-    overflow.push(<button key="amd" type="button" role="menuitem" className="ws-menu__item"
+    files.push(<button key="amd" type="button" role="menuitem" className="ws-menu__item"
                           onClick={() => runStep("startAmendment")}>{ACTION.startAmendment}</button>);
   }
   if (stageCode === "FINAL" || stageCode === "SIGNED") {
-    overflow.push(<Link key="terms" role="menuitem" className="ws-menu__item"
+    files.push(<Link key="terms" role="menuitem" className="ws-menu__item"
                         href={`/contracts/${contract.id}/terms`}>Terms in force</Link>);
   }
-  if (version) overflow.push(<ReportMenuItem key="rep" />);
-  overflow.push(<button key="link" type="button" role="menuitem" className="ws-menu__item"
+  // U2 (UI-13): the report is the third tab wherever the tabs show; else (a phone's bar, a
+  // contract with no Changes tab) it stays under ⋯
+  if (version && (phone || !changesFeed.enabled)) sharing.push(<ReportMenuItem key="rep" onOpen={() => chooseView("report")} />);
+  sharing.push(<button key="link" type="button" role="menuitem" className="ws-menu__item"
                         onClick={copyLink}>Copy link</button>);
   if (version) {
     // Diff-Talk (owner, 2026-10-12): this document on the right; on the left its
     // type's website document when there is one.
-    overflow.push(<Link key="dt" role="menuitem" className="ws-menu__item" href={`/dashboard/diff?${new URLSearchParams({
+    comparing.push(<Link key="dt" role="menuitem" className="ws-menu__item" href={`/dashboard/diff?${new URLSearchParams({
       left: WEBSITE_KEY_BY_TYPE[contract.contract_type ?? ""] ?? "", right: version.id })}`}>
-      Compare with our document</Link>);
+      {MENU_COPY.compareTemplate}</Link>);
   }
+
+  const overflow = [files, comparing, sharing].filter((g) => g.length)
+    .flatMap((g, i) => i ? [<div key={`sep${i}`} role="separator" className="ws-menu__sep" />, ...g] : g);
+
+  const fillIn = <FillInFields contractId={contract.id} onSaved={() => { openVersion(null); void load(); }} />;
 
   /** One tap on the phone's bar: a region, the Changes view, or Ask's sheet. */
   const choosePhone = (which: PhoneView) => {
     setPhoneAsk(false);
-    if (which === "changes") { chooseView("changes"); return; }
-    if (view === "changes") chooseView("document");
+    // U2 r2: Changes is its own view; every region (and Ask) lives on Document — so a tap
+    // leaves the Report view too, never only the Changes one
+    const next = phoneView(which);
+    if (view !== next) chooseView(next);
+    if (which === "changes") return;
     setPhoneTab(which);
     window.scrollTo({ top: 0 });
   };
   const openPhoneAsk = () => {
-    if (view === "changes") chooseView("document");
+    if (view !== phoneView("ask")) chooseView("document");
     setPhoneAsk(true);
     setPhoneAskSeq((n) => n + 1);
   };
@@ -440,16 +446,18 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
                         <button type="button" className="ws-btn ws-btn--sm" onClick={uploadToggle}>
                           Upload the client&rsquo;s reply</button>
                       ) : null}
-                      <ClientMenu label="More actions">{overflow}</ClientMenu>
-                    </>}>
-      {version ? <DealBrief contractId={contract.id} stage={contract.negotiation_stage ?? null} viewer={viewer}
-                            refreshKey={`${JSON.stringify(contract.counts ?? {})}${stageCode ?? ""}${
-                              changeList?.changes.map((c) => c.told?.tie ?? "").join() ?? ""}`}
-                            onOpen={() => chooseView("changes")} onChanged={changesFeed.reload} /> : null}
+                    </>} overflow={overflow}
+                    brief={version ? (who) => (
+                      <DealBrief contractId={contract.id} stage={contract.negotiation_stage ?? null} viewer={viewer}
+                                 refreshKey={`${JSON.stringify(contract.counts ?? {})}${stageCode ?? ""}${
+                                   changeList?.changes.map((c) => c.told?.tie ?? "").join() ?? ""}`}
+                                 who={who} onChanges={() => chooseView("changes")}
+                                 onOpen={() => chooseView("changes")} onChanged={changesFeed.reload} />) : undefined}>
       {version && !phone && changesFeed.enabled ? (
         <div className="ws-record__bar">
+          <ReportTabGate>{(reportTab) => (
           <div className="ws-record__tabs" role="tablist" aria-label="Contract views">
-            {(["document", "changes"] as const).map((which, index, all) => {
+            {(reportTab ? ["document", "changes", "report"] as const : ["document", "changes"] as const).map((which, index, all) => {
               // the badge is what is left for THIS reader (`counts`), never the total
               const mine = which === "changes" ? contract.counts?.changes_left_for_me : undefined;
               return (
@@ -458,12 +466,12 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
                         tabIndex={view === which ? 0 : -1}
                         onClick={() => chooseView(which)}
                         onKeyDown={(event) => arrowTab(event, index, all.length, (i) => chooseView(all[i]!))}>
-                  {which === "document" ? "Document" : "Changes"}
+                  {which === "document" ? "Contract" : which === "changes" ? "Changes" : "Report"}
                   {mine ? <span className="ws-filter__n" aria-label={`${mine} yours`}>{mine}</span> : null}
                 </button>
               );
             })}
-          </div>
+          </div>)}</ReportTabGate>
         </div>
       ) : null}
       </RecordHeader>
@@ -517,15 +525,16 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
       {/* the view the record's tabs choose (WAI-ARIA tabpanel; `display: contents`, so the
           workspace's own layout is untouched) */}
       {/* #9: the unselected tab's panel stays in the DOM, hidden, so its aria-controls resolves */}
-      {version && !phone && changesFeed.enabled ? (
-        <div role="tabpanel" hidden id={`ws-view-${view === "changes" ? "document" : "changes"}`}
-             aria-labelledby={`ws-viewtab-${view === "changes" ? "document" : "changes"}`} />
-      ) : null}
+      {version && !phone && changesFeed.enabled ? (["document", "changes", "report"] as const).filter((w) => w !== view).map((w) => (
+        <div key={w} role="tabpanel" hidden id={`ws-view-${w}`} aria-labelledby={`ws-viewtab-${w}`} />
+      )) : null}
       <div className="ws-viewpanel" {...(version && !phone && changesFeed.enabled
         ? { role: "tabpanel", id: `ws-view-${view}`, "aria-labelledby": `ws-viewtab-${view}` } : {})}>
       {/* AM-293: the reply's banner (its files, "send it") only once nothing is open —
           at Ready to send, or once it went out. While a point is open the stage reads
           With Legal and nothing here offers it as sendable. */}
+      {/* U2 (UI-03c): the version's banner and the fill-in fields are ONE strip over the panes */}
+      <div className="ws-docstrip">
       {version && view === "document" && version.reply
         && (version.sent_at || stageCode === "READY_TO_SEND") ? (
         <ReplyNotice version={version} versions={versions} canSend={!!changeList?.can_send && viewer !== "legal"} />
@@ -536,9 +545,12 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
       ) : version && view === "document" && version.package ? (
         <PackageCard version={version} versions={versions}
                      filesOpen={stageCode === "READY_TO_SEND" || stageCode === "READY_TO_SIGN" || stageCode === "SIGNED"} />
-      ) : null}{version && view === "document" && isLatest ? <FinalCheckFailed version={version} /> : null}
+      ) : null}
+      {/* r4 (owner: one strip): the fill-in fields stay in the strip on a phone too, one row */}
+      {view === "document" ? fillIn : null}
+      </div>
+      {version && view === "document" && isLatest ? <FinalCheckFailed version={version} /> : null}
       {view === "document" ? <AmendmentsPanel contract={contract} canStart={canAmend} /> : null}
-      {view === "document" ? <FillInFields contractId={contract.id} onSaved={() => { openVersion(null); void load(); }} /> : null}
       {/* B3 page 1: an old Markdown reading keeps its marks; a pinned reading is never re-read
           (rules 16/17), so the way out is the same file as a new version */}
       {version && versions.find((v) => v.id === version.id)?.reader_outdated ? (
@@ -553,7 +565,9 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
                       onPrepared={() => { setView("document"); openVersion(null); }} />
       ) : null}
 
-      {version && changesFeed.enabled && view === "changes" && stageCode === "FINAL" ? (
+      {version && view === "report" ? (
+        <ReportView />
+      ) : version && changesFeed.enabled && view === "changes" && stageCode === "FINAL" ? (
         <ClosedPanel what="changes" />
       ) : version && changesFeed.enabled && view === "changes" ? (
         <ChangesPane contractId={contract.id} versions={versions} changes={changesFeed}
@@ -623,7 +637,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
       )}
       </div>
       {phone && version ? (
-        <PhoneBar view={view === "changes" ? "changes" : phoneTab} onView={choosePhone}
+        <PhoneBar view={view === "changes" ? "changes" : view === "report" ? null : phoneTab} onView={choosePhone}
                   changesBadge={changesFeed.enabled ? (contract.counts?.changes_left_for_me ?? null) : undefined}
                   askOpen={phoneAsk && view !== "changes"} onAsk={openPhoneAsk} />
       ) : null}
@@ -632,13 +646,6 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
     </AskIntentProvider>
     </HighlightProvider>
   );
-}
-
-/** A version as the header names it: "Version 2 of 3, client's markup (latest)" — no
- *  middot (page 2). `of` only where versions are chosen between. */
-function versionOption(n: number, role: string | null | undefined, latest: boolean, of?: number): string {
-  return `Version ${n}${of ? ` of ${of}` : ""}${role ? `, ${role.charAt(0).toLowerCase()}${role.slice(1)}` : ""}`
-    + (latest ? " (latest)" : "");
 }
 
 /** The findings state machine wraps the whole page when a version exists (the
@@ -664,212 +671,5 @@ function MaybeFindings({
     <FindingsProvider contractId={contractId} ownerId={ownerId} version={version} signed={signed} onChanged={onChanged}>
       {children}
     </FindingsProvider>
-  );
-}
-
-/** The report, under ⋯: it opens the report view, where PDF and Word download beside the
- *  preview (owner, 2026-10-22). Absent until the Review exists (no fake control). */
-function ReportMenuItem() {
-  const { state } = useFindingsState();
-  const { can } = useSession();
-  if (state.kind !== "ready" && state.kind !== "in-flight" && state.kind !== "failed") return null;
-  if (!can(P.REPORT_VIEW)) return null;
-  return (
-    <Link role="menuitem" className="ws-menu__item" href={`/dashboard/reviews?id=${state.review.id}`}>
-      View report
-    </Link>
-  );
-}
-
-/** The contract page's header (cross-page pass): `PageHeader` with the deal's facts and the
- *  ONE primary step `nextStep` resolves for this reader from the server's stage, counts
- *  and permissions. The pane that owns each act does it (`useStep`); this only asks. */
-function RecordHeader({
-  contract, latest, version, view, viewer, canAnswer, company, onCompany, onView, onReload, onRefresh, secondary, children,
-  packageReady = false, versionMeta,
-}: {
-  packageReady?: boolean;
-  /** which version is on screen (and, with more than one, the choice between them) */
-  versionMeta?: React.ReactNode;
-  contract: Contract; latest: DocumentVersion | null; version: DocumentVersion | null;
-  view: "document" | "changes"; viewer: StageViewer; canAnswer: boolean; company: Counterparty | null;
-  onCompany: () => void; onView: (which: "document" | "changes") => void; onReload: () => void; onRefresh: () => Promise<void>;
-  secondary: React.ReactNode; children: React.ReactNode;
-}) {
-  const { identity } = useSession();
-  const findings = useFindingsStateOptional();
-  const reviewId = findings && findings.state.kind === "ready" ? findings.state.review.id : null;
-  const [assign, setAssign] = useState<ReviewAssignments | null>(null);
-  useEffect(() => {
-    if (!reviewId) return;
-    let cancelled = false;
-    api.reviewAssignments(reviewId).then((got) => { if (!cancelled) setAssign(got); })
-      .catch(() => { /* nothing to show: the control stays absent */ });
-    return () => { cancelled = true; };
-  }, [reviewId]);
-  /** B6: who holds the review changed — the stage, the counts and the Summary are read
-   *  again from the server, so "Send to client" or "not sent yet" never wait for a reload */
-  const assigned = (next: ReviewAssignments) => {
-    setAssign(next);
-    findings?.refresh();
-  };
-  const signedAt = contract.negotiation_stage?.stage === "SIGNED" ? contract.negotiation_stage.since : null;
-  const stageNow = contract.negotiation_stage?.stage;
-  // N15: who holds the review is said only while it is with them — never once Legal
-  // finished or the deal moved on
-  const holder = stageNow === "INTERNAL_REVIEW" ? assign?.assigned[0] : undefined;
-  // AM-318: the final contract waits on Legal's decision on the contract
-  const finalLatest = !!latest && !!(latest.package || latest.final_copy);
-  // only with something for Legal to decide, and never while the paper is with the client
-  // D1: "already with Legal" holds at every stage, from the server's one fact
-  const canSendToLegal = canSendToLegalFor({ stage: stageNow, counts: contract.counts, finalLatest, assign });
-  const ours = isOurs(latest);
-  const owned = contract.owner_id === identity?.user_id;
-  const changesForMe = contract.counts?.changes_left_for_me ?? 0;
-  // LA-18: "Answer changes" leads only for whoever the To-do gives the changes to — the
-  // owner or a collaborator (`AM-259`); asked only when it can matter
-  const [collaborator, setCollaborator] = useState(false);
-  useEffect(() => {
-    if (owned || !changesForMe || !identity) return;
-    let cancelled = false;
-    api.collaborators(contract.id)
-      .then((got) => { if (!cancelled) setCollaborator(got.collaborators.some((p) => p.id === identity.user_id)); })
-      .catch(() => { /* not one: the step stays secondary */ });
-    return () => { cancelled = true; };
-  }, [owned, changesForMe, identity, contract.id]);
-  const step = findings?.reference ? null : nextStep({
-    stage: contract.negotiation_stage?.stage, counts: contract.counts, viewer, canAnswer, canSendToLegal,
-    replyReady: !!latest?.reply && !latest.sent_at,
-    draftUnsent: ours && !latest?.reply && !latest?.package && !latest?.sent_at,
-    packageReady, packageUnsent: !!latest?.package && !latest.sent_at, amendment: contract.contract_type === "AMENDMENT",
-    finalLatest, answersChanges: owned || collaborator,
-  });
-  /** Where the act lives: switch to its tab first, then ask its pane. */
-  const go = (kind: StepKind, tab: "document" | "changes") => {
-    if (view !== tab) { onView(tab); window.setTimeout(() => runStep(kind), 60); } else runStep(kind);
-  };
-  let primary: React.ReactNode = null;
-  if (step && reviewId && assign && step.kind === "sendToLegal") {
-    primary = <SendToLegal reviewId={reviewId} data={assign} onChange={assigned} label={step.label} primary />;
-  } else if (step && latest && (step.kind === "sendReply" || step.kind === "sendToClient"
-                                 || step.kind === "downloadFinal")) {
-    primary = <SendOut version={latest} label={step.label} onSent={onReload} />;
-  } else if (step) {
-    // preparePackage: Changes; prepareFinal: the dialog on either tab
-    const tab = step.kind === "decide" || step.kind === "recordDecision" ? "document" : step.kind === "prepareFinal" ? view : "changes";
-    primary = (
-      <button type="button" className="ws-btn ws-btn--sm ws-btn--primary" onClick={() => go(step.kind, tab)}>
-        {step.label}
-      </button>
-    );
-  }
-  return (
-    <PageHeader wide title={contract.name} back={{ href: "/contracts", label: "Contracts" }}
-      meta={<>
-        {contract.negotiation_stage ? (
-          <StageBadge stage={contract.negotiation_stage} counts={contract.counts} viewer={viewer} final={finalLatest}
-                      unsent={canSendToLegal} ourTurn={!!step} />
-        ) : null}
-        {/* P-1: the contract's own declared state (Draft / Active / Superseded), read back in
-            words beside the deal stage (restored 2026-11-05). Once signed, the stage says it
-            and a declared "Draft" beside "Signed" would contradict it, so it is not shown. */}
-        {/* the deal stage already says where a draft stands, so a declared "Draft" is said
-            only when there is no stage; Active / Superseded add information and stay */}
-        {signedAt || (contract.status === "DRAFT" && contract.negotiation_stage) ? null : (
-          <span className="ws-record__status" title="Contract status, as declared">
-            {contractStatusLabel(contract.status)}
-          </span>
-        )}
-        {versionMeta}
-        <GovernedByLink contract={contract} />
-        {contract.made_from ? (
-          <span>Made from {contract.made_from.name ?? templateName(contract.made_from)}, version {contract.made_from.version}
-            {contract.made_from.withdrawn ? <span className="ws-record__quiet">, a template that has since been withdrawn</span> : null}</span>
-        ) : null}
-        {/* AB-13 r7 — the LINKED company wins; linked, it opens every document for it */}
-        {company ? (
-          <button type="button" className="ws-linkbtn" onClick={onCompany}>{company.name}</button>
-        ) : version?.counterparty || contract.counterparty_id ? (   /* held while the client's name loads */
-          <span title="Client, as declared for this version">{version?.counterparty ?? <span className="ws-record__hold" aria-hidden="true" />}</span>
-        ) : null}
-        {/* AB-13: the declared effective date, said where the reader reads (absent when undeclared) */}
-        {version?.effective_date ? (
-          <span title="Effective date, as declared">Effective {shortDate(version.effective_date)}</span>
-        ) : null}
-        <span className="ws-record__owner">Owned by <strong>{owned ? "you" : contract.owner_name ?? "—"}</strong></span>
-        {holder ? (
-          <span className="ws-send">
-            With <strong>{holder.name || holder.email}</strong> since {shortDate(holder.assigned_at)}
-            {/* batch 3+4: Legal reads the note in the deal brief, beside "Add what we told them" */}
-            {holder.note && viewer !== "legal" ? <span className="lm-sendlegal__said">Note for Legal: “{holder.note}”</span> : null}
-            {/* UI-02: asks first; the stage and brief are re-read silently after (no page flash) */}
-            {assign?.can_send && reviewId ? (
-              <TakeBackFromLegal reviewId={reviewId} holder={holder} onDone={(got) => { assigned({ ...assign, assigned: got }); return onRefresh(); }} />
-            ) : null}
-          </span>
-        ) : null}
-        {signedAt ? <span className="lm-signed-on"><IconCheck size={14} />Signed on {shortDate(signedAt)}</span> : null}
-      </>}
-      secondary={<>
-        {secondary}
-        {/* in the actions row, not the meta line: it arrives after its own fetch, and on a
-            phone the meta line wrapped it onto a new row — the page jumped (CLS) */}
-        <CollaboratorsControl contractId={contract.id} />
-        {signedAt ? <RecordSigning contractId={contract.id} label="Signing record" onSigned={onReload}
-                                   versions={contract.document_versions} /> : null}
-        {canSendToLegal && reviewId && assign && step?.kind !== "sendToLegal" ? (
-          <SendToLegal reviewId={reviewId} data={assign} onChange={assigned} label={ACTION.sendToLegal} />
-        ) : null}
-      </>}
-      primary={primary}>
-      {children}
-    </PageHeader>
-  );
-}
-
-/**
- * Every document for one company — AB-13 r3, the manager's "related documents".
- *
- * The list is DERIVED from the counterparty link, not from any document-to-
- * document relationship: the server returns the contracts this caller may
- * already see, so nothing here widens disclosure. Archived deals are included
- * and SAID to be archived, because a company's history is not a working list
- * and AB-12 r6 destroys nothing.
- */
-function CompanyDocuments({
-  company, currentId, onClose,
-}: { company: Counterparty; currentId: string; onClose: () => void }) {
-  const contracts = company.contracts ?? [];
-  return (
-    <Dialog onClose={onClose} titleId="ws-company-title">
-        <h2 id="ws-company-title">{company.name}</h2>
-        {company.industry ? <p className="ws-pane__note">{company.industry}</p> : null}
-        {company.relationship_notes ? (
-          <p className="ws-pane__note">{company.relationship_notes}</p>
-        ) : null}
-        {contracts.length === 0 ? (
-          <p className="ws-pane__note">
-            No other documents are linked to this company yet.
-          </p>
-        ) : (
-          <ul className="ws-companydocs">
-            {contracts.map((c) => (
-              <li key={c.id}>
-                <Link href={`/dashboard?id=${c.id}`} onClick={onClose}>{c.name}</Link>
-                {c.contract_type ? (
-                  <span className="ws-chip ws-chip--type">{c.contract_type}</span>
-                ) : null}
-                {c.archived_at ? <span className="ws-chip">Archived</span> : null}
-                {c.id === currentId ? (
-                  <span className="ws-pane__note">open now</span>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        )}
-        <div className="ws-modal__acts">
-          <button type="button" className="ws-btn" onClick={onClose}>Close</button>
-        </div>
-    </Dialog>
   );
 }

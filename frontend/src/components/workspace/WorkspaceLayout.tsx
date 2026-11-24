@@ -326,7 +326,7 @@ export function WorkspaceLayout({
               onClick={() => setTab(region)}
               onKeyDown={(event) => arrowTab(event, index, tabbed.length, (i) => setTab(tabbed[i]!))}
             >
-              {/* "Contract" here: the record's own tab row above already says "Document". */}
+              {/* "Contract": the same word as the record's own tab row (U2 r4) */}
               {region === "document" ? "Contract" : LABEL[region]}
             </button>
           ))}
@@ -469,7 +469,8 @@ export type PhoneView = Region | "changes";
  * version select) that came before any content.
  */
 export function PhoneBar({ view, onView, changesBadge, askOpen, onAsk }: {
-  view: PhoneView;
+  /** null: a view the bar has no tab for (the report, U2 r4) — no tab is marked current */
+  view: PhoneView | null;
   onView: (view: PhoneView) => void;
   /** Absent: the contract has no client changes, so there is no Changes tab. */
   changesBadge?: number | null | undefined;
@@ -494,7 +495,7 @@ export function PhoneBar({ view, onView, changesBadge, askOpen, onAsk }: {
           return (
             <button key={v} type="button" role="tab" id={`ws-tab-${v}`} aria-selected={on}
                     aria-controls={v === "changes" ? undefined : `ws-pane-${v}`}
-                    tabIndex={on || (askOpen && index === 0) ? 0 : -1}
+                    tabIndex={on || ((askOpen || view === null) && index === 0) ? 0 : -1}
                     onClick={() => onView(v)} onKeyDown={(event) => arrowTab(event, index, views.length, (i) => onView(views[i]!))}>
               <span className="ws-phonebar__icon">
                 {ICON[v]}

@@ -442,6 +442,9 @@ def _units(clauses: list[Clause]) -> list[dict[str, Any]]:
         # keyed by the parent unit itself (its first row), never by its words
         unit["group"] = None if parent is None or numbers[_num(parent["number"])] < 2 \
             else {"key": parent["evidence_ids"][0], "name": parent["name"]}
+        # U2 (UI-21): the top-level clause's own heading, so the Changes list names every
+        # group ("1 Definitions") — presentation only, never a mapping or routing input
+        unit["top_heading"] = parent["heading"] if parent is not None else None
     return units
 
 
@@ -1054,7 +1057,7 @@ def _tracked(kind: str, i: int | None, j: int | None, old: list[dict],
 
 def _clause(unit: dict) -> dict:
     return {"number": unit["number"], "heading": unit["heading"], "name": unit["name"],
-            "group": unit["group"]}
+            "group": unit["group"], "top_heading": unit.get("top_heading")}
 
 
 def row_clause(o: dict | None, n: dict | None, old: list[dict], new: list[dict],
@@ -1084,6 +1087,11 @@ def clause_label(clause: dict, heading: bool = True) -> str | None:
 #: `AM-299` r1 split (Batch 1, proposed): why a NEGATIVE row goes to Legal, in three
 #: words — never a routing input; `effect_for_us` and the route stay as they are
 WORSE, ABSENT, REVIEW, NOT_MEASURED = "WORSE", "ABSENT", "REVIEW", "NOT_MEASURED"
+#: U2 r4 (M2): a standard reaches the clause but its Finding could not be evaluated
+#: (AMBIGUOUS, UNRESOLVED, UNABLE_TO_EVALUATE, MISSING on our row) — said apart from
+#: NOT_MEASURED (no Finding at all) so no screen claims "no standard" where one exists
+#: (rules 14/15). Display only: never a routing, effect or count input.
+UNCLEAR = "UNCLEAR"
 _MEASURED_AGAINST = (FindingClassification.DEVIATION.value,
                      FindingClassification.CONFLICT.value)
 _COMPARED = (FindingClassification.MATCH.value, *_MEASURED_AGAINST)
@@ -1096,8 +1104,9 @@ def _measured(effect: str, kind: str, before: list[dict], after: list[dict],
     favour on the returned clause, an `AM-224` reason it moves risk onto us, or our
     measured clause deleted. ABSENT: the client's paper lacks the point (MISSING).
     REVIEW: a standard did measure the clause and nothing says worse (a settled deviation,
-    `AM-317` r1's changed words still matching). Anything else — unable to evaluate,
-    nothing measures it — is NOT_MEASURED; neither is ever "worse" (rule 15).
+    `AM-317` r1's changed words still matching). Anything else is NOT_MEASURED when
+    nothing measures it, UNCLEAR when a Finding exists but was unable to evaluate (U2 r4);
+    neither is ever "worse" (rule 15).
     ``changed`` (batch 8 R3c-2, `AM-462`): the Findings that read a row the client
     changed. A deviation read only on rows the client left as we sent them is REVIEW —
     and only where our own version gave the same standard the same result; otherwise it
@@ -1117,7 +1126,7 @@ def _measured(effect: str, kind: str, before: list[dict], after: list[dict],
         return {"measured": ABSENT}
     if any(f["classification"] in _COMPARED for f in (*before, *after)):
         return {"measured": REVIEW}
-    return {"measured": NOT_MEASURED}
+    return {"measured": UNCLEAR if (*before, *after) else NOT_MEASURED}
 
 
 def _side(unit: dict | None, comments: bool = True) -> dict | None:
@@ -1679,7 +1688,8 @@ def paper_first(db: DBSession, contract: M.Contract, after: M.DocumentVersion, *
         out.append({
             "row_key": key, "kind": THEIRS_KIND, "moved": False,
             "clause": _clause(here[0]) if here else
-            {"number": None, "heading": None, "name": None, "group": None},
+            {"number": None, "heading": None, "name": None, "group": None,
+             "top_heading": None},
             # every clause the point was read in; none confirmed — the clauses that
             # may hold it, unranked and without a passage (nothing chose among them)
             "clauses": [_clause(u) for u in here],

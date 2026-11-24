@@ -2,20 +2,68 @@
    status sentence is the one strong line; everything under it is quiet: the client's
    words in the serif we read contracts in, our own notes in the sans. */
 .lm-brief {
-  margin: 0 var(--s-4) var(--s-3); padding: var(--s-3) var(--s-4);
-  margin-inline: 0;
-  background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-card);
-  color: var(--c-text); font-size: var(--t-body); line-height: var(--t-body-lh);
+  margin: 0; padding: 0; color: var(--c-text); font-size: var(--t-body); line-height: var(--t-body-lh);
 }
 .lm-brief > h2 { font-weight: 600; }
-.lm-brief__skel { display: block; width: 45%; height: var(--t-body-lh); }
+/* U2 (UI-03/04): ONE row above the tabs — the status, the not-marked count, "Open the brief".
+   The skeleton is the same row, so nothing below it moves when the brief arrives. */
+.lm-brief__row {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-1) var(--s-4);
+  min-block-size: calc(var(--s-6) + var(--s-2)); padding-block: var(--s-1); border-top: 1px solid var(--c-line);
+}
+.lm-brief__skel { display: block; width: 45%; height: var(--t-subsection-lh); }
 .lm-brief__status {
-  margin: 0; font-size: var(--t-subsection); line-height: var(--t-subsection-lh); font-weight: 600;
+  margin: 0; min-width: 0; font-size: var(--t-subsection); line-height: var(--t-subsection-lh); font-weight: 600;
 }
 .lm-brief .ws-attn { margin: 0; }
+.lm-brief__flag { display: inline-flex; align-items: center; gap: var(--s-1); font-size: var(--t-dense);
+  line-height: var(--t-dense-lh); color: var(--c-text-2); }
+.lm-brief__flag svg { color: var(--attention); flex: none; }
+/* r4: quieter than "Add colleague" — a tertiary text button with its icon */
+.lm-brief .lm-brief__open { margin-inline-start: auto; display: inline-flex; align-items: center; gap: var(--s-2);
+  background: none; border-color: transparent; color: var(--c-action); }
+.lm-brief .lm-brief__open:hover { background: var(--c-action-tint); }
+.lm-brief__openshort, .lm-brief__count { display: none; }
+.lm-brief__count { margin-inline-start: var(--s-1); }
 .lm-brief__lead { margin: var(--s-1) 0 0; color: var(--c-text-2); }
 .lm-brief__toggle { margin-top: var(--s-2); min-height: 24px; font-size: var(--t-dense); }
 .lm-brief__toggle, .lm-brief__acts .ws-linkbtn, .lm-brief__links .ws-linkbtn { display: inline-flex; align-items: center; }
+/* U2 r4: the whole brief, DOCKED beside the panes (Juro's and SpotDraft's right sidebar). It
+   starts where the record header ends (its top is measured when it opens) and the panes below
+   the header give up its width — the header and the tabs stay put, nothing is covered. */
+.ws-recordpage { --brief-w: min(28rem, 36vw); }
+.lm-briefpanel {
+  position: fixed; z-index: 5; top: var(--ws-shell-h); bottom: 0; inset-inline-end: 0;
+  inline-size: var(--brief-w); display: flex; flex-direction: column;
+  background: var(--c-surface); border-inline-start: 1px solid var(--c-line);
+}
+.ws-recordpage:has(.lm-briefpanel) .ws-viewpanel > *,
+.ws-recordpage:has(.lm-briefpanel) > .ws-compare { margin-inline-end: var(--brief-w); }
+/* r5: the one-column layout (641–899) keeps the phone's bottom bar: the panel stops above it */
+@media (max-width: 899px) { .lm-briefpanel { bottom: calc(var(--s-8) + var(--s-1) + env(safe-area-inset-bottom)); } }
+/* a phone: a modal full-height sheet (`Dialog`: focus trapped, the page inert) */
+.lm-briefsheet .ws-modal__box { position: fixed; inset: 0; inline-size: 100vw; max-inline-size: none;
+  block-size: 100dvh; max-block-size: none; border-radius: 0; padding: 0; display: flex; flex-direction: column; }
+.lm-briefpanel__head { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-3) var(--s-4);
+  border-bottom: 1px solid var(--c-line); }
+.lm-briefpanel__head h2 { margin: 0; flex: 1; font-size: var(--t-section); line-height: var(--t-section-lh); font-weight: 600; }
+.lm-briefpanel__head h2:focus { outline: none; }
+.lm-briefpanel__head h2:focus-visible { outline: 2px solid var(--c-action); outline-offset: 2px; }
+.lm-briefpanel__close { inline-size: calc(var(--s-6) + var(--s-1)); padding: 0; justify-content: center; }
+.lm-briefpanel__body.lm-brief__body { flex: 1; min-height: 0; overflow-y: auto; margin: 0; padding: var(--s-4);
+  grid-template-columns: minmax(0, 1fr); align-content: start; }
+.lm-briefpanel__status { grid-column: 1 / -1; margin: 0; font-size: var(--t-subsection);
+  line-height: var(--t-subsection-lh); font-weight: 600; }
+/* who has it and the note for Legal: upright body text, never the italic serif (UI-03) */
+.lm-briefwho { display: grid; gap: var(--s-1); }
+.lm-briefwho .lm-brief__h ~ .lm-brief__h { margin-top: var(--s-3); }
+.lm-briefwho__line, .lm-briefwho__note { margin: 0; font-size: var(--t-body); line-height: var(--t-body-lh); }
+.lm-briefwho__note { white-space: pre-line; max-inline-size: 68ch; }
+.lm-briefwho__earlier { margin-top: var(--s-2); font-size: var(--t-dense); line-height: var(--t-dense-lh); }
+.lm-briefwho__earlier summary { cursor: pointer; min-block-size: 24px; color: var(--c-text); }
+.lm-briefwho__earlier ul { margin: var(--s-2) 0 0; padding: 0; list-style: none; display: grid; gap: var(--s-3); }
+.lm-briefwho__earlier li { display: grid; gap: var(--s-1); }
+.lm-briefwho .lm-brief__meta { margin-top: var(--s-3); }
 .lm-brief__body {
   display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: var(--s-3) var(--s-6);
   margin-top: var(--s-3);
@@ -42,10 +90,6 @@
 .lm-brief__stale { margin: var(--s-1) 0 0; font-size: var(--t-dense); color: var(--c-text-2); }
 .lm-brief__mistake { margin: 0; }
 .lm-brief__toldtext { white-space: pre-line; }
-.lm-brief__note {
-  margin: var(--s-3) 0; padding: var(--s-2) var(--s-3); border-left: 2px solid var(--c-line-strong);
-  color: var(--c-text-2); white-space: pre-line;
-}
 .lm-brief__form { display: grid; gap: var(--s-1); margin-top: var(--s-2); }
 .lm-brief__form textarea, .lm-brief__form input {
   font: inherit; font-size: var(--t-dense); padding: var(--s-2); border: 1px solid var(--c-line-strong);
@@ -55,10 +99,21 @@
 .lm-brief__formacts { display: flex; justify-content: flex-end; gap: var(--s-2); margin-top: var(--s-2); }
 .lm-brief .ws-btn--sm { min-height: 32px; }
 @media (max-width: 900px) {
-  .lm-brief { margin: 0 0 var(--s-2); padding: var(--s-3); }
   .lm-brief__body { grid-template-columns: minmax(0, 1fr); }
+  /* the phone: the status keeps two lines at most, its height reserved (UI-04); the panel is
+     a full-height sheet */
+  /* two status lines (2 × 24) plus the row's own padding, reserved before the brief arrives */
+  .lm-brief__row { flex-wrap: nowrap; min-block-size: calc(var(--s-7) + 2 * var(--s-1)); }
+  /* r4: never clamped — the stage words are dropped instead (BRIEF_COPY.withoutStage) */
+  .lm-brief__status { flex: 1; font-size: var(--t-body); line-height: var(--t-body-lh); }
+  /* the not-marked count is the Brief button's badge here; the line names it to readers */
+  .lm-brief__flag { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .lm-brief__count { display: inline-flex; }
+  .lm-brief__open { flex: none; }
+  .lm-brief__openlong { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .lm-brief__openshort { display: inline; }
   /* beats `.ws-record .ws-linkbtn` (24px): a phone's targets are 44 */
-  .lm-brief .lm-brief__toggle, .lm-brief .ws-btn--sm, .lm-brief .lm-brief__links .ws-linkbtn,
+  .lm-brief .lm-brief__toggle, .lm-brief .ws-btn--sm, .lm-brief .lm-briefpanel__close, .lm-brief .lm-brief__links .ws-linkbtn,
   .lm-brief .lm-brief__acts .ws-linkbtn { min-height: 44px; min-block-size: 44px; }
 }
 /* round 4: Legal's candidate clauses under a whole-contract point — a quiet second line */
@@ -120,3 +175,7 @@
 @media (max-width: 600px) {
   .lm-prior .lm-prior__open, .lm-measured__details summary { min-height: 44px; display: inline-flex; align-items: center; }
 }
+/* r4: one section pattern in the panel — an h3 (.lm-brief__h), then 15/24 body text */
+.lm-briefpanel .lm-brief__counts, .lm-briefpanel .lm-brief__more, .lm-briefpanel .lm-measured,
+.lm-briefpanel .lm-prior, .lm-briefsheet .lm-brief__counts, .lm-briefsheet .lm-brief__more,
+.lm-briefsheet .lm-measured, .lm-briefsheet .lm-prior { font-size: var(--t-body); line-height: var(--t-body-lh); }

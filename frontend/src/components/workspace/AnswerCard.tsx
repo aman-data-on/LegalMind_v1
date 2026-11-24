@@ -9,6 +9,7 @@
  * still submits every answer (AM-317 r2: no bulk answer).
  */
 
+import { displayCaps } from "@/lib/templates";
 import { useEffect, useState } from "react";
 
 import { api, describeError } from "@/lib/api";
@@ -19,7 +20,7 @@ import {
 } from "@/lib/changes";
 import { formatDate } from "@/lib/dates";
 import type { Tie, Told } from "@/lib/dealBrief";
-import { CARD_COPY, REOPEN_COPY, ROW_STATUS, TIE_COPY } from "@/lib/labels";
+import { CARD_COPY, LAWYER_COPY, REOPEN_COPY, ROW_STATUS, TIE_COPY } from "@/lib/labels";
 import type { Evaluation, Finding } from "@/lib/types";
 import { StatusChip, chipStatus } from "@/components/StatusChip";
 import { toast } from "@/components/Toast";
@@ -31,7 +32,7 @@ import { EscalateControl } from "./EscalateControl";
 import { USER_STATUS_LABELS, requirementTitle } from "./findingLanguage";
 import { IconCheck, IconClock, IconLock } from "./icons";
 import { OfferLine } from "./OfferPlaybook";
-import { FromOurStandard, LetteredPoints } from "./LawyerView";
+import { FromOurStandard, LetteredPoints, standardSilent } from "./LawyerView";
 import { WordComments } from "./WordComments";
 
 /** THE status of a change, the same words on its row and its card (one per row). */
@@ -192,23 +193,26 @@ export function AnswerCard({ change, list, contractId, onAnswered, onReload, inP
   const point = open[0];
   const waiting = given?.answer === "write_wording" && !!change.waiting_for_approval;
   const prepared = preparedAnswer(change, actions);
+  const oneLine = legal && actions.length > 0 && standardSilent(change);
 
   return (
     <div className="cx-answer">
       <header className="cx-answer__head">
-        <h3 title={where(change)}>{rowLabel(change, "")}</h3>
+        <h3 title={where(change)}>{displayCaps(rowLabel(change, ""))}</h3>
         {/* batch 3+4: ONE status label for this reader, the row's own; the detail below */}
         <p className="cx-line1"><RowStatus change={change} list={list} /></p>
       </header>
       <dl className="cx-details">
-        <div><dt>{CARD_COPY.standard}</dt><dd>
+        {/* U2 r4 (UI-07): "no standard" said once — for Legal here, in the grid; for the deal
+            owner in the "For us" line — never a second or third time below */}
+        {!word && change.route_reason !== "MEASURED_BY_A_STANDARD" && !oneLine ? null : <div><dt>{CARD_COPY.standard}</dt><dd>
           {word ? <StatusChip status={chipStatus(readerStatus(change)!, readerFavour(change))} decided={changeBucket(change) === "decided" || null} />
-            : change.route_reason === "MEASURED_BY_A_STANDARD" ? CARD_COPY.covers : CARD_COPY.noFinding}
+            : change.route_reason === "MEASURED_BY_A_STANDARD" ? CARD_COPY.covers : LAWYER_COPY.standardSilent}
           {point && requirementTitle({ code: point.requirement_code }) !== rowLabel(change, "")
             ? <span> {requirementTitle({ code: point.requirement_code })}</span> : null}
-        </dd></div>
+        </dd></div>}
         <div><dt>{CARD_COPY.forUs}</dt><dd><ForUs effect={change.effect_for_us} measured={change.measured} />
-          {asking ? null : <span> {effectSentence(change.effect_for_us, change.measured)}</span>}</dd></div>
+          {asking || oneLine ? null : <span> {effectSentence(change.effect_for_us, change.measured)}</span>}</dd></div>
         <div><dt>{CARD_COPY.change}</dt><dd>{rowMeta(change, false)}{change.moved ? CARD_COPY.moved : ""}</dd></div>
         {routeWhy && !asking ? <div><dt>{CARD_COPY.who}</dt><dd>{routeWhy}</dd></div> : null}
       </dl>
@@ -234,9 +238,7 @@ export function AnswerCard({ change, list, contractId, onAnswered, onReload, inP
                 <EscalateControl finding={finding} onChanged={onReload} />
               </div>
             );
-          }) : details !== null || !change.review.after.length ? (
-            <p className="ws-pane__note">{actions.includes("keep_ours") ? CARD_COPY.noPoint : CARD_COPY.noPointNoKeep}</p>
-          ) : null}
+          }) : null}
         </section>
       ) : null}
       {/* nothing confirmed which clause holds this point: say so, never pick one */}

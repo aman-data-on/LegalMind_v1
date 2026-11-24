@@ -22,6 +22,15 @@ contract back from Legal now asks first. The client page's counts no longer run 
 owner's one-line rule with a facts line that tells rows apart, the Reviews list speaks the same words as its rows, and the report sales reads has no
 file names, "§" or "analysed", and says what Export will download.
 
+**2026-11-24 — UI batch U2 "workspace layout", AB-225 (BUILT, not deployed).** A contract now opens with the
+document near the top: one line of facts, one line saying where the deal stands, and the whole brief in a panel
+beside the contract that never pushes it down (desktop panes start at y = 255, was 466; a phone shows contract text
+on its first screen at 390×844 and 320×844 — on the contract with a reply banner the text starts at y = 623 at 390). Layout shift stays under 0.1 at 1440, 1280, 390 and 320 for both roles; the Summary pane still shifts at 1024 for the lawyer (CLS 0.13; 0.27 on main before this batch — the owner
+accepted it as pre-existing, 2026-11-24). The owner also accepted the 320 px phone view starting the panes at y = 361
+on a With-Legal contract, because the status sentence is never cut short. A phone shows 343 px of contract text per line (the audit measured 237). Legal's four answers stay at the foot of the card. The report is the contract's
+third tab. Taking a contract back tells the lawyer, sending one tells them too, and the Sales note to Legal is
+never lost — the owner still sees it after a take-back and a re-send starts from it.
+
 **2026-11-24 — AB-223, batch 8 part B (DEPLOYED 2026-11-24 (2c40bfcf)).** When we already signed (or finalised) a contract with
 the same client, each change and point now says whether it was already in that contract or is new — only from
 contracts the reader may open, and it never changes who answers. A contract signed outside LegalMind can be filed

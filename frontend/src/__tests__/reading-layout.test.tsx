@@ -113,7 +113,8 @@ describe("the version switcher says what each version is", () => {
     const withCounts = { ...reply, reply: { to_version_id: "v2", tracked: 81, by_hand: ["Support"] } };
     const html = renderToStaticMarkup(<ReplyNotice version={withCounts} versions={all} canSend />);
     expect(html).toContain("Version 3 is our reply to the client’s version 2");
-    expect(html).toContain("81 of our changes are in it as tracked changes; 1 to restore by hand in Word (Support)");
+    // U2 r4: one short line that always shows — what to restore by hand, then the next act
+    expect(html).toContain("Restore 1 by hand in Word (Support). Email it to the client, then press Send our reply.");
     // UX Batch 2: one Preview opens the exact PDF, with Download PDF and Word inside it;
     // fetched on click, so AM-293 may still refuse it there
     expect(html).toMatch(/<\/svg> Preview<\/button>/);

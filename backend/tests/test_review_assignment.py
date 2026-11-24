@@ -373,3 +373,225 @@ def test_the_note_for_legal_is_carried_to_the_lawyer(api, db, owner, case):
     event = db.execute(select(M.AuditEvent).where(
         M.AuditEvent.action == A.REVIEW_ASSIGNED)).scalars().one()
     assert event.after_state["note"] == "Please look at 8.3"
+
+
+# ---- U2 (AB-225): the lawyer is told, and the owner's note is never lost ------------
+def _notices(db, user, kind):
+    return db.execute(select(M.Notification).where(
+        M.Notification.user_id == user.id, M.Notification.kind == kind)).scalars().all()
+
+
+def test_each_send_and_take_back_tells_the_lawyer_and_the_inbox_says_only_the_truth(
+        api, db, owner, case):
+    """AM-472/AM-474 (r2): send (A) → take back (B) → send again (C) writes a notice each
+    time, to the lawyer only; writing one marks the opposite unread one read, so the unread
+    inbox always matches who holds the contract. A same-kind notice still unread is not
+    written twice."""
+    from legalmind import notifications as N
+    review, _ = case
+    reviewer = _reviewer(db)
+    contract = db.get(M.Contract, review.contract_id)
+    sign_in(api, db, owner)
+    _send(api, review, reviewer)                                                   # A
+    api.delete(f"{V1}/reviews/{review.id}/assignments/{reviewer.id}")              # B
+    _send(api, review, reviewer)                                                   # C
+    sent, taken = _notices(db, reviewer, N.SENT_TO_LEGAL), _notices(db, reviewer, N.TAKEN_BACK)
+    assert (len(sent), len(taken)) == (2, 1)
+    assert _notices(db, owner, N.SENT_TO_LEGAL) == _notices(db, owner, N.TAKEN_BACK) == []
+    sign_in(api, db, reviewer)
+    unread = [i for i in api.get(f"{V1}/notifications").json()["data"]["items"]
+              if i["read_at"] is None and i["kind"] in (N.SENT_TO_LEGAL, N.TAKEN_BACK)]
+    assert [i["sentence"] for i in unread] == [
+        f"The owner sent {contract.name} to you for Legal review."]
+    assert unread[0]["link"] == f"/contracts/{contract.id}"
+
+
+def test_taking_back_tells_the_lawyer_named_only_while_they_can_read_it(api, db, owner,
+                                                                        case):
+    """AM-472: one notice to the lawyer it was taken from. Under REC-09 (LEGAL_REVIEW) the
+    lawyer still reads the contract, so it is named; where the assignment was the only way
+    in (AM-170 r4), the sentence says "a contract" (AM-273 m3)."""
+    from legalmind import notifications as N
+    review, _ = case
+    contract = db.get(M.Contract, review.contract_id)
+    reviewer = _reviewer(db)
+    sign_in(api, db, owner)
+    _send(api, review, reviewer)
+    assert api.delete(f"{V1}/reviews/{review.id}/assignments/{reviewer.id}").status_code == 200
+    assert len(_notices(db, reviewer, N.TAKEN_BACK)) == 1
+    assert _notices(db, owner, N.TAKEN_BACK) == []
+    sign_in(api, db, reviewer)
+    said = {i["kind"]: i["sentence"] for i in api.get(f"{V1}/notifications").json()["data"]["items"]}
+    assert said[N.TAKEN_BACK] == f"The owner took {contract.name} back from Legal."
+    # outside Legal scope the assignment was the only basis: no name
+    review.status = E.ReviewStatus.ANALYSIS_COMPLETE
+    db.flush()
+    assert api.get(f"{V1}/contracts/{contract.id}").status_code == 404
+    said = {i["kind"]: i["sentence"] for i in api.get(f"{V1}/notifications").json()["data"]["items"]}
+    assert said[N.TAKEN_BACK] == "The owner took a contract back from Legal."
+    assert contract.name not in str(api.get(f"{V1}/notifications").json())
+
+
+def test_a_re_send_says_since_the_latest_send_and_a_send_without_a_note_is_kept(
+        api, db, owner, case):
+    """U2 r2: "With X since" is the newest send, not the revived row's first one; a send
+    with no note is still an entry (its note empty), so a re-send never refills a note the
+    owner cleared."""
+    from datetime import UTC, datetime, timedelta
+    review, _ = case
+    reviewer = _reviewer(db)
+    # the first send, a week ago, and its take-back: rows INSERTED with their own earlier
+    # times (the audit trail is append-only — nothing here updates or deletes a row)
+    week, day = datetime.now(UTC) - timedelta(days=7), datetime.now(UTC) - timedelta(days=6)
+    row = M.ReviewAssignment(review_id=review.id, user_id=reviewer.id, assigned_by=owner.id,
+                             note="First", created_at=week, revoked_at=day)
+    db.add(row)
+    db.add_all([
+        M.AuditEvent(actor_id=owner.id, action=A.REVIEW_ASSIGNED, entity_type="review",
+                     entity_id=review.id, timestamp=week,
+                     after_state={"assigned_to": str(reviewer.id), "note": "First"}),
+        M.AuditEvent(actor_id=owner.id, action=A.REVIEW_ASSIGNMENT_WITHDRAWN,
+                     entity_type="review", entity_id=review.id, timestamp=day,
+                     after_state={"withdrawn_from": str(reviewer.id)})])
+    db.flush()
+    sign_in(api, db, owner)
+    got = _send(api, review, reviewer).json()["data"]
+    [held] = got["assigned"]
+    assert datetime.fromisoformat(held["assigned_at"]) > week      # L1: the re-send's own time
+    assert held["assigned_at"] == got["notes"][0]["sent_at"]
+    assert [(n["note"], n["by"]["email"]) for n in got["notes"]] == [("", owner.email),
+                                                                    ("First", owner.email)]
+
+
+def test_every_note_for_legal_is_kept_for_the_owner_only(api, db, owner, case):
+    """AM-473: a re-send never loses the earlier note; the owner reads each, with when it
+    was taken back; the lawyer's copy has no `notes` key at all (omitted, not nulled)."""
+    review, _ = case
+    reviewer = _reviewer(db)
+    sign_in(api, db, owner)
+    api.post(f"{V1}/reviews/{review.id}/assignments",
+             json={"user_id": str(reviewer.id), "note": "First: look at 8.3"})
+    out = api.delete(f"{V1}/reviews/{review.id}/assignments/{reviewer.id}").json()["data"]
+    [first] = out["notes"]
+    assert (first["note"], first["to"]["email"]) == ("First: look at 8.3", reviewer.email)
+    assert first["taken_back_at"] is not None
+    api.post(f"{V1}/reviews/{review.id}/assignments",
+             json={"user_id": str(reviewer.id), "note": "Second: and 9.1"})
+    notes = api.get(f"{V1}/reviews/{review.id}/assignments").json()["data"]["notes"]
+    assert [(n["note"], n["taken_back_at"] is None) for n in notes] == [
+        ("Second: and 9.1", True), ("First: look at 8.3", False)]
+    sign_in(api, db, reviewer)
+    seen = api.get(f"{V1}/reviews/{review.id}/assignments").json()["data"]
+    assert "notes" not in seen
+    assert seen["assigned"][0]["note"] == "Second: and 9.1"
+
+
+def test_rule_18_the_lawyer_cannot_take_back_and_out_of_scope_is_the_one_404(api, db,
+                                                                             owner, case):
+    """Sending and taking back stay the owner's (review.create, owner-resolved): the lawyer
+    is refused, a stranger gets the byte-identical 404 a missing review gets (SEC-07)."""
+    import uuid
+    review, evaluation = case
+    reviewer, stranger = _reviewer(db), make_user(db)
+    grant_role(db, stranger, P.ROLE_USER)
+    sign_in(api, db, owner)
+    _send(api, review, reviewer)
+    # the owner still never decides their own point (SEC-01)
+    assert api.post(f"{V1}/evaluations/{evaluation.id}/decisions",
+                    json={"expected_version": 0, "decision_type": "ACCEPT_DEVIATION",
+                          "justification": "x"}).status_code in (403, 404)
+    sign_in(api, db, reviewer)
+    assert api.delete(f"{V1}/reviews/{review.id}/assignments/{reviewer.id}").status_code \
+        in (403, 404)
+    sign_in(api, db, stranger)
+    hidden = api.get(f"{V1}/reviews/{review.id}/assignments")
+    missing = api.get(f"{V1}/reviews/{uuid.uuid4()}/assignments")
+    assert hidden.status_code == missing.status_code == 404
+    # byte-identical but for the per-request correlation id (as test_api_authz does)
+    def strip(r):
+        return {k: v for k, v in r.json()["error"].items() if k != "request_id"}
+    assert strip(hidden) == strip(missing)
+
+
+def test_l4_who_reads_the_owners_notes(api, db, owner, case):
+    """U2 r4 (L4): `notes` is the owner's alone. Others who may see the review get the
+    assignments without the key (omitted, never nulled); those who may not get the one 404;
+    after a transfer the new owner reads them and the old one is out of scope."""
+    import uuid as _uuid
+    review, _ = case
+    sales = M.Department(code=f"D{_uuid.uuid4().hex[:8]}", name="Sales")
+    db.add(sales)
+    db.flush()
+    lead, mate, colleague, admin, successor = (make_user(db) for _ in range(5))
+    for u in (owner, lead, mate, colleague, successor):
+        u.department_id = sales.id
+    for u in (mate, colleague, successor):
+        grant_role(db, u, P.ROLE_USER)
+    grant_role(db, lead, P.ROLE_DEPARTMENT_LEAD)
+    grant_role(db, admin, P.ROLE_PLATFORM_ADMIN)
+    db.add(M.ContractCollaborator(contract_id=review.contract_id, user_id=mate.id,
+                                  added_by=owner.id))
+    lawyer, other_lawyer = _reviewer(db, "A"), _reviewer(db, "B")
+    db.flush()
+    sign_in(api, db, owner)
+    api.post(f"{V1}/reviews/{review.id}/assignments",
+             json={"user_id": str(lawyer.id), "note": "Owner's note"})
+    url = f"{V1}/reviews/{review.id}/assignments"
+    assert api.get(url).json()["data"]["notes"][0]["note"] == "Owner's note"
+    for who in (lead, mate, other_lawyer, lawyer):
+        sign_in(api, db, who)
+        got = api.get(url)
+        assert got.status_code == 200, who.email
+        assert "notes" not in got.json()["data"], who.email
+    for who in (admin, colleague):
+        sign_in(api, db, who)
+        assert api.get(url).status_code == 404, who.email
+    # a transfer: the new owner reads the notes; the old owner is out of scope
+    contract = db.get(M.Contract, review.contract_id)
+    contract.owner_id = successor.id
+    db.flush()
+    sign_in(api, db, successor)
+    assert api.get(url).json()["data"]["notes"][0]["note"] == "Owner's note"
+    sign_in(api, db, owner)
+    assert api.get(url).status_code == 404
+
+
+def test_m1_a_send_and_take_back_loop_never_floods_the_lawyers_mail(
+        api, db, owner, case, tmp_path, monkeypatch):
+    """U2 r4 (M1): a take-back is in-app only; a send e-mails at most once per 15 minutes
+    per lawyer per contract. Every in-app notice is still written."""
+    from legalmind import notifications as N
+    monkeypatch.setenv("LEGALMIND_MAIL_SINK_DIR", str(tmp_path / "sink"))
+    review, _ = case
+    reviewer = _reviewer(db)
+    sign_in(api, db, owner)
+    for _ in range(5):
+        _send(api, review, reviewer)
+        api.delete(f"{V1}/reviews/{review.id}/assignments/{reviewer.id}")
+    mails = list((tmp_path / "sink").glob("*.eml"))          # each request commits
+    assert len(mails) == 1 and reviewer.email in mails[0].read_text()
+    assert len(_notices(db, reviewer, N.SENT_TO_LEGAL)) == 5
+    assert len(_notices(db, reviewer, N.TAKEN_BACK)) == 5
+
+
+def test_l1_the_list_the_progress_and_the_workspace_agree_on_since(api, db, owner, case):
+    """U2 r4 (L1): a re-send writes created_at = now(), so "with Legal since" is the same
+    instant on the contracts list, the review progress and the assignments."""
+    from datetime import UTC, datetime, timedelta
+    review, _ = case
+    reviewer = _reviewer(db)
+    week = datetime.now(UTC) - timedelta(days=7)
+    db.add(M.ReviewAssignment(review_id=review.id, user_id=reviewer.id, assigned_by=owner.id,
+                              created_at=week, revoked_at=week + timedelta(days=1)))
+    db.flush()
+    sign_in(api, db, owner)
+    [held] = _send(api, review, reviewer).json()["data"]["assigned"]
+    assert held["assigned_at"] > week.isoformat()
+    row = db.execute(select(M.ReviewAssignment)).scalars().one()
+    assert row.created_at.isoformat() == held["assigned_at"]
+    # the reviews list and the contract's own stage read the same row
+    listed = api.get(f"{V1}/reviews").json()["data"]
+    [mine] = [r for r in listed if r["id"] == str(review.id)]
+    stage = api.get(f"{V1}/contracts/{review.contract_id}").json()["data"]["negotiation_stage"]
+    assert mine["with_legal_since"][:19] == held["assigned_at"][:19]
+    assert stage["stage"] != "INTERNAL_REVIEW" or stage["since"][:19] == held["assigned_at"][:19]

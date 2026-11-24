@@ -16,7 +16,8 @@ describe("R2 lawyer view (display only)", () => {
     const html = renderToStaticMarkup(<LetteredPoints change={change} />).replaceAll("<!-- -->", "");
     expect(html).toContain("(a) Changed:");
     expect(html).toContain("Binds LeapSwitch; helps the client.");
-    expect(html).toContain("No standard covers this. Legal decides.");
+    // U2 (UI-07): with no standard, "From our standard" says it once — never here as well
+    expect(html).not.toContain("Legal decides.");
   });
 
   it("shows notes for Legal only when there are some", () => {
@@ -35,7 +36,8 @@ describe("R2 lawyer view (display only)", () => {
 
   it("says what our standard says, only from what the server sent (R3, rule 21)", () => {
     const silent = { triage: null, lawyer: { standards: { source: "LEGAL_DECIDES" } }, review: { after: [] } } as unknown as ClientChange;
-    expect(renderToStaticMarkup(<FromOurStandard change={silent} />)).toContain("Our standard says nothing on this.");
+    // U2 r4: with no standard the card's grid says it once; this section draws nothing
+    expect(renderToStaticMarkup(<FromOurStandard change={silent} />)).toBe("");
     const said = { triage: { topics: [{ section: "13", title: "Termination", position: "Thirty days' notice." }] },
                    lawyer: { standards: { source: "HEADING_TOPIC", topics: [] } }, review: { after: [] } } as unknown as ClientChange;
     const html = renderToStaticMarkup(<FromOurStandard change={said} />).replaceAll("<!-- -->", "");

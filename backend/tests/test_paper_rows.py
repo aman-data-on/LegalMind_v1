@@ -83,7 +83,7 @@ def test_an_unresolved_point_shows_no_passage_and_lists_its_candidates(
     row = _row(db, c, version, code)
     assert row["after"] is None and row["clauses"] == []
     assert [x["number"] for x in row["candidates"]] == ["1", "2", "3"]
-    assert row["measured"] == "NOT_MEASURED"
+    assert row["measured"] == "UNCLEAR"          # U2 r4 (M2): a standard reaches it
     assert (row["route"], row["effect_for_us"]) == ("holder", "NEGATIVE")   # unchanged
     # AM-253: the key is still the finding's first evidence row, as before
     (found,) = N._review_findings(db, review)
@@ -140,8 +140,12 @@ def test_why_a_negative_row_goes_to_legal():
     match = {"classification": "MATCH", "user_status": "ACCEPTABLE"}
     assert N._measured("NEGATIVE", "MODIFIED", [match], [match], None)["measured"] \
         == "REVIEW"                          # AM-317 r1: words changed, still matches
-    assert N._measured("NEGATIVE", "MODIFIED", [], [unable], None)["measured"] \
-        == "NOT_MEASURED"
+    # U2 r4 (M2): a Finding that exists but could not be evaluated is UNCLEAR — a standard
+    # reaches the clause — never "no standard"; nothing at all stays NOT_MEASURED
+    assert N._measured("NEGATIVE", "MODIFIED", [], [unable], None)["measured"] == "UNCLEAR"
+    for cls in ("AMBIGUOUS", "UNRESOLVED", "MISSING"):
+        assert N._measured("NEGATIVE", "MODIFIED", [{"classification": cls}], [],
+                           None)["measured"] == "UNCLEAR"
     assert N._measured("NEGATIVE", "MODIFIED", [], [unable],
                        {"reasons": [{"reason": "r", "quote": "q"}]})["measured"] == "WORSE"
     assert N._measured("NEGATIVE", "DELETED", [unable], [], None)["measured"] == "WORSE"
@@ -235,6 +239,18 @@ def test_a_sub_clause_groups_under_its_own_parent_unit():
     assert groups == [("2", "Fees are invoiced"), ("2.1", "Fees are invoiced"),
                       ("3", None), ("2", "Early exit is restricted"),
                       ("2.1", "Early exit is restricted"), ("4", None), ("4.1", None)]
+
+
+def test_every_row_carries_its_top_clause_heading_for_the_changes_list():
+    """U2 (UI-21): the Changes list names each group "1 Definitions" from the top-level
+    clause's own heading — presentation only, read from the same units."""
+    rows = [("1. DEFINITIONS", "1", "DEFINITIONS", False),
+            ("1.1 Data Centre means a facility.", "1.1", None, False),
+            ("2. Fees.", "2", None, False), ("2.1 Invoices monthly.", "2.1", None, False)]
+    units = N._units(_clauses(rows))
+    assert [(u["number"], u["top_heading"]) for u in units] == [
+        ("1", "DEFINITIONS"), ("1.1", "DEFINITIONS"), ("2", None), ("2.1", None)]
+    assert N._clause(units[1])["top_heading"] == "DEFINITIONS"
 
 
 def test_a_clause_is_said_once_with_its_own_words():

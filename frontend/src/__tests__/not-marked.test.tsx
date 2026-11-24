@@ -43,8 +43,8 @@ describe("not marked (batch 8 R2)", () => {
     expect(text(html)).toContain(NOT_MARKED_COPY.copy);
   });
 
-  it("leads the collapsed brief", () => {
-    expect(text(view(brief(), false))).toContain("17 of 22 changes not marked.");
+  it("leads the collapsed brief (U2, AM-471: the count stays on the brief's one row)", () => {
+    expect(text(view(brief(), false))).toContain("17 of 22 changes not marked");
   });
 
   it("never claims highlights were read on an older file", () => {
@@ -92,7 +92,9 @@ describe("not marked (batch 8 R2)", () => {
       can_answer: true, can_decide: false,
     } as unknown as ChangeList;
     const html = renderToStaticMarkup(<ChangesBanners data={list} />);
-    expect(html.indexOf("not-marked")).toBeLessThan(html.indexOf("Compared with version 1"));
+    // U2 r4: "Compared with version 1" sits on the bar's row above; not-marked is the first block
+    expect(html).not.toContain("Compared with version 1");
+    expect(html.indexOf("lm-notmarked")).toBeLessThan(20);
     expect(text(html)).toContain("1 of 3 changes not marked");
     expect((html.match(/lm-notmarked__open/g) ?? []).length).toBe(1);
   });

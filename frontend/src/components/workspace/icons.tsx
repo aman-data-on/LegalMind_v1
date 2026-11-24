@@ -64,6 +64,7 @@ import {
   Maximize2,
   MessageSquare,
   PanelLeft,
+  PanelRight,
   Info,
   ThumbsDown,
   ThumbsUp,
@@ -146,6 +147,7 @@ export const IconThumbsDown = decorative(ThumbsDown);
 export const IconMessage = decorative(MessageSquare);
 export const IconMore = decorative(Ellipsis);
 export const IconPanel = decorative(PanelLeft);
+export const IconPanelRight = decorative(PanelRight);
 export const IconSignOut = decorative(LogOut);
 export const IconBell = decorative(Bell);
 /** A chat's own controls in the Ask rail (`AM-116`): rename, delete. */

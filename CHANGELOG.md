@@ -9,6 +9,43 @@ No version has been released. The V1 specification is complete and implementatio
 ---
 
 ## [Unreleased]
+- AB-225 (2026-11-24, `AM-471`–`AM-474`; full-stack audit batch U2 "workspace layout"; branch `fix/ui-u2`, BUILT,
+  not deployed; no migration, no OpenAPI change (the assignments and change payloads are untyped dicts), no new
+  dependency). **Header (UI-03/35, `AM-471`):** one meta row; the deal brief is one row (status, not-marked count,
+  "Open the brief") and the whole brief opens in a side panel that never moves the document (who has it, the note
+  for Legal in upright body text, "and N more on the Changes tab"); the reply banner and the fill-in fields are one
+  strip; on a phone the header scrolls away under a fixed bar (name + a proxy of the one primary step).
+  **No layout shift (UI-04):** the brief's skeleton is its loaded row; `LoadingState` in the document pane; the page
+  count waits for every page. **Phone reading (UI-06):** `.ws-page` padding in tokens, 16 px and no sheet on a phone
+  (the text column `.ws-row__text` is 343 px at 390 and 273 at 320; the audit measured 237 at 390). **Lawyer answer (UI-07):** the answer tray sticks to the foot of the card; "No
+  standard covers this clause. Decide from the wording." said once; `NOT_MEASURED` reads "No standard settles
+  this, so Legal reviews it." (copy Legal still confirms). **Menu (UI-13):** Report is the third tab
+  (`/contracts/{id}/report`, read-only, same header; under ⋯ where no tabs show); "Compare two versions", "Compare
+  with our template", "Download version N (PDF / Word file)" by the file's own type; "Take back from Legal" in ⋯.
+  **Take back (`AM-472`–`AM-474`, owner yes):** the lawyer gets a `TAKEN_BACK` notice, and a `SENT_TO_LEGAL` one on
+  each send (one per action, the opposite unread notice marked read so the inbox shows who holds it now; named
+  only while they can read the contract); every note for Legal is kept
+  for the owner from the append-only audit trail (`notes`, owner only, omitted otherwise; no column — `AM-170` r3);
+  the brief shows "Your note to Legal (taken back {date})"; a re-send starts from the last note; the dialog says
+  "{name} gets a notice.". **Riders:** UI-14 one "Show changes" label with `aria-pressed`; UI-21 group names from
+  the new `clause.top_heading` ("1 Definitions"), one accessible name per group, row names on two lines; UI-22 the
+  filter hidden when every count is equal, "Review table" at the right. `WorkspacePage.tsx` split
+  (`WorkspaceHeader.tsx`, `ReplyNotice.tsx`): 875 → 667 lines. **Round 4 (UI critic + security/legal review):**
+  the brief panel is docked (the panes give up its width; nothing covered, header and tabs unmoved) and a modal
+  sheet on a phone; Esc never drops typed text; the header row drops the stage words instead of clamping; the
+  not-marked count rides on the phone's Brief button; fill-in fields stay in the phone strip; ⋯ in groups (16rem,
+  one line each), "Download draft version N (Word)", "Colleagues" under ⋯ on a phone; the step's button is quiet on
+  its own tab; the folded bar shows only with a step and asks it via `runStep`; the tray has an edge shadow, scroll
+  padding, 44px verdicts on a phone and lets go when a composer opens; the reply line is one short sentence that
+  always shows; Legal reads the owner's note first ("Note to Legal from {name}"); Report: the ⋯ item opens
+  `/contracts/{id}/report`, the tab shows when ready, real loading / failed / empty states, "Download PDF / Word";
+  "Contract" on both tab rows; "Owner:"; one Lucide disclosure; the change list's capitals in sentence case on
+  screen only; the document pane's layout decided before paint (1024 and 768 no longer jump) and the one-column
+  layout (< 900) stacks the header. **Server:** `TAKEN_BACK` is in-app only, a send e-mails at most once per 15
+  minutes per lawyer per contract; `measured` splits NOT_MEASURED / UNCLEAR (display only; probe over 12 pairs /
+  83 rows: 0 differences outside `measured`, 2 rows → UNCLEAR; wording awaits Legal); a re-send resets
+  `created_at` (list, reviews list and workspace agree); assignment rows are locked (`FOR UPDATE`) on send and
+  take-back; who reads `notes` is pinned by a test.
 - AB-223 (2026-11-24, `AM-464`–`AM-467`; batch 8 sub-batch B "lessons from a real client MoU"; branch
   `feat/case-lessons-b`, PR #341, DEPLOYED 2026-11-24 (2c40bfcf); no migration, no API schema change (brief, changes and angles are
   untyped dicts), no new dependency). **Already agreed before (`AM-464`):** `GET …/changes` rows carry `prior`

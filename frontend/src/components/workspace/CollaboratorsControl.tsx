@@ -7,15 +7,22 @@
  * list, and only colleagues in the owner's department are offered — the server decides
  * all of it (`can_manage`, `candidates`); this screen only shows what it was given.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type MutableRefObject } from "react";
 
 import { Dialog } from "@/components/Dialog";
 import { api, describeError, type Collaborators } from "@/lib/api";
 
 import { IconUsers } from "./icons";
 
-export function CollaboratorsControl({ contractId }: { contractId: string }) {
+export function CollaboratorsControl({ contractId, openRef, onLabel }: {
+  contractId: string;
+  /** U2 r4: a phone opens it from the ⋯ menu — the header holds this opener */
+  openRef?: MutableRefObject<(() => void) | null>;
+  /** the label the ⋯ item says, or null when there is nothing to show */
+  onLabel?: (label: string | null) => void;
+}) {
   const [open, setOpen] = useState(false);
+  const toggle = useRef<HTMLButtonElement>(null);
   const [state, setState] = useState<Collaborators | null>(null);
   const [pick, setPick] = useState("");
   const [busy, setBusy] = useState(false);
@@ -26,7 +33,13 @@ export function CollaboratorsControl({ contractId }: { contractId: string }) {
   }, [contractId]);
 
   const count = state?.collaborators.length ?? 0;
-  if (!state || (!count && !state.can_manage)) return null;
+  const shown = !!state && (count > 0 || state.can_manage);
+  const label = count ? `${count} colleague${count > 1 ? "s" : ""}` : "Add colleague";
+  useEffect(() => {
+    if (openRef) openRef.current = shown ? () => setOpen(true) : null;
+    onLabel?.(shown ? label : null);
+  }, [shown, label, openRef, onLabel]);
+  if (!state || !shown) return null;
 
   async function change(run: () => Promise<Collaborators>) {
     setBusy(true);
@@ -43,13 +56,16 @@ export function CollaboratorsControl({ contractId }: { contractId: string }) {
 
   return (
     <>
-      <button type="button" className="ws-btn ws-collab__toggle" onClick={() => setOpen(true)}
+      <button ref={toggle} type="button" className="ws-btn ws-collab__toggle" onClick={() => setOpen(true)}
               aria-label={count ? `${count} colleague${count > 1 ? "s" : ""} on this contract` : "Add a colleague"}>
         <IconUsers size={15} />
-        {count ? `${count} colleague${count > 1 ? "s" : ""}` : "Add colleague"}
+        {label}
       </button>
       {open ? (
-        <Dialog onClose={() => setOpen(false)} titleId="ws-collab-title">
+        <Dialog onClose={() => setOpen(false)} titleId="ws-collab-title"
+                // opened from ⋯ on a phone the toggle is hidden: focus goes back to ⋯
+                returnFocus={() => toggle.current?.offsetParent ? toggle.current
+                  : document.querySelector<HTMLElement>(".ws-record .ws-menu__toggle")}>
           <h2 id="ws-collab-title">Colleagues on this contract</h2>
           <p className="ws-pane__note ws-collab__intro">
             Colleagues can answer the client&apos;s changes and upload returned versions. Only the owner can decide, transfer, archive or delete.

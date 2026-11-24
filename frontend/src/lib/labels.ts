@@ -440,9 +440,9 @@ export const REPORT_COPY = {
   backToContract: "Contract",
   openContract: "Open the contract",
   /** says what the buttons download before anything downloads */
-  exportLine: "Download the report shown below:",
-  pdf: "PDF",
-  word: "Word",
+  exportLine: "The report below, as a file:",
+  pdf: "Download PDF",
+  word: "Download Word",
   preparing: "Preparing…",
   exportFailed: "The report could not be downloaded. Try again.",
 } as const;
@@ -450,14 +450,48 @@ export const REPORT_COPY = {
 /** U1 r2: one name for the deal's end (AM-318) — the brief, the list and the card. */
 export const FINAL_READY_WORDS = "Final contract ready";
 
+/** U2 (UI-13): the contract's ⋯ menu — "Compare" said once per item, the file named by its type. */
+export const MENU_COPY = {
+  compare: "Compare two versions",
+  hideCompare: "Hide version comparison",
+  compareTemplate: "Compare with our template",
+  /** the file is what was uploaded: its type from the file itself, never assumed; "draft"
+   *  while a point is open (r4: one short line, the warning one word) */
+  download: (n: number, mime: string, draft: boolean) =>
+    `Download ${draft ? "draft " : ""}version ${n} (${/pdf/i.test(mime) ? "PDF" : /word|officedocument|msword/i.test(mime) ? "Word" : "file"})`,
+  report: "View report",
+  colleagues: "Colleagues",
+} as const;
+
+/** U2 r4: the Report view's own states (the tab shows once the report is ready). */
+export const REPORT_VIEW_COPY = {
+  loading: "Loading the report…",
+  preparing: "Preparing the report…",
+  docFailed: "The report could not be loaded",
+  checking: "LegalMind is still checking this version. The report is ready when it finishes.",
+  failedTitle: "This version could not be checked",
+  failedBody: "There is no report for it. Upload the file again, or ask Legal.",
+  noneTitle: "No report yet",
+  noneBody: "A report is made once this version is checked.",
+} as const;
+
+/** U2 r4: the reply version's notice — one short line that always shows. */
+export const REPLY_NOTICE_COPY = {
+  label: "Our reply",
+  title: (n: number, theirs?: number) => `Version ${n} is our reply to the client’s version${theirs ? ` ${theirs}` : ""}`,
+  byHand: (clauses: string[]) => `Restore ${clauses.length} by hand in Word (${clauses.join(", ")}).`,
+  next: "Email it to the client, then press Send our reply.",
+  notSent: "Not yet sent to the client.",
+  sentOn: (date: string) => `Sent to the client on ${date}.`,
+} as const;
+
 /** UI-02: taking the contract back from Legal undoes the hand-off, so it asks first. */
 export const TAKE_BACK_COPY = {
-  // U1 r2: says only what the server does — the assignment is revoked; nobody is told
-  // and the note goes with it (whether to notify and keep it is the owner's call)
+  // U2 (AM-472/473, owner 2026-11-24): the lawyer gets a notice and the note is kept —
+  // so the body no longer warns that they are not told or that the note goes
   open: "Take back from Legal",
   title: "Take this contract back from Legal?",
-  body: (who: string) => `It leaves ${who}'s queue. Answers Legal already gave are kept. ${who} is not told, so let `
-    + "them know. When you send it again, write a new note.",
+  body: (who: string) => `It leaves ${who}'s queue. Answers Legal already gave are kept. ${who} gets a notice.`,
   /** a 409: someone else changed who holds it first */
   gone: "Legal no longer has this contract. Refresh to see who has it.",
   cancel: "Cancel",
@@ -698,16 +732,16 @@ export const LAWYER_COPY = {
   pointsTitle: "What the client changed, point by point",
   standardsFrom: "Our standards it touches",
   topicFrom: "Topic from the heading",
-  legalDecides: "No standard covers this. Legal decides.",
   notesTitle: "Notes for Legal",
   notesHelp: "Things to check across clauses. They are not points.",
-  tableButton: "Review table",
+  tableButton: "Open review table",
   tableTitle: "Review table of the client's changes",
   download: "Download Word file",
   tableFailed: "The review table could not be loaded",
   downloadFailed: "The Word file could not be made",
   fromStandard: "From our standard",
-  standardSilent: "Our standard says nothing on this. Decide from the clause.",
+  /** U2 (UI-07): said ONCE on the card when no standard applies */
+  standardSilent: "No standard covers this clause. Decide from the wording.",
   measuredBy: "Measured against",
   goTo: "Go to",
 } as const;
@@ -779,10 +813,39 @@ export const BRIEF_COPY = {
   title: "Deal brief",
   showAll: "Show the whole brief",
   showLess: "Show less",
+  /** U2 (UI-03/35): the brief opens beside the contract, never above it */
+  open: "Open the brief",
+  /** U2 r4: the header row says the sentence without the stage words the badge beside it
+   *  already says ("With Legal: …" → "55 changes are being answered. …"); the panel keeps it whole */
+  withoutStage: (status: string) => {
+    const rest = status.replace(/^(With Legal|Your turn|Not sent to Legal yet|With the client|On hold): /, "");
+    return rest.charAt(0).toUpperCase() + rest.slice(1);
+  },
+  ownerLabel: "Owner:",
+  assignFailed: "Who has this contract could not be loaded.",
+  /** U2 r4: the panel's own name — the word the button says */
+  panelTitle: "Brief",
+  /** the phone's narrow button; its accessible name stays `open` */
+  openShort: "Brief",
+  close: "Close the brief",
+  whoHasIt: "Who has it",
+  withSince: (who: string, date: string) => `With ${who} since ${date}`,
+  yourNote: "Your note to Legal",
+  yourNoteTaken: (date: string) => `Your note to Legal (taken back ${date})`,
+  /** U2 r2: a note someone else sent (a contract transferred since) */
+  noteFrom: (who: string) => `Note to Legal from ${who}`,
+  noteFromTaken: (who: string, date: string) => `Note to Legal from ${who} (taken back ${date})`,
+  earlierNotes: (n: number) => `Earlier notes (${n})`,
+  noteSent: (who: string, date: string) => `Sent to ${who} on ${date}`,
+  lastNoteFilled: "Your last note is filled in. Change it if you need to.",
+  madeFrom: (template: string, version: number, withdrawn: boolean) =>
+    `Made from ${template}, version ${version}${withdrawn ? ", a template that has since been withdrawn" : ""}`,
   loading: "Loading the deal brief…",
   failed: "The deal brief could not be loaded",
   asks: "What the client asks for",
   asksMore: (n: number) => `and ${n} more`,
+  /** U2 (UI-35): "and N more" opens the Changes tab */
+  asksMoreLink: (n: number) => `and ${n} more on the Changes tab`,
   removes: "removes",
   told: "What we told them",
   toldOn: (date: string) => `Told on ${date}`,
@@ -795,7 +858,7 @@ export const BRIEF_COPY = {
   /** round 4: Legal's line under a whole-contract point — candidates, never its place */
   possiblyIn: (clauses: string[]) =>
     `Possibly in: clause ${clauses.slice(0, 4).join(", ")}${clauses.length > 4 ? ` and ${clauses.length - 4} more` : ""}`,
-  noteFromSales: "Note for Legal from the deal owner",
+  noteFromOwner: "Note to Legal from the owner",
   add: "Add what we told them",
   addFromNote: "Add from this note",
   edit: "Edit",
@@ -828,10 +891,6 @@ export const TIE_COPY = {
 export const CARD_COPY = {
   standard: "Our standard",
   covers: "Our standard covers this clause",
-  noFinding: "Our standard does not cover this clause",
-  noPoint: "Our standard does not cover this clause, so contact Legal directly, or keep ours.",
-  /** where "Keep our wording" is not offered (the client's own paper; their tracked changes only) */
-  noPointNoKeep: "Our standard does not cover this clause, so contact Legal directly.",
   forUs: "For us",
   change: "The change",
   moved: ", also moved",

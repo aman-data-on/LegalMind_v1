@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 
 import { api, describeError } from "@/lib/api";
 import { useStep } from "@/lib/nextStep";
+import { BRIEF_COPY } from "@/lib/labels";
 import type { ReviewAssignments } from "@/lib/types";
 
 /** Send to Legal (AB-100): a button that opens a picker of the people who may review —
@@ -16,7 +17,9 @@ export function SendToLegal({ reviewId, data, onChange, label, primary = false }
   const [open, setOpen] = useState(false);
   // AB-213 D3: nobody preselected — the owner picks the lawyer
   const [pick, setPick] = useState("");
-  const [note, setNote] = useState("");
+  // AM-473: a re-send starts from the last note — never an empty field that drops it
+  const last = data.notes?.[0]?.note ?? "";
+  const [note, setNote] = useState(last);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   useStep("sendToLegal", useCallback(() => setOpen(true), []));
@@ -24,8 +27,8 @@ export function SendToLegal({ reviewId, data, onChange, label, primary = false }
     setBusy(true);
     setError(null);
     try {
-      const { assigned } = await api.sendForReview(reviewId, pick, note);
-      onChange({ ...data, assigned });
+      const got = await api.sendForReview(reviewId, pick, note);
+      onChange({ ...data, ...got });
       setOpen(false);
     } catch (cause) {
       setError(describeError(cause));
@@ -57,7 +60,9 @@ export function SendToLegal({ reviewId, data, onChange, label, primary = false }
           </fieldset>
           <label className="lm-sendlegal__note">
             <span>Note for Legal (optional)</span>
-            <textarea rows={3} maxLength={2000} value={note} onChange={(e) => setNote(e.target.value)} />
+            <textarea rows={3} maxLength={2000} value={note} aria-describedby={last ? "lm-sendlegal-last" : undefined}
+                      onChange={(e) => setNote(e.target.value)} />
+            {last ? <span id="lm-sendlegal-last">{BRIEF_COPY.lastNoteFilled}</span> : null}
           </label>
           {error ? <p className="cx-error" role="alert">{error}</p> : null}
           <div className="lm-sendlegal__foot">

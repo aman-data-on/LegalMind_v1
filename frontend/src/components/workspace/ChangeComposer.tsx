@@ -320,13 +320,22 @@ export function AnswerComposer({ change, list, actions, contractId, details, onA
   );
 
   return (
+    // U2 (UI-07): the answer tray sticks to the foot of the card (changes.css) — the four
+    // verdicts stay in reach whatever the length of the clause above
     <section className="cx-section cx-compose" aria-labelledby={`${id}-title`}>
       <h4 id={`${id}-title`} className="cx-label">{change.answer ? "Change your answer" : "Your answer"}</h4>
       <div className="cx-choices" role="radiogroup" aria-labelledby={`${id}-title`}>
         {verdicts.map((v) => (
           <label key={v} className="cx-choice" data-on={verdict === v || undefined}>
             <input type="radio" name={`${id}-choice`} value={v} checked={verdict === v}
-                   onChange={() => { setVerdict(v); setError(null); }} />
+                   onChange={(event) => {
+                     setVerdict(v); setError(null);
+                     // r4: on a phone the composer opens under the verdicts — bring it into view
+                     const section = event.currentTarget.closest("section");
+                     if (window.matchMedia("(max-width: 900px)").matches) {
+                       window.requestAnimationFrame(() => section?.scrollIntoView({ block: "start" }));
+                     }
+                   }} />
             <span>{VERDICT_LABELS[v]}</span>
           </label>
         ))}

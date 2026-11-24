@@ -40,6 +40,22 @@ working day gets one entry, newest first, with these headings (omit an empty one
 ## 2026-11-24
 
 ### Done
+- **Full-stack audit U2 "workspace layout"** (AB-225, `AM-471`–`AM-474`) built on `fix/ui-u2` (worktree
+  `/root/legalmind-worktrees/ui-u2`, from `2c40bfcf`): one meta row, the brief as one row plus a side panel, one
+  strip over the panes, a phone header that folds away, no layout shift, a 343 px phone text column at 390 (273 at 320; audit 237), a sticky
+  answer tray for Legal, Report as the third tab, the ⋯ menu renamed with Take back in it; the lawyer is told when a
+  contract is sent to or taken back from them, and every note for Legal is kept for the owner. Owner answers Q1–Q5
+  (2026-11-24). Not committed; `U2-DESIGN.md` and `U2-BUILD-REPORT.md` in the audit folder. Copy Legal still
+  confirms: "No standard settles this, so Legal reviews it."
+  Rounds 2–4 (verifier, UI critic, security/legal review): docked brief panel and a phone modal sheet, the
+  ⋯ menu in groups, the answer tray's phone behaviour, one short reply line, Legal's note first; server: a
+  take-back is in-app only, a send e-mails at most once per 15 minutes, `measured` splits NOT_MEASURED /
+  UNCLEAR (display only, proven byte-identical elsewhere over 12 pairs / 83 rows), a re-send resets
+  `created_at`, row locks on send/take-back, `notes` visibility pinned by a test. Copy Legal still confirms:
+  the two `measured` sentences. Round 5: Esc keeps a typed draft (the field's text is remembered on focus),
+  the docked brief sits above the phone bar at 641–899 px, the phone sheet says aria-modal. Owner decisions
+  (2026-11-24): c113 sales at 320 accepted at y = 361 (status never clamped); the lawyer's CLS 0.134 at 1024
+  accepted as pre-existing (0.268 on base 2c40bfcf).
 - **AB-223 batch 8 sub-batch B** (`AM-464`–`AM-467`) built on `feat/case-lessons-b` (worktree
   `/root/legalmind-worktrees/case-lessons-b`, from `96792533`): "already agreed before" on change rows, points and
   the brief; "Signed earlier, for reference" on the client page (owner Q1); triage reasons for a rewritten sentence

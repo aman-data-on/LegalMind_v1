@@ -47,7 +47,8 @@ describe("the client's comments and the base", () => {
     const html = renderToStaticMarkup(<ChangesBanners allUntracked={false} data={list({
       comments_elsewhere: [{ author: "Counsel", text: "A note.", clause: { number: "3", heading: null } }],
     })} />);
-    expect(html).toContain("Compared with version 1 (what we sent).");
+    // U2 r4: "Compared with version 1" moved to the Changes bar's row (ChangesPane)
+    expect(html).not.toContain("Compared with version 1");
     expect(html).toContain(CHANGES_COPY.commentsElsewhere(1));
     expect(html).toContain("Comment from Counsel");
     expect(html).not.toContain("not marked");                 // no false untracked line

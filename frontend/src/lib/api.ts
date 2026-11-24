@@ -923,7 +923,7 @@ export const api = {
   reviewAssignments: (reviewId: string) =>
     request<ReviewAssignments>(p`/reviews/${reviewId}/assignments`),
   sendForReview: (reviewId: string, userId: string, note?: string) =>
-    request<{ assigned: ReviewAssignments["assigned"] }>(
+    request<Pick<ReviewAssignments, "assigned" | "notes">>(
       p`/reviews/${reviewId}/assignments`,
       { method: "POST", body: { user_id: userId, ...(note?.trim() ? { note: note.trim() } : {}) } }),
   reviewOutcome: (reviewId: string) =>
@@ -932,7 +932,7 @@ export const api = {
                                             expected_version: number }) =>
     request<ContractOutcomeState>(p`/reviews/${reviewId}/outcome`, { method: "POST", body }),
   withdrawReview: (reviewId: string, userId: string) =>
-    request<{ assigned: ReviewAssignments["assigned"] }>(
+    request<Pick<ReviewAssignments, "assigned" | "notes">>(
       p`/reviews/${reviewId}/assignments/${userId}`, { method: "DELETE" }),
 
   /** R2 S9: the internal review table — preview rows, then the Word file. */

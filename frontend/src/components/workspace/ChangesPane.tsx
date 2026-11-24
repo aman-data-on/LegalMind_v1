@@ -33,7 +33,7 @@ import { ApiError, api, describeError } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import { isOurs, sectionRef } from "@/lib/documentTypes";
-import { displayTitle } from "@/lib/templates";
+import { displayCaps, displayTitle } from "@/lib/templates";
 import {
   ACCEPTABLE_EFFECTS, ACTION_LABEL, ANSWER_LABEL, EFFECT_LABEL, KIND_LABEL, ROUTE_REASON, acceptable, actionsFor,
   clauseName, effectLabel, effectSentence, type Measured,
@@ -124,7 +124,7 @@ export const EFFECT_FILTERS: FilterDef[] = [
 
 const EFFECT_ICON: Record<EffectForUs, typeof IconBetter> = { POSITIVE: IconBetter, NEUTRAL: IconSame, FALLBACK: IconFallback, NEGATIVE: IconWorse };
 /** a NEGATIVE row not measured worse never wears the "worse" arrow */
-const MEASURED_ICON: Record<Measured, typeof IconBetter> = { WORSE: IconWorse, NOT_MEASURED: IconAlertCircle, ABSENT: IconFileMinus, REVIEW: IconAlertCircle };
+const MEASURED_ICON: Record<Measured, typeof IconBetter> = { WORSE: IconWorse, NOT_MEASURED: IconAlertCircle, UNCLEAR: IconAlertCircle, ABSENT: IconFileMinus, REVIEW: IconAlertCircle };
 
 /** "For us": an icon AND the words — the shape tells the three apart without colour, the
  *  words say it (WCAG 1.4.1). Its own slot, never merged with the review's word. */
@@ -317,13 +317,17 @@ export function ChangesPane({
       <a className="cx-skip" href="#cx-list">Skip to the list of changes</a>
       <div className="cx-bar">
         {/* round 2: the one filter control — zero counts hidden, never clipped */}
+        {FILTERS.filter((f) => !EFFECT_FILTERS.includes(f) && counts[f.id]).some((f) => counts[f.id] !== data.changes.length) ? (
         <SegmentedFilter label="Show changes" value={filter} onChange={setPicked}
                          segments={FILTERS.filter((f) => !EFFECT_FILTERS.includes(f)).map((f) => (
                            { id: f.id, label: f.label, text: f.label, count: counts[f.id], always: f.id === "all" }))} />
+        ) : null}
         <SegmentedFilter label="For us" value={filter} onChange={setPicked}
                          segments={EFFECT_FILTERS.map((f) => ({ id: f.id, label: <ForUs effect={f.id as EffectForUs} />,
                            text: effectLabel(f.id as EffectForUs), count: counts[f.id] }))} />
-        <ReviewTableButton contractId={contractId} />
+        {/* r4: what the changes are measured from, on the bar's own row (one line less) */}
+        {data.from ? <span className="cx-bar__from">{CHANGES_COPY.comparedWith(data.from.version_number)}</span> : null}
+        <span className="cx-bar__table"><ReviewTableButton contractId={contractId} /></span>
         <ReplyBar contractId={contractId} versions={versions} list={data}
                   onVersionCreated={onVersionCreated} onPick={pick} />
       </div>
@@ -561,7 +565,10 @@ export function ChangeIndex({ rows, current, onPick, allUntracked, reader, forma
     }
     const g = groups.at(-1)!;
     g.rows.push(c);
-    if (!byTopic && !g.title && c.clause.number === top && c.clause.heading) g.title = c.clause.heading;
+    // UI-21: every numbered group is named — its top clause's own heading, in sentence case
+    if (!byTopic && !g.title && (c.clause.top_heading || (c.clause.number === top && c.clause.heading))) {
+      g.title = displayTitle(c.clause.top_heading || c.clause.heading!);
+    }
   }
   const toggle = (key: string) => setClosed((was) => {
     const next = new Set(was);
@@ -576,7 +583,10 @@ export function ChangeIndex({ rows, current, onPick, allUntracked, reader, forma
         return (
           <li key={g.key} data-fmt={g.fmt || undefined}>
             <button type="button" className="cx-index__head" aria-expanded={expanded}
-                    aria-controls={`cx-group-${gi}`} onClick={() => toggle(g.key)}>
+                    aria-controls={`cx-group-${gi}`} onClick={() => toggle(g.key)}
+                    // UI-21: one name, never "13 open of 3" run together from the visible parts
+                    aria-label={`${/^\d/.test(g.head) ? `Clause ${g.head}` : g.head}${g.name ?? g.title ? `, ${g.name ?? g.title}` : ""}: ${
+                      open ? `${open} of ${g.rows.length} open` : "done"}`}>
               <span className="cx-index__chev"><IconChevronRight size={12} /></span>
               <span className="cx-index__title">
                 {g.head}{g.name ? <span> — {g.name}</span> : g.title ? <span> {g.title}</span> : null}
@@ -602,7 +612,7 @@ export function ChangeIndex({ rows, current, onPick, allUntracked, reader, forma
                             onClick={() => onPick(c.row_key)}>
                       {/* the group already says the clause: a row that would only repeat
                           it, or say a bare number, says its own first words */}
-                      <span className="cx-row__where">{rowLabel(c, groupLabel(g))}</span>
+                      <span className="cx-row__where">{displayCaps(rowLabel(c, groupLabel(g)))}</span>
                       {/* batch 3+4: ONE status label for this reader, the kind of change as
                           its small meta; the review's word and the effect are the card's */}
                       <span className="cx-row__meta">
@@ -666,7 +676,8 @@ export function rowLabel(change: ClientChange, groupLabel: string): string {
   // a bare number ("1.2") says nothing: the number, then the clause's first words —
   // unless its name (a repeated number) already says its own words
   if (!change.clause.heading && !change.clause.name && change.clause.number && words) return `${label} ${words}`;
-  return label !== groupLabel ? label : words || label;
+  // the group names its heading in sentence case (UI-21): the same words in capitals repeat it
+  return label.toLowerCase() !== groupLabel.toLowerCase() ? label : words || label;
 }
 
 
@@ -757,14 +768,15 @@ export function SendOut({ version, label, onSent }: {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const trigger = useRef<HTMLButtonElement>(null);     // U2 r2: Esc hands focus back here
   const final = !!(version.package || version.final_copy);
   useStep(final ? "downloadFinal" : version.reply ? "sendReply" : "sendToClient",
           useCallback(() => setOpen(true), []));
   return (
     <>
-      <button type="button" className="ws-btn ws-btn--sm ws-btn--primary" onClick={() => setOpen(true)}>{label}</button>
+      <button ref={trigger} type="button" className="ws-btn ws-btn--sm ws-btn--primary" onClick={() => setOpen(true)}>{label}</button>
       {open ? (
-        <Dialog onClose={() => setOpen(false)} titleId="lm-sendout-title">
+        <Dialog onClose={() => setOpen(false)} titleId="lm-sendout-title" returnFocus={() => trigger.current}>
           <h2 id="lm-sendout-title">{label}</h2>
           <p className="ws-pane__note">
             {final ? <>Download version {version.version_number}, the final contract, and sign it in your
@@ -804,42 +816,7 @@ export function SendOut({ version, label, onSent }: {
   );
 }
 
-/** The Document tab says what a reply version IS (`AM-251`): ours, answering the
- *  client's, with its files — and, once sent, when. The counts are the server's,
- *  kept when the reply was prepared; a reply prepared before they were kept says less.
- *  "Mark sent" is the header's primary action at that stage, so it is not repeated here. */
-export function ReplyNotice({ version, versions, canSend }: {
-  version: DocumentVersion; versions: DocumentVersion[]; canSend: boolean;
-}) {
-  const reply = version.reply;
-  if (!reply) return null;
-  const theirs = versions.find((v) => v.id === reply.to_version_id);
-  const byHand = reply.by_hand ?? [];
-  return (
-    <section className="ws-replynote" aria-label="Our reply" data-sent={version.sent_at ? "" : undefined}>
-      <div className="ws-replynote__text">
-        <p className="ws-replynote__title">
-          Version {version.version_number} is our reply to the client&rsquo;s
-          {theirs ? ` version ${theirs.version_number}` : " version"}
-        </p>
-        <p className="ws-replynote__sub">
-          {reply.tracked !== undefined
-            ? `${reply.tracked} of our changes ${reply.tracked === 1 ? "is" : "are"} in it as tracked changes`
-            : "Our answers are in it as tracked changes"}
-          {byHand.length ? `; ${byHand.length} to restore by hand in Word (${byHand.join(", ")})` : ""}.
-          {" "}
-          {version.sent_at
-            ? <strong>Sent to the client on {formatDate(version.sent_at)}.</strong>
-            : canSend ? "Send our reply from the top of the page once it has gone to the client."
-            : "Not yet sent to the client."}
-        </p>
-      </div>
-      <div className="ws-replynote__acts">
-        <ReplyDownloads version={version} />
-      </div>
-    </section>
-  );
-}
+export { ReplyNotice } from "./ReplyNotice";
 
 /** "Prepare our reply": the server's own refusal, said before it is asked — the button
  *  stays until nothing is open, and beside it a list of what is still open, each a link
