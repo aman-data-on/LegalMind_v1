@@ -72,6 +72,14 @@ working day gets one entry, newest first, with these headings (omit an empty one
 - Live check as the sales and lawyer test users through the public URL: login 200; contracts list 3.3 s cold after
   restart, 0.34 s warm; briefs 0.1–0.3 s and carry `status` (incl. FINAL_READY), `not_marked`, `already_agreed`,
   `measured_against`; reviews list carries `version_number` / `version_role`.
+- **7ce8a014** (U2, AB-225, PR #343) deployed 15:47 IST, exit 0, no migration. Live as the sales test user: the
+  owner's `notes` history on review assignments, `/contracts/{id}/report` answers 200, briefs 0.1–0.3 s.
+
+### Changed on the server (no commit)
+- Disk 96% → 87% full (2.3 → 6.3 GB free), owner-approved: 28 worktrees whose branch is merged into main and
+  that had no changes removed (branches kept); the deploy tree's 2026-09-11 `frontend/.next-e2e` build output
+  removed (git-ignored, rebuilt by the next local e2e run); npm cache cleared. Worktrees with uncommitted work
+  and other users' folders left alone.
 
 ### Next
 - Audit batches U2 (workspace layout: UI-03, UI-04, UI-06, UI-07, Take back into the ⋯ menu), U3 (tables,

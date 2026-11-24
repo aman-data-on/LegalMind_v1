@@ -22,7 +22,7 @@ contract back from Legal now asks first. The client page's counts no longer run 
 owner's one-line rule with a facts line that tells rows apart, the Reviews list speaks the same words as its rows, and the report sales reads has no
 file names, "§" or "analysed", and says what Export will download.
 
-**2026-11-24 — UI batch U2 "workspace layout", AB-225 (BUILT, not deployed).** A contract now opens with the
+**2026-11-24 — UI batch U2 "workspace layout", AB-225 (DEPLOYED 2026-11-24 (7ce8a014)).** A contract now opens with the
 document near the top: one line of facts, one line saying where the deal stands, and the whole brief in a panel
 beside the contract that never pushes it down (desktop panes start at y = 255, was 466; a phone shows contract text
 on its first screen at 390×844 and 320×844 — on the contract with a reply banner the text starts at y = 623 at 390). Layout shift stays under 0.1 at 1440, 1280, 390 and 320 for both roles; the Summary pane still shifts at 1024 for the lawyer (CLS 0.13; 0.27 on main before this batch — the owner
