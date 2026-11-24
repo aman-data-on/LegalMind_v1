@@ -9,7 +9,7 @@ No version has been released. The V1 specification is complete and implementatio
 ---
 
 ## [Unreleased]
-- AB-225 (2026-11-24, `AM-471`–`AM-474`; full-stack audit batch U2 "workspace layout"; branch `fix/ui-u2`, BUILT,
+- AB-225 (2026-11-24, `AM-471`–`AM-474`; full-stack audit batch U2 "workspace layout"; branch `fix/ui-u2`, PR #343, DEPLOYED 2026-11-24 (7ce8a014),
   not deployed; no migration, no OpenAPI change (the assignments and change payloads are untyped dicts), no new
   dependency). **Header (UI-03/35, `AM-471`):** one meta row; the deal brief is one row (status, not-marked count,
   "Open the brief") and the whole brief opens in a side panel that never moves the document (who has it, the note
