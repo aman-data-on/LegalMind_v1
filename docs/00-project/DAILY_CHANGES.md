@@ -49,15 +49,19 @@ working day gets one entry, newest first, with these headings (omit an empty one
   Independent verifier: 9/9 items passed; round 2 fixed D1 (no configuration change), D2, D4, D5 and refused
   declaring signed a version already sent to the client (`AM-465` r3).
 
-### In progress
-- `feat/case-lessons-b`: independent verification next (spec `SPEC.md` items 1, 4, 5 and BUILD-REPORT-B.md).
+### Reached production
+- **2c40bfcf** deployed 10:46 IST with `sudo legalmind-deploy` (exit 0): P1 (#336), P3 (#337, migration
+  `d340ac8e60fd` ran; its own guard fails unless all six indexes are valid), AB-222 batch 8A (#338), U1 (#339),
+  P2 (#340), AB-223 batch 8B (#341). No import or publish step.
+- Live check as the sales and lawyer test users through the public URL: login 200; contracts list 3.3 s cold after
+  restart, 0.34 s warm; briefs 0.1–0.3 s and carry `status` (incl. FINAL_READY), `not_marked`, `already_agreed`,
+  `measured_against`; reviews list carries `version_number` / `version_role`.
 
 ### Next
-- `feat/case-lessons-b` round 2 done (verifier D1/D2/D4/D5 + the "sent version filed as signed" bug): the
-  standard source is read from the ratified files at serve time — no import, no publish, no re-versioning.
-  Next: re-verify, then the owner's go for git.
-- Owner: the deploy tree's `frontend/node_modules/node_modules` is a stray self-symlink (made 2026-11-23 22:50);
-  a hardlinked copy resolves React twice through it (10 vitest failures until removed in the copy).
+- Audit batches U2 (workspace layout: UI-03, UI-04, UI-06, UI-07, Take back into the ⋯ menu), U3 (tables,
+  home vs to-do), BE-8; follow-ups (`evidenceLocation` "§N", report body copy pass, "-analysis.docx" name).
+- Owner calls: take-back notifies the lawyer and keeps the note; sentence-level "already agreed"; D2
+  INTERNAL_REVIEW wording; DB-8 audit count (locked 49.4).
 
 ### Blocked
 - **Legal (C-34):** which standards measure paper that is not an MSA. Until then the brief only says which set measured it.

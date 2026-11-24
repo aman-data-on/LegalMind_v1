@@ -10,7 +10,7 @@ No version has been released. The V1 specification is complete and implementatio
 
 ## [Unreleased]
 - AB-223 (2026-11-24, `AM-464`–`AM-467`; batch 8 sub-batch B "lessons from a real client MoU"; branch
-  `feat/case-lessons-b`, BUILT, not deployed; no migration, no API schema change (brief, changes and angles are
+  `feat/case-lessons-b`, PR #341, DEPLOYED 2026-11-24 (2c40bfcf); no migration, no API schema change (brief, changes and angles are
   untyped dicts), no new dependency). **Already agreed before (`AM-464`):** `GET …/changes` rows carry `prior`
   (SAME / CHANGED / NEW / IN_SIGNED against an earlier SIGNED or FINAL contract with the same client that the reader
   may read — read rule checked before any text, cross-owner reads audited; the change list's own pairing, kept per
@@ -35,7 +35,7 @@ No version has been released. The V1 specification is complete and implementatio
   "Widens a duty" is silent on an exception list or a prohibition; source names/counts reach Legal only; and
   `execution.negotiated()` now also refuses a version that was itself sent to the client (`AM-465` r3, fail
   closed). Report: `/root/legalmind-clm-local/audit/batch8-case-lessons/BUILD-REPORT-B.md`.
-- Full-stack audit U1 "UI wrong or risky" (2026-11-23; branch `fix/ui-u1`, BUILT, browser-checked, not deployed;
+- Full-stack audit U1 "UI wrong or risky" (2026-11-23; branch `fix/ui-u1`, PR #339, browser-checked, DEPLOYED 2026-11-24 (2c40bfcf);
   no lock amended, no migration, no API schema change). **UI-01:** the deal brief's status (`deal_brief.status()`)
   no longer falls through to "Send our reply" on a stage with no reply to send: FINAL → `FINAL_READY` ("Final contract
   ready. Sign it in your signing tool."), SIGNED → no line (the stage says it), both before every count;
@@ -60,7 +60,7 @@ No version has been released. The V1 specification is complete and implementatio
   "Final contract ready" (brief and list; the card is headed "Final contract"); no raw status `title` on the
   Legal queue.
 - AB-222 (2026-11-23, `AM-461`–`AM-463`; batch 8 sub-batch A "lessons from a real client MoU"; branch
-  `feat/case-lessons-a`, BUILT, independently verified, not deployed). **Not marked:** reader `legalmind-ingest-v13` records
+  `feat/case-lessons-a`, PR #338, independently verified, DEPLOYED 2026-11-24 (2c40bfcf)). **Not marked:** reader `legalmind-ingest-v13` records
   a DOCX run's highlight (`metadata.highlighted`, metadata only — `REREAD_FROM` stays 12) and a table cell's comment;
   each change row carries `unmarked` (no tracked change and no highlight covering it; a deletion never is) and
   `punctuation_only`; `summary.unmarked` / `summary.highlights_read`; the deal brief's first block `not_marked`
@@ -80,7 +80,7 @@ No version has been released. The V1 specification is complete and implementatio
   are not summed, an unrated tax row leaves the total unchecked, the subtotal comes from the amount column.
   Round 4 (c8, supersedes c1/c6): one fail-closed rule — row by row only when every changed row on either side is
   a table row or a short title line; a prose carve-out the client inserts makes the whole clause theirs. Coordination: sub-batch B takes AM-464 onward (the spec's draft numbering is not used).
-- Full-stack audit 2026-11-23, batch P2 "stop recalculating" (branch `perf/comparison-cache`; BUILT, NOT deployed;
+- Full-stack audit 2026-11-23, batch P2 "stop recalculating" (branch `perf/comparison-cache`, PR #340; DEPLOYED 2026-11-24 (2c40bfcf);
   no migration, no API schema change, no lock touched). The pure part of a client-change comparison (units,
   alignment, each row's kind, marks and pure readings; separately the display-only notes and lettered points) is
   kept per API process, pickled, under a sha256 of every input it reads — both sides' clauses as compared (after
@@ -99,7 +99,7 @@ No version has been released. The V1 specification is complete and implementatio
   → 91 ms, brief 1,954 → 193 ms, angles 1,102 → 260 ms, `/reviews` 99 → 68 ms, findings 171 → 86 ms, template
   check 7,667 → 34 ms. All 15 response bodies byte-identical to main; production-copy probe 0 differences in 83
   answered-pair rows, cold and hot. Report: `audit/fullstack-audit-20261123/P2-BUILD-REPORT.md`.
-- Full-stack audit 2026-11-23, batch P3 "database hygiene" (branch `perf/db-hygiene`; BUILT, NOT deployed; one
+- Full-stack audit 2026-11-23, batch P3 "database hygiene" (branch `perf/db-hygiene`, PR #337; DEPLOYED 2026-11-24 (2c40bfcf), migration ran; one
   migration `d340ac8e60fd`, no API schema change, no lock touched). Six indexes built `CONCURRENTLY` (autocommit
   block, `if_not_exists`, `lock_timeout` 60 s, an INVALID leftover dropped and rebuilt, the migration refuses to
   finish with an invalid one): the four `evidence_id` FKs and `assist.conversation_evidence.chunk_id` (DB-2 —
@@ -110,7 +110,7 @@ No version has been released. The V1 specification is complete and implementatio
   check no longer commits before its savepoint (P1 made it redundant; a test proves the request has only read).
   DB-8 (audit log "has more") is proposed, not built: locked 49.4 fixes `pagination.total`. Report:
   `audit/fullstack-audit-20261123/P3-BUILD-REPORT.md`.
-- Full-stack audit 2026-11-23, batch P1 "speed quick wins" (branch `perf/quick-wins`; BUILT, NOT deployed; no
+- Full-stack audit 2026-11-23, batch P1 "speed quick wins" (branch `perf/quick-wins`, PR #336; DEPLOYED 2026-11-24 (2c40bfcf); no
   migration, no API schema change, no lock touched). `last_seen_at` is stamped at most once a minute in its own
   `SKIP LOCKED` transaction before the request reads anything, so one user's parallel requests no longer queue on
   the session row (`/auth/session` beside `/contracts`, same session: 1,245 → 39 ms median); the request commit

@@ -11,18 +11,18 @@
 
 ---
 
-**2026-11-23 — Speed batch P2 (BUILT, not deployed).** The client's change list is no longer worked out from scratch on
+**2026-11-23 — Speed batch P2 (DEPLOYED 2026-11-24 (2c40bfcf)).** The client's change list is no longer worked out from scratch on
 every screen: the part that depends only on the two documents is kept, while answers, decisions and findings are
 still read fresh every time. The contracts list goes from about 1.6 s to 0.35 s (Legal's view 1.9 s → 0.65 s), To-do
 1.4 s → 0.3 s, a 137-change contract's page, Changes tab and brief from 1–2 s to 0.1–0.2 s, and a lawyer checking a
 draft template waits 0.03 s instead of 8 s when nothing changed. Every screen shows exactly what it showed before.
-**2026-11-23 — UI batch U1 (BUILT, not deployed).** From the full-stack audit: a finished (Final) contract no
+**2026-11-23 — UI batch U1 (DEPLOYED 2026-11-24 (2c40bfcf)).** From the full-stack audit: a finished (Final) contract no
 longer tells sales "Send our reply" — it says the final contract is ready to sign in the signing tool. Taking a
 contract back from Legal now asks first. The client page's counts no longer run together, contract names keep the
 owner's one-line rule with a facts line that tells rows apart, the Reviews list speaks the same words as its rows, and the report sales reads has no
 file names, "§" or "analysed", and says what Export will download.
 
-**2026-11-24 — AB-223, batch 8 part B (BUILT, not deployed).** When we already signed (or finalised) a contract with
+**2026-11-24 — AB-223, batch 8 part B (DEPLOYED 2026-11-24 (2c40bfcf)).** When we already signed (or finalised) a contract with
 the same client, each change and point now says whether it was already in that contract or is new — only from
 contracts the reader may open, and it never changes who answers. A contract signed outside LegalMind can be filed
 on the client page "for reference". The client-change check now also says when a change takes more claims out of
@@ -31,15 +31,15 @@ standard sets checked the paper and, for paper that is not an MSA, that Legal ha
 (read straight from the standard files — nothing to re-import or publish). A deal already sent to the client can
 no longer be declared "signed" by mistake.
 
-**2026-11-23 — AB-222, batch 8 part A (BUILT, not deployed).** Lessons from a real client MoU. The changes a client
+**2026-11-23 — AB-222, batch 8 part A (DEPLOYED 2026-11-24 (2c40bfcf)).** Lessons from a real client MoU. The changes a client
 made with no tracked change and no highlight now come first in the deal brief and on the Changes tab, with a line
 sales can copy into the reply. A comment in a table, a sentence broken across two lines, a clause read with a changed
 price table, and a heading the client restyled are no longer misread; a change to punctuation alone says so and
 still goes to Legal. Quantities stated two ways, a blank field, totals that do not add up and our own CIN printed
 wrongly are flagged as things to check. Part B ("already agreed before", triage reasons, which standard set) is next.
 
-**2026-11-23 — Database batch P3 (BUILT, not deployed).** Deleting a contract is about six times faster (0.47 s → 0.07 s for the largest), the audit-trail reads that To-do and the template pages make stay instant as the trail grows (tested at 50× today's size), and a failed table read in a PDF is now logged instead of silent. One database change, built without pausing the live site; the audit log's page count stays exact (a locked rule).
-**2026-11-23 — Speed batch P1 (BUILT, not deployed).** From the full-stack audit: one person's screens no
+**2026-11-23 — Database batch P3 (DEPLOYED 2026-11-24 (2c40bfcf)).** Deleting a contract is about six times faster (0.47 s → 0.07 s for the largest), the audit-trail reads that To-do and the template pages make stay instant as the trail grows (tested at 50× today's size), and a failed table read in a PDF is now logged instead of silent. One database change, built without pausing the live site; the audit log's page count stays exact (a locked rule).
+**2026-11-23 — Speed batch P1 (DEPLOYED 2026-11-24 (2c40bfcf)).** From the full-stack audit: one person's screens no
 longer wait for each other (a second request beside the contracts list: 1.2 s → 0.04 s), the contracts
 list and To-do are about 15 % faster, reopening a long Ask chat no longer scans every stored passage, and a
 runaway database query is stopped after 30 s instead of holding a connection.
