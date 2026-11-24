@@ -37,6 +37,17 @@ working day gets one entry, newest first, with these headings (omit an empty one
 
 ---
 
+## 2026-11-25
+
+### Done
+- W1 "fast first screen" built on `perf/w1-first-screen`, independently verified 10/10 after 4 rounds, UI critic's must-fixes done; PR opened (not deployed). Decisions by the lead: the idle Ask warm-up stays (Ask tap ≈ main, at the cost of one ~150 ms task after the largest paint); one PDF evidence link at 390 lands ~55 px differently from main (row taller than the screen).
+
+### Next
+- Owner: "deploy" for W1, then re-measure the live phone scores; test once on a real iPhone (no WebKit on the host).
+- W2, M2, M3, S1, B1 per `audit/perf-20261124/PERF-AUDIT.md`, `SERVER-AUDIT.md`, `../mobile-20261124/MOBILE-AUDIT.md`.
+
+---
+
 ## 2026-11-24
 
 ### Done
@@ -74,8 +85,10 @@ working day gets one entry, newest first, with these headings (omit an empty one
   `measured_against`; reviews list carries `version_number` / `version_role`.
 - **7ce8a014** (U2, AB-225, PR #343) deployed 15:47 IST, exit 0, no migration. Live as the sales test user: the
   owner's `notes` history on review assignments, `/contracts/{id}/report` answers 200, briefs 0.1–0.3 s.
+- **fa76a395** (E1 edge, PR #345) deployed 18:48 IST; the new Edge probes passed. Live: HTTP/2, gzip + Vary on API JSON, upstream keep-alive; sign-in works.
 
 ### Changed on the server (no commit)
+- CPU weights (owner-approved, critic-corrected): `system.slice` 400; api, `postgresql@16-main`, nginx 400; frontend 300; worker 150 (`systemctl set-property`, live, no restart; undo in ops/README).
 - Disk 96% → 87% full (2.3 → 6.3 GB free), owner-approved: 28 worktrees whose branch is merged into main and
   that had no changes removed (branches kept); the deploy tree's 2026-09-11 `frontend/.next-e2e` build output
   removed (git-ignored, rebuilt by the next local e2e run); npm cache cleared. Worktrees with uncommitted work
