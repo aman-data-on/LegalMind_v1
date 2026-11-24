@@ -19,19 +19,19 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
-import { ApiError, api, describeError } from "@/lib/api";
+import { ApiError, api } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { ReportBlock, Review, ReviewReport } from "@/lib/types";
 
-import { REPORT_COPY, STAGE_LABELS } from "@/lib/labels";
+import { REPORT_COPY, REPORT_VIEW_COPY, STAGE_LABELS } from "@/lib/labels";
 
 import { ExportControl } from "./ExportControl";
 import { USER_STATUS_LABELS, type UserStatus } from "./findingLanguage";
 import { IconArrowLeft } from "./icons";
 import { contractHref } from "./model";
 import { StatusChip, chipStatus } from "@/components/StatusChip";
-import { EmptyState, ErrorState } from "@/components/Feedback";
+import { EmptyState, ErrorState, LoadingState } from "@/components/Feedback";
 
 type Load =
   | { kind: "loading" }
@@ -342,17 +342,20 @@ export function ReportDocumentView({ blocks }: { blocks: ReportBlock[] }) {
   );
 }
 
-function ReportDocument({ reviewId }: { reviewId: string }) {
+export function ReportDocument({ reviewId }: { reviewId: string }) {
   const [blocks, setBlocks] = useState<ReportBlock[] | null>(null);
   const [failed, setFailed] = useState<unknown>(null);
+  const [seq, setSeq] = useState(0);
   useEffect(() => {
     let cancelled = false;
     api.reportDocument(reviewId)
-      .then((value) => { if (!cancelled) setBlocks(value); })
+      .then((value) => { if (!cancelled) { setBlocks(value); setFailed(null); } })
       .catch((error: unknown) => { if (!cancelled) setFailed(error); });
     return () => { cancelled = true; };
-  }, [reviewId]);
-  if (failed) return <p className="ws-pane__note" role="alert">{describeError(failed)}</p>;
-  if (!blocks) return <p className="ws-pane__note" role="status">Preparing the report…</p>;
+  }, [reviewId, seq]);
+  // U2 r4: the shared states — a titled error with Try again, rows while it is prepared
+  if (failed) return <ErrorState heading="h2" title={REPORT_VIEW_COPY.docFailed} error={failed}
+                                 onRetry={() => setSeq((n) => n + 1)} />;
+  if (!blocks) return <LoadingState label={REPORT_VIEW_COPY.preparing} rows={6} />;
   return <ReportDocumentView blocks={blocks} />;
 }

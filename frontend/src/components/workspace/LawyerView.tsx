@@ -40,11 +40,13 @@ export function LetteredPoints({ change }: { change: ClientChange }) {
           </li>
         ))}
       </ol>
-      <p className="cx-lawyer__meta">
-        {s.source === "FINDING" ? `${LAWYER_COPY.standardsFrom}: ${s.codes.map((code) => requirementTitle({ code })).join(", ")}.`
-          : s.source === "HEADING_TOPIC" ? `${LAWYER_COPY.topicFrom}: ${s.topics.map((t) => t.title).join(", ")}.`
-            : LAWYER_COPY.legalDecides}
-      </p>
+      {/* U2 (UI-07): with no standard, "From our standard" below says so once */}
+      {s.source === "FINDING" || s.source === "HEADING_TOPIC" ? (
+        <p className="cx-lawyer__meta">
+          {s.source === "FINDING" ? `${LAWYER_COPY.standardsFrom}: ${s.codes.map((code) => requirementTitle({ code })).join(", ")}.`
+            : `${LAWYER_COPY.topicFrom}: ${s.topics.map((t) => t.title).join(", ")}.`}
+        </p>
+      ) : null}
     </section>
   );
 }
@@ -81,12 +83,19 @@ export function NotesForLegal({ list, rowFor, onPick }: {
 /** R3: what our ratified standards say on this change, for Legal — the Constitution topic's
  *  position (sent only to a reader who may see positions, LEGAL-02) and the standards the
  *  review measured it by. Nothing is written here that the server did not send (rule 21). */
+/** U2 (UI-07): no standard reaches this change — the card then says it once, here */
+export function standardSilent(change: ClientChange): boolean {
+  const s = change.lawyer?.standards;
+  return !(change.triage?.topics ?? []).length && !(s?.source === "FINDING" ? s.codes : change.review.after).length;
+}
+
 export function FromOurStandard({ change }: { change: ClientChange }) {
   const topics = change.triage?.topics ?? [];
   const s = change.lawyer?.standards;
   const codes = s?.source === "FINDING" ? s.codes
     : [...new Set(change.review.after.map((f) => f.requirement_code))];
-  if (!topics.length && !codes.length) return <p className="cx-std cx-std--none">{LAWYER_COPY.standardSilent}</p>;
+  // U2 r4: the card's grid says it (one place)
+  if (standardSilent(change)) return null;
   return (
     <section className="cx-std" aria-label={LAWYER_COPY.fromStandard}>
       <h4 className="cx-label">{LAWYER_COPY.fromStandard}</h4>

@@ -12,11 +12,11 @@ Mail goes out only after the transaction commits, so a rolled-back event sends n
 from __future__ import annotations
 
 import os
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from email.message import EmailMessage
 from uuid import UUID
 
-from sqlalchemy import event, select, update
+from sqlalchemy import event, func, select, update
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind.db import models as M
@@ -35,6 +35,8 @@ DECIDED = "DECIDED"
 CLIENT_RETURNED = "CLIENT_RETURNED"
 ANSWER_CHANGED_BY_COLLEAGUE = "ANSWER_CHANGED_BY_COLLEAGUE"
 LEGAL_ANSWERED_ALL = "LEGAL_ANSWERED_ALL"
+SENT_TO_LEGAL = "SENT_TO_LEGAL"          # AM-474: the owner sent the review to a lawyer
+TAKEN_BACK = "TAKEN_BACK"                # AM-472: the owner took it back from them
 
 #: The closed set. `{contract}` is the contract's name in-app, "a contract" in e-mail.
 SENTENCES: dict[str, str] = {
@@ -44,8 +46,14 @@ SENTENCES: dict[str, str] = {
     ANSWER_CHANGED_BY_COLLEAGUE: "A colleague changed an answer on {contract}.",
     LEGAL_ANSWERED_ALL: "Legal has answered every change on {contract}. "
                         "Your turn: send our reply.",
+    # "The owner": only a contract's owner sends or takes back (AM-170 r3), and the
+    # notice stores no actor — so it is true even after a later transfer
+    SENT_TO_LEGAL: "The owner sent {contract} to you for Legal review.",
+    TAKEN_BACK: "The owner took {contract} back from Legal.",
 }
 UNNAMED = "a contract"
+#: M1 (U2 r4): the shortest gap between two "sent to you" e-mails, per lawyer and contract
+MAIL_GAP = timedelta(minutes=15)
 SUBJECT = "LegalMind: you have a new notification"
 
 
@@ -55,7 +63,7 @@ def _link(kind: str, contract_id: UUID) -> str:
 
 
 def notify(db: DBSession, user_ids, kind: str, contract: M.Contract, *,
-           actor_id: UUID | None = None) -> int:
+           actor_id: UUID | None = None, mail_too: bool = True) -> int:
     """One notice per recipient (never the actor), skipped when the same notice is
     already waiting unread. Returns how many were written."""
     if kind not in SENTENCES:
@@ -70,7 +78,8 @@ def notify(db: DBSession, user_ids, kind: str, contract: M.Contract, *,
         db.add(M.Notification(user_id=user_id, kind=kind, contract_id=contract.id,
                               link=_link(kind, contract.id)))
         user = db.get(M.User, user_id)
-        if user is not None and user.email and user.status is E.UserStatus.ACTIVE:
+        if (mail_too and user is not None and user.email
+                and user.status is E.UserStatus.ACTIVE):
             _queue_mail(db, user.email, kind, _link(kind, contract.id))
         written += 1
     db.flush()
@@ -114,6 +123,43 @@ def client_returned(db: DBSession, contract: M.Contract, *, actor_id: UUID) -> i
     return notify(db, [contract.owner_id, *(u for u in collaborators
                                             if is_collaborator(db, u, contract))],
                   CLIENT_RETURNED, contract, actor_id=actor_id)
+
+
+def _hand_off(db: DBSession, review: M.Review, reviewer_id: UUID, kind: str, *,
+              actor_id: UUID) -> int:
+    """AM-472/AM-474 (r2): a notice for every send and every take-back. The opposite
+    notice still unread on the same contract is marked read first, so the inbox says
+    only what is true now; `notify` then skips a same-kind notice still waiting unread."""
+    contract = db.get(M.Contract, review.contract_id)
+    if contract is None:
+        return 0
+    opposite = TAKEN_BACK if kind == SENT_TO_LEGAL else SENT_TO_LEGAL
+    # M1 (U2 r4): a take-back is in-app only; a send e-mails at most once per
+    # MAIL_GAP per lawyer per contract — a send/take-back loop never floods the inbox
+    recent = db.execute(select(M.Notification.id).where(
+        M.Notification.user_id == reviewer_id, M.Notification.contract_id == contract.id,
+        M.Notification.kind == SENT_TO_LEGAL,
+        M.Notification.created_at >= func.now() - MAIL_GAP).limit(1)).first()
+    db.execute(update(M.Notification)
+               .where(M.Notification.user_id == reviewer_id,
+                      M.Notification.contract_id == contract.id,
+                      M.Notification.kind == opposite, M.Notification.read_at.is_(None))
+               .values(read_at=datetime.now(UTC)))
+    return notify(db, [reviewer_id], kind, contract, actor_id=actor_id,
+                  mail_too=kind == SENT_TO_LEGAL and recent is None)
+
+
+def review_sent(db: DBSession, review: M.Review, reviewer_id: UUID, *,
+                actor_id: UUID) -> int:
+    """AM-474: the lawyer the owner just sent the review to."""
+    return _hand_off(db, review, reviewer_id, SENT_TO_LEGAL, actor_id=actor_id)
+
+
+def review_taken_back(db: DBSession, review: M.Review, reviewer_id: UUID, *,
+                      actor_id: UUID) -> int:
+    """AM-472: the lawyer the owner took the review back from. Named only while they can
+    still read the contract (`view`; AM-170 r4 ends an assignment-only basis here)."""
+    return _hand_off(db, review, reviewer_id, TAKEN_BACK, actor_id=actor_id)
 
 
 def answered_all_told(db: DBSession, contract: M.Contract, since: datetime) -> bool:

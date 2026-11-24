@@ -542,18 +542,24 @@ export const ROLE_WORDS: Record<string, string> = {
   CLIENT_MODIFIED: "Client's markup",
 };
 
-export function contractHref(id: string, tab?: "changes" | { version: number }): string {
+export function contractHref(id: string, tab?: "changes" | "report" | { version: number }): string {
   const base = `/contracts/${encodeURIComponent(id)}`;
   if (!tab) return base;
-  return tab === "changes" ? `${base}/changes` : `${base}/versions/${tab.version}`;
+  return typeof tab === "string" ? `${base}/${tab}` : `${base}/versions/${tab.version}`;
+}
+
+/** The view a tap on the phone's bar needs (U2 r2): Changes is a view of its own; the
+ *  document's regions and Ask live on the Document view — from Report as from Changes. */
+export function phoneView(which: string): "document" | "changes" {
+  return which === "changes" ? "changes" : "document";
 }
 
 /** The tab a contract path names — tab state for the workspace (`AM-263`). Anything
  *  unrecognised is the Document tab, never an error. */
 export function contractTabFromPath(pathname: string):
-    { tab: "document" | "changes" | "versions"; version?: number } {
+    { tab: "document" | "changes" | "report" | "versions"; version?: number } {
   const [, , , tab, n] = pathname.split("/");
-  if (tab === "changes") return { tab: "changes" };
+  if (tab === "changes" || tab === "report") return { tab };
   if (tab === "versions") {
     const version = Number(n);
     return Number.isInteger(version) && version > 0 ? { tab: "versions", version } : { tab: "versions" };

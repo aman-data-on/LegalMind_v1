@@ -6,6 +6,7 @@
  * us — saving makes a new version of ours. Presentation only: the server says who may
  * edit (`can_edit`) and checks again on save.
  */
+import { Disclosure } from "@/components/Disclosure";
 import { useCallback, useEffect, useId, useState } from "react";
 
 import { api, describeError, type BlankValues } from "@/lib/api";
@@ -70,8 +71,7 @@ export function FillInFields({ contractId, onSaved }: { contractId: string; onSa
       ) : (
         // prelaunch U3/P1: one line until opened — the full list above the document pushed the
         // whole workspace down once loaded (CLS 0.13) and filled the first screen
-        <details className="lm-fillin">
-          <summary>{filled} of {got.fields.length} filled — show</summary>
+        <Disclosure className="lm-fillin" summary={`${filled} of ${got.fields.length} filled`}>
           <dl className="lm-fields">
             {got.fields.map((f) => (
               <div key={f.key}><dt>{f.label}</dt><dd>{shown(f)}</dd></div>
@@ -80,7 +80,7 @@ export function FillInFields({ contractId, onSaved }: { contractId: string; onSa
           {got.can_edit ? (
             <button type="button" className="ws-btn" onClick={() => { setDraft({}); setEditing(true); }}>Edit fill-in fields</button>
           ) : null}
-        </details>
+        </Disclosure>
       )}
     </section>
   );

@@ -24,6 +24,9 @@ import { ErrorState } from "@/components/Feedback";
 import { toast } from "@/components/Toast";
 
 import { AttentionLine } from "./AnalysisPanel";
+import { IconAlertCircle, IconPanelRight, IconX } from "./icons";
+import { useMinWidth } from "./WorkspaceLayout";
+import { Dialog, hasTypedText, rememberInitial } from "@/components/Dialog";
 import { NotMarked } from "./NotMarked";
 import { AlreadyAgreed, CheckedAgainst } from "./PriorAndStandards";
 import { useFindingsStateOptional } from "./findingsState";
@@ -69,7 +72,7 @@ export function useDealBrief(contractId: string, refreshKey: string) {
   return { ...state, reload };
 }
 
-export function DealBrief({ contractId, stage, viewer, refreshKey, onOpen, onChanged }: {
+export function DealBrief({ contractId, stage, viewer, refreshKey, onOpen, onChanged, onChanges, who }: {
   contractId: string;
   stage: NegotiationStage | null;
   viewer: StageViewer;
@@ -78,20 +81,25 @@ export function DealBrief({ contractId, stage, viewer, refreshKey, onOpen, onCha
   onOpen: (rowKey: string) => void;
   /** what we told them changed: the Changes rows re-read their labels */
   onChanged: () => void;
+  /** U2 (UI-35): "and N more" opens the Changes tab */
+  onChanges?: () => void;
+  /** U2 (UI-03): who has it and the note for Legal — the panel's first lines, the header's no more */
+  who?: ReactNode;
 }) {
   const { brief, error, reload } = useDealBrief(contractId, refreshKey);
   const findings = useFindingsStateOptional();
-  // collapsed to three lines until the reader opens it: the document keeps the screen
+  // U2: one line until the reader opens the panel beside the contract — the document never moves
   const [expanded, setOpen] = useState(false);
   if (error && !brief) {
     return <section className="lm-brief" aria-label={BRIEF_COPY.title}>
       <ErrorState heading="h2" title={BRIEF_COPY.failed} error={error} onRetry={reload} /></section>;
   }
   if (!brief) {
+    // U2 (UI-04): the skeleton is the loaded row's own height — nothing below it moves
     return (
       <section className="lm-brief" aria-label={BRIEF_COPY.title} aria-busy="true">
         <p className="ws-visually-hidden" role="status" aria-live="polite">{BRIEF_COPY.loading}</p>
-        <span className="ws-skel ws-skel--line lm-brief__skel" aria-hidden="true" />
+        <div className="lm-brief__row" aria-hidden="true"><span className="ws-skel ws-skel--line lm-brief__skel" /></div>
       </section>
     );
   }
@@ -101,72 +109,126 @@ export function DealBrief({ contractId, stage, viewer, refreshKey, onOpen, onCha
                    counts={brief.counts} />) : null;
   const stale = error ? <p className="lm-brief__stale" role="alert">{BRIEF_COPY.stale}{" "}
     <button type="button" className="ws-linkbtn" onClick={reload}>{BRIEF_COPY.retry}</button></p> : null;
-  return <BriefView brief={brief} stale={stale} contractId={contractId} points={points} expanded={expanded}
+  return <BriefView brief={brief} stale={stale} contractId={contractId} points={points} expanded={expanded} who={who}
                     onToggle={() => setOpen(!expanded)} onChanged={() => { reload(); onChanged(); }}
-                    // the change opens below: the brief folds back to its three lines
+                    onChanges={onChanges && (() => { setOpen(false); onChanges(); })}
+                    // the change opens in the Changes tab: the panel closes
                     onOpen={(key) => { setOpen(false); onOpen(key); window.setTimeout(() => openChange(key), 60); }} />;
 }
 
-/** The brief as drawn (exported for the static tests): the server's brief, nothing else. */
-export function BriefView({ brief, contractId, points, stale = null, expanded, onToggle, onOpen, onChanged }: {
+/** The brief as drawn (exported for the static tests): the server's brief, nothing else.
+ *  U2 (UI-03/35): ONE line above the tabs — the status, and the not-marked count when there
+ *  is one (AM-462 r5 keeps it first) — and the whole brief in a panel beside the contract. */
+export function BriefView({ brief, contractId, points, stale = null, expanded, onToggle, onOpen, onChanged, onChanges, who }: {
   brief: Brief; contractId: string; points?: ReactNode; stale?: ReactNode;
   expanded: boolean; onToggle: () => void; onOpen: (rowKey: string) => void; onChanged: () => void;
+  onChanges?: (() => void) | undefined; who?: ReactNode;
 }) {
   const id = useId();
+  const opener = useRef<HTMLButtonElement>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
   const legal = brief.legal;
   const status = statusWords(brief);         // the server's code, in words (rule 18)
   const asks = brief.asks ?? [];
   const unmarked = brief.not_marked;
-  // collapsed: three lines — the status, the first line under it (batch 8: the changes
-  // not marked come first), the toggle
-  const lead = unmarked ? `${(unmarked.highlights_read ? NOT_MARKED_COPY.title : NOT_MARKED_COPY.titleOldFile)(
-    unmarked.count, unmarked.total)}.`
-    : legal ? (legal.beyond.length ? BRIEF_COPY.startHere(legal.beyond.length) : null)
-    : asks.length ? `${BRIEF_COPY.asks}: ${asks.slice(0, 3).map((a) => a.title).join(", ")}${
-      asks.length + (brief.asks_more ?? 0) > 3 ? ` ${BRIEF_COPY.asksMore(asks.length + (brief.asks_more ?? 0) - 3)}` : ""}.`
-      : null;
   const more = !!(brief.already_agreed || brief.measured_against);              // batch 8 R1.4/R5
+  const opened = useRef(false);
+  useEffect(() => {
+    if (expanded) { opened.current = true; heading.current?.focus(); }
+    else if (opened.current) { opened.current = false; opener.current?.focus(); }
+  }, [expanded]);
+  // U2 r4: a phone gets a real modal sheet (focus trapped, the page inert); a wide screen
+  // a panel docked beside the panes, which make room for it — nothing is covered
+  const sheet = useMinWidth(641) === false;
+  // docked: it starts where the header ends — measured on the click that opens it (the
+  // header never moves while it is open)
+  const [top, setTop] = useState<number | null>(null);
+  const toggle = () => {
+    const header = expanded ? null : document.querySelector(".ws-record");
+    if (header) setTop(Math.round(header.getBoundingClientRect().bottom));
+    onToggle();
+  };
   if (!status && !points && !asks.length && !brief.told?.length && !brief.our_mistake && !legal && !unmarked
-      && !more) return null;
+      && !more && !who) return null;
+  const hasMore = !!(legal || asks.length || brief.told?.length || brief.our_mistake || unmarked || more || who);
   return (
     <section className="lm-brief" aria-labelledby={`${id}-h`} data-testid="deal-brief"
              data-open={expanded || undefined}>
       <h2 id={`${id}-h`} className="ws-visually-hidden">{BRIEF_COPY.title}</h2>
-      {status ? <p className="lm-brief__status" data-testid="brief-status">{status}</p> : points ?? null}
+      <div className="lm-brief__row">
+        {status ? <p className="lm-brief__status" data-testid="brief-status">{BRIEF_COPY.withoutStage(status)}</p>
+          : points ?? null}
+        {unmarked ? (
+          <span className="lm-brief__flag" id={`${id}-unmarked`}>
+            <IconAlertCircle size={16} />
+            {(unmarked.highlights_read ? NOT_MARKED_COPY.title : NOT_MARKED_COPY.titleOldFile)(unmarked.count, unmarked.total)}
+          </span>
+        ) : null}
+        {hasMore ? (
+          <button ref={opener} type="button" className="ws-btn ws-btn--sm lm-brief__open" aria-expanded={expanded}
+                  aria-controls={`${id}-panel`} onClick={toggle}
+                  aria-describedby={unmarked ? `${id}-unmarked` : undefined}>
+            <IconPanelRight size={16} /><span className="lm-brief__openlong">{BRIEF_COPY.open}</span>
+            <span className="lm-brief__openshort" aria-hidden="true">{BRIEF_COPY.openShort}</span>
+            {/* a phone: the not-marked count rides on the button (the line itself is in the sheet) */}
+            {unmarked ? <span className="ws-filter__n lm-brief__count" aria-hidden="true">{unmarked.count}</span> : null}
+          </button>
+        ) : null}
+      </div>
       {stale}
-      {!expanded ? (lead ? <p className="lm-brief__lead">{lead}</p> : null) : (
-        <div className="lm-brief__body" id={`${id}-body`}>
-          {unmarked ? (
-            <div className="lm-brief__first">
-              <NotMarked count={unmarked.count} total={unmarked.total} highlightsRead={unmarked.highlights_read}
-                         more={unmarked.more} onOpen={onOpen}
-                         // the quote only beside a heading: a name made of the client's own
-                         // first words is not said twice
-                         items={unmarked.rows.map((r) => ({ rowKey: r.row_key, quote: r.title ? r.quote : undefined,
-                                                            name: NOT_MARKED_COPY.clause(r.clause, r.title, r.quote) }))} />
+      {expanded ? (() => {
+        const content = (
+          <>
+            <header className="lm-briefpanel__head">
+              <h2 id={`${id}-ph`} ref={heading} tabIndex={-1}>{BRIEF_COPY.panelTitle}</h2>
+              <button type="button" className="ws-btn ws-btn--sm lm-briefpanel__close" aria-label={BRIEF_COPY.close}
+                      onClick={onToggle}><IconX size={16} /></button>
+            </header>
+            <div className="lm-brief__body lm-briefpanel__body">
+              {status ? <p className="lm-briefpanel__status">{status}</p> : null}
+              {who ? <div className="lm-brief__first">{who}</div> : null}
+              {unmarked ? (
+                <div className="lm-brief__first">
+                  <NotMarked count={unmarked.count} total={unmarked.total} highlightsRead={unmarked.highlights_read}
+                             more={unmarked.more} onOpen={onOpen}
+                             // the quote only beside a heading: a name made of the client's own
+                             // first words is not said twice
+                             items={unmarked.rows.map((r) => ({ rowKey: r.row_key, quote: r.title ? r.quote : undefined,
+                                                                name: NOT_MARKED_COPY.clause(r.clause, r.title, r.quote) }))} />
+                </div>
+              ) : null}
+              {brief.already_agreed || brief.measured_against ? (
+                <div className="lm-brief__first">
+                  {brief.already_agreed ? <AlreadyAgreed agreed={brief.already_agreed} /> : null}
+                  <CheckedAgainst brief={brief} legal={!!legal} />
+                </div>
+              ) : null}
+              {legal ? <LegalPart brief={brief} contractId={contractId} onOpen={onOpen} onChanged={onChanged} />
+                : <SalesPart brief={brief} onChanges={onChanges} />}
             </div>
-          ) : null}
-          {brief.already_agreed || brief.measured_against ? (
-            <div className="lm-brief__first">
-              {brief.already_agreed ? <AlreadyAgreed agreed={brief.already_agreed} /> : null}
-              <CheckedAgainst brief={brief} legal={!!legal} />
-            </div>
-          ) : null}
-          {legal ? <LegalPart brief={brief} contractId={contractId} onOpen={onOpen} onChanged={onChanged} />
-            : <SalesPart brief={brief} />}
-        </div>
-      )}
-      {legal || asks.length || brief.told?.length || brief.our_mistake || unmarked || more ? (
-        <button type="button" className="ws-linkbtn lm-brief__toggle" aria-expanded={expanded}
-                aria-controls={`${id}-body`} onClick={onToggle}>
-          {expanded ? BRIEF_COPY.showLess : BRIEF_COPY.showAll}
-        </button>
-      ) : null}
+          </>
+        );
+        return sheet ? (
+          <Dialog onClose={onToggle} titleId={`${id}-ph`} overlayClassName="lm-briefsheet" keepTypedTextOnEscape
+                  returnFocus={() => opener.current}>{content}</Dialog>
+        ) : (
+          // non-modal and docked (it covers nothing); Esc here closes it — never from a
+          // field holding text the reader typed (Legal's "what we told them" draft)
+          <aside className="lm-briefpanel" id={`${id}-panel`} aria-labelledby={`${id}-ph`}
+                 style={top !== null ? { top } : undefined}
+                 onFocusCapture={(event) => rememberInitial(event.target)}
+                 onKeyDown={(event) => {
+                   if (event.key !== "Escape" || hasTypedText(event.target)) return;
+                   event.stopPropagation();
+                   onToggle();
+                 }}>{content}</aside>
+        );
+      })() : null}
     </section>
   );
 }
 
-function SalesPart({ brief }: { brief: Brief }) {
+function SalesPart({ brief, onChanges }: { brief: Brief; onChanges?: (() => void) | undefined }) {
   const asks = brief.asks ?? [];
   return (
     <>
@@ -184,7 +246,9 @@ function SalesPart({ brief }: { brief: Brief }) {
               </li>
             ))}
           </ul>
-          {brief.asks_more ? <p className="lm-brief__more">{BRIEF_COPY.asksMore(brief.asks_more)}</p> : null}
+          {brief.asks_more ? <p className="lm-brief__more">{onChanges ? (
+            <button type="button" className="ws-linkbtn" onClick={onChanges}>{BRIEF_COPY.asksMoreLink(brief.asks_more)}</button>
+          ) : BRIEF_COPY.asksMore(brief.asks_more)}</p> : null}
         </div>
       ) : null}
       <div className="lm-brief__part">
@@ -243,6 +307,9 @@ function LegalPart({ brief, contractId, onOpen, onChanged }: {
 }) {
   const legal = brief.legal!;
   const [adding, setAdding] = useState<string | null>(null);
+  // r5: the form closes back onto its own button — focus stays in the panel, so Esc still works
+  const addButton = useRef<HTMLButtonElement>(null);
+  const closeForm = () => { setAdding(null); window.requestAnimationFrame(() => addButton.current?.focus()); };
   return (
     <>
       <div className="lm-brief__part">
@@ -271,17 +338,12 @@ function LegalPart({ brief, contractId, onOpen, onChanged }: {
       </div>
       <div className="lm-brief__part">
         <ToldList told={brief.told} contractId={contractId} canRecord={legal.can_record} onChanged={onChanged} />
-        {legal.note ? (
-          <blockquote className="lm-brief__note">
-            <span className="lm-brief__meta">{BRIEF_COPY.noteFromSales}</span>
-            {legal.note}
-          </blockquote>
-        ) : null}
+        {/* r4: the owner's note is the panel's first block ("Note to Legal from …") */}
         {legal.can_record ? (adding !== null ? (
-          <TellForm contractId={contractId} initial={adding} onDone={() => { setAdding(null); onChanged(); }}
-                    onCancel={() => setAdding(null)} />
+          <TellForm contractId={contractId} initial={adding} onDone={() => { closeForm(); onChanged(); }}
+                    onCancel={closeForm} />
         ) : (
-          <button type="button" className="ws-btn ws-btn--sm" onClick={() => setAdding(legal.note?.slice(0, 500) ?? "")}>
+          <button ref={addButton} type="button" className="ws-btn ws-btn--sm" onClick={() => setAdding(legal.note?.slice(0, 500) ?? "")}>
             {BRIEF_COPY.add}
           </button>
         )) : null}

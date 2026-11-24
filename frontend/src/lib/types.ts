@@ -1475,6 +1475,20 @@ export interface ReviewAssignments {
   /** The owner, on a contract not archived — the one who sends and withdraws. */
   can_send: boolean;
   eligible: ReviewerPerson[];
+  /** AM-473: the owner's own notes for Legal, newest first, from the audit trail — the
+   *  key is absent for everyone else (omitted, never nulled) */
+  notes?: SentNote[];
+}
+
+/** One "Note for Legal" as sent: to whom, when, and when it was taken back. */
+export interface SentNote {
+  to: ReviewerPerson | null;
+  /** who sent it — the owner then, maybe not the owner now (a transferred contract) */
+  by: ReviewerPerson | null;
+  /** "" when that send carried no note */
+  note: string;
+  sent_at: string;
+  taken_back_at: string | null;
 }
 
 /** `AM-152`/`AM-395` — the wording to send back on a deviating finding, quoted verbatim

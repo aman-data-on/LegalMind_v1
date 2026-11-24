@@ -62,10 +62,12 @@ export interface ClauseName {
   /** its top-level number is used twice: the parent unit it sits in (`key`) and that
    *  parent's own words — null when the number is unique */
   group?: { key: string; name: string | null } | null;
+  /** U2 (UI-21): the top-level clause's own heading ("DEFINITIONS"), for the group name */
+  top_heading?: string | null;
 }
 
 /** Why a NEGATIVE row goes to Legal — only on NEGATIVE rows (proposed AM-299 r1 split). */
-export type Measured = "WORSE" | "ABSENT" | "REVIEW" | "NOT_MEASURED";
+export type Measured = "WORSE" | "ABSENT" | "REVIEW" | "NOT_MEASURED" | "UNCLEAR";
 
 /** R2 (owner, 2026-11-16): one lettered point of a changed clause — display only. */
 export interface LetteredPoint {
@@ -281,13 +283,18 @@ const MEASURED_LABEL: Record<Measured, string> = {
   WORSE: "Bad for us",
   // never "Bad" for what no standard measured (rule 15)
   NOT_MEASURED: "Legal checks",
+  UNCLEAR: "Legal checks",
   ABSENT: "Not in their paper",
   // a standard measured it and nothing says worse (a settled deviation, changed words)
   REVIEW: "Legal checks",
 };
 const MEASURED_SENTENCE: Record<Measured, string> = {
   WORSE: "Legal reviews it.",
-  NOT_MEASURED: "Our standards could not measure this, so Legal reviews it.",
+  // U2 r4 (M2): the server tells the two apart — no Finding at all, or a Finding that could
+  // not be evaluated (a standard exists: never "no standard", rules 14/15). Legal confirms
+  // both wordings.
+  NOT_MEASURED: "No standard covers this clause, so Legal reviews it.",
+  UNCLEAR: "Our standard on this could not be checked here, so Legal reviews it.",
   ABSENT: "Their paper does not have this point, so Legal reviews it.",
   REVIEW: "Legal reviews this change.",
 };

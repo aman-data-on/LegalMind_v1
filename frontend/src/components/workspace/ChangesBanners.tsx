@@ -34,7 +34,6 @@ export function ChangesBanners({ data }: { data: ChangeList; allUntracked?: bool
                    items={unmarked.slice(0, SHOWN).map((c) => ({ rowKey: c.row_key, name: NOT_MARKED_COPY.clause(
                      c.clause.number, c.clause.heading ?? c.clause.name, firstWords(c)) }))} />
       ) : null}
-      {data.from ? <p className="cx-banner" role="note">{CHANGES_COPY.comparedWith(data.from.version_number)}</p> : null}
       {data.tracked_base ? <p className="cx-banner" role="note">{RETURNED_COPY.banner}
         {/* item 12: Legal sees why Keep our wording is missing here (AM-459, Q2) */}
         {answersAsLegal(data) ? <><br />{RETURNED_COPY.keepOff}</> : null}</p> : null}

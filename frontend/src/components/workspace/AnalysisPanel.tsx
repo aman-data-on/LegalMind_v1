@@ -21,6 +21,7 @@
  *                    the document's own party labels — facts, never judgments.
  */
 
+import { Disclosure } from "@/components/Disclosure";
 import { BusinessAngle, LegalAngle, useReviewAngles } from "./Angles";
 import { ContractDecision } from "./ContractDecision";
 import { ReanalyseNotice } from "./ReanalyseNotice";
@@ -269,15 +270,14 @@ export function AnalysisPanel({ documentVersionId, stage = null, viewer = "owner
             {legal ? <ObligationsPanel documentVersionId={documentVersionId} /> : null}
           </section>
           {legal ? (
-            <details className="ws-summary__legal">
-              <summary>Legal details</summary>
+            <Disclosure className="ws-summary__legal" summary="Legal details">
               {/* AM-291 r4/r6: where the review stands and the recommendation are the
                   engine's account — here, never a second status beside the header's */}
               <StageLine progress={state.progress} />
               <Recommendation reviewId={state.review.id} refreshKey={refreshKey} />
               <DecidedRow progress={state.progress} />
               <AnalysisSummary findings={state.findings} />
-            </details>
+            </Disclosure>
           ) : null}
         </>
       )}

@@ -7,7 +7,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { ReportDocumentView } from "@/components/workspace/ReviewReportPage";
-import { TakeBackFromLegal } from "@/components/workspace/TakeBackFromLegal";
 import { REPORT_COPY, REVIEWS_QUEUE_COPY, TAKE_BACK_COPY, reviewStatusLabel } from "@/lib/labels";
 import type { ReportBlock } from "@/lib/types";
 
@@ -15,18 +14,16 @@ const css = readFileSync("src/app/dashboard/workspace.css", "utf8");
 const ENGINE = /analys|resolved|requirement|evaluat|deviation|finding|§|\.docx/i;
 
 describe("UI-02: taking a contract back from Legal asks first", () => {
-  it("renders only the trigger — nothing is withdrawn on render, the dialog opens on click", () => {
-    const html = renderToStaticMarkup(
-      <TakeBackFromLegal reviewId="r" holder={{ user_id: "u", name: "Asha", email: "a@x" }} onDone={async () => {}} />);
-    expect(html).toBe(`<button type="button" class="ws-linkbtn">${TAKE_BACK_COPY.open}</button>`);
-    expect(html).not.toContain("role=\"dialog\"");
+  it("U2: its trigger is a ⋯ menu item, never a link in the header's meta line", () => {
+    const header = readFileSync("src/components/workspace/WorkspaceHeader.tsx", "utf8");
+    expect(header).toMatch(/role="separator" className="ws-menu__sep" \/>\);\n\s+items\.push\(<button key="takeback"/);
+    expect(header).not.toContain("lm-sendlegal__said");
   });
-  it("says only what the server does (r2: the lawyer is not told; the note goes)", () => {
+  it("says what the server now does (AM-472/473): the lawyer gets a notice; no warning about the note", () => {
     expect(TAKE_BACK_COPY.open).toBe("Take back from Legal");
     expect(TAKE_BACK_COPY.title).toBe("Take this contract back from Legal?");
-    expect(TAKE_BACK_COPY.body("Asha")).toBe("It leaves Asha's queue. Answers Legal already gave are kept. Asha is not "
-      + "told, so let them know. When you send it again, write a new note.");
-    expect(TAKE_BACK_COPY.body("Asha")).not.toMatch(/stops working/);
+    expect(TAKE_BACK_COPY.body("Asha")).toBe("It leaves Asha's queue. Answers Legal already gave are kept. Asha gets a notice.");
+    expect(TAKE_BACK_COPY.body("Asha")).not.toMatch(/not told|write a new note/);
     expect(TAKE_BACK_COPY.done.startsWith("Taken back")).toBe(true);
     expect(TAKE_BACK_COPY.confirm).toBe("Take back");
   });
@@ -98,8 +95,8 @@ describe("UI-12: the report's headings go h1 → h2 → h3 and its export says w
     expect(html).not.toContain("<h4");
   });
   it("names the export plainly: the report on the page, as PDF or Word", () => {
-    expect(REPORT_COPY.exportLine).toBe("Download the report shown below:");
-    expect([REPORT_COPY.pdf, REPORT_COPY.word]).toEqual(["PDF", "Word"]);
+    expect(REPORT_COPY.exportLine).toBe("The report below, as a file:");
+    expect([REPORT_COPY.pdf, REPORT_COPY.word]).toEqual(["Download PDF", "Download Word"]);   // U2 r4
     expect(Object.values(REPORT_COPY).join(" ")).not.toMatch(ENGINE);
   });
 });

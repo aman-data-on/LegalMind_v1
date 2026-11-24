@@ -123,12 +123,22 @@ test("journey: upload → analysis → report → findings → ask, with finding
   await expect(askInput).toBeVisible();
   await expect(askInput).toHaveValue(/What does this document say about/);
 
-  // The report is seen before it is downloaded (owner, 2026-10-22): the header opens it.
-  // S1: it lives under the header's ⋯ now, beside the other secondary actions.
-  await page.getByRole("button", { name: "More actions" }).click();
-  await expect(page.getByRole("menuitem", { name: "View report" })).toHaveAttribute(
-    "href", /\/dashboard\/reviews\?id=/);
-  await page.keyboard.press("Escape");
+  // The report is seen before it is downloaded (owner, 2026-10-22). U2 (UI-13): it is the
+  // workspace's third tab where the tabs show; a contract with no Changes tab keeps it under ⋯.
+  const reportTab = page.getByRole("tab", { name: "Report" });
+  if (await reportTab.count()) {
+    await reportTab.click();
+    await expect(page).toHaveURL(/\/report$/);
+    await expect(page.getByRole("button", { name: "Download PDF" })).toBeVisible();
+    await page.getByRole("tab", { name: "Contract" }).click();
+  } else {
+    // r4: ⋯ "View report" opens the same report view of this page
+    await page.getByRole("button", { name: "More actions" }).click();
+    await page.getByRole("menuitem", { name: "View report" }).click();
+    await expect(page).toHaveURL(/\/report$/);
+    await expect(page.getByRole("button", { name: "Download PDF" })).toBeVisible();
+    await page.goto(page.url().replace(/\/report$/, ""));
+  }
 
   // Chat, immediately — the open finding gates nothing (AM-25 r1).
   await (await openAsk(page)).fill("Explain the zorbulated framblewitz stipulations");
@@ -146,7 +156,7 @@ test("journey: upload → analysis → report → findings → ask, with finding
   await expect(page.getByText(/was checked against our standard terms on \d+ point/)).toBeVisible();
   // …and leaves as a real file from beside the preview (owner directive §30).
   const downloaded = page.waitForEvent("download");
-  await page.getByRole("button", { name: "PDF", exact: true }).click();
+  await page.getByRole("button", { name: "Download PDF", exact: true }).click();
   expect((await downloaded).suggestedFilename()).toMatch(/analysis\.pdf$/);
 
   // And the Documents list now answers "what did analysis find" — a status

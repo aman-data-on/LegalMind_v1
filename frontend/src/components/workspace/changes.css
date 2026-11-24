@@ -446,3 +446,34 @@ button.cx-bar__open[aria-expanded="true"] svg { transform: rotate(-90deg); }
   .cx .cx-details > div { grid-template-columns: minmax(0, 1fr); gap: 0; }
   .cx .cx-tie summary { min-height: 44px; display: flex; align-items: center; }
 }
+
+/* U2 (UI-07): the answer tray sticks to the foot of the answer card — the four verdicts in
+   reach whatever the length of the clause above; a long chosen panel scrolls inside it */
+.cx-card .cx-compose { position: sticky; bottom: calc(-1 * var(--ws-s4)); z-index: 1;
+  max-block-size: min(60vh, 32rem); overflow-y: auto;
+  margin-inline: calc(-1 * var(--ws-s4)); margin-bottom: calc(-1 * var(--ws-s4));
+  padding: var(--ws-s3) var(--ws-s4) var(--ws-s4);
+  background: var(--ws-surface); border-top: 1px solid var(--ws-ink-100);
+  /* r4: an edge shadow says the clause goes on under the tray (no elevation token exists) */
+  box-shadow: 0 -8px 12px -8px rgba(14, 20, 32, 0.16); }
+/* r4: a focused field or link is never hidden under the tray */
+.cx-card { scroll-padding-block-end: 10rem; }
+@media (max-width: 900px) {
+  /* the phone: the page scrolls; the tray sits on the bottom tab bar */
+  .cx-card .cx-compose { bottom: calc(var(--s-8) + env(safe-area-inset-bottom)); max-block-size: 50vh; margin-bottom: 0; }
+  html:has(.cx-card .cx-compose) { scroll-padding-block-end: calc(var(--s-8) + 10rem); }
+  /* verdicts are phone targets */
+  .cx-card .cx-choice { min-block-size: var(--s-tap); }
+  /* a verdict chosen: its composer needs the screen — the tray lets go and scrolls into view */
+  .cx-card .cx-compose:has(.cx-choice[data-on]) { position: static; max-block-size: none; overflow: visible;
+    box-shadow: none; }
+}
+/* UI-21: a change's name keeps two lines, never cut at one */
+.cx-row__where { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  white-space: normal; text-overflow: clip; }
+/* UI-22: the filter at the left; "Review table" and the progress at the right */
+.cx-bar { justify-content: flex-start; }
+.cx-bar > .cx-bar__table { margin-inline-start: auto; }
+/* the phone scrolls the page, not the list: the answer tray sticks to the viewport */
+.ws-workmain[data-phone] .cx { overflow: visible; }
+.cx-bar__from { font-size: var(--t-caption); line-height: var(--t-caption-lh); color: var(--c-text-2); }

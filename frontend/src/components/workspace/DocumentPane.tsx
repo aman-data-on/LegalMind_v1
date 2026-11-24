@@ -17,7 +17,7 @@
  */
 
 import { POINT_STATUS, PointStatusIcon, PointStatusLegend } from "./PointStatus";
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { pointAnswer, pointState, readerWord } from "./findingLanguage";
 
@@ -66,7 +66,7 @@ import {
   type ClauseStatus,
   type StatusBucket,
 } from "./model";
-import { ErrorState } from "@/components/Feedback";
+import { ErrorState, LoadingState } from "@/components/Feedback";
 import { CommentLines } from "./WordComments";
 
 const CONTENTS_KEY = "legalmind.workspace.contentsOpen";
@@ -130,7 +130,7 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
   const [contentsOpen, setContentsOpen] = useState(true);
   /* page 2: on a phone the Contents is a sheet over the paper, opened from a "Contents"
      button and closed by choosing an entry — never a zero-height card above it. */
-  const phoneWidth = useMinWidth(640) === false;
+  const phoneWidth = useMinWidth(900) === false;   // U2 r4: the whole one-column layout
   /* …and the same sheet (a drawer over the paper) wherever the PANE is too narrow for the
      index and the paper side by side — the 620px the stacking container query used, which
      left a 240px card with an 8px list above the paper at ~1024px. */
@@ -140,13 +140,14 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
   const docRef = useCallback((el: HTMLDivElement | null) => {
     paneWatch.current?.disconnect();
     if (!el) return;
+    setNarrowPane(el.getBoundingClientRect().width <= 620);   // U2 r4: before the first paint
     paneWatch.current = new ResizeObserver(([entry]) => setNarrowPane((entry?.contentRect.width ?? 999) <= 620));
     paneWatch.current.observe(el);
   }, []);
   const sheet = phoneWidth || narrowPane;
   const contentsButton = useRef<HTMLButtonElement | null>(null);
   const hideContents = useRef<HTMLButtonElement | null>(null);
-  useEffect(() => {
+  useLayoutEffect(() => {   // U2 r4: before paint — the index never shows for a frame (CLS)
     if (sheet) { setContentsOpen(false); return; }
     try {
       setContentsOpen(window.localStorage.getItem(CONTENTS_KEY) !== "0");
@@ -530,14 +531,12 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
 
   if (rows === null) {
     return (
-      <div className="ws-card ws-card--pad" aria-busy="true">
-        <p className="ws-visually-hidden" role="status" aria-live="polite">
-          Loading the document…
-        </p>
-        <span className="ws-skel ws-skel--line" style={{ width: "40%" }} aria-hidden="true" />
-        <span className="ws-skel ws-skel--line" style={{ width: "92%" }} aria-hidden="true" />
-        <span className="ws-skel ws-skel--line" style={{ width: "85%" }} aria-hidden="true" />
-        <span className="ws-skel ws-skel--line" style={{ width: "70%" }} aria-hidden="true" />
+      // UI-04 (r4): the loaded pane's own grid, so the text arriving moves nothing
+      <div className="ws-doc" data-contents={contentsOpen ? "open" : "closed"} data-sheet={sheet ? "" : undefined}
+           ref={docRef} aria-busy="true">
+        {sheet ? null : contentsOpen ? <div className="ws-card ws-doc__holdindex" aria-hidden="true" />
+          : <div className="ws-doc__rail" aria-hidden="true" />}
+        <div className="ws-card ws-card--pad"><LoadingState label="Loading the document…" rows={6} /></div>
       </div>
     );
   }
@@ -772,7 +771,7 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                       <option key={page} value={page}>{page}</option>
                     ))}
                   </select>
-                  <span>of {pages[pages.length - 1]}</span>
+                  <span className="ws-pagecount">of {rows.length >= (total ?? Infinity) ? pages[pages.length - 1] : "…"}</span>
                 </label>
               ) : null}
               <div className="ws-legend" role="note" aria-label="Status legend">
@@ -925,16 +924,17 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                         else setCurrentPage(Number.isNaN(n) ? null : n);
                       }}
                     />
-                    <span>of {pages[pages.length - 1]}</span>
+                    <span className="ws-pagecount">of {rows.length >= (total ?? Infinity) ? pages[pages.length - 1] : "…"}</span>
                   </label>
                 </>
-              ) : null   // a DOCX has no fixed pages: nothing to say rather than a "not paginated" note
+              ) : null   // a DOCX has no fixed pages: nothing to say
             ) : null}
             <span className="ws-doccard__gap" />
             {view === "text" && hasMarks ? (
               <button type="button" className="ws-toolbtn ws-toolbtn--text" aria-pressed={marksOn}
                       onClick={() => chooseMarks(!marksOn)}>
-                {marksOn ? "Hide changes" : "Show changes"}
+                {/* UI-14: one label; the pressed state says whether they show */}
+                Show changes
               </button>
             ) : null}
             {view === "text" && rows.length > 0 ? (

@@ -164,16 +164,22 @@ describe("the deal brief (checks 5 and 6)", () => {
     expect(said).not.toMatch(/Add what we told them|Withdraw|Start here|not discussed/);
   });
 
-  it("collapses to three lines: the status, the top asks, the toggle", () => {
+  it("U2 (AM-471): one row above the tabs — the status and the panel's button; the rest in the panel", () => {
     const html = view(BRIEF, false);
-    expect(text(html)).toContain("What the client asks for: Limitation of Liability, Termination, Indemnities and 4 more.");
     expect(html).not.toContain("lm-brief__body");
-    expect(html.match(/<p /g) ?? []).toHaveLength(2);
+    expect(html).not.toContain("lm-briefpanel");
+    expect(html.match(/<p /g) ?? []).toHaveLength(1);
+    expect(text(html)).toContain("Open the brief");
+    const open = view(BRIEF, true);
+    // r4: docked beside the panes (non-modal, nothing covered); a phone gets a modal sheet
+    expect(open).toMatch(/<aside class="lm-briefpanel"[^>]*aria-labelledby=/);
+    expect(text(open)).toContain("Brief");
+    expect(text(open)).toContain("What the client asks for");
   });
 
   it("offers no toggle when there is nothing more to show", () => {
     const html = view({ counts: { points_open: 3 } }, false);
-    expect(html).not.toContain("Show the whole brief");
+    expect(html).not.toContain("Open the brief");
   });
 
   it("words the server's status code, and decides nothing itself (rule 18)", () => {
@@ -217,7 +223,8 @@ describe("the deal brief (checks 5 and 6)", () => {
     expect(said).toContain("30 changes as we told them. 24 changes not discussed");
     expect(said).toContain("Client comments: 10.5, 11.9");
     expect(said).toContain("Whole contract");
-    expect(said).toContain("Test email pasted by sales");
+    // U2 r4: the owner's note is the panel's first block, from the header ("Note to Legal from …")
+    expect(said).not.toContain("Note for Legal from the deal owner");
     expect(said).toContain("Add what we told them");
   });
 });

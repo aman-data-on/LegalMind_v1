@@ -61,12 +61,33 @@
 import * as RadixDialog from "@radix-ui/react-dialog";
 import type { ReactNode } from "react";
 
+type Field = { tagName: string; value: string; dataset: DOMStringMap };
+function asField(target: EventTarget | null): Field | null {
+  const f = target as Partial<Field> | null;
+  return f && typeof f.value === "string" && f.dataset && (f.tagName === "TEXTAREA" || f.tagName === "INPUT")
+    ? f as Field : null;
+}
+
+/** U2 r5: remember a field's text as the reader found it, the first time it takes focus.
+ *  (`defaultValue` cannot tell: React keeps it in step with a controlled field's value.) */
+export function rememberInitial(target: EventTarget | null): void {
+  const f = asField(target);
+  if (f && f.dataset.initial === undefined) f.dataset.initial = f.value;
+}
+
+/** A field whose text the reader changed since they entered it (Esc then keeps it open). */
+export function hasTypedText(target: EventTarget | null): boolean {
+  const f = asField(target);
+  return !!f && f.dataset.initial !== undefined && f.value !== f.dataset.initial;
+}
+
 export function Dialog({
   onClose,
   titleId,
   dismissOnScrimClick = true,
   overlayClassName,
   returnFocus,
+  keepTypedTextOnEscape = false,
   children,
 }: {
   onClose: () => void;
@@ -85,6 +106,8 @@ export function Dialog({
   /** Where focus goes on close, for a dialog opened from a control that is gone by then
       (a menu item): Radix would otherwise refocus its absent Trigger, leaving the body. */
   returnFocus?: () => HTMLElement | null | undefined;
+  /** U2 r4: Esc from a field whose text changed does not close (nothing typed is lost) */
+  keepTypedTextOnEscape?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -95,11 +118,16 @@ export function Dialog({
             className="ws-modal__box"
             aria-labelledby={titleId}
             aria-describedby={undefined}
+            aria-modal="true"
+            onFocusCapture={keepTypedTextOnEscape ? (event) => rememberInitial(event.target) : undefined}
             onKeyDown={(event) => event.stopPropagation()}
             onCloseAutoFocus={returnFocus ? (event) => {
               const to = returnFocus();
               if (to) { event.preventDefault(); to.focus(); }
             } : undefined}
+            onEscapeKeyDown={(event) => {
+              if (keepTypedTextOnEscape && hasTypedText(event.target)) event.preventDefault();
+            }}
             onInteractOutside={(event) => {
               if (!dismissOnScrimClick) event.preventDefault();
             }}

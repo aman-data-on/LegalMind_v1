@@ -31815,3 +31815,74 @@ r3  The screen says "Checked against our standards as our MSA (our general contr
     also sees each source's name and points and the open question (C-34). Nothing is re-measured and no side of
     C-34 is chosen.
 ```
+
+## AMENDMENT BATCH AB-225 — `AM-471`–`AM-474` (2026-11-24): the contract workspace layout, and taking a contract back from Legal
+
+Owner instructions (2026-11-24): "yes" to the take-back follow-up — the lawyer is told and the Sales note is never
+lost — and "build" on the U2 design (`U2-DESIGN.md`, full-stack audit 2026-11-23: UI-03, UI-04, UI-06, UI-07, UI-13,
+UI-35), with the answers Q1 keep the reply/fill-in strip, Q2 keep the disclosure rule for a lawyer who lost access,
+Q3 "No standard settles this, so Legal reviews it." (copy Legal still confirms), Q4 the take-back dialog says the
+lawyer gets a notice, Q5 yes — the lawyer is also told when a contract is sent to them. Presentation under the
+owner's "product over locks" delegation (AM-471) and the owner's explicit yes (AM-472–AM-474). Nothing here is a
+Finding, Classification, Rule Outcome, Mapping State, Legal Decision or lifecycle change (rules 10/13); no legal
+position, threshold or vocabulary is added (rules 7/21); no authorization is widened — sending and taking back stay
+review.create resolved to the owner, out of scope stays the byte-identical 404 (rule 18, SEC-07); the audit trail is
+only read (AUD-01). IDs scanned: AB-225, AM-471–474 on origin/main fe07f54b, every remote branch and every worktree
+(code comments included): free. (AB-224 and AM-468–470 are left unused: AB-223's scan sentence names them.)
+
+`AM-471` — THE DEAL BRIEF IS ONE ROW; THE WHOLE BRIEF OPENS BESIDE THE CONTRACT (amends `AM-441` r1).
+```text
+r1  AM-441 r1's "One block above the tabs … collapsed to three lines" becomes: one row above the tabs — the server's
+    status sentence and, when there is one, the not-marked count (AM-462 r5 keeps it first) — and "Open the brief".
+    The whole brief opens in a side panel (a full-height sheet on a phone) that lies over the right column and never
+    moves the document; it is never shown beside "What needs attention" (unchanged).
+r2  The panel's first block is who has the contract and since when, then the owner's note for Legal (upright body
+    text), then the brief as before; "and N more" opens the Changes tab. The record header keeps one meta row.
+r3  Everything in it is still the server's (AM-441 r2–r4 unchanged); the browser maps codes to words only.
+r4  The change card says "no standard" once. A client-change row's measured word NOT_MEASURED splits, for display
+    only: NOT_MEASURED when no Finding reaches the row ("No standard covers this clause. Decide from the
+    wording." for Legal; "No standard settles this, so Legal reviews it." for the deal owner), UNCLEAR when a
+    Finding exists but was unable to evaluate (AMBIGUOUS, UNRESOLVED, UNABLE_TO_EVALUATE, MISSING on our row):
+    "Our standard on this could not be checked here, so Legal reviews it." Route, route reason, effect, answers
+    and every count are byte-identical (12 version pairs / 83 rows on the scratch copy: 0 differences outside
+    the measured word, 2 rows NOT_MEASURED → UNCLEAR). The wording awaits Legal's confirmation.
+```
+
+`AM-472` — THE LAWYER IS TOLD WHEN A CONTRACT IS TAKEN BACK (rider on `AM-273`, like `AM-442`).
+```text
+r1  DELETE /reviews/{id}/assignments/{user_id} adds one notice to the person it was taken from, never the actor:
+    kind TAKEN_BACK, "The owner took {contract} back from Legal.", link /contracts/{id} — on every take-back,
+    except while a TAKEN_BACK notice on the same contract is still unread. Writing it marks that person's unread
+    SENT_TO_LEGAL notice on the contract read, so the unread inbox says only who holds it now. In-app only: a
+    take-back sends no e-mail.
+r2  AM-273 m3 holds: the contract is named only while the reader can still read it — a lawyer whose only basis was
+    the assignment (AM-170 r4) reads "The owner took a contract back from Legal."; the e-mail never names it.
+r3  "The owner": only the contract's owner takes a review back, and the notice stores no actor.
+```
+
+`AM-473` — EVERY NOTE FOR LEGAL IS KEPT FOR THE OWNER (rider on `AM-408` r1; `AM-170` r3 holds).
+```text
+r1  review_assignments.note stays "the note now"; every note ever sent is already in the append-only audit trail
+    (review.assigned, after.note). GET, POST and DELETE /reviews/{id}/assignments return notes — every send, its
+    note ("" when none was written), the person it went to, who sent it, when sent and when taken back, newest
+    first — to the contract's owner only; the key is omitted for everyone else, never nulled. A re-send writes
+    the assignment's created_at anew, so "with {person} since" is the latest send on the contract list, the
+    reviews list and the workspace alike. No table, column or permission is added (AM-170 r3).
+r2  After a take-back the owner reads "Your note to Legal (taken back {date})" first in the brief's panel, earlier
+    notes one press away; a note sent by someone else (a transferred contract) reads "Note to Legal from {name}".
+    A re-send starts from the last send's note, said as such ("Your last note is filled in."); a cleared note
+    stays cleared.
+r3  The take-back dialog says only what the server does: "It leaves {name}'s queue. Answers Legal already gave are
+    kept. {name} gets a notice."
+```
+
+`AM-474` — THE LAWYER IS TOLD WHEN A CONTRACT IS SENT TO THEM (rider on `AM-273`; owner Q5).
+```text
+r1  POST /reviews/{id}/assignments adds one notice to the person it was sent to, never the actor: kind
+    SENT_TO_LEGAL, "The owner sent {contract} to you for Legal review.", link /contracts/{id} — on every send,
+    except while a SENT_TO_LEGAL notice on the same contract is still unread. Writing it marks that person's
+    unread TAKEN_BACK notice on the contract read (a send, a take-back and a re-send: three notices, the newest
+    the only unread one). Its e-mail goes at most once per 15 minutes per lawyer per contract; the in-app
+    notice is always written.
+r2  The same disclosure as AM-472 r2: named only while the reader can read the contract; the e-mail never names it.
+```

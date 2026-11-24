@@ -19,9 +19,10 @@ from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Query, Response
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, text
 from sqlalchemy.orm import aliased
 
+from legalmind import notifications
 from legalmind.analysis.negotiation import review_unit_names
 from legalmind.analysis.service import (
     AnalysisNotPermitted,
@@ -616,6 +617,35 @@ def _eligible(db) -> list[M.User]:
             and has_permission(db, u.id, P.LEGAL_DECISION)]
 
 
+def _sends(db, review_id: UUID) -> list[dict]:
+    """Every send of this review, oldest first, read from the append-only audit trail
+    (AUD-01): to whom, by whom, its note, when sent and when taken back."""
+    events = db.execute(
+        select(M.AuditEvent)
+        .where(M.AuditEvent.entity_type == "review", M.AuditEvent.entity_id == review_id,
+               M.AuditEvent.action.in_((A.REVIEW_ASSIGNED,
+                                        A.REVIEW_ASSIGNMENT_WITHDRAWN)))
+        # rows written in one transaction share a timestamp; ctid is only a best-effort
+        # tie-break there (Postgres does not promise heap order) — separate requests are
+        # ordered by their own timestamps
+        # ponytail: a sequence column on audit_events if same-transaction order matters
+        .order_by(M.AuditEvent.timestamp, text("audit_events.ctid"))).scalars().all()
+    sent: list[dict] = []
+    for e in events:
+        after = e.after_state or {}
+        if e.action == A.REVIEW_ASSIGNED:
+            sent.append({"to": after.get("assigned_to"), "by": e.actor_id,
+                         "note": after.get("note") or "", "sent_at": e.timestamp,
+                         "taken_back_at": None})
+        else:
+            for one in reversed(sent):
+                if (one["taken_back_at"] is None
+                        and one["to"] == after.get("withdrawn_from")):
+                    one["taken_back_at"] = e.timestamp
+                    break
+    return sent
+
+
 def _assignments(db, review_id: UUID) -> list[dict]:
     rows = db.execute(
         select(M.ReviewAssignment, M.User)
@@ -624,7 +654,25 @@ def _assignments(db, review_id: UUID) -> list[dict]:
                M.ReviewAssignment.revoked_at.is_(None))
         .order_by(M.ReviewAssignment.created_at)).all()
     return [{**_reviewer(user), "assigned_by": str(a.assigned_by),
-             "assigned_at": a.created_at.isoformat(), "note": a.note} for a, user in rows]
+             "assigned_at": a.created_at.isoformat(),
+             "note": a.note} for a, user in rows]
+
+
+def _notes(db, review_id: UUID) -> list[dict]:
+    """AM-473: every send on this review, newest first — its note ("" when none was
+    written), to whom, by whom, when sent and when taken back — so a re-send never loses
+    the earlier text and no column is added (AM-170 r3). The owner's only: the caller
+    omits the key for everyone else."""
+    sent = _sends(db, review_id)
+    ids = ({UUID(one["to"]) for one in sent if one["to"]}
+           | {one["by"] for one in sent if one["by"]})
+    users = {str(u.id): u for u in db.execute(
+        select(M.User).where(M.User.id.in_(ids))).scalars()}
+    person = lambda key: _reviewer(users[key]) if key in users else None  # noqa: E731
+    return [{"to": person(one["to"]), "by": person(str(one["by"])) if one["by"] else None,
+             "note": one["note"], "sent_at": one["sent_at"].isoformat(),
+             "taken_back_at": one["taken_back_at"] and one["taken_back_at"].isoformat()}
+            for one in reversed(sent)]
 
 
 @router.get("/reviews/{review_id}/assignments")
@@ -638,6 +686,8 @@ def review_assignments(review_id: UUID, guard: Guard = Depends(get_guard)) -> di
     return data({"assigned": _assignments(guard.db, review.id),
                  # whether this caller may send or withdraw (the owner, not archived)
                  "can_send": owner and not archived,
+                 # AM-473: the owner's own notes for Legal — omitted, never nulled, else
+                 **({"notes": _notes(guard.db, review.id)} if owner else {}),
                  "eligible": ([_reviewer(u) for u in _eligible(guard.db)
                                if u.id != guard.user_id and u.id not in
                                contract_principals(guard.db, review.contract_id)]
@@ -661,7 +711,8 @@ def assign_review(review_id: UUID, body: ReviewAssign,
         raise BusinessRuleRejected("a contract's owner never decides its own points")
     row = db.execute(select(M.ReviewAssignment).where(
         M.ReviewAssignment.review_id == review.id,
-        M.ReviewAssignment.user_id == reviewer.id)).scalar_one_or_none()
+        M.ReviewAssignment.user_id == reviewer.id)
+        .with_for_update()).scalar_one_or_none()      # L3: two sends never race
     if row is not None and row.revoked_at is None:
         raise Conflict("already sent to this person")
     if row is None:
@@ -669,14 +720,17 @@ def assign_review(review_id: UUID, body: ReviewAssign,
                                  assigned_by=guard.user_id)
         db.add(row)
     else:                                   # sent again after a withdrawal
-        row.revoked_at, row.assigned_by = None, guard.user_id
+        # L1 (U2 r4): "with them since" is this send — the list, the progress and the
+        # workspace all read created_at
+        row.revoked_at, row.assigned_by, row.created_at = None, guard.user_id, func.now()
     row.note = (body.note or "").strip() or None          # AM-408
     db.flush()
     A.record(db, action=A.REVIEW_ASSIGNED, entity_type="review", entity_id=review.id,
              actor_id=guard.user_id, request_id=guard.request_id,
              after={"assigned_to": str(reviewer.id),
                     "contract_id": str(review.contract_id), "note": row.note})
-    return data({"assigned": _assignments(db, review.id)})
+    notifications.review_sent(db, review, reviewer.id, actor_id=guard.user_id)   # AM-474
+    return data({"assigned": _assignments(db, review.id), "notes": _notes(db, review.id)})
 
 
 @router.delete("/reviews/{review_id}/assignments/{user_id}")
@@ -688,7 +742,8 @@ def withdraw_review(review_id: UUID, user_id: UUID,
     require_writable(db, review)          # QA-083
     row = db.execute(select(M.ReviewAssignment).where(
         M.ReviewAssignment.review_id == review.id, M.ReviewAssignment.user_id == user_id,
-        M.ReviewAssignment.revoked_at.is_(None))).scalar_one_or_none()
+        M.ReviewAssignment.revoked_at.is_(None))
+        .with_for_update()).scalar_one_or_none()      # L3: two take-backs never race
     if row is None:
         raise Conflict("this Review is not with that person")
     row.revoked_at = func.now()
@@ -696,7 +751,8 @@ def withdraw_review(review_id: UUID, user_id: UUID,
     A.record(db, action=A.REVIEW_ASSIGNMENT_WITHDRAWN, entity_type="review",
              entity_id=review.id, actor_id=guard.user_id, request_id=guard.request_id,
              after={"withdrawn_from": str(user_id)})
-    return data({"assigned": _assignments(db, review.id)})
+    notifications.review_taken_back(db, review, user_id, actor_id=guard.user_id)  # AM-472
+    return data({"assigned": _assignments(db, review.id), "notes": _notes(db, review.id)})
 
 
 # ---- The decision on the whole contract (owner, 2026-10-22; AM-174) ----------------

@@ -227,6 +227,8 @@
   /* Spacing 4·8·12·16·24·32·48·64; 2px only for borders and focus offsets. */
   --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px;
   --s-5: 24px; --s-6: 32px; --s-7: 48px; --s-8: 64px;
+  /* U2 r4: the phone touch target and the reading sheet's width, named once */
+  --s-tap: 44px; --w-sheet: 50rem;
 
   /* Radius 4 inputs · 8 buttons/chips/cards · 12 dialogs · 999 avatars/counts. */
   --r-control: 4px; --r-card: 8px; --r-dialog: 12px; --r-round: 999px;
@@ -1275,3 +1277,11 @@ pre { overflow-x: auto; margin: 0.3rem 0; font-size: var(--t-caption); }
 .access-restricted h2 { margin-top: 0; }
 .access-restricted .hint { font-style: normal; color: var(--c-text-3); }
 .lm-state .lm-state__acts { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+
+/* U2 r4: one disclosure (components/Disclosure.tsx) — a Lucide chevron, never the native ▶ */
+.lm-disc > summary { list-style: none; display: inline-flex; align-items: center; gap: var(--s-1);
+  min-block-size: 24px; cursor: pointer; }
+.lm-disc > summary::-webkit-details-marker { display: none; }
+.lm-disc__chev { display: inline-flex; transition: transform 0.15s ease; }
+.lm-disc[open] > summary .lm-disc__chev { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) { .lm-disc__chev { transition: none; } }

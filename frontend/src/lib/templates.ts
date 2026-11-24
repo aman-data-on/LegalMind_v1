@@ -196,6 +196,16 @@ export function displayTitle(title: string): string {
   return lower.charAt(0).toUpperCase() + lower.slice(1);
 }
 
+/** U2 r4: a run of two or more words in capitals ("TERMS GOVERNING PROVISION") in sentence
+ *  case, for display only — single capitals words (MSA, SLA) and the contract's own text
+ *  in the data are left alone. */
+export function displayCaps(label: string): string {
+  return label.replace(/\b[A-Z][A-Z'’&-]+(?:\s+[A-Z][A-Z'’&-]*)+\b/g, (run) => {
+    const lower = run.toLowerCase();
+    return lower.charAt(0).toUpperCase() + lower.slice(1);
+  });
+}
+
 export const approved = (c: TemplateClause) => c.status === "APPROVED";
 
 export function allApproved(t: TemplateSummary): boolean {
