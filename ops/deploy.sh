@@ -116,30 +116,70 @@ bash frontend/scripts/deploy-frontend.sh
 # zero-downtime — old workers finish their requests.
 say "Edge: nginx site config"
 NGINX_SITE=/etc/nginx/sites-available/legalmind.lsnw.io
+NGINX_PID=/run/nginx.pid
+EDGE_HOST=legalmind.lsnw.io
+EDGE_ADDR=127.0.0.1:443   # probe this host's nginx, not whatever DNS answers
+
+# `nginx -t` passing does not mean the running master accepts the reload: some
+# changes (a limit_req_zone's key, 2026-11-19) are refused at reload time, logged
+# as [emerg], and the OLD config keeps serving while systemd reports success. A
+# reload that took starts new workers, so compare their PIDs; if none changed (or
+# nginx was not running), restart (about a second of refused connections).
+nginx_apply() {
+  local before after
+  before=$(pgrep -P "$(cat "$NGINX_PID" 2>/dev/null)" 2>/dev/null | sort | tr '\n' ' ') || true
+  systemctl reload nginx && sleep 3
+  after=$(pgrep -P "$(cat "$NGINX_PID" 2>/dev/null)" 2>/dev/null | sort | tr '\n' ' ') || true
+  if [ -n "$after" ] && [ "$before" != "$after" ]; then say "Edge: nginx reloaded"; return 0; fi
+  echo "nginx refused the reload (see /var/log/nginx/error.log); restarting it." >&2
+  systemctl restart nginx
+}
+
+# `nginx -t` checks syntax, not routing (a wrong Host or upstream still passes).
+# So after the reload, ask the live edge for a page, the API and a static asset.
+# edge_check <path> <expected "status content-type" prefix>; three tries, 5 s each.
+edge_check() {
+  local got="" i
+  for i in 1 2 3; do
+    got=$(curl -s -o /dev/null --max-time 5 -w '%{http_code} %{content_type}' \
+          --connect-to "$EDGE_HOST:443:$EDGE_ADDR" "https://$EDGE_HOST$1") || true
+    [[ "$got" == "$2"* ]] && return 0
+    sleep 2
+  done
+  echo "Edge probe $1: expected '$2', got '${got:-no answer}'." >&2
+  return 1
+}
+edge_ok() {
+  local asset
+  edge_check /login "200 text/html" &&
+    edge_check /api/v1/auth/session "401 application/json" &&   # FastAPI answers; no session
+    asset=$(curl -s --max-time 5 --connect-to "$EDGE_HOST:443:$EDGE_ADDR" "https://$EDGE_HOST/login" |
+            grep -o '/_next/static/[^"]*\.js' | head -1) &&
+    edge_check "$asset" "200 application/javascript"
+}
+
 if [ -f "$NGINX_SITE" ] && ! cmp -s ops/production/nginx-legalmind.lsnw.io.conf "$NGINX_SITE"; then
-  cp "$NGINX_SITE" "$NGINX_SITE.bak-$(date +%Y%m%dT%H%M%S)"
+  backup="$NGINX_SITE.bak-$(date +%Y%m%dT%H%M%S)"
+  cp "$NGINX_SITE" "$backup"
   install -m 644 ops/production/nginx-legalmind.lsnw.io.conf "$NGINX_SITE"
   if ! nginx -t; then
-    cp "$(ls -t "$NGINX_SITE".bak-* | head -1)" "$NGINX_SITE"
+    cp "$backup" "$NGINX_SITE"
     echo "nginx config from the repository is invalid; /etc restored, nothing reloaded." >&2
     exit 1
   fi
-  # `nginx -t` passing does not mean the running master accepts the reload: some
-  # changes (a limit_req_zone's key, 2026-11-19) are refused at reload time, logged
-  # as [emerg], and the OLD config keeps serving while systemd reports success. A
-  # reload that took starts new workers, so compare their PIDs; if none changed,
-  # restart (about a second of refused connections) and say so.
-  before=$(pgrep -P "$(cat /run/nginx.pid)" | sort | tr '\n' ' ')
-  systemctl reload nginx
-  sleep 3
-  after=$(pgrep -P "$(cat /run/nginx.pid)" | sort | tr '\n' ' ')
-  if [ "$before" = "$after" ]; then
-    echo "nginx refused the reload (see /var/log/nginx/error.log); restarting it." >&2
-    systemctl restart nginx
-    say "Edge: nginx restarted (reload was refused)"
-  else
-    say "Edge: nginx reloaded"
+  # Every failure below restores the previous file; it passed `nginx -t` when it was
+  # installed, so nginx is never left without a valid config.
+  if ! nginx_apply || ! edge_ok; then
+    echo "Edge: the new nginx config failed; restoring $backup." >&2
+    cp "$backup" "$NGINX_SITE"
+    if nginx -t && nginx_apply && edge_ok; then
+      echo "REFUSING: previous nginx config restored and serving. Fix the repository file (or revert it) before the next deploy." >&2
+    else
+      echo "REFUSING: previous nginx config restored but the edge still fails. Check: systemctl status nginx; /var/log/nginx/error.log" >&2
+    fi
+    exit 1
   fi
+  say "Edge: probes passed (page, API, static asset)"
 else
   say "Edge: nginx config already current"
 fi
