@@ -45,14 +45,16 @@ from __future__ import annotations
 import hashlib
 import io
 import re
+import time
 import zipfile
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from uuid import UUID
 
 from fastapi import APIRouter, Body, Depends, Path, Query, Response
 from fastapi.responses import JSONResponse
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
+from sqlalchemy.orm import Session as DBSession
 
 from legalmind import notifications
 from legalmind.analysis import document_comparison, negotiation, reader_generation
@@ -145,12 +147,12 @@ HOLDER_DECIDES = ("Accepting this change is a Legal Decision — a person with t
                   "decides it from the finding.")
 
 
-def _pair(guard: Guard, contract: M.Contract, from_version: int | None,
+def _pair(db: DBSession, contract: M.Contract, from_version: int | None,
           to_version: int | None) -> tuple[M.DocumentVersion | None, M.DocumentVersion]:
     """The two versions compared: by default the latest and the latest of OURS before it
     (`negotiation.our_previous`), else the one before it. None before the client's own
     paper when no version of ours precedes it (`AM-290`: client paper first)."""
-    versions = list(guard.db.execute(
+    versions = list(db.execute(
         select(M.DocumentVersion).where(M.DocumentVersion.contract_id == contract.id)
         .order_by(M.DocumentVersion.version_number)).scalars())
     by_number = {v.version_number: v for v in versions}
@@ -161,7 +163,7 @@ def _pair(guard: Guard, contract: M.Contract, from_version: int | None,
     if from_version is None:
         if negotiation.our_previous(versions, after) is None and (
                 not negotiation.is_ours(after)
-                or blank.link(guard.db, contract, after) is not None):
+                or blank.link(db, contract, after) is not None):
             return None, after
         before = negotiation.our_previous(versions, after) or next(
             (v for v in reversed(versions) if v.version_number < after.version_number),
@@ -184,7 +186,7 @@ def _changes(guard: Guard, contract: M.Contract, from_version: int | None,
              ) -> tuple[dict, M.DocumentVersion | None, M.DocumentVersion]:
     """``counting`` (`deal_counts`, M4): only what the counts read — an answered row's
     holder state and offers are skipped; never used for a write or a page."""
-    before, after = _pair(guard, contract, from_version, to_version)
+    before, after = _pair(guard.db, contract, from_version, to_version)
     # AM-302: paper made from our blank template is compared with that template;
     # AM-457: a version uploaded "tracked changes only" with its own pre-markup text
     template = blank.base(guard.db, contract, after) if before is None else None
@@ -482,22 +484,40 @@ def deal_counts(guard: Guard, contracts: list[M.Contract],
     per contract. A stored per-version tally is the upgrade if a list page grows slow."""
     db, out = guard.db, {}
     can_decide = P.LEGAL_DECISION in guard.permissions
+    # B2.1 (S1): versions, latest reviews, held and sent — one query each for the list
+    all_versions: dict[UUID, list[M.DocumentVersion]] = {c.id: [] for c in contracts}
+    if contracts:
+        for v in db.execute(select(M.DocumentVersion).where(
+                M.DocumentVersion.contract_id.in_(list(all_versions)))).scalars():
+            all_versions[v.contract_id].append(v)
+    latest_of = {cid: max(vs, key=lambda v: v.version_number)
+                 for cid, vs in all_versions.items() if vs}
+    reviews: dict[UUID, M.Review] = {}
+    if latest_of and P.REVIEW_VIEW in guard.permissions:
+        for r in db.execute(select(M.Review).where(M.Review.document_version_id.in_(
+                [v.id for v in latest_of.values()]))
+                .order_by(M.Review.created_at.desc(), M.Review.id.desc())).scalars():
+            reviews.setdefault(r.document_version_id, r)   # as `_latest_review`
+    analysed = [r.id for r in reviews.values() if r.status in negotiation._ANALYSED]
+
+    def having(clause) -> set[UUID]:
+        return set(db.execute(select(M.Review.id).where(
+            M.Review.id.in_(analysed), clause)).scalars()) if analysed else set()
+    held = having(held_by(guard.user_id)) if can_decide else set()
+    sent_ids = having(sent_to_legal())
     for contract in contracts:
         counts: dict[str, int | bool] = {}
         holds = False           # Batch 1 (e): yours = held by me, never "may decide"
-        versions = list(db.execute(select(M.DocumentVersion).where(
-            M.DocumentVersion.contract_id == contract.id)).scalars())
-        latest = max(versions, key=lambda v: v.version_number, default=None)
+        versions = all_versions[contract.id]
+        latest = latest_of.get(contract.id)
         if latest is not None and P.REVIEW_VIEW in guard.permissions:
-            review = negotiation._latest_review(db, latest)
+            review = reviews.get(latest.id)
             if review is not None and review.status in negotiation._ANALYSED:
                 progress = review_progress(db, review,
                                            legal_position=guard.sees_legal_position)
                 n = progress["to_decide"]
-                holds = can_decide and db.execute(select(M.Review.id).where(
-                    M.Review.id == review.id, held_by(guard.user_id))).first() is not None
-                sent = db.execute(select(M.Review.id).where(
-                    M.Review.id == review.id, sent_to_legal())).first() is not None
+                holds = review.id in held
+                sent = review.id in sent_ids
                 # B11; Batch 1: the points waiting on the client, and whether the review
                 # is with Legal now (any stage) — one fact for the header and the To-do
                 counts.update(points_open=n, points_for_me=n if holds else 0,
@@ -539,6 +559,55 @@ def _round_changes(guard: Guard, contract: M.Contract, theirs: M.DocumentVersion
         return _changes(guard, contract, None, theirs.version_number, counting=counting)
     except (BusinessRuleRejected, negotiation.VersionRoleUndeclared):
         return None
+
+
+def warm_comparisons(db: DBSession, *, deadline: float, limit: int = 30,
+                     days: int = 14) -> dict[str, int]:
+    """S1: after a start, make each recently active contract's open-round comparison
+    once, so its per-process parts (P2 `process_memo`, `change_triage.code_reading`)
+    are kept before the first list or Changes read. The
+    pair, the template and the loader are exactly `_round_changes` → `_changes`' — the
+    key holds no reader, so one warm-up serves every reader, and each request still
+    passes its own Guard. Reads only; stops at ``deadline`` (`time.monotonic`).
+
+    ponytail: newest version created within ``days``, at most ``limit`` contracts; a
+    stored key → core table is the upgrade if a process must start warm for all."""
+    recent = (select(M.DocumentVersion.contract_id,
+                     func.max(M.DocumentVersion.created_at).label("at"))
+              .where(M.DocumentVersion.created_at >= func.now() - timedelta(days=days))
+              .group_by(M.DocumentVersion.contract_id).subquery())
+    contracts = db.execute(select(M.Contract).join(recent, recent.c.contract_id
+                                                   == M.Contract.id)
+                           .where(M.Contract.archived_at.is_(None))
+                           .order_by(recent.c.at.desc(), M.Contract.id)
+                           .limit(limit)).scalars().all()
+    done = {"warmed": 0, "skipped": 0, "failed": 0}
+    for contract in contracts:
+        if time.monotonic() > deadline:
+            done["skipped"] += 1
+            continue
+        try:
+            with db.begin_nested():   # a failed read rolls back to here only
+                theirs = client_version(list(db.execute(select(M.DocumentVersion).where(
+                    M.DocumentVersion.contract_id == contract.id)).scalars()))
+                if theirs is None:
+                    raise LookupError("no open round")
+                before, after = _pair(db, contract, None, theirs.version_number)
+                template = blank.base(db, contract, after) if before is None else None
+                if before is None and template is None:
+                    raise LookupError("client paper first: nothing kept")
+                # the first reader's own call, discarded: its pure part and code
+                # readings are kept per process; no positions are read (rule 18)
+                negotiation.changes(db, contract, before, after, legal_position=False,
+                                    template=template,
+                                    clause_loader=effective.effective_clauses)
+            done["warmed"] += 1
+        except (LookupError, BusinessRuleRejected, ComparisonNotPossible,
+                negotiation.VersionRoleUndeclared):
+            done["skipped"] += 1
+        except Exception:  # one contract never stops the rest
+            done["failed"] += 1
+    return done
 
 
 def _round_of(guard: Guard, review: M.Review
