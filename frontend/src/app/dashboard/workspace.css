@@ -8030,3 +8030,45 @@ html[data-ask-chat] .lm-askskel > [data-slot="aui_thread-welcome"] { visibility:
 /* on touch the composer and openers draw 40/44 (M2-1), so their block is taller */
 @media (max-width: 767px) and (pointer: coarse) { .lm-askskel__foot { block-size: 369px; } }
 @media (max-width: 860px) { .lm-askskel__rail { block-size: 45px; } }
+
+/* ============================================================ M3 (2026-11-25): the phone's reading
+ * chrome (M-02, M-03, M-19; AM-475). Phone layout only (`data-phone`, below 900px): the wide
+ * workspace is untouched.
+ * 1 · The document bar is ONE row: Contents, find, the page box and ⋯ (view and marks). */
+.ws-workmain[data-phone] .ws-doccard__bar { flex-wrap: nowrap; padding: var(--s-1) var(--s-2); }
+.ws-workmain[data-phone] .ws-doccard__page { margin: 0; } /* a label's own 0.6em foot made the row 58px */
+/* find open: the field takes the row */
+.ws-workmain[data-phone] .ws-doccard__bar:has(.ws-doccard__find) :is(.ws-doccard__contents, .ws-doccard__page) { display: none; }
+.ws-workmain[data-phone] .ws-doccard__find { flex: 1 1 auto; min-width: 0; }
+.ws-workmain[data-phone] .ws-doccard__find input { flex: 1 1 auto; width: auto; min-width: 0; }
+@media (max-width: 359px) { .ws-workmain[data-phone] .ws-doccard__bar .ws-pagecount { display: none; } }
+.ws-menu__item[role="menuitemcheckbox"][aria-checked="true"] { font-weight: 600; color: var(--ws-ink-900); }
+.ws-menu__item[role="menuitemcheckbox"][aria-checked="true"]::after { content: "✓"; margin-left: auto;
+  padding-left: var(--ws-s3); color: var(--ws-accent); }
+/* 2 · Once the title scrolls away, the record bar REPLACES the app bar instead of stacking
+ * under it. A transform moves nothing in layout (no CLS). Focus in the app bar brings it back. */
+.ws:has(.ws-recordbar:not([hidden])):not(:has(.ws-shell:focus-within)) > .ws-shell { transform: translateY(-100%); }
+.ws:has(.ws-recordbar:not([hidden])):not(:has(.ws-shell:focus-within)) .ws-recordbar { top: 0; }
+.ws:has(.ws-recordbar:not([hidden])):not(:has(.ws-shell:focus-within)) .ws-workmain[data-phone] .ws-doccard__bar { top: var(--s-7); }
+/* 3 · No focus lands under a bar (WCAG 2.4.11): the top stack (app or record bar + document
+ * bar) and the bottom tab bar are reserved when the page scrolls a focused control into view. */
+html:has(.ws-workmain[data-phone]) { scroll-padding-top: calc(var(--s-8) + var(--s-7)); }
+html:has(.ws-workmain[data-phone]):not(:has(.cx-card .cx-compose)) {
+  scroll-padding-bottom: calc(var(--s-8) + var(--s-2) + env(safe-area-inset-bottom, 0px)); }
+/* 4 · A phone on its side (390px tall): the bars give the text the screen. The tab bar is one
+ * 48px row (icon beside its word), the document bar and the answer tray scroll with the page. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .ws-phonebar { padding-top: 0; }
+  .ws-phonebar__tabs > button, .ws-phonebar__ask { flex-direction: row; min-height: var(--s-7); padding: 0 var(--s-1); gap: var(--s-2); }
+  .ws-phonebar__icon { width: var(--s-6); }
+  .ws-workmain[data-phone] { padding-bottom: calc(var(--s-7) + env(safe-area-inset-bottom)); }
+  .ws-workmain[data-phone] .ws-doccard__bar,
+  .ws:has(.ws-recordbar:not([hidden])) .ws-workmain[data-phone] .ws-doccard__bar { position: static; }
+  .ws-workmain[data-phone] .cx-card .cx-compose { position: static; max-block-size: none; overflow: visible; box-shadow: none; }
+  html:has(.ws-workmain[data-phone]) { scroll-padding-top: var(--s-8); }
+  html:has(.ws-workmain[data-phone]),
+  html:has(.ws-workmain[data-phone] .cx-card .cx-compose) {
+    scroll-padding-bottom: calc(var(--s-7) + var(--s-2) + env(safe-area-inset-bottom, 0px)); }
+  .ws-workmain[data-phone] .ws-cl__headmenu .ws-menu__list { bottom: calc(var(--s-7) + env(safe-area-inset-bottom)); }
+  .ws-workmain[data-phone] .ws-dock { bottom: calc(var(--s-7) + env(safe-area-inset-bottom)); }
+}

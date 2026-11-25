@@ -68,6 +68,7 @@ import {
   type StatusBucket,
 } from "./model";
 import { ErrorState, LoadingState } from "@/components/Feedback";
+import { ClientMenu } from "@/components/clients/ClientWorkspace";
 import { CommentLines } from "./WordComments";
 
 const CONTENTS_KEY = "legalmind.workspace.contentsOpen";
@@ -114,10 +115,14 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
    * natively; a DOCX has no in-browser renderer, and faking one is out of scope.
    */
   const canOriginal = version.mime_type === "application/pdf" && can(P.DOCUMENT_DOWNLOAD);
-  const [view, setView] = useState<"original" | "text">(canOriginal ? "original" : "text");
+  // M3 (M-15): below 640 the page shrunk to the screen is unreadable — the text leads there,
+  // the original one tap away (the viewport is known on the first client render, W1-0)
+  const small = useMinWidth(640) === false;
+  const firstView = canOriginal && !small ? "original" : "text";
+  const [view, setView] = useState<"original" | "text">(firstView);
   useEffect(() => {
     // A different version is a different document — re-derive the default.
-    setView(canOriginal ? "original" : "text");
+    setView(firstView);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [version.id]);
 
@@ -806,7 +811,7 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                 <PanelLeftOpen size={16} aria-hidden focusable="false" /> Contents
               </button>
             ) : null}
-            {canOriginal ? (
+            {canOriginal && !phoneWidth ? (
               <div className="ws-viewtoggle" role="group" aria-label="Document view">
                 <button
                   type="button"
@@ -902,12 +907,15 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
             {view === "text" ? (
               pages.length > 0 ? (
                 <>
+                  {/* M3 (M-03): a phone keeps the page box; the page scrolls itself */}
+                  {phoneWidth ? null : (<>
                   <button type="button" className="ws-toolbtn" aria-label="Previous page" onClick={() => stepPage(-1)}>
                     <IconChevronUp />
                   </button>
                   <button type="button" className="ws-toolbtn" aria-label="Next page" onClick={() => stepPage(1)}>
                     <IconChevronDown />
                   </button>
+                  </>)}
                   <label className="ws-doccard__page">
                     <span className="ws-visually-hidden">Page</span>
                     <input
@@ -925,7 +933,7 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
               ) : null   // a DOCX has no fixed pages: nothing to say
             ) : null}
             <span className="ws-doccard__gap" />
-            {view === "text" && hasMarks ? (
+            {view === "text" && hasMarks && !phoneWidth ? (
               <button type="button" className="ws-toolbtn ws-toolbtn--text" aria-pressed={marksOn}
                       onClick={() => chooseMarks(!marksOn)}>
                 {/* UI-14: one label; the pressed state says whether they show */}
@@ -954,6 +962,23 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                   +
                 </button>
               </>
+            ) : null}
+            {/* M3 (M-03): on a phone the bar is one row — the view and the marks are under ⋯ */}
+            {phoneWidth && (canOriginal || (view === "text" && hasMarks)) ? (
+              <ClientMenu label={DOCUMENT_COPY.options}>
+                {canOriginal ? (
+                  <div className="ws-menu__group" role="group" aria-label="Document view">
+                    {(["original", "text"] as const).map((v) => (
+                      <button key={v} type="button" role="menuitemradio" aria-checked={view === v}
+                              className="ws-menu__item" onClick={() => chooseView(v)}>{DOCUMENT_COPY[v]}</button>
+                    ))}
+                  </div>
+                ) : null}
+                {view === "text" && hasMarks ? (
+                  <button type="button" role="menuitemcheckbox" aria-checked={marksOn}
+                          className="ws-menu__item" onClick={() => chooseMarks(!marksOn)}>{DOCUMENT_COPY.showChanges}</button>
+                ) : null}
+              </ClientMenu>
             ) : null}
             <button type="button" className="ws-toolbtn" aria-label="Fullscreen" onClick={toggleFullscreen}>
               <IconMaximize />

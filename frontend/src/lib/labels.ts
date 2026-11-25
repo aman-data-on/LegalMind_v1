@@ -803,6 +803,11 @@ export const SUMMARY_COPY = { loading: "Loading the summary…" } as const;
 export const DOCUMENT_COPY = {
   loadingRest: "Loading the rest of the document…",
   restFailed: "The rest of the document could not be loaded",
+  /** M3 (M-03): the phone's one-row document bar keeps the view and the marks under ⋯ */
+  options: "Document options",
+  original: "Original",
+  text: "Text",
+  showChanges: "Show changes",
 } as const;
 
 export const BRIEF_COPY = {
