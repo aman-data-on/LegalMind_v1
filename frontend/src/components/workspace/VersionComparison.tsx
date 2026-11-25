@@ -41,7 +41,7 @@
  * document stay put?", which is the second question anyone asks.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { api, describeError } from "@/lib/api";
 import { sectionRef } from "@/lib/documentTypes";
@@ -78,6 +78,8 @@ const STATUS_TEXT: Record<ClauseChange["status"], string> = {
   UNCHANGED: "unchanged",
 };
 
+import { CompareHead, takeComparison } from "./compareHead";
+
 export function VersionComparison({
   contractId,
   versions,
@@ -91,14 +93,19 @@ export function VersionComparison({
   const [before, setBefore] = useState(previous?.id ?? "");
   const [after, setAfter] = useState(newest?.id ?? "");
   const [showUnchanged, setShowUnchanged] = useState(false);
-  const [state, setState] = useState<Load>({ kind: "loading" });
+  // W2 r2: the comparison ⋯ already asked for, if it has arrived, is drawn on the first render
+  const [early] = useState(() => takeComparison(contractId, previous?.id ?? "", newest?.id ?? ""));
+  const firstRun = useRef(true);
+  const [state, setState] = useState<Load>(early?.value ? { kind: "ready", comparison: early.value } : { kind: "loading" });
 
   useEffect(() => {
     if (!before || !after) return;
+    const isFirst = firstRun.current;
+    firstRun.current = false;
+    if (isFirst && early?.value) return;   // drawn on the first render already
     let cancelled = false;
-    setState({ kind: "loading" });
-    api
-      .versionComparison(contractId, before, after)
+    if (!isFirst) setState({ kind: "loading" });
+    (isFirst && early ? early.promise : api.versionComparison(contractId, before, after))
       .then((comparison) => {
         if (!cancelled) setState({ kind: "ready", comparison });
       })
@@ -108,11 +115,9 @@ export function VersionComparison({
     return () => {
       cancelled = true;
     };
-  }, [contractId, before, after]);
+  }, [contractId, before, after, early]);
 
   if (!newest || !previous) return null;
-
-  const label = (version: DocumentVersion) => `Version ${version.version_number}`;
 
   return (
     <section className="ws-compare" aria-label="Compare versions">
@@ -120,34 +125,8 @@ export function VersionComparison({
           "Version 1 → Version 2", the two selects styled as the words they
           replace. The arrow is a real relationship between two versions — a
           direction in time — not link decoration. */}
-      <div className="ws-compare__head">
-        <div className="ws-compare__pair">
-          <label className="ws-compare__pick">
-            <span className="ws-visually-hidden">Earlier version</span>
-            <select value={before} onChange={(event) => setBefore(event.target.value)}>
-              {versions.map((version) => (
-                <option key={version.id} value={version.id}>
-                  {label(version)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <span className="ws-compare__arrow" aria-hidden="true">→</span>
-          <label className="ws-compare__pick">
-            <span className="ws-visually-hidden">Later version</span>
-            <select value={after} onChange={(event) => setAfter(event.target.value)}>
-              {versions.map((version) => (
-                <option key={version.id} value={version.id}>
-                  {label(version)}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-        {state.kind === "ready" ? (
-          <p className="ws-compare__counts">{countSentence(state.comparison.summary)}</p>
-        ) : null}
-      </div>
+      <CompareHead versions={versions} before={before} after={after} onBefore={setBefore} onAfter={setAfter}
+                   counts={state.kind === "ready" ? countSentence(state.comparison.summary) : null} />
 
       {state.kind === "loading" ? (
         <p className="ws-pane__note">Comparing…</p>

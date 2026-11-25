@@ -328,7 +328,7 @@ body {
  * audit found no responsive rule existed for the shell at all, so the top bar
  * previously had undefined behavior below its content's natural width.
  */
-.shell { min-height: 100vh; display: flex; flex-direction: column; }
+.shell { min-height: 100dvh; display: flex; flex-direction: column; }
 .shell--bare { padding: 3rem 1.5rem; max-width: 34rem; margin: 0 auto; }
 
 /* DD-5 theme resolution: the top bar carries the deep-navy identity from
@@ -602,7 +602,7 @@ textarea:focus-visible,
  * capabilities the product does not have (SSO button, forgot password,
  * Google chip, request access) are deliberately absent — see DD-4.
  */
-.shell--login { padding: 0; }
+.shell--login { padding: 0 calc(0px + env(safe-area-inset-right)) 0 calc(0px + env(safe-area-inset-left)); } /* M2-2: the notch, like the other bars */
 
 .login {
   flex: 1; position: relative; overflow: hidden;
@@ -1297,3 +1297,29 @@ pre { overflow-x: auto; margin: 0.3rem 0; font-size: var(--t-caption); }
 .lm-disc__chev { display: inline-flex; transition: transform 0.15s ease; }
 .lm-disc[open] > summary .lm-disc__chev { transform: rotate(90deg); }
 @media (prefers-reduced-motion: reduce) { .lm-disc__chev { transition: none; } }
+
+/* M2-1 (owner-approved rule): controls draw 36 on desktop and at least 40 on touch; on a touch
+   screen the HIT area is 44 (--s-tap), by an invisible ::after centred on the control, so the
+   layout around it does not move. `position: relative` sits in :where() so a control that is
+   already fixed/absolute/sticky keeps its own position. Fine pointers: no change. The drawn 40
+   for the workspace's controls is in workspace.css (it must outweigh page rules there); a link
+   inside running text takes padding instead, so its box reaches 40 without moving the line. */
+@media (pointer: coarse) {
+  :where(.ws-btn, .ws-toolbtn, .ws-linkbtn, .ws-link, .ws-chat__iconbtn, .lm-tap, .login__reveal,
+    .ws-escalate__link, .ws-skip, .lm-ph__back, .lm-seg__item, .ws-chat__new,
+    .ws-cl__docname, .ws-cl__vertoggle, .ws-cl__tab, .ws-cl__rail-back, .ws-cl__crumbs a),
+  :where(.ws td > a[href]) { position: relative; }
+  :is(.ws-btn, .ws-toolbtn, .ws-linkbtn, .ws-link, .ws-chat__iconbtn, .lm-tap, .login__reveal,
+    .ws-escalate__link, .ws-skip, .lm-ph__back, .lm-seg__item, .ws-chat__new,
+    .ws-cl__docname, .ws-cl__vertoggle, .ws-cl__tab, .ws-cl__rail-back, .ws-cl__crumbs a)::after,
+  .ws td > a[href]::after {
+    content: ""; position: absolute; left: 50%; top: 50%; translate: -50% -50%;
+    inline-size: max(100%, var(--s-tap)); block-size: max(100%, var(--s-tap));
+  }
+  .login__reveal { min-block-size: 40px; min-inline-size: 40px; }
+  /* neighbours keep 4px apart, so two hit areas never overlap: the joined segmented control
+     becomes separate buttons on touch (as its wrap variant already is) */
+  .lm-seg__row { gap: 4px; }
+  .lm-seg__item + .lm-seg__item { margin-left: 0; }
+  .lm-seg__item, .lm-seg__item:first-child, .lm-seg__item:last-child { border-radius: var(--r-control); }
+}

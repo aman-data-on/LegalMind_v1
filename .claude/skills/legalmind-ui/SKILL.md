@@ -60,7 +60,11 @@ and `dataviz` for any chart, meter or KPI tile.
 - Page max 80rem. Gutter 24, and 16 below 960.
 - At 390 px and 320 px: no horizontal page scroll. A filter row that doesn't fit becomes one
   "Filter" menu.
-- Touch targets: 24×24 minimum, 44 on phone layouts.
+- Touch targets: 24×24 minimum. Controls draw 36 on desktop, 40 on touch; the hit area is 44 on touch (`--s-tap`) — one rule, `globals.css` + the end of `workspace.css` (`pointer: coarse`), never per page:
+  - every class on the hit-area list draws ≥ 40 both ways and carries an invisible 44 `::after`; neighbours keep ≥ 4px apart (no overlapping hit areas);
+  - a control clipped by its container (a table cell, a scrolling tab bar) draws the full 44 itself; a link inside running text pads to 40 instead of moving the line;
+  - a field cannot carry a `::after`: alone it draws 44; in a toolbar/pager beside 40px buttons it draws 40 and its label carries the 44;
+  - sanctioned exceptions: the older page rules that draw 44 (`summary` rows, `.lm-tabs`, record/phone bars, `.ws-shell__*` toggles) stay — they are ≥ 40.
 
 ## 3. Colour: tokens only, no raw hex in components
 
@@ -92,7 +96,7 @@ and `dataviz` for any chart, meter or KPI tile.
 - **Buttons**
   - Primary: filled, at most ONE per view, the action the status line names.
   - Secondary: white with a `#808899` border. Tertiary: a text link.
-  - Height 36 (40 on phone), text 14/500, radius 8.
+  - Controls draw 36 on desktop, 40 on touch; the hit area is 44 on touch (`--s-tap`). Text 14/500, radius 8.
   - A label is 1–3 words starting with a verb, kept the same through the whole flow. No "→".
   - Icon-only buttons are allowed only for ⋯, close and zoom, with `aria-label` and a tooltip.
   - The same action has the same level on every page.
@@ -207,7 +211,7 @@ and `dataviz` for any chart, meter or KPI tile.
   names the fix.
 - [ ] **Keyboard**: everything is reachable by Tab with a visible focus ring. Dialogs trap focus,
   return it, and close on Esc. Shortcut hints are not shown to Sales.
-- [ ] **Targets** ≥ 24×24 (≥ 44 on phone). Icon-only buttons have an `aria-label`.
+- [ ] **Targets** ≥ 24×24. Controls draw 36 on desktop, 40 on touch; the hit area is 44 on touch (`--s-tap`). Icon-only buttons have an `aria-label`.
 - [ ] **WCAG 1.4.12**: with line-height 1.5, paragraph spacing 2em, letter spacing 0.12em and word
   spacing 0.16em injected, nothing overlaps or clips.
 - [ ] **ruff / mypy** are not relevant here. Instead run `tsc`, `eslint` and the touched component

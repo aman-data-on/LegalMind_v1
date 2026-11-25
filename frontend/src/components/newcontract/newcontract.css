@@ -167,7 +167,7 @@
   .nc-grid { display: block; }
   .nc-left-col, .nc-well { overflow: visible; }
   .nc[data-view="details"] .nc-well, .nc[data-view="contract"] .nc-left-col { display: none; }
-  .nc-bar { display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; padding: var(--ws-s3) var(--ws-s4) calc(var(--ws-s3) + env(safe-area-inset-bottom));
+  .nc-bar { display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; padding: var(--ws-s3) calc(var(--ws-s4) + env(safe-area-inset-right)) calc(var(--ws-s3) + env(safe-area-inset-bottom)) calc(var(--ws-s4) + env(safe-area-inset-left));
     background: var(--ws-surface); border-top: 1px solid var(--ws-ink-100); box-shadow: 0 -6px 18px rgba(14, 20, 32, 0.08); }
   .nc-bar .ws-btn { width: 100%; min-height: 44px; justify-content: center; }
 }

@@ -66,7 +66,7 @@ import { AssistantRuntimeProvider } from "@assistant-ui/react";
 import Link from "@/components/AppLink";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { sectionRef } from "@/lib/documentTypes";
-import { classificationLabel } from "@/lib/labels";
+import { ASK_DOCK_NOTE, classificationLabel } from "@/lib/labels";
 
 import { ASK_TIMEOUT_MS, ApiError, api, describeError } from "@/lib/api";
 import { Thread } from "@/components/ui/thread";
@@ -550,10 +550,7 @@ export function AskDock({
               end: choosesModel ? <ModelPicker models={models} value={shownModel} disabled={busy}
                                 onChange={chooseModel} /> : null,
               below: (
-                <p className="ws-dock__note">
-                  AI answers cite the document, or say they cannot. Verify with the original
-                  document.
-                </p>
+                <p className="ws-dock__note">{ASK_DOCK_NOTE}</p>
               ),
             }}
           >

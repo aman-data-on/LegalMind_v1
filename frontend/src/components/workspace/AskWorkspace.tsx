@@ -51,6 +51,7 @@ import { type ClipboardEvent, useCallback, useEffect, useLayoutEffect, useRef, u
 
 import { Dialog } from "@/components/Dialog";
 import { Thread } from "@/components/ui/thread";
+import { ASK_WELCOME } from "@/lib/labels";
 import { ASK_TIMEOUT_MS, ApiError, api, describeError } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
@@ -231,6 +232,8 @@ export function AskWorkspace() {
   const { can, identity, signOut } = useSession();
   const router = useRouter();
   const activeId = useSearchParams().get("id");
+  // W2-4: the start-up skeleton's pre-paint mark has done its job once the real page is here
+  useEffect(() => { document.documentElement.removeAttribute("data-ask-chat"); }, []);
 
   const [conversations, setConversations] = useState<ConversationSummary[] | null>(null);
   /** §B3-P3: the chat list (or its search) could not be read — said, never "No conversations" */
@@ -1038,7 +1041,7 @@ export function AskWorkspace() {
         <Thread
           empty={!loadingChat && !notFound && turns.length === 0 && shownPending === null}
           welcome={{ title: scope.contractId ? "Ask about this contract"
-            : "Ask about a contract, a clause or our standards" }}
+            : ASK_WELCOME }}
           suggestions={[...OPENERS, scope.contractId ? DOCUMENT_OPENER : KNOWLEDGE_OPENER]}
           onSuggestion={(opener) => {
             runtime.thread.composer.setText(opener);

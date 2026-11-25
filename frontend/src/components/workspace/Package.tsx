@@ -26,7 +26,7 @@ import {
 import type { Answer } from "@/lib/changes";
 import type { DocumentVersion } from "@/lib/types";
 
-import { ForUs, ReplyDownloads } from "./ChangesPane";
+import { ForUs, ReplyDownloads } from "./changesFeed";
 import { IconLock } from "./icons";
 import { formatDate } from "@/lib/dates";
 

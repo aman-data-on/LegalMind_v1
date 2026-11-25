@@ -22,6 +22,8 @@ contract back from Legal now asks first. The client page's counts no longer run 
 owner's one-line rule with a facts line that tells rows apart, the Reviews list speaks the same words as its rows, and the report sales reads has no
 file names, "§" or "analysed", and says what Export will download.
 
+**2026-11-25 — Speed and touch batch W2+M2 (BUILT, not deployed).** The sign-in page no longer loads the app's big stylesheet, so it draws about 0.8 s sooner on a phone and signing in lands 0.3 s sooner; Ask shows its first screen 2.5 s sooner; pages load only the fonts they draw; every control on a phone has a 44 px tap area; the iPhone notch and home bar no longer cover the bars.
+
 **2026-11-25 — Speed batch W1 (BUILT, not deployed) and the edge E1 (DEPLOYED 2026-11-24, fa76a395).** E1 put the site on HTTP/2 with compressed API data. W1 makes phones draw the contract page once, load nothing in the background until you point at a link, draw the document as you scroll, load its text in parallel, stop pages jumping, keep every menu on screen and stop iPhones zooming into fields: on the phone profile the contract page shows about 0.7 s sooner.
 
 **2026-11-24 — UI batch U2 "workspace layout", AB-225 (DEPLOYED 2026-11-24 (7ce8a014)).** A contract now opens with the

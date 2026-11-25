@@ -9,6 +9,7 @@
  * (a clause or schedule a condition adds) comes with the server's next preview.
  */
 
+import { DOCUMENT_FACES, useStartFaces } from "@/components/workspace/faces";
 import type { ReactNode } from "react";
 
 import "@/components/templates/templates.css";
@@ -108,6 +109,7 @@ export function ContractPreview({ model, questions, local, fresh = null, onJump 
   fresh?: string | null;
   onJump: (key: string) => void;
 }) {
+  useStartFaces(DOCUMENT_FACES);   // W2-5 r2: this draws a document
   const ctx: Ctx = { questions: new Map(questions.map((q) => [q.key, q])), local, fresh, onJump };
   const exec = model.execution;
   // a column the template never fills (no row names it) is left out, not drawn empty

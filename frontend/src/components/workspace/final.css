@@ -17,7 +17,7 @@
 /* prelaunch P2: the preview's box is the same size before and after the PDF arrives (it was
    CLS 0.22, pushing the workspace off the first screen); the pages scroll inside it */
 .lm-final__preview { border: 1px solid var(--c-line); border-radius: var(--r-card); overflow: auto;
-  height: min(60vh, 640px); overscroll-behavior: contain; }
+  height: min(60svh, 640px); overscroll-behavior: contain; }
 .lm-pdfpages { display: grid; gap: var(--s-2); max-block-size: 640px; overflow-y: auto; padding: var(--s-2); background: var(--c-viewer); }
 .lm-pdfpages__page { display: block; inline-size: 100%; block-size: auto; background: var(--c-surface); }
 .lm-final__note { display: grid; gap: var(--s-2); justify-items: start; }

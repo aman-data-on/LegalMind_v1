@@ -41,6 +41,7 @@ working day gets one entry, newest first, with these headings (omit an empty one
 
 ### Done
 - W1 "fast first screen" built on `perf/w1-first-screen`, independently verified 10/10 after 4 rounds, UI critic's must-fixes done; PR opened (not deployed). Decisions by the lead: the idle Ask warm-up stays (Ask tap ≈ main, at the cost of one ~150 ms task after the largest paint); one PDF evidence link at 390 lands ~55 px differently from main (row taller than the screen).
+- W2+M2 built on `perf/w2-lighter`: spec self-critiqued before the build; independently verified 23/23 after 3 rounds plus a UI critic. Lead decisions: `/contracts` phone LCP +60–180 ms under combined throttling accepted (FCP −100 ms 7/7); the login warm-up limited to page routes after the verifier's low finding.
 
 ### Next
 - Owner: "deploy" for W1, then re-measure the live phone scores; test once on a real iPhone (no WebKit on the host).

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 
 import { Toaster } from "@/components/Toast";
 import { SessionProvider } from "@/lib/session";
@@ -6,8 +6,6 @@ import { SessionProvider } from "@/lib/session";
 // the product faces app-wide (UX Batch 2): sign-in, 404 and errors read Plex too
 import "./dashboard/fonts.css";
 import "./globals.css";
-// the shared components' classes (.ws-btn, .ws-modal) wherever they render; class-scoped only
-import "./dashboard/workspace.css";
 
 export const metadata: Metadata = {
   // Each section names itself ("Diff-Talk · LegalMind") through its own layout.
@@ -15,6 +13,9 @@ export const metadata: Metadata = {
   description:
     "LegalMind — review contracts against LeapSwitch's Company Standards, compare documents side by side, and ask questions with cited answers.",
 };
+
+// M2-2: viewport-fit=cover, so the safe-area insets the bars pad by are real on iOS
+export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

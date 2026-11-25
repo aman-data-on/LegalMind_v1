@@ -15,7 +15,7 @@
 import Link from "@/components/AppLink";
 
 import { ApiError, describeError } from "@/lib/api";
-import { FEEDBACK_COPY } from "@/lib/labels";
+import { FEEDBACK_COPY } from "@/lib/feedbackCopy";
 import { IconAlertCircle, IconInfo } from "@/components/workspace/icons";
 
 /** The id support can look up, or null when the response carried none. */

@@ -13,6 +13,7 @@
  * found" for them).
  */
 
+import { DOCUMENT_FACES, useStartFaces } from "@/components/workspace/faces";
 import Link from "@/components/AppLink";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -89,6 +90,7 @@ function useOutline(id: string, key: string | null, text: string | null) {
 }
 
 export function TemplateApproval({ id }: { id: string }) {
+  useStartFaces(DOCUMENT_FACES);   // W2-5 r2: this draws a document
   const { can } = useSession();
   const { detail, check, checking, failed, error, reload, runCheck } = useTemplate(id);
   const checkState = checking ? "checking" : failed || !check ? "failed" : "done";

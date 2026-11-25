@@ -8,6 +8,8 @@
  * server-side (rule 18).
  */
 
+import dynamic from "next/dynamic";
+import { loadReport } from "./paneLoaders";
 import Link from "@/components/AppLink";
 import { useEffect, useRef, useState } from "react";
 
@@ -27,12 +29,11 @@ import { templateName } from "@/lib/templates";
 import { ClientMenu } from "@/components/clients/ClientWorkspace";
 
 import { GovernedByLink } from "./Amendments";
-import { SendOut } from "./ChangesPane";
+import { SendOut } from "./changesFeed";
 import { CollaboratorsControl } from "./CollaboratorsControl";
 import { ExportControl } from "./ExportControl";
 import { useFindingsState, useFindingsStateOptional } from "./findingsState";
 import { shortDate } from "./model";
-import { ReportDocument } from "./ReviewReportPage";
 import { RecordSigning } from "./SigningSheet";
 import { SendToLegal } from "./SendToLegal";
 import { StageBadge } from "./StageBadge";
@@ -75,6 +76,11 @@ export function ReportTabGate({ children }: { children: (shown: boolean) => Reac
 
 /** The Report tab: the report a reader downloads, shown before it is downloaded (AB-103),
  *  under the workspace's own header; read-only. */
+// W2-3: the report loads when the Report tab first opens
+// …with the report's own first state as its placeholder: one skeleton, the same height (W2 r2)
+const ReportDocument = dynamic(() => loadReport().then((m) => m.ReportDocument),
+                               { loading: () => <LoadingState label={REPORT_VIEW_COPY.preparing} rows={6} /> });
+
 export function ReportView() {
   const { state } = useFindingsState();
   // r4: the address works before the report does — each state says what is true

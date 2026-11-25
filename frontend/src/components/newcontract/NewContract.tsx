@@ -8,6 +8,7 @@
  * The created v1 is reviewed by the same engine as any upload — this page decides nothing.
  */
 
+import { DOCUMENT_FACES, useStartFaces } from "@/components/workspace/faces";
 import { PageHeader } from "@/components/page/PageHeader";
 import { ACTION, CONVERT_COPY, INTAKE_COPY as C } from "@/lib/labels";
 import Link from "@/components/AppLink";
@@ -537,6 +538,7 @@ function LoadingRows() {
 }
 
 export function NewContract() {
+  useStartFaces(DOCUMENT_FACES);   // W2-5 r2: this draws a document
   const router = useRouter();
   const params = useSearchParams();
   const draftId = params.get("draft");

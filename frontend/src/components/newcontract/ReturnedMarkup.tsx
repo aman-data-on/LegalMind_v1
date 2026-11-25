@@ -8,6 +8,7 @@
  * only: no row, base or status is computed here (rule 18).
  */
 
+import { DOCUMENT_FACES, useStartFaces } from "@/components/workspace/faces";
 import Link from "@/components/AppLink";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -53,6 +54,7 @@ export function Alert({ id, children, live }: { id?: string; children: React.Rea
 }
 
 export function ReturnedMarkup() {
+  useStartFaces(DOCUMENT_FACES);   // W2-5 r2: this draws a document
   const { can } = useSession();
   const router = useRouter();
   const [client, setClient] = useState<Counterparty | null>(null);

@@ -218,7 +218,7 @@
   height: var(--ws-shell-h);
   background: var(--ws-shell); color: var(--ws-on-shell);
   display: flex; align-items: center; gap: var(--ws-s5);
-  padding: 0 var(--ws-s4);
+  padding: 0 calc(var(--ws-s4) + env(safe-area-inset-right)) 0 calc(var(--ws-s4) + env(safe-area-inset-left)); /* M2-2: clear the notch in landscape */
   position: sticky; top: 0; z-index: var(--ws-z-shell);
 }
 /* Two-tone wordmark (owner, 2026-09-02). `--ws-brand` is the brand blue itself;
@@ -3549,7 +3549,7 @@
   flex: 0 0 360px; align-self: stretch; background: var(--ws-surface);
   border: 1px solid var(--ws-ink-100); border-radius: var(--ws-radius-card);
   padding: var(--ws-s4); display: flex; flex-direction: column; gap: var(--ws-s4);
-  max-height: calc(100vh - 180px); overflow-y: auto;
+  max-height: calc(100svh - 180px); overflow-y: auto;
 }
 .ws-detail__head { display: flex; align-items: flex-start;
                    justify-content: space-between; gap: var(--ws-s3); }
@@ -7182,7 +7182,7 @@ button.ws-open__go:hover { background: var(--ws-paper); }
   .ws-hq__item { grid-template-columns: minmax(0, 1fr) auto; padding: 12px var(--ws-s4); }
   .ws-hq__what { grid-column: 1 / -1; }
   .ws-hq__doc { white-space: normal; }
-  .ws-hq__act { min-height: 44px; justify-self: end; }
+  .ws-hq__act { justify-self: end; }
   .ws-home__search { flex: 1 1 auto; min-height: 44px; }
   .ws-home__filter > summary { min-height: 44px; }
   .ws-home__filterpanel { left: auto; right: 0; }
@@ -7202,7 +7202,7 @@ button.ws-open__go:hover { background: var(--ws-paper); }
 .ws-shell__navtoggle { display: none; }
 @media (max-width: 560px) {
   .ws { --ws-shell-h: 52px; }
-  .ws-shell { flex-wrap: nowrap; gap: var(--ws-s2); padding: 0 var(--ws-s3); }
+  .ws-shell { flex-wrap: nowrap; gap: var(--ws-s2); padding: 0 calc(var(--ws-s3) + env(safe-area-inset-right)) 0 calc(var(--ws-s3) + env(safe-area-inset-left)); }
   .ws-shell__navtoggle {
     display: inline-flex; align-items: center; justify-content: center;
     width: 44px; height: 44px; margin-left: -8px; padding: 0;
@@ -7324,7 +7324,7 @@ button.ws-open__go:hover { background: var(--ws-paper); }
 /* phone: the same Contents as a sheet from the bottom of the screen */
 @media (max-width: 639px) {
   .ws-doc[data-sheet] > .ws-doc__clauses:not([hidden]) {
-    position: fixed; top: auto; left: 0; right: 0; bottom: 0; width: auto; height: min(78vh, 640px);
+    position: fixed; top: auto; left: 0; right: 0; bottom: 0; width: auto; height: min(78dvh, 640px);
     z-index: calc(var(--ws-z-dialog) + 2);
     border-radius: var(--ws-radius-card) var(--ws-radius-card) 0 0;
     box-shadow: 0 -8px 24px rgba(14, 20, 32, 0.18);
@@ -7454,8 +7454,9 @@ button.ws-open__go:hover { background: var(--ws-paper); }
 }
 /* The launcher's footprint is reserved on every list (Material FAB guidance; WCAG 2.2 2.4.11):
    the last row scrolls clear of it, and a focused row is scrolled clear of it too. 48px button
-   + 16px offset + 16px air, above the phone's home indicator. */
-@media (max-width: 760px) {
+   + 16px offset + 16px air, above the phone's home indicator. M2-2: and on any touch screen,
+   whatever its width (a landscape phone shows the full pill over the last row). */
+@media (max-width: 760px), (pointer: coarse) {
   .ws:has(.ws-askglobal) :is(.lm-page, .ws-admin) {
     padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
   html:has(.ws-askglobal) { scroll-padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
@@ -7500,7 +7501,7 @@ a.ws-askglobal[data-away]:not(:focus-visible) {
 .ws-phonebar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: var(--ws-z-shell);
   display: flex; background: var(--ws-surface); border-top: 1px solid var(--ws-ink-100);
-  padding: 4px 4px env(safe-area-inset-bottom);
+  padding: 4px calc(4px + env(safe-area-inset-right)) env(safe-area-inset-bottom) calc(4px + env(safe-area-inset-left));
   box-shadow: 0 -2px 10px rgba(14, 20, 32, 0.06);
 }
 .ws-phonebar__tabs { display: flex; flex: 1 1 auto; min-width: 0; }
@@ -7938,7 +7939,7 @@ a.ws-askglobal > span { position: absolute; width: 1px; height: 1px; overflow: h
 /* the phone's folded header: once the title scrolls away, a bar with the name and the one
    primary step stays under the shell — fixed, so it moves nothing (UI-03d, no CLS) */
 .ws-recordbar { position: fixed; z-index: var(--ws-z-shell); inset-inline: 0; top: var(--ws-shell-h);
-  display: flex; align-items: center; gap: var(--s-3); min-block-size: var(--s-7); padding: 0 var(--s-4);
+  display: flex; align-items: center; gap: var(--s-3); min-block-size: var(--s-7); padding: 0 calc(var(--s-4) + env(safe-area-inset-right)) 0 calc(var(--s-4) + env(safe-area-inset-left));
   background: var(--c-surface); border-bottom: 1px solid var(--c-line); }
 .ws-recordbar[hidden] { display: none; }
 .ws-recordbar__title { flex: 1; min-width: 0; margin: 0; font-size: var(--t-dense); line-height: var(--t-dense-lh);
@@ -7990,3 +7991,42 @@ a.ws-askglobal > span { position: absolute; width: 1px; height: 1px; overflow: h
 /* r4: while the text loads, the contents card is held in its own cell (not on a phone,
    where the paper alone shows first) */
 .ws-workmain[data-phone] .ws-doc__holdindex { display: none; }
+
+/* M2-1 (r2): on touch every control on the hit-area list (globals.css) DRAWS at least 40 in
+   both directions — one rule, last in the sheet and weighted 0,2,0+ so it outweighs the page
+   rules (32/34/36 and the 0,3,0 row actions). Its hit area is 44. Neighbours keep 4px between
+   them so no two hit areas overlap. A link inside a line of text pads instead: its box grows to
+   40 without moving the line. */
+@media (pointer: coarse) {
+  .ws :is(.ws-btn, .ws-toolbtn, .ws-linkbtn, .ws-chat__iconbtn, .lm-tap, .ws-escalate__link, .lm-ph__back,
+    .lm-seg__item, .ws-chat__new, .ws-cl__docname, .ws-cl__vertoggle, .ws-cl__tab, .ws-cl__rail-back),
+  .ws .ws-hometable .ws-rowact .ws-btn--sm {
+    min-block-size: 40px; min-inline-size: 40px; }
+  .ws :is(.ws-link, .ws-cl__crumbs a) { padding-block: max(0px, calc((40px - 1lh) / 2)); }
+  /* a link in a table cell is clipped by its row: it draws the whole 44 itself */
+  .ws td > a[href] { display: inline-flex; align-items: center; min-block-size: var(--s-tap); }
+  /* the wordmark is a link home, not on the hit-area list (its ::after covered the menu toggle):
+     it draws its own 44 */
+  .ws .ws-shell__word { display: inline-flex; align-items: center; min-block-size: var(--s-tap); }
+  /* tab links sat 1px into their bar's clipped border: one more pixel so all 44 are tappable */
+  .lm-tabs a { margin-bottom: 0; }
+  /* a field cannot carry a ::after hit area. Alone it draws the full 44; in a toolbar or pager,
+     beside 40px buttons, it draws 40 and its label/wrapper carries the 44 (see the skill) */
+  .ws :is(input:not([type="checkbox"], [type="radio"], [type="file"], [type="hidden"]), select, textarea) { min-block-size: var(--s-tap); }
+  /* …the toolbar case: the contract's page box sits between 40px page buttons */
+  .ws .ws-doccard__page :is(input, select) { min-block-size: 40px; }
+  .ws .ws-doccard__page { position: relative; }
+  .ws .ws-doccard__page::after { content: ""; position: absolute; inset-inline: 0; top: 50%; translate: 0 -50%;
+    block-size: var(--s-tap); } /* a tap on it is a tap on the label: it focuses the box */
+}
+
+/* W2-4: a chat link (?id=) never shows the start-up skeleton's welcome heading */
+html[data-ask-chat] .lm-askskel > [data-slot="aui_thread-welcome"] { visibility: hidden; }
+/* W2 r2: the skeleton's stand-ins, at the real page's measured sizes (1440 and 390, 2026-11-25):
+   the composer + openers block under the heading, and the phone's closed "Chats" row.
+   ponytail: measured constants — if the composer or openers change, re-measure (askgeo.js). */
+.lm-askskel__foot { flex: none; block-size: 230px; margin-top: 40px; /* the Thread's empty message group keeps its mb-10 */ }
+@media (max-width: 767px) { .lm-askskel__foot { block-size: 337px; } }
+/* on touch the composer and openers draw 40/44 (M2-1), so their block is taller */
+@media (max-width: 767px) and (pointer: coarse) { .lm-askskel__foot { block-size: 369px; } }
+@media (max-width: 860px) { .lm-askskel__rail { block-size: 45px; } }

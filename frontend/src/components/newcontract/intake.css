@@ -134,7 +134,7 @@ button.ic-steps__go:hover .ic-steps__name { color: var(--c-text); text-decoratio
 .ic-needed__row:focus-visible { outline: 2px solid var(--c-action); outline-offset: 2px; }
 .ic-needed__ok { display: flex; align-items: center; gap: var(--s-2); color: var(--c-status-match); }
 .ic-certview { display: grid; gap: var(--s-3); justify-items: start; }
-.ic-certview__frame { width: 100%; height: 60vh; border: 1px solid var(--c-line); border-radius: var(--r-control); }
+.ic-certview__frame { width: 100%; height: 60svh; border: 1px solid var(--c-line); border-radius: var(--r-control); }
 .ic-certview__img { max-width: 100%; height: auto; border: 1px solid var(--c-line); border-radius: var(--r-control); }
 .ic-sheet { min-width: 0; }
 /* lead polish 5: the panel takes the viewport's height below the page head, its own scroll */
