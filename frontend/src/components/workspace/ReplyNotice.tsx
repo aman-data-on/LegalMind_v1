@@ -4,7 +4,7 @@ import { formatDate } from "@/lib/dates";
 import { REPLY_NOTICE_COPY as COPY } from "@/lib/labels";
 import type { DocumentVersion } from "@/lib/types";
 
-import { ReplyDownloads } from "./ChangesPane";
+import { ReplyDownloads } from "./changesFeed";
 
 /** The Document tab says what a reply version IS (`AM-251`): ours, answering the
  *  client's, with its files — and, once sent, when. U2 r4: one short line that always

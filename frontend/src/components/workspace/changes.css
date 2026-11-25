@@ -450,7 +450,7 @@ button.cx-bar__open[aria-expanded="true"] svg { transform: rotate(-90deg); }
 /* U2 (UI-07): the answer tray sticks to the foot of the answer card — the four verdicts in
    reach whatever the length of the clause above; a long chosen panel scrolls inside it */
 .cx-card .cx-compose { position: sticky; bottom: calc(-1 * var(--ws-s4)); z-index: 1;
-  max-block-size: min(60vh, 32rem); overflow-y: auto;
+  max-block-size: min(60svh, 32rem); overflow-y: auto;
   margin-inline: calc(-1 * var(--ws-s4)); margin-bottom: calc(-1 * var(--ws-s4));
   padding: var(--ws-s3) var(--ws-s4) var(--ws-s4);
   background: var(--ws-surface); border-top: 1px solid var(--ws-ink-100);
@@ -460,7 +460,7 @@ button.cx-bar__open[aria-expanded="true"] svg { transform: rotate(-90deg); }
 .cx-card { scroll-padding-block-end: 10rem; }
 @media (max-width: 900px) {
   /* the phone: the page scrolls; the tray sits on the bottom tab bar */
-  .cx-card .cx-compose { bottom: calc(var(--s-8) + env(safe-area-inset-bottom)); max-block-size: 50vh; margin-bottom: 0; }
+  .cx-card .cx-compose { bottom: calc(var(--s-8) + env(safe-area-inset-bottom)); max-block-size: 50svh; margin-bottom: 0; }
   html:has(.cx-card .cx-compose) { scroll-padding-block-end: calc(var(--s-8) + 10rem); }
   /* verdicts are phone targets */
   .cx-card .cx-choice { min-block-size: var(--s-tap); }

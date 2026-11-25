@@ -190,6 +190,7 @@ export function BriefView({ brief, contractId, points, stale = null, expanded, o
         {hasMore ? (
           <button ref={opener} type="button" className="ws-btn ws-btn--sm lm-brief__open" aria-expanded={expanded}
                   aria-controls={`${id}-panel`} onClick={toggle}
+                  aria-label={unmarked ? BRIEF_COPY.openCount(unmarked.count) : undefined}
                   aria-describedby={unmarked ? `${id}-unmarked` : undefined}>
             <IconPanelRight size={16} /><span className="lm-brief__openlong">{BRIEF_COPY.open}</span>
             <span className="lm-brief__openshort" aria-hidden="true">{BRIEF_COPY.openShort}</span>

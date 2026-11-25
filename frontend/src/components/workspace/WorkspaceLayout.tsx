@@ -26,6 +26,7 @@ import { CONTRACT_DECISION_ID } from "./ContractDecision";
 import { useHighlight } from "./highlight";
 import { IconSparkle } from "./icons";
 import { useWorkspaceShortcuts } from "./useWorkspaceShortcuts";
+import { preloadProps } from "./paneLoaders";
 
 export type Region = "document" | "findings" | "analysis";
 type Mode = "wide" | "one";
@@ -496,7 +497,7 @@ export function PhoneBar({ view, onView, changesBadge, askOpen, onAsk }: {
             <button key={v} type="button" role="tab" id={`ws-tab-${v}`} aria-selected={on}
                     aria-controls={v === "changes" ? undefined : `ws-pane-${v}`}
                     tabIndex={on || ((askOpen || view === null) && index === 0) ? 0 : -1}
-                    onClick={() => onView(v)} onKeyDown={(event) => arrowTab(event, index, views.length, (i) => onView(views[i]!))}>
+                    onClick={() => onView(v)} {...preloadProps(v)} onKeyDown={(event) => arrowTab(event, index, views.length, (i) => onView(views[i]!))}>
               <span className="ws-phonebar__icon">
                 {ICON[v]}
                 {v === "changes" && changesBadge

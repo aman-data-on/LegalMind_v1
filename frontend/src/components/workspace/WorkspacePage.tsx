@@ -24,16 +24,18 @@
  * state, the one sanctioned disclosure level.
  */
 
+import { DOCUMENT_FACES, useStartFaces } from "@/components/workspace/faces";
+import dynamic from "next/dynamic";
 import Link from "@/components/AppLink";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 
 import { chainAnalysis } from "@/lib/analysisChain";
 import { ApiError, api } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { Contract, Counterparty, DocumentVersion } from "@/lib/types";
-import { ACTION, MENU_COPY, READER_OUTDATED } from "@/lib/labels";
+import { ACTION, CHANGES_LOADING, MENU_COPY, READER_OUTDATED } from "@/lib/labels";
 import { runStep } from "@/lib/nextStep";
 import { documentSourceChip, isOurs } from "@/lib/documentTypes";
 
@@ -42,7 +44,8 @@ import { Dialog } from "@/components/Dialog";
 import { AnalysisPanel } from "./AnalysisPanel";
 import { AskDockLazy } from "./AskDockLazy";
 import { AskIntentProvider } from "./askIntent";
-import { ChangesPane, ReplyNotice, useClientChanges } from "./ChangesPane";
+import { useClientChanges } from "./changesFeed";
+import { ReplyNotice } from "./ReplyNotice";
 import { ConvertPaper } from "./ConvertPaper";
 import { PackageBar, PackageCard, usePackagePlan, usePreparedEntries } from "./Package";
 import { FillInFields } from "./FillInFields";
@@ -59,11 +62,28 @@ import { CompanyDocuments, RecordHeader, ReportMenuItem, ReportTabGate, ReportVi
 import { DealBrief } from "./DealBrief";
 import { FinalCard, FinalCheckFailed, PrepareFinal, ClosedPanel } from "./FinalCopy";
 import { UploadDocument } from "./UploadDocument";
-import { VersionComparison } from "./VersionComparison";
 import { PaneBoundary } from "./PaneBoundary";
+import { CompareLoading, prefetchComparison } from "./compareHead";
+import { loadChanges, loadCompare, preloadProps } from "./paneLoaders";
 import { IconUploadCloud, IconX } from "./icons";
 import { PhoneBar, WorkspaceLayout, arrowTab, useMinWidth, type PhoneView, type Region } from "./WorkspaceLayout";
-import { EmptyState, ErrorState, NoticeState } from "@/components/Feedback";
+import { EmptyState, ErrorState, LoadingState, NoticeState } from "@/components/Feedback";
+
+// W2-3: the tab-only panes load when their tab first opens, not with the document view; their
+// placeholders draw what each pane draws first, so nothing moves when it arrives (W2 r2)
+const ChangesPane = dynamic(() => loadChanges().then((m) => m.ChangesPane),
+                            { loading: () => <LoadingState label={CHANGES_LOADING} rows={5} /> });
+const VersionComparison = lazy(() => loadCompare().then((m) => ({ default: m.VersionComparison })));
+
+/** ⋯ "Compare two versions": the menu is open once this renders, so the comparison's script starts. */
+function CompareItem({ open, onToggle, contractId, versions }: {
+  open: boolean; onToggle: () => void; contractId: string; versions: DocumentVersion[];
+}) {
+  // …and the default comparison itself, so the pane opens filled (W2 r2)
+  useEffect(() => { void loadCompare(); if (!open) prefetchComparison(contractId, versions); }, [open, contractId, versions]);
+  return <button type="button" role="menuitem" className="ws-menu__item" onClick={onToggle}>
+    {open ? MENU_COPY.hideCompare : MENU_COPY.compare}</button>;
+}
 
 type Load =
   | { kind: "loading" }
@@ -108,6 +128,7 @@ function initialView(path: string, params: { get: (key: string) => string | null
 }
 
 export function WorkspacePage({ contractId }: { contractId: string }) {
+  useStartFaces(DOCUMENT_FACES);   // W2-5 r2: this draws a document
   const params = useSearchParams(), path = usePathname();   // S5: ?convert_draft= back from New contract
   const { can, identity } = useSession();
   const [state, setState] = useState<Load>({ kind: "loading" });
@@ -334,9 +355,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
                           }}>Upload new version</button>);
   }
   if (versions.length > 1) {
-    comparing.push(<button key="cmp" type="button" role="menuitem" className="ws-menu__item"
-                          onClick={() => setCompareOpen((open) => !open)}>
-      {compareOpen ? MENU_COPY.hideCompare : MENU_COPY.compare}</button>);
+    comparing.push(<CompareItem key="cmp" open={compareOpen} contractId={contract.id} versions={versions} onToggle={() => setCompareOpen((open) => !open)} />);
   }
   // B3 p7: the phone chooses a version in the header select, not in ⋯
   // N5: our own version downloads from ⋯ at any stage — said to be a draft while a point
@@ -464,7 +483,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
                 <button key={which} type="button" role="tab" id={`ws-viewtab-${which}`}
                         aria-selected={view === which} aria-controls={`ws-view-${which}`}
                         tabIndex={view === which ? 0 : -1}
-                        onClick={() => chooseView(which)}
+                        onClick={() => chooseView(which)} {...preloadProps(which)}
                         onKeyDown={(event) => arrowTab(event, index, all.length, (i) => chooseView(all[i]!))}>
                   {which === "document" ? "Contract" : which === "changes" ? "Changes" : "Report"}
                   {mine ? <span className="ws-filter__n" aria-label={`${mine} yours`}>{mine}</span> : null}
@@ -478,7 +497,9 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
       </div>
 
       {compareOpen ? (
-        <VersionComparison contractId={contract.id} versions={versions} />
+        <Suspense fallback={<CompareLoading versions={versions} />}>
+          <VersionComparison contractId={contract.id} versions={versions} />
+        </Suspense>
       ) : null}
 
       {companyOpen && company ? (

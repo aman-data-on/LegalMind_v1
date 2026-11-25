@@ -15,10 +15,13 @@ import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import * as P from "@/lib/permissions";
+import { WelcomeSkeleton } from "@/components/ui/thread-welcome";
+import { ASK_WELCOME } from "@/lib/labels";
 import { loginPath, useSession } from "@/lib/session";
 
 import { IconChevronDown, IconMenu, IconSparkle } from "./icons";
 import { activeNavHref, navItemsFor } from "./model";
+import { SANS_FACES, useStartFaces } from "./faces";
 import { BellToggle, NotificationPanel, useNotifications } from "./Notifications";
 import { LoadingState } from "@/components/Feedback";
 
@@ -53,11 +56,6 @@ function useHiddenOnScrollDown(): boolean {
   return hidden;
 }
 
-const FIRST_SCREEN_FACES = [
-  '400 1em "IBM Plex Sans"', '500 1em "IBM Plex Sans"', '600 1em "IBM Plex Sans"',
-  '400 1em "Source Serif 4"', '700 1em "Source Serif 4"', 'italic 400 1em "Source Serif 4"',
-  '400 1em "IBM Plex Mono"',
-];
 
 /** The account's circle: the sign-in provider's profile photo when there is one, the
  *  first letter of the name otherwise — and again if the photo cannot be loaded. */
@@ -133,8 +131,19 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
     const away = (e: MouseEvent) => {
       if (!barRef.current?.contains(e.target as Node)) setOpen(null);
     };
+    // M2-3 (M-18): Escape closes it from anywhere — the panel is non-modal, so focus can have
+    // left the bar (inside the bar, onBarKey below handles it)
+    const esc = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || barRef.current?.contains(e.target as Node)) return;
+      setOpen(null);
+      barRef.current?.querySelector<HTMLElement>(`[data-toggle="${open}"]`)?.focus();
+    };
     document.addEventListener("mousedown", away);
-    return () => document.removeEventListener("mousedown", away);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("mousedown", away);
+      document.removeEventListener("keydown", esc);
+    };
   }, [open]);
 
   // Escape closes and hands focus back to the toggle; Tab leaves the account menu.
@@ -163,9 +172,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   // Start every face the first screen draws while the page's data is still loading: a
   // face fetched only when the document first uses it swapped in after the text was laid
   // out and reflowed it (phone CLS, 2026-11-06). The fallback stays if one fails.
-  useEffect(() => {
-    for (const face of FIRST_SCREEN_FACES) void document.fonts?.load(face).catch(() => undefined);
-  }, []);
+  useStartFaces(SANS_FACES);
   useEffect(() => {
     if (!loading && !identity) router.replace(loginPath());
   }, [loading, identity, router]);
@@ -183,7 +190,12 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
         <header className="ws-shell">
           <span className="ws-shell__word"><span className="ws-shell__word-a">Legal</span><span className="ws-shell__word-b">Mind</span></span>
         </header>
-        <main id="ws-main" className="ws-main"><div className="lm-page"><LoadingState rows={5} /></div></main>
+        <main id="ws-main" className="ws-main">
+          {pathname === "/dashboard/ask" ? (
+            // W2-4: Ask's empty-chat heading (its LCP) is in the prerendered HTML
+            <WelcomeSkeleton title={ASK_WELCOME} />
+          ) : <div className="lm-page"><LoadingState rows={5} /></div>}
+        </main>
       </div>
     );
   }

@@ -403,6 +403,16 @@ export function plainClauseSigns(text: string): string {
   return withoutSectionRefs(text).replace(/§+\s*/g, "clause ");
 }
 
+/** The Changes pane's first state, also its placeholder while its script loads (W2 r2). */
+export const CHANGES_LOADING = "Loading the client’s changes…";
+
+/** Ask's empty-chat heading: the Thread draws it, and the shell's start-up skeleton paints the
+ *  same words before the session resolves (W2-4). */
+export const ASK_WELCOME = "Ask about a contract, a clause or our standards";
+
+/** The Ask dock's line under the question box (M2-3, M-21: plain words, no "AI"). */
+export const ASK_DOCK_NOTE = "Answers cite the document, or say they cannot. Check the original before relying on one.";
+
 /** Asking Legal to look at a point — a request, never a decision (`EscalateControl`). */
 export const ASK_LEGAL_COPY = {
   open: "Ask Legal",
@@ -621,29 +631,7 @@ export function stageLine(code: string, c: DealCounts | undefined, viewer: Stage
   return stageWords(code, viewer);
 }
 
-/** The shared states and components' own words (UX Batch 2; PLAIN-LANGUAGE.md §2.6, §5):
- *  an error says what failed and the fix, never an apology; a button is a verb. */
-export const FEEDBACK_COPY = {
-  retry: "Try again",
-  dismiss: "Dismiss",
-  defaultFix: "Check your connection and try again. If it keeps failing, tell your administrator.",
-  reference: (id: string) => `Error reference for support: ${id}`,
-  loading: "Loading…",
-  chooseFile: "Choose file",
-  chooseAnother: "Choose another file",
-  dropTitle: "Drag and drop your file here",
-  dropOr: "or choose one from your computer",
-  fileHint: "PDF, Word, Markdown or text, up to 25 MB",
-  preview: "Preview",
-  preparingPreview: "Preparing preview…",
-  previewFailed: "The preview could not be shown",
-  downloadPdf: "Download PDF",
-  downloadWord: "Download Word",
-  openPdf: "Open the PDF in a new tab",
-  noInlinePdf: "This browser can’t show the PDF here",
-  noInlinePdfFix: "Open it in a new tab, or download it below. It is the same file.",
-  close: "Close",
-} as const;
+export { FEEDBACK_COPY } from "./feedbackCopy";
 
 /** The point-status chip's words: exactly these, on every screen (PLAIN-LANGUAGE §2.1).
  *  "Decided" is a second line beside a status, never instead of it (rule 14). */
@@ -823,6 +811,8 @@ export const BRIEF_COPY = {
   showLess: "Show less",
   /** U2 (UI-03/35): the brief opens beside the contract, never above it */
   open: "Open the brief",
+  /** M2-3 (M-17): the phone button shows only the number; its name says what it counts */
+  openCount: (n: number) => `Open the brief, ${n} not marked`,
   /** U2 r4: the header row says the sentence without the stage words the badge beside it
    *  already says ("With Legal: …" → "55 changes are being answered. …"); the panel keeps it whole */
   withoutStage: (status: string) => {

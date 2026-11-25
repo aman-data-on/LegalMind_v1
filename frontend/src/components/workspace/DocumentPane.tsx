@@ -1053,7 +1053,7 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
             ))}
             {furniture.length ? (
               <details className="ws-furniture">
-                <summary>Page header and footer</summary>
+                <summary className="lm-tap">Page header and footer</summary>
                 {furniture.map((row) => (
                   <p key={row.id} data-evidence-id={row.id} tabIndex={-1}>{row.content}</p>
                 ))}

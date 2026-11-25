@@ -1219,3 +1219,9 @@ export interface BlankValues {
   applies_at_final?: boolean;
   filled_since_sent?: { key: string; label: string; value: string }[];
 }
+
+/** A page's own server-rendered HTML — not the API. Kept here so every `fetch` stays in this one
+ *  client (the boundary test). Used only to warm the landing page's assets after /login (W2 r3). */
+export async function pageHtml(path: string): Promise<string> {
+  return (await fetch(path, { credentials: "same-origin" })).text();
+}

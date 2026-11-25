@@ -48,6 +48,7 @@ import {
 
 import type { ConversationTurn } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { WELCOME_CLASS } from "./thread-welcome";
 
 /** The starter's `TooltipIconButton`, on the native `title` instead of a Radix
  *  tooltip: the same label for sighted and screen-reader users, no new package. */
@@ -60,7 +61,7 @@ const IconButton = forwardRef<HTMLButtonElement, ComponentPropsWithoutRef<"butto
     title={label}
     aria-label={label}
     className={cn(
-      "text-muted-foreground hover:bg-accent hover:text-foreground inline-flex size-7 items-center justify-center rounded-md border-0 bg-transparent p-0 [&_svg]:size-4",
+      "lm-tap text-muted-foreground hover:bg-accent hover:text-foreground inline-flex size-7 items-center justify-center rounded-md border-0 bg-transparent p-0 [&_svg]:size-4",
       className,
     )}
     {...rest}
@@ -150,8 +151,7 @@ export function Thread({
           empty && "justify-center",
         )}>
           {empty ? (
-            <Welcome data-slot="aui_thread-welcome"
-                className="text-foreground text-center font-semibold tracking-tight">
+            <Welcome data-slot="aui_thread-welcome" className={WELCOME_CLASS}>
               {welcome.title}
             </Welcome>
           ) : null}
@@ -194,7 +194,7 @@ export function Thread({
                     key={text}
                     type="button"
                     onClick={() => onSuggestion(text)}
-                    className="border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground rounded-md border px-3 py-1.5 text-sm"
+                    className="lm-tap border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground rounded-md border px-3 py-1.5 text-sm"
                   >
                     {text}
                   </button>
@@ -361,7 +361,7 @@ function Composer({
   inputRef, onKeyDown, notice, above, top, start, end, inputId = "ws-chat-question", label = "Your question",
   placeholder = "Send a message…", describedBy, onPaste, sendBlocked, sendEmpty,
 }: ThreadProps["composer"]) {
-  const sendClass = "bg-primary text-primary-foreground disabled:bg-muted-foreground/50 disabled:text-primary-foreground inline-flex size-7 items-center justify-center rounded-md border-0 p-0 [&_svg]:size-4";
+  const sendClass = "lm-tap bg-primary text-primary-foreground disabled:bg-muted-foreground/50 disabled:text-primary-foreground inline-flex size-7 items-center justify-center rounded-md border-0 p-0 [&_svg]:size-4";
   return (
     <ComposerPrimitive.Root className="relative flex w-full flex-col gap-1.5">
       {above}
@@ -423,7 +423,7 @@ function Composer({
               <ComposerPrimitive.Cancel
                 aria-label="Stop answering"
                 title="Stop answering"
-                className="bg-primary text-primary-foreground inline-flex size-7 items-center justify-center rounded-md border-0 p-0"
+                className="lm-tap bg-primary text-primary-foreground inline-flex size-7 items-center justify-center rounded-md border-0 p-0"
               >
                 <SquareIcon aria-hidden className="size-3.5 fill-current" />
               </ComposerPrimitive.Cancel>

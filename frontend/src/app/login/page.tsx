@@ -32,6 +32,7 @@ import { ErrorBanner } from "@/components/Feedback";
 import { Field } from "@/components/Primitives";
 import { ApiError, api } from "@/lib/api";
 import { safeNext, useSession } from "@/lib/session";
+import { warmStylesAfterLoad } from "@/lib/warmStyles";
 import { type SsoOutcome, ssoNotice, ssoOutcomeOf } from "@/lib/sso";
 
 export default function LoginPage() {
@@ -40,6 +41,8 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [reveal, setReveal] = useState(false);
+  // W2 r3: after load and idle, download (not apply) the landing page's stylesheets
+  useEffect(() => warmStylesAfterLoad(safeNext(new URLSearchParams(window.location.search).get("next"))), []);
   const [error, setError] = useState<unknown>(null);
   const refused = error instanceof ApiError && error.isUnauthenticated;
   const [busy, setBusy] = useState(false);

@@ -77,7 +77,10 @@ export function SendToLegal({ reviewId, data, onChange, label, primary = false }
   );
   return (
     <span className="lm-sendlegal"
-          onKeyDown={(event) => { if (event.key === "Escape" && open) { event.stopPropagation(); setOpen(false); } }}>
+          onKeyDown={(event) => {
+            // M2-3 (M-18): Escape closes the picker and hands focus back to its button
+            if (event.key === "Escape" && open) { event.stopPropagation(); setOpen(false); opener.current?.focus(); }
+          }}>
       <button ref={opener} type="button" className={`ws-btn ws-btn--sm${primary ? " ws-btn--primary" : ""}`}
               aria-expanded={open} aria-controls="lm-sendlegal" onClick={() => setOpen((v) => !v)}>
         {label}

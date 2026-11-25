@@ -17,7 +17,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { describeError } from "@/lib/api";
-import { FEEDBACK_COPY } from "@/lib/labels";
+import { FEEDBACK_COPY } from "@/lib/feedbackCopy";
 import { IconAlertCircle, IconCheckCircle, IconX } from "@/components/workspace/icons";
 
 type Item = { id: number; title: string; body?: string | undefined; failure: boolean };
