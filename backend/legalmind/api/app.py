@@ -109,6 +109,35 @@ def _warm_models() -> None:
                       error=type(exc).__name__, operational_failure=True)
 
 
+def _warm_caches() -> None:
+    """S1: the first list or Changes read after a start no longer builds every open
+    round's comparison itself (3.3 s measured) — this thread keeps their pure part
+    (`negotiation.warm_comparisons`) per process first. Read only (the transaction is
+    READ ONLY and rolled back), bounded (30 contracts, 60 s), never raises.
+    ``LEGALMIND_CACHE_WARM=off`` turns it off."""
+    import logging
+    import time
+
+    from sqlalchemy import text
+
+    from legalmind.api.routers.negotiation import warm_comparisons
+    from legalmind.db.session import session_factory
+    from legalmind.observability.logs import log_event, timed
+
+    if os.environ.get("LEGALMIND_CACHE_WARM", "").lower() == "off":
+        return
+    try:
+        with session_factory()() as db, timed("cache.warm") as stage:
+            try:
+                db.execute(text("SET TRANSACTION READ ONLY"))
+                stage.update(warm_comparisons(db, deadline=time.monotonic() + 60))
+            finally:
+                db.rollback()
+    except Exception as exc:  # never let a warm-up take the API down with it
+        log_event("cache.warm_failed", level=logging.WARNING,
+                  error=type(exc).__name__, operational_failure=True)
+
+
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Re-dispatch OCR jobs a previous process left unfinished (2026-09-03), and warm
@@ -134,6 +163,8 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
                      name="legalmind-ocr-reconcile", daemon=True).start()
     threading.Thread(target=_warm_models,
                      name="legalmind-model-warm", daemon=True).start()
+    threading.Thread(target=_warm_caches,
+                     name="legalmind-cache-warm", daemon=True).start()
     yield
 
 

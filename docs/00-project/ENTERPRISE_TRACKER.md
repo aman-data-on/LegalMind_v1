@@ -45,6 +45,7 @@ Nothing is committed until the owner says "commit".
 - [x] W1 fast first screen + nothing off screen (perf audit F1 + mobile M-01/M-05; verified 10/10; merge pending, NOT deployed)
 - [x] W2+M2 lighter pages + one touch rule (verified 23/23; merge pending, NOT deployed). Moved to W3: `workspace.css` split by feature, Ask extras via `next/dynamic`, M-20, M-11 breakpoint tokens, the AI-term checker
 - [ ] W2 lighter pages — CSS split, lazy tab panes, labels split, font preload/trim · M2 touch targets + lists as cards + phone sheets · M3 workspace bars (AM-471 amendment) · S1 cache warm-up + slow reads · B1 analysis waits (PREFETCH_WORKERS 16 owner-approved)
+- [x] S1 no slow first read — cache warm-up at start, `deal_counts` batched (verified 7/7; NOT deployed). Left: review_progress per-row SQL, template-check first view ~8 s, BE-16
 - [ ] U3 UI consistency — UI-11, mediums/lows, UI-08 (presentation-only amendment to AM-264/AM-291)
 - [ ] Later / owner — BE-10 nginx gzip, BE-12 OCR to the worker (rule 19), DB-4/DB-6 statute search, DB-9 duplicate indexes, BE-14–19, a fresh production copy
 

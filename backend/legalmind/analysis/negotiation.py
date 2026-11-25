@@ -1152,7 +1152,8 @@ def _first(unit: dict) -> str:
 
 def _latest_review(db: DBSession, version: M.DocumentVersion) -> M.Review | None:
     return db.execute(select(M.Review).where(M.Review.document_version_id == version.id)
-                      .order_by(M.Review.created_at.desc())).scalars().first()
+                      .order_by(M.Review.created_at.desc(), M.Review.id.desc())  # BE-18
+                      ).scalars().first()
 
 
 #: `AM-307`: how a version's clauses are read. `raw_clauses` is the document's own rows;
@@ -1609,10 +1610,11 @@ def _review_findings(db: DBSession, review: M.Review | None) -> list[dict]:
         return []
     statuses = by_finding(db, [review.id]).get(review.id, {})
     out: dict[UUID, dict] = {}
-    for finding_id, cls, code, evaluation_id, evidence_id, result in db.execute(
+    for finding_id, cls, code, evaluation_id, evidence_id, mapping in db.execute(
             select(M.Finding.id, M.Finding.classification, M.Requirement.code,
                    M.Evaluation.id, M.EvaluationEvidence.evidence_id,
-                   M.Evaluation.result)
+                   # BE-14: the one stamp read, not the whole result per evidence row
+                   M.Evaluation.result["evaluated_facts"]["mapping_state"].astext)
             .join(M.RequirementVersion,
                   M.RequirementVersion.id == M.Finding.requirement_version_id)
             .join(M.Requirement, M.Requirement.id == M.RequirementVersion.requirement_id)
@@ -1627,8 +1629,7 @@ def _review_findings(db: DBSession, review: M.Review | None) -> list[dict]:
             "user_status": (word := statuses.get(finding_id, "NEEDS_DECISION")),
             "in_our_favour": in_our_favour(cls, word),
             "evaluation_ids": [], "evidence_ids": [], "confirmed_evidence": []})
-        confirmed = ((result or {}).get("evaluated_facts") or {}).get(
-            "mapping_state") == MappingState.CONFIRMED.value
+        confirmed = mapping == MappingState.CONFIRMED.value
         for key, value in (("evaluation_ids", evaluation_id),
                            ("evidence_ids", evidence_id),
                            ("confirmed_evidence", evidence_id if confirmed else None)):

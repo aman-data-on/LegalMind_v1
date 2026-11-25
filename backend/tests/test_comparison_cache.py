@@ -186,3 +186,25 @@ def test_a_finding_list_read_ahead_is_the_finding_read_one_by_one(api, db, owner
                 for f in rows]
         assert json.dumps(page, default=str) == json.dumps(one, default=str)
     assert page[0]["escalated"] is True
+
+
+def test_the_start_up_warm_up_makes_the_key_a_real_read_uses(api, db, owner, tmp_path,
+                                                             monkeypatch):
+    """S1: after `warm_comparisons` the contract page's counts and the Changes tab build
+    no comparison and no code reading — the warm-up and a request make the same keys —
+    and the warm-up wrote nothing."""
+    import time
+
+    from legalmind.analysis import change_triage
+    from legalmind.api.routers.negotiation import warm_comparisons
+
+    c, _, _, _ = _deal(api, db, owner, tmp_path)
+    negotiation._CORE.clear()
+    change_triage._code_reading.cache_clear()
+    assert warm_comparisons(db, deadline=time.monotonic() + 60)["warmed"] >= 1
+    assert not (db.new or db.dirty or db.deleted)
+    made, read = _builds(monkeypatch), change_triage._code_reading.cache_info().misses
+    sign_in(api, db, owner)
+    _get(api, f"/contracts/{c.id}")
+    _changes(api, c)
+    assert made == [] and change_triage._code_reading.cache_info().misses == read
