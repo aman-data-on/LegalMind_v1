@@ -50,7 +50,7 @@ import json
 import math
 import re
 from collections.abc import Callable
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from uuid import UUID
 
 from legalmind.assist.ingestion import embedding_runtime
@@ -149,6 +149,8 @@ class SemanticIndex:
     model: str
     clause_vectors: dict[UUID, list[float]]
     anchors: dict[UUID, list[float]]
+    #: each clause vector's norm, computed once per analysis (B1) — same expression
+    norms: dict[UUID, float] = field(default_factory=dict, compare=False)
 
     def shortlist(self, requirement_version_id: UUID,
                   clauses: list[Clause]) -> list[tuple[Clause, float]]:
@@ -156,11 +158,14 @@ class SemanticIndex:
         if anchor is None:
             return []
         scored = []
+        anchor_norm = _norm(anchor)
         for clause in clauses:
             vector = self.clause_vectors.get(clause.evidence_id)
             if vector is None or clause.is_heading:
                 continue
-            sim = _cosine(anchor, vector)
+            if (vector_norm := self.norms.get(clause.evidence_id)) is None:
+                vector_norm = self.norms[clause.evidence_id] = _norm(vector)
+            sim = _cosine(anchor, vector, anchor_norm * vector_norm)
             if sim >= SHORTLIST_SIM:
                 scored.append((clause, sim))
         # Similarity descending, then evidence id — byte-stable (ENG-11).
@@ -200,9 +205,14 @@ def build_index(clauses: list[Clause],
     )
 
 
-def _cosine(a: list[float], b: list[float]) -> float:
+def _norm(v: list[float]) -> float:
+    return math.sqrt(sum(x * x for x in v))
+
+
+def _cosine(a: list[float], b: list[float], norm: float) -> float:
+    """``norm`` is ``_norm(a) * _norm(b)``, passed in so each vector's is computed once:
+    the same expression in the same order as before, so bit-identical (rule 9)."""
     dot = sum(x * y for x, y in zip(a, b, strict=True))
-    norm = math.sqrt(sum(x * x for x in a)) * math.sqrt(sum(y * y for y in b))
     return dot / norm if norm else 0.0
 
 

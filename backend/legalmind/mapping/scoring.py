@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 
 from legalmind.mapping.rules import MappingRules
@@ -57,6 +58,7 @@ def _equivalences() -> tuple[re.Pattern[str], dict[str, str]]:
 _EQUIVALENT, _CANONICAL = _equivalences()
 
 
+@lru_cache(maxsize=8192)   # pure str -> str; the same clause is re-read ~1M times (B1)
 def normalize(text: str) -> str:
     """Case and whitespace folding, then the configured equivalences — terminology is
     configuration (35.4 as amended by AB-104), never something the engine invents, and
@@ -72,6 +74,7 @@ def normalize(text: str) -> str:
     return _EQUIVALENT.sub(lambda m: _CANONICAL[m.group(0)], folded)
 
 
+@lru_cache(maxsize=16384)
 def phrase_pattern(needle: str) -> str:
     """The regex for one configured phrase: whole words, and its LAST word in any
     regular inflection (`AM-151`, owner 2026-10-16). The early-exit standard's
@@ -97,6 +100,20 @@ def phrase_pattern(needle: str) -> str:
     return rf"(?<!\w){prefix}{re.escape(stem)}{tail}(?!\w)"
 
 
+@lru_cache(maxsize=16384)
+def _phrase_re(needle: str) -> re.Pattern[str] | None:
+    """`phrase_pattern` of the normalised needle, compiled once (`re`'s own cache holds
+    512 and the configured phrases exceed it). None for an empty needle."""
+    n = normalize(needle)
+    return re.compile(phrase_pattern(n)) if n else None
+
+
+@lru_cache(maxsize=16384)
+def _exact_re(term: str) -> re.Pattern[str]:
+    """A heading term, matched exactly (no inflection, `AM-155`)."""
+    return re.compile(rf"(?<!\w){re.escape(normalize(term))}(?!\w)")
+
+
 def contains_phrase(haystack: str, needle: str) -> bool:
     """Whole-phrase containment on word boundaries (and its last word's regular
     inflections, `phrase_pattern`).
@@ -104,16 +121,14 @@ def contains_phrase(haystack: str, needle: str) -> bool:
     Boundaries matter: without them 'lien' would match inside 'client', which is
     exactly the false-positive class locked 35.5 exists to prevent.
     """
-    n = normalize(needle)
-    if not n:
-        return False
-    return re.search(phrase_pattern(n), haystack) is not None
+    pattern = _phrase_re(needle)
+    return pattern is not None and pattern.search(haystack) is not None
 
 
 def _occurrences(haystack: str, needle: str):
     """Every whole-phrase occurrence, on `contains_phrase`'s boundaries."""
-    n = normalize(needle)
-    return re.finditer(phrase_pattern(n), haystack) if n else iter(())
+    pattern = _phrase_re(needle)
+    return pattern.finditer(haystack) if pattern is not None else iter(())
 
 
 # Retained as private aliases so existing call sites and tests keep working.
@@ -167,7 +182,7 @@ def score_clause(
         # heading word scored twice ("INVOICING" as both "invoice" and "invoicing")
         # and a bare heading confirmed on its own (`AM-155`).
         for term in rules.section_heading_terms:
-            if re.search(rf"(?<!\w){re.escape(_normalize(term))}(?!\w)", heading):
+            if _exact_re(term).search(heading):
                 signals.append(
                     Signal("section_heading", term, w["section_heading"]))
 

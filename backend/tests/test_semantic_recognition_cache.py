@@ -179,3 +179,28 @@ def test_a_prefetch_that_fails_falls_back_to_the_normal_path(db, monkeypatch):
     egress = _egress_for(db, review, actor_id=owner.id, request_id=None)
     egress.prefetch([("clause A", "mapping-v1")])    # fails quietly
     assert egress("clause A", "mapping-v1").text == "ok"      # asked again, with its retry
+
+
+def test_a_prefetched_429_fails_closed_and_is_not_asked_again(db, monkeypatch):
+    """B1.4 (PREFETCH_WORKERS 8 -> 16): a rate-limited prefetch reads as no model reached —
+    the lexical result stands, fail closed (rule 15) — and is never retried."""
+    owner = make_user(db)
+    review = make_review_for(db, owner)
+    db.commit()
+
+    calls: list[str] = []
+
+    def limited(prompt, *, prompt_version, environment, request_id=None,
+                evidence_count=None, max_output_tokens=1024, timeout_s=60.0):
+        calls.append(prompt)
+        raise generation.GenerationUnavailable("HTTP 429", status=429)
+
+    from legalmind.assist.llm import breaker
+    monkeypatch.setattr(generation, "generate_raw", limited)
+    egress = _egress_for(db, review, actor_id=owner.id, request_id=None)
+    try:
+        egress.prefetch([("clause A", "mapping-v1")])
+        assert egress("clause A", "mapping-v1") is None
+        assert calls == ["clause A"]
+    finally:
+        breaker.reset()                             # the 429 paused the model
