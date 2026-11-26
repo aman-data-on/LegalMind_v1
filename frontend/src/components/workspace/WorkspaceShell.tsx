@@ -39,7 +39,7 @@ function useHiddenOnScrollDown(): boolean {
       const el = source instanceof Element ? source : document.scrollingElement;
       const y = el?.scrollTop ?? 0;
       if (y <= 24) setHidden(false);
-      else if (Math.abs(y - last) > 4) setHidden(y > last);
+      else if (Math.abs(y - last) > 8) setHidden(y > last);   // M3 r2: 8px, the phone bars use it too
       else return; // a slow drag adds up until it passes the threshold
       last = y;
     };
@@ -201,7 +201,8 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="ws">
+    // M3 r2: scrolling down puts the phone workspace's bars away; any scroll up brings them back
+    <div className="ws" data-away={askAway || undefined}>
       <a className="ws-skip" href="#ws-main">
         Skip to content
       </a>

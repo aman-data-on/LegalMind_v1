@@ -18,7 +18,7 @@
 
 import { POINT_STATUS, PointStatusIcon, PointStatusLegend } from "./PointStatus";
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { FileDiff, PanelLeftClose, PanelLeftOpen, SlidersHorizontal } from "lucide-react";
 import { pointAnswer, pointState, readerWord } from "./findingLanguage";
 
 import { ApiError, api, describeError } from "@/lib/api";
@@ -68,11 +68,19 @@ import {
   type StatusBucket,
 } from "./model";
 import { ErrorState, LoadingState } from "@/components/Feedback";
-import { ClientMenu } from "@/components/clients/ClientWorkspace";
+import { MenuButton } from "@/components/MenuButton";
 import { CommentLines } from "./WordComments";
 
 const CONTENTS_KEY = "legalmind.workspace.contentsOpen";
 const ZOOM_KEY = "legalmind.workspace.zoom";
+const VIEW_KEY = "legalmind.workspace.docView";
+/** M3 r2: the viewer's own Original/Text choice, kept across versions and visits. */
+function storedView(): "original" | "text" | null {
+  try {
+    const got = window.localStorage.getItem(VIEW_KEY);
+    return got === "original" || got === "text" ? got : null;
+  } catch { return null; }
+}
 const MARKS_KEY = "legalmind.workspace.marks";
 const ZOOM_STEPS = [85, 100, 115, 130, 150];
 
@@ -118,10 +126,12 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
   // M3 (M-15): below 640 the page shrunk to the screen is unreadable — the text leads there,
   // the original one tap away (the viewport is known on the first client render, W1-0)
   const small = useMinWidth(640) === false;
-  const firstView = canOriginal && !small ? "original" : "text";
+  // M3 r2: the viewer's remembered choice wins; a version without an original reads as text.
+  // The workspace mounts client-side only (after the session gate), so storage is readable here.
+  const firstView = canOriginal ? storedView() ?? (small ? "text" : "original") : "text";
   const [view, setView] = useState<"original" | "text">(firstView);
   useEffect(() => {
-    // A different version is a different document — re-derive the default.
+    // A different version is a different document — its view follows the same choice.
     setView(firstView);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [version.id]);
@@ -307,6 +317,7 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
   function chooseView(next: "original" | "text") {
     setReturnToOriginal(false);
     setView(next);
+    try { window.localStorage.setItem(VIEW_KEY, next); } catch { /* this visit only */ }
   }
   useEffect(() => {
     if (!target || !rows || view !== "text") return;
@@ -771,7 +782,7 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                       <option key={page} value={page}>{page}</option>
                     ))}
                   </select>
-                  <span className="ws-pagecount">of {rows.length >= (total ?? Infinity) ? pages[pages.length - 1] : "…"}</span>
+                  <span className="ws-pagecount"><span className="ws-pagecount__of">of </span>{rows.length >= (total ?? Infinity) ? pages[pages.length - 1] : "…"}</span>
                 </label>
               ) : null}
               <div className="ws-legend" role="note" aria-label="Status legend">
@@ -927,7 +938,7 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                         else setCurrentPage(Number.isNaN(n) ? null : n);
                       }}
                     />
-                    <span className="ws-pagecount">of {rows.length >= (total ?? Infinity) ? pages[pages.length - 1] : "…"}</span>
+                    <span className="ws-pagecount"><span className="ws-pagecount__of">of </span>{rows.length >= (total ?? Infinity) ? pages[pages.length - 1] : "…"}</span>
                   </label>
                 </>
               ) : null   // a DOCX has no fixed pages: nothing to say
@@ -964,8 +975,16 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
               </>
             ) : null}
             {/* M3 (M-03): on a phone the bar is one row — the view and the marks are under ⋯ */}
-            {phoneWidth && (canOriginal || (view === "text" && hasMarks)) ? (
-              <ClientMenu label={DOCUMENT_COPY.options}>
+            {/* r2: marks alone (a Word file) are one toggle in the row, not a one-item menu */}
+            {phoneWidth && !canOriginal && view === "text" && hasMarks ? (
+              <button type="button" className="ws-toolbtn" aria-pressed={marksOn} aria-label={DOCUMENT_COPY.showChanges}
+                      title={DOCUMENT_COPY.showChanges} onClick={() => chooseMarks(!marksOn)}>
+                <FileDiff size={16} aria-hidden focusable="false" />
+              </button>
+            ) : null}
+            {phoneWidth && canOriginal ? (
+              <MenuButton label={DOCUMENT_COPY.options} title={DOCUMENT_COPY.options}
+                          icon={<SlidersHorizontal size={16} aria-hidden focusable="false" />}>
                 {canOriginal ? (
                   <div className="ws-menu__group" role="group" aria-label="Document view">
                     {(["original", "text"] as const).map((v) => (
@@ -978,7 +997,7 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                   <button type="button" role="menuitemcheckbox" aria-checked={marksOn}
                           className="ws-menu__item" onClick={() => chooseMarks(!marksOn)}>{DOCUMENT_COPY.showChanges}</button>
                 ) : null}
-              </ClientMenu>
+              </MenuButton>
             ) : null}
             <button type="button" className="ws-toolbtn" aria-label="Fullscreen" onClick={toggleFullscreen}>
               <IconMaximize />
@@ -993,6 +1012,13 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
               </button>
             ) : null}
           </div>
+          {/* M3 r2 (M-15): the phone's default view is said, and one tap reverses it */}
+          {phoneWidth && canOriginal && view === "text" && !returnToOriginal ? (
+            <p className="ws-doccard__hint">{DOCUMENT_COPY.textView}{" "}
+              <button type="button" className="ws-linkbtn" onClick={() => chooseView("original")}>
+                {DOCUMENT_COPY.showOriginal}</button>
+            </p>
+          ) : null}
           {view === "original" && canOriginal ? (
             <OriginalView versionId={version.id} filename={version.original_filename}
                           page={originalPage} />

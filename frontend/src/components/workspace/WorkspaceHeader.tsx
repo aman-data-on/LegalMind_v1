@@ -17,7 +17,7 @@ import { api } from "@/lib/api";
 import * as P from "@/lib/permissions";
 import { useSession } from "@/lib/session";
 import type { Contract, Counterparty, DocumentVersion, ReviewAssignments, SentNote } from "@/lib/types";
-import { ACTION, BRIEF_COPY, MENU_COPY, REPORT_VIEW_COPY, TAKE_BACK_COPY, contractStatusLabel,
+import { ACTION, BRIEF_COPY, MENU_COPY, RECORDBAR_COPY, REPORT_VIEW_COPY, TAKE_BACK_COPY, contractStatusLabel,
          type StageViewer } from "@/lib/labels";
 import { canSendToLegalFor, nextStep, runStep, type StepKind } from "@/lib/nextStep";
 import { PageHeader } from "@/components/page/PageHeader";
@@ -26,7 +26,7 @@ import { Dialog } from "@/components/Dialog";
 import { Disclosure } from "@/components/Disclosure";
 import { EmptyState, ErrorState, LoadingState } from "@/components/Feedback";
 import { templateName } from "@/lib/templates";
-import { ClientMenu } from "@/components/clients/ClientWorkspace";
+import { MenuButton } from "@/components/MenuButton";
 
 import { GovernedByLink } from "./Amendments";
 import { SendOut } from "./changesFeed";
@@ -211,8 +211,12 @@ export function RecordHeader({
     if (!title) return;
     // the title counts as gone once it is under the shell bar (taller on the narrowest phones)
     const shell = getComputedStyle(title).getPropertyValue("--ws-shell-h").trim() || "52px";
-    const watch = new IntersectionObserver(([seen]) => setFolded(!seen!.isIntersecting),
-                                           { rootMargin: `-${shell} 0px 0px 0px` });
+    // M3 r2: hysteresis — fold once the title is wholly gone, unfold only once it is wholly
+    // back, so momentum scrolling across the title never flickers the bars
+    const watch = new IntersectionObserver(([seen]) => {
+      if (!seen!.isIntersecting) setFolded(true);
+      else if (seen!.intersectionRatio >= 0.99) setFolded(false);
+    }, { rootMargin: `-${shell} 0px 0px 0px`, threshold: [0, 1] });
     watch.observe(title);
     return () => watch.disconnect();
   }, [narrow]);
@@ -251,12 +255,16 @@ export function RecordHeader({
     {/* r4: only when there is a step to take; the step lives once — this asks it (`runStep`:
         the header's own dialog or picker opens, no scrolling and no second instance) */}
     {narrow && step && primary ? (
-      <div className="ws-recordbar" hidden={!folded} aria-hidden={!folded || undefined}>
-        <p className="ws-recordbar__title">{contract.name}</p>
-        <button type="button" className="ws-btn ws-btn--sm ws-btn--primary" tabIndex={folded ? 0 : -1}
+      <section className="ws-recordbar" hidden={!folded} aria-label={RECORDBAR_COPY.region}>
+        {/* M3 r2: the name is the way back to the top of the contract */}
+        <button type="button" className="ws-recordbar__title" aria-label={RECORDBAR_COPY.toTop(contract.name)}
+                onClick={() => window.scrollTo({ top: 0,
+                  behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" })}>
+          {contract.name}</button>
+        <button type="button" className="ws-btn ws-btn--sm ws-btn--primary"
                 onClick={() => (SELF_OPENING.has(step.kind) ? runStep(step.kind) : go(step.kind, stepTab))}>
           {step.label}</button>
-      </div>
+      </section>
     ) : null}
     <PageHeader wide title={contract.name} back={{ href: "/contracts", label: "Contracts" }}
       meta={<>
@@ -297,7 +305,7 @@ export function RecordHeader({
       </>}
       secondary={<>
         {secondary}
-        <ClientMenu label="More actions">{items}</ClientMenu>
+        <MenuButton label="More actions">{items}</MenuButton>
         {/* in the actions row, not the meta line: it arrives after its own fetch, and on a
             phone the meta line wrapped it onto a new row — the page jumped (CLS) */}
         <CollaboratorsControl contractId={contract.id} openRef={colleaguesOpen} onLabel={setColleagues} />

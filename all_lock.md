@@ -31913,3 +31913,18 @@ r5  Below 640 px a PDF contract opens in Text; Original is one tap away under �
 r6  Not changed: the header keeps its reserved action row and ⋯ stays in it (moving ⋯ to the status row and dropping
     the row measured CLS 0.064 at 320 px, over the 0.05 bar; it needs the step known before first paint).
 ```
+
+`AM-475` round 2 (2026-11-26, the same batch, UI critic). Riders on r1–r6 above; nothing earlier edited.
+```text
+r7  The app bar goes away on any scroll down past 24 px and comes back on any scroll up (8 px), at the top, or
+    with focus — for every persona (supersedes r2's "returns at the title"); the record bar's title is a button
+    that goes back to the top; the bars move by a 160 ms transform, none under reduced motion; the record bar
+    folds once the title is wholly gone and unfolds once it is wholly back.
+r8  The document toolbar's view control is a sliders icon named "Document options" with a titled sheet, shown
+    only when the PDF original may be shown; marks alone (a Word file) are one "Show changes" toggle in the row.
+    The chosen view is the viewer's own, kept in this browser across versions; on a phone a PDF in Text says
+    "Text view. Show the original". At 359 px and below the page total reads "/N".
+r9  Landscape (≤ 500 px tall): the answer tray is a 44 px sticky handle "Your answer to {clause}" that opens it as
+    a sheet (Escape closes it) — supersedes r3's "scrolls with the page" for the tray. Below 900 px the Changes
+    tab shows the list or one change, never a list scrolling inside the page (M-19).
+```

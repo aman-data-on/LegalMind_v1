@@ -17,12 +17,12 @@ import { createPortal } from "react-dom";
 
 import { ApiError, api, describeError } from "@/lib/api";
 import { ACTION_LABEL, answerFor, isHeading, oursLabel, redline, verdictsFor, where, type Answer, type ChangeList, type ClientChange, type Mark, type Verdict } from "@/lib/changes";
-import { VERDICT_COPY, VERDICT_LABELS } from "@/lib/labels";
+import { TRAY_COPY, VERDICT_COPY, VERDICT_LABELS } from "@/lib/labels";
 import { useSeesLegalPosition } from "@/lib/session";
 import type { Evaluation, Finding } from "@/lib/types";
 
 import { requirementTitle } from "./findingLanguage";
-import { IconArrowLeft, IconLock } from "./icons";
+import { IconArrowLeft, IconChevronDown, IconLock } from "./icons";
 import { StatusChip, chipStatus } from "@/components/StatusChip";
 
 export const NO_STANDARD = "No standard clause is published for this point yet.";
@@ -117,6 +117,8 @@ export function AnswerComposer({ change, list, actions, contractId, details, onA
   initial?: Answer | null;
 }) {
   const id = useId();
+  const [trayOpen, setTrayOpen] = useState(false);
+  const handle = useRef<HTMLButtonElement | null>(null);
   const seesInternal = useSeesLegalPosition();
   const theirs = change.after?.text ?? "";
   // R3 step 10: Legal picks a verdict; Reject then picks the wording sent back
@@ -322,8 +324,20 @@ export function AnswerComposer({ change, list, actions, contractId, details, onA
   return (
     // U2 (UI-07): the answer tray sticks to the foot of the card (changes.css) — the four
     // verdicts stay in reach whatever the length of the clause above
-    <section className="cx-section cx-compose" aria-labelledby={`${id}-title`}>
-      <h4 id={`${id}-title`} className="cx-label">{change.answer ? "Change your answer" : "Your answer"}</h4>
+    <section className="cx-section cx-compose" aria-labelledby={`${id}-title`} data-open={trayOpen || undefined}
+             onKeyDown={(event) => {
+               if (event.key !== "Escape" || !trayOpen) return;
+               event.stopPropagation(); setTrayOpen(false); handle.current?.focus();
+             }}>
+      {/* M3 r2: a phone on its side shows the tray as one 44px handle that opens it as a sheet
+          (changes.css shows the handle only there) */}
+      <button type="button" ref={handle} className="cx-compose__handle" aria-expanded={trayOpen}
+              onClick={() => setTrayOpen((was) => !was)}>
+        {change.clause.number ? TRAY_COPY.handle(change.answer ? TRAY_COPY.change : TRAY_COPY.answer, change.clause.number)
+          : change.answer ? TRAY_COPY.change : TRAY_COPY.answer}
+        <IconChevronDown />
+      </button>
+      <h4 id={`${id}-title`} className="cx-label">{change.answer ? TRAY_COPY.change : TRAY_COPY.answer}</h4>
       <div className="cx-choices" role="radiogroup" aria-labelledby={`${id}-title`}>
         {verdicts.map((v) => (
           <label key={v} className="cx-choice" data-on={verdict === v || undefined}>

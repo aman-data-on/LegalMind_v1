@@ -24,6 +24,7 @@
 
 import { Plus } from "lucide-react";
 import Link from "@/components/AppLink";
+import { MenuButton } from "@/components/MenuButton";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
 import { api, describeError } from "@/lib/api";
@@ -56,62 +57,6 @@ const TABS = [
 
 type TabKey = (typeof TABS)[number]["key"];
 
-/**
- * The client header's overflow menu — the same `.ws-menu` vocabulary the
- * Dashboard's row actions use (`⋯` toggle, `role="menu"`, `--bad` for the
- * destructive item), and the same reason for existing: DESIGN.md keeps
- * destructive actions out of the standing control row, so "Delete client" is
- * never a permanent red button beside "Edit profile".
- *
- * No portal here, unlike the Dashboard's copy. That one escapes the table's
- * `overflow` by rendering into `document.body` with inline viewport
- * coordinates; this header has no clipping ancestor (`.ws-cl__head` and
- * `.ws-cl__main` set no `overflow`), so the plain absolutely-positioned list is
- * correct and carries none of that machinery.
- */
-export function ClientMenu({ children, label }: { children: ReactNode; label: string }) {
-  const [open, setOpen] = useState(false);
-  const wrapRef = useRef<HTMLDivElement | null>(null);
-  const toggleRef = useRef<HTMLButtonElement | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function onPointer(event: PointerEvent) {
-      if (!wrapRef.current?.contains(event.target as Node)) setOpen(false);
-    }
-    function onKey(event: KeyboardEvent) {
-      if (event.key !== "Escape") return;
-      // Stop the shell's single-key shortcuts seeing it, and return focus to
-      // the control the reader opened — the same courtesy `Dialog` gives.
-      event.stopPropagation();
-      setOpen(false);
-      toggleRef.current?.focus();
-    }
-    document.addEventListener("pointerdown", onPointer);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("pointerdown", onPointer);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
-
-  return (
-    <div className="ws-menu ws-cl__headmenu" ref={wrapRef}>
-      <button ref={toggleRef} type="button"
-              className="ws-btn ws-btn--sm ws-menu__toggle"
-              aria-haspopup="menu" aria-expanded={open} aria-label={label}
-              onClick={() => setOpen((was) => !was)}>
-        ⋯
-      </button>
-      {open ? (
-        <div className="ws-menu__list" role="menu" aria-orientation="vertical"
-             onClick={() => setOpen(false)}>
-          {children}
-        </div>
-      ) : null}
-    </div>
-  );
-}
 
 /**
  * Delete confirmation — the same shape as `DeleteContractDialog`, deliberately:
@@ -411,7 +356,7 @@ export function ClientWorkspace({ clientId }: { clientId: string }) {
                 it re-checks unscoped and answers 409. Presentation only (47.6).
               */}
               {can(P.CONTRACT_ARCHIVE) && !editing ? (
-                <ClientMenu label={`More actions for ${client.name}`}>
+                <MenuButton label={`More actions for ${client.name}`}>
                   {documents === 0 ? (
                     <button type="button" role="menuitem"
                             className="ws-menu__item ws-menu__item--bad"
@@ -424,7 +369,7 @@ export function ClientWorkspace({ clientId }: { clientId: string }) {
                       Mark inactive…
                     </button>
                   )}
-                </ClientMenu>
+                </MenuButton>
               ) : null}
             </header>
 
