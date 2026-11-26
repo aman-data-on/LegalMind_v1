@@ -37,6 +37,22 @@ working day gets one entry, newest first, with these headings (omit an empty one
 
 ---
 
+## 2026-11-26
+
+### Reached production
+- **a6f395c2** (W1 #347, W2+M2 #348, S1 #349) deployed 2026-11-25 17:55 IST, exit 0; live: HTTP/2, first contract list after the deploy 1.4 s (was 3.3–3.7 s), `cache.warm` warmed 5 / failed 0.
+- **d034677a** (B1 #350) deployed 2026-11-26 15:26 IST, exit 0; worker restarted. Watch `analysis.semantic.no_model` / `assist.provider_paused` for 429s from 16 prefetch workers.
+- **22766c3d** (M3 #351, AB-226 `AM-475`) deployed 2026-11-26, exit 0.
+- Lighthouse phone, live, median of 3 (before the audit → now): login 91 → 98, contracts 72 → 91 (LCP 6.1 → 2.8 s), contract page 60 → 73 (LCP 9.4 → 4.0 s), Ask 64 → 87 (LCP 5.4 → 2.9 s); CLS ≤ 0.001 everywhere. Results in `audit/perf-20261124/after-all/`.
+
+### In progress
+- W3 "the contract page" (branch `perf/w3-contract-page`).
+
+### Blocked
+- Owner: one look on a real iPhone (WebKit cannot run on the host).
+
+---
+
 ## 2026-11-25
 
 ### Done
