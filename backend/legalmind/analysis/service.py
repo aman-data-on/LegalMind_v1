@@ -516,7 +516,7 @@ def _cached_recognition(db: DBSession, snapshot_id: UUID, prompt_version: str,
 
 
 #: How many recognition calls are in flight at once (the provider's limit is far above).
-PREFETCH_WORKERS = 8
+PREFETCH_WORKERS = 16
 
 
 def _egress_for(db: DBSession, review: M.Review, *, actor_id: UUID | None,

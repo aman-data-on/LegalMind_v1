@@ -12,6 +12,7 @@ Last synchronized against `all_lock.md` at **19,374 lines** (2026-09-13 — **AB
 
 ## Build state
 
+### Build state — B1 "analysis waits" (2026-11-25, branch `perf/b1-analysis`) — **BUILT, independently verified 14/14 (rule 9 byte-identical on 12 documents), NOT deployed**. Report `audit/perf-20261124/B1-BUILD-REPORT.md`.
 ### Build state — S1 "no slow first read" (2026-11-25, branch `perf/s1-first-read`) — **BUILT, independently verified 7/7, NOT deployed**. Report `audit/perf-20261124/S1-BUILD-REPORT.md`.
 ### Build state — W2+M2 "lighter pages + one touch rule" (2026-11-25, branch `perf/w2-lighter`) — **BUILT, independently verified (23/23, 3 rounds) and UI-critiqued, NOT deployed**. Report `audit/perf-20261124/W2-BUILD-REPORT.md`.
 ### Build state — W1 "fast first screen" (2026-11-25, branch `perf/w1-first-screen`) — **BUILT, independently verified (10/10, 4 rounds) and UI-critiqued, NOT deployed**. `components/AppLink.tsx`, `workspace/evidenceLoad.ts`, `WorkspaceLayout.useMinWidth`, `DocumentPane` chunks, `SendToLegal` via `Dialog` below 900 px, touch field rule in `globals.css`. Report `audit/perf-20261124/W1-BUILD-REPORT.md`.
