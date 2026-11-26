@@ -8043,9 +8043,10 @@ html[data-ask-chat] .lm-askskel > [data-slot="aui_thread-welcome"] { visibility:
 .ws-workmain[data-phone] .ws-doccard__find input { flex: 1 1 auto; width: auto; min-width: 0; }
 /* the narrowest phones keep the total, compact: "1 /14" */
 @media (max-width: 359px) {
-  .ws-workmain[data-phone] .ws-doccard__bar .ws-pagecount__of { display: none; }
+  .ws-workmain[data-phone] .ws-doccard__bar .ws-pagecount__of { position: absolute; inline-size: 1px; block-size: 1px;
+    overflow: hidden; clip-path: inset(50%); white-space: nowrap; }   /* still heard: "of 14" */
   .ws-workmain[data-phone] .ws-doccard__bar .ws-pagecount { min-inline-size: 0; }
-  .ws-workmain[data-phone] .ws-doccard__bar .ws-pagecount::before { content: "/"; }
+  .ws-workmain[data-phone] .ws-doccard__bar .ws-pagecount::before { content: "/" / ""; }
 }
 /* a chosen view or a pressed toggle in any menu carries the check */
 .ws-menu__item:is([role="menuitemcheckbox"], [role="menuitemradio"])[aria-checked="true"] { font-weight: 600; color: var(--ws-ink-900); }
@@ -8076,13 +8077,25 @@ html[data-ask-chat] .lm-askskel > [data-slot="aui_thread-welcome"] { visibility:
 .ws-recordbar__title:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
 /* 3 · No focus lands under a bar (WCAG 2.4.11): the top stack (app or record bar + document
  * bar) and the bottom tab bar are reserved when the page scrolls a focused control into view. */
-html:has(.ws-workmain[data-phone]) { scroll-padding-top: calc(var(--s-8) + var(--s-7)); }
+/* r3: the top padding is the stack on screen NOW — each bar's height, 0 while it is away. A
+ * nested :has() is invalid, so the away test sits on html itself. */
+html:has(.ws-workmain[data-phone]) {
+  --m3-shell: 52px;   /* the phone's app bar, .ws --ws-shell-h */
+  --m3-record: 0px; --m3-doc: 0px; --m3-head: 0px;
+  scroll-padding-top: calc(var(--m3-shell) + var(--m3-record) + var(--m3-doc) + var(--m3-head) + var(--s-2)); }
+html:has(.ws[data-away] .ws-workmain[data-phone]):not(:has(.ws-shell:focus-within)) { --m3-shell: 0px; }
+html:has(.ws-workmain[data-phone]):has(.ws-recordbar:not([hidden])) { --m3-record: var(--s-7); }
+/* the one-row document bar: a 40px control, 4px above and below, a 1px rule */
+html:has(.ws-workmain[data-phone] .ws-doccard__bar) { --m3-doc: calc(var(--s-6) + 2 * var(--s-2) + 1px); }
+/* the Changes list's group heading sticks under the bars, not behind them */
+html:has(.ws-workmain[data-phone] .cx-index__head) { --m3-head: calc(var(--s-6) + var(--s-2)); }
+.ws-workmain[data-phone] .cx-index__head { top: calc(var(--m3-shell) + var(--m3-record)); }
 html:has(.ws-workmain[data-phone]):not(:has(.cx-card .cx-compose)) {
   scroll-padding-bottom: calc(var(--s-8) + var(--s-2) + env(safe-area-inset-bottom, 0px)); }
 /* M-19: on a phone or tablet the Changes list is the page — the list, or one change, never a
  * list scrolling inside a scrolling page */
 .ws-workmain[data-phone] .cx[data-view="list"] .cx-card { display: none; }
-.ws-workmain[data-phone] .cx[data-view="list"] .cx-list { max-height: none; }
+.ws-workmain[data-phone] .cx[data-view="list"] .cx-list { max-height: none; overflow: visible; }   /* r3: its headings stick to the page */
 .ws-workmain[data-phone] .cx[data-view="detail"] :is(.cx-list, .cx-bar, .cx-banner) { display: none; }
 .ws-workmain[data-phone] .cx[data-view="detail"] .cx-back { display: inline-flex; align-items: center; gap: 8px; margin-bottom: var(--ws-s3); }
 .cx-compose__handle { display: none; }
@@ -8113,7 +8126,7 @@ html:has(.ws-workmain[data-phone]):not(:has(.cx-card .cx-compose)) {
   .ws-workmain[data-phone] .cx-compose__handle svg { transition: transform 160ms ease-out; }
   .ws-workmain[data-phone] .cx-compose__handle:not([aria-expanded="true"]) svg { transform: rotate(180deg); }
   .ws-workmain[data-phone] .cx-compose__handle:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: -2px; }
-  html:has(.ws-workmain[data-phone]) { scroll-padding-top: var(--s-8); }
+  html:has(.ws-workmain[data-phone] .ws-doccard__bar) { --m3-doc: 0px; }   /* it scrolls with the page here */
   html:has(.ws-workmain[data-phone]),
   html:has(.ws-workmain[data-phone] .cx-card .cx-compose) {
     scroll-padding-bottom: calc(var(--s-7) + var(--s-tap) + env(safe-area-inset-bottom, 0px)); }

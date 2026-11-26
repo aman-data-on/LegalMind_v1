@@ -33,11 +33,14 @@ function useHiddenOnScrollDown(): boolean {
   const [hidden, setHidden] = useState(false);
   useEffect(() => {
     // a scroller seen for the first time is taken to start at its top
-    let last = 0, frame = 0, source: EventTarget | null = null;
+    let last = 0, frame = 0, source: EventTarget | null = null, tabbed = 0;
     const read = () => {
       frame = 0;
       const el = source instanceof Element ? source : document.scrollingElement;
       const y = el?.scrollTop ?? 0;
+      // M3 r3: a scroll that Tab caused leaves the bars where they are, so the scroll padding the
+      // browser just used still matches them (WCAG 2.4.11 — focus never lands under a bar)
+      if (performance.now() - tabbed < 400) { last = y; return; }
       if (y <= 24) setHidden(false);
       else if (Math.abs(y - last) > 8) setHidden(y > last);   // M3 r2: 8px, the phone bars use it too
       else return; // a slow drag adds up until it passes the threshold
@@ -47,9 +50,12 @@ function useHiddenOnScrollDown(): boolean {
       if (source !== e.target) { source = e.target; last = 0; }
       if (!frame) frame = requestAnimationFrame(read);
     };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Tab") tabbed = performance.now(); };
     document.addEventListener("scroll", onScroll, { capture: true, passive: true });
+    document.addEventListener("keydown", onKey, { capture: true });
     return () => {
       document.removeEventListener("scroll", onScroll, { capture: true });
+      document.removeEventListener("keydown", onKey, { capture: true });
       if (frame) cancelAnimationFrame(frame);
     };
   }, []);
