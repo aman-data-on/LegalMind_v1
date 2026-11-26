@@ -8152,3 +8152,4 @@ html:has(.ws-workmain[data-phone]):not(:has(.cx-card .cx-compose)) {
 .ws-srccheck__paste { margin: var(--s-3) var(--s-4); font-size: var(--t-dense); }
 .ws-srccheck__paste summary { cursor: pointer; min-block-size: 40px; display: flex; align-items: center; color: var(--c-action); }
 .ws-srccheck__paste form { display: grid; gap: var(--s-2); margin-top: var(--s-2); }
+.ws-srccheck__override label, .ws-srccheck__paste label { font-size: var(--t-caption); font-weight: 500; }
