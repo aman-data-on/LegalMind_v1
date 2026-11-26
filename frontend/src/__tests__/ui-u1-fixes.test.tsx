@@ -39,7 +39,10 @@ describe("UI-05 and UI-10: list cells read as separate facts and whole names", (
     expect(css).toContain("/* Single-line ellipsis truncation (owner, 2026-09-22");
     expect(css).toMatch(/\.ws-cl__docname \{[^}]*white-space: nowrap/);
     expect(css).toMatch(/a\.ws-hometable__name \{[^}]*white-space: nowrap/);
-    const rule = css.slice(css.lastIndexOf("/* UI-10"));
+    // the UI-10 block runs to the next section banner (M3's block follows it)
+    const start = css.lastIndexOf("/* UI-10");
+    const end = css.indexOf("/* ============", start);
+    const rule = css.slice(start, end < 0 ? undefined : end);
     expect(rule).toContain("STANDS in desktop tables");
     expect(css).toMatch(/\.ws-cl__railname \{[^}]*white-space: nowrap/);   // the rail keeps one line
     expect(rule).not.toMatch(/\.ws-cl__railname \{ display: -webkit-box/);

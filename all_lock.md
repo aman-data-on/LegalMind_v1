@@ -31886,3 +31886,45 @@ r1  POST /reviews/{id}/assignments adds one notice to the person it was sent to,
     notice is always written.
 r2  The same disclosure as AM-472 r2: named only while the reader can read the contract; the e-mail never names it.
 ```
+
+---
+
+## AMENDMENT BATCH AB-226 — `AM-475` (2026-11-25): the phone workspace's reading bars
+
+Batch M3 of the mobile audit 2026-11-24 (M-02, M-03, M-15; `scroll-padding` for the bars), built under the owner's
+"product over locks" delegation (2026-11-02) — presentation only. Nothing here is a Finding, Classification, Rule
+Outcome, Mapping State, Legal Decision or lifecycle change (rules 10/13); no legal position, threshold or vocabulary is
+added (rules 7/21); no authorization changes (rule 18): every control shown was already shown, only where it sits on a
+phone changes. The wide workspace (900 px and up) is unchanged (computed-style diff 0 at 1440). IDs scanned: AB-226,
+AM-475 on origin/main a6f395c2, every remote branch and every worktree: free.
+
+`AM-475` — THE PHONE'S READING BARS (rider on `AM-471`, the U2 phone layout).
+```text
+r1  Below 900 px the document's toolbar is one row: Contents, find, the page box and "Document options" (⋯), which
+    holds the Original/Text choice and "Show changes". The previous/next page buttons are not shown on a phone; the
+    page box and Contents still move through the document. With find open, its field takes the row.
+r2  Once the contract's title scrolls away, the folded record bar (name + the one step, U2 UI-03d) REPLACES the app
+    bar instead of stacking under it; the app bar returns at the title, or whenever it holds keyboard focus.
+r3  A phone on its side (landscape, at most 500 px tall): the tab bar is one 48 px row (icon beside its word), the
+    document toolbar and the lawyer's answer tray scroll with the page instead of sticking (U2 UI-07's tray stays
+    sticky in portrait).
+r4  No keyboard focus lands under a bar (WCAG 2.2 2.4.11): the page reserves the top and bottom bars as scroll padding.
+r5  Below 640 px a PDF contract opens in Text; Original is one tap away under ⋯ (M-15).
+r6  Not changed: the header keeps its reserved action row and ⋯ stays in it (moving ⋯ to the status row and dropping
+    the row measured CLS 0.064 at 320 px, over the 0.05 bar; it needs the step known before first paint).
+```
+
+`AM-475` round 2 (2026-11-26, the same batch, UI critic). Riders on r1–r6 above; nothing earlier edited.
+```text
+r7  The app bar goes away on any scroll down past 24 px and comes back on any scroll up (8 px), at the top, or
+    with focus — for every persona (supersedes r2's "returns at the title"); the record bar's title is a button
+    that goes back to the top; the bars move by a 160 ms transform, none under reduced motion; the record bar
+    folds once the title is wholly gone and unfolds once it is wholly back.
+r8  The document toolbar's view control is a sliders icon named "Document options" with a titled sheet, shown
+    only when the PDF original may be shown; marks alone (a Word file) are one "Show changes" toggle in the row.
+    The chosen view is the viewer's own, kept in this browser across versions; on a phone a PDF in Text says
+    "Text view. Show the original". At 359 px and below the page total reads "/N".
+r9  Landscape (≤ 500 px tall): the answer tray is a 44 px sticky handle "Your answer to {clause}" that opens it as
+    a sheet (Escape closes it) — supersedes r3's "scrolls with the page" for the tray. Below 900 px the Changes
+    tab shows the list or one change, never a list scrolling inside the page (M-19).
+```

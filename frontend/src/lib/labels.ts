@@ -800,9 +800,29 @@ export const ROW_STATUS = {
 /** The Summary tab (W1-5). */
 export const SUMMARY_COPY = { loading: "Loading the summary…" } as const;
 /** The contract text (W1-3 r2): the rest of a long document loads after its first page. */
+/** M3 r2: the answer tray's handle on a phone on its side */
+export const TRAY_COPY = {
+  answer: "Your answer",
+  change: "Change your answer",
+  handle: (what: string, clause: string) => `${what} to ${clause}`,
+} as const;
+
+/** M3 r2: the phone's folded record bar */
+export const RECORDBAR_COPY = {
+  region: "This contract",
+  toTop: (name: string) => `${name}. Back to the top`,
+} as const;
+
 export const DOCUMENT_COPY = {
   loadingRest: "Loading the rest of the document…",
   restFailed: "The rest of the document could not be loaded",
+  /** M3 (M-03): the phone's one-row document bar keeps the view and the marks under ⋯ */
+  options: "Document options",
+  original: "Original",
+  text: "Text",
+  showChanges: "Show changes",
+  textView: "Text view.",
+  showOriginal: "Show the original",
 } as const;
 
 export const BRIEF_COPY = {
