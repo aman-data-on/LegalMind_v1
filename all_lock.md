@@ -31928,3 +31928,53 @@ r9  Landscape (≤ 500 px tall): the answer tray is a 44 px sticky handle "Your 
     a sheet (Escape closes it) — supersedes r3's "scrolls with the page" for the tray. Below 900 px the Changes
     tab shows the list or one change, never a list scrolling inside the page (M-19).
 ```
+
+## AMENDMENT BATCH AB-227 — `AM-476`–`AM-477` (2026-11-26): what a client's paper replaces in our paper
+
+Lawyer judgement Phase 1, as corrected by the 2026-11-26 critique (one parser, version pinning M1/M2, fail closed, a
+read-only view, leak tests M7, a zero-model harness), and the source-integrity critique's must-fix 1 (policy version
+periods). Built under the owner's "product over locks" delegation (2026-11-02) for the two storage/scope collisions
+only (`AM-27`, `AM-130`). Nothing here is a Finding, Classification, Rule Outcome, Mapping State, Legal Decision,
+route, effect, answer, automatic acceptance or deal-brief count (rules 10/13); no legal position, threshold, direction
+or effect word is added (rules 7/21); authorization is unchanged in kind (rule 18). IDs scanned: AB-227, AB-228,
+AM-476–AM-478 on origin/main 0436e72a, every remote branch and every worktree: free.
+
+`AM-476` — "WHAT IT REPLACES IN OUR PAPER" (extends `AM-159`/`AM-241` consistency observations across documents;
+amends `AM-27` by one table via `AM-477`; extends `AM-130`'s scope to a read in the review lane).
+```text
+r1  One parser (`analysis/consistency.paper_references`) reads every reference a document makes into our MSA, Terms
+    of Service, SLA or AUP: numbered ("MSA clause 17.2", lists, "despite MSA clause 8.4 (no set-off)", "AUP §5"),
+    inverted ("section 13 of the Terms of Service") and DESCRIBED (a fixed, tested phrase list: credits lapse,
+    exclusive remedy), each with its verb (REPLACES, DOES_NOT_APPLY, DESPITE, SUBJECT_TO, INCLUDES, SURVIVES, REFERS).
+    A document's own clauses, a statute and a whole-document mention are not references. `observe` never reads it.
+r2  The MSA is pinned in this order: the MSA signed or final with this client (the contract this one is governed by
+    first; read rule checked before any text, `AM-464` R1.7); else the MSA template the deal was drafted from; else
+    Legal's pick, recorded once per deal as an append-only audit event `our_paper.msa_picked`; else WHICH_MSA. A
+    version label in the client's text is never a key; how many of the client's titled references fit each candidate
+    MSA is shown to Legal as a hint, never a pick.
+r3  A published policy is the stored version in force on the document's own date (its opening rows, else the upload
+    date) for the contract's brand — never the live page, never the other brand's. The newest stored version wording
+    the clause differently is shown as "changed after this copy" (BASE_CHANGED_SINCE).
+r4  Fails closed with its reason: POINTS_NOWHERE, TITLE_MISMATCH (key words and numbers, never the string), WHICH_MSA,
+    NO_STORED_COPY (with the earliest stored date), NO_BRAND. A blank in our resolved clause is shown, quoted.
+r5  Shown read-only: the client's sentence and our clause side by side with file, date and SHA-256; one brief line
+    "This replaces or overrides N clauses of our paper". No direction, effect, favour group or evaluative prose; the
+    one marker is a phrase quoted from our own text («AS IS», «exclusive remedy», «non-refundable»/«not refundable»,
+    «without any deduction, set-off»). A reader without `legal.decision` receives at most five rows (the replaced
+    ones first) and "N more for Legal", and never the MSA choices.
+r6  `AM-130` scope: the review lane reads the stored `knowledge_sources`/`knowledge_items` rows (no new egress; the
+    fetch stays the ingestion job's). `AM-25` r4 unchanged: "does this meet our standard?" still routes to the
+    evaluator; nothing in the assist lane reads these rows.
+r7  Rollback: `LEGALMIND_OUR_PAPER=off` (the endpoint then answers 404). Findings, routes, effects, answers, automatic
+    acceptance, the brief and the angles are byte-identical on and off (tests).
+```
+
+`AM-477` — PUBLISHED-POLICY VERSION PERIODS (amends `AM-27`'s closed table set by one table; rider on `AM-130`).
+```text
+r1  `assist.knowledge_source_periods` (migration b8f2d6a4c1e7): APPEND-ONLY by trigger; one row each time a version
+    becomes the one in force (`started_on` = the day it was read); a period runs until the next row of the policy.
+    Backfilled from each existing row's `effective_from`; a revival that already happened is not reconstructed.
+r2  An A → B → A page revives A's row as before, and adds a new period of A: the version on a date inside B is B.
+r3  The lookup is `published.version_on(source_type, date)` over the pure `published.in_force`, shared by the review
+    lane and the offline harness. `knowledge_sources.effective_from/_to` are no longer read for "in force on".
+```

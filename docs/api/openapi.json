@@ -2343,6 +2343,38 @@
     "title": "NegotiationAnswer",
     "type": "object"
    },
+   "OurPaperPick": {
+    "additionalProperties": false,
+    "description": "Lawyer judgement P1 (`AM-476`, M1): which MSA a client's paper refers to, picked by\nLegal once per deal when neither a signed MSA with this client nor the deal's template\nnames one. Exactly one of the two: a template version of our MSA, or the client's\nsigned or final MSA contract.",
+    "properties": {
+     "contract_id": {
+      "anyOf": [
+       {
+        "format": "uuid",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Contract Id"
+     },
+     "template_version_id": {
+      "anyOf": [
+       {
+        "format": "uuid",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Template Version Id"
+     }
+    },
+    "title": "OurPaperPick",
+    "type": "object"
+   },
    "OurSignatory": {
     "additionalProperties": false,
     "properties": {
@@ -5525,6 +5557,123 @@
     "summary": "Mark Signed",
     "tags": [
      "execution"
+    ]
+   }
+  },
+  "/api/v1/contracts/{contract_id}/our-paper": {
+   "get": {
+    "operationId": "our_paper_view_api_v1_contracts__contract_id__our_paper_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "version_number",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "minimum": 1,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Version Number"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Our Paper View Api V1 Contracts  Contract Id  Our Paper Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Our Paper View",
+    "tags": [
+     "negotiation"
+    ]
+   }
+  },
+  "/api/v1/contracts/{contract_id}/our-paper/msa": {
+   "post": {
+    "operationId": "pick_msa_api_v1_contracts__contract_id__our_paper_msa_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "contract_id",
+      "required": true,
+      "schema": {
+       "format": "uuid",
+       "title": "Contract Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/OurPaperPick"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Pick Msa Api V1 Contracts  Contract Id  Our Paper Msa Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Pick Msa",
+    "tags": [
+     "negotiation"
     ]
    }
   },

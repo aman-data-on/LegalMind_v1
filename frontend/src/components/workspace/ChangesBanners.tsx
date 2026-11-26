@@ -11,6 +11,7 @@ import { answersAsLegal, clauseName, firstWords, historyLine, notMarkedRows, typ
 import { openChange } from "@/lib/dealBrief";
 import { displayTitle } from "@/lib/templates";
 import { NotMarked } from "./NotMarked";
+import { OurPaperPanel } from "./OurPaper";
 import { CommentLines } from "./WordComments";
 
 /** the not-marked banner's links: as many as the brief shows, then "and N more" */
@@ -34,6 +35,7 @@ export function ChangesBanners({ data }: { data: ChangeList; allUntracked?: bool
                    items={unmarked.slice(0, SHOWN).map((c) => ({ rowKey: c.row_key, name: NOT_MARKED_COPY.clause(
                      c.clause.number, c.clause.heading ?? c.clause.name, firstWords(c)) }))} />
       ) : null}
+      <OurPaperPanel contractId={data.contract_id} />
       {data.tracked_base ? <p className="cx-banner" role="note">{RETURNED_COPY.banner}
         {/* item 12: Legal sees why Keep our wording is missing here (AM-459, Q2) */}
         {answersAsLegal(data) ? <><br />{RETURNED_COPY.keepOff}</> : null}</p> : null}

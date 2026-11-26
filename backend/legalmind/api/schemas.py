@@ -855,3 +855,19 @@ class AmendmentCreate(Body):
     """Start an amendment of a signed contract (`AM-309`): its name, else "Amendment to
     <the contract's name>"."""
     name: str | None = Field(None, min_length=1, max_length=255)
+
+
+class OurPaperPick(Body):
+    """Lawyer judgement P1 (`AM-476`, M1): which MSA a client's paper refers to, picked by
+    Legal once per deal when neither a signed MSA with this client nor the deal's template
+    names one. Exactly one of the two: a template version of our MSA, or the client's
+    signed or final MSA contract."""
+
+    template_version_id: UUID | None = None
+    contract_id: UUID | None = None
+
+    @model_validator(mode="after")
+    def _one(self) -> OurPaperPick:
+        if (self.template_version_id is None) == (self.contract_id is None):
+            raise ValueError("name exactly one: template_version_id or contract_id")
+        return self

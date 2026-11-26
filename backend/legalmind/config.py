@@ -635,3 +635,10 @@ def evidence_rescue_enabled() -> bool:
     """
     value = os.environ.get("LEGALMIND_EVIDENCE_RESCUE", "on")
     return value.lower() in {"1", "true", "on"}
+
+
+def our_paper_enabled() -> bool:
+    """Lawyer judgement P1 (`AM-476`): "what it replaces in our paper". ON by default;
+    read-only information that nothing deciding reads, so `LEGALMIND_OUR_PAPER=off` (the
+    rollback, a restart) only hides it — the endpoint then answers 404."""
+    return os.environ.get("LEGALMIND_OUR_PAPER", "on").lower() in {"1", "true", "on"}

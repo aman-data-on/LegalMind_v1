@@ -477,3 +477,29 @@ button.cx-bar__open[aria-expanded="true"] svg { transform: rotate(-90deg); }
 /* the phone scrolls the page, not the list: the answer tray sticks to the viewport */
 .ws-workmain[data-phone] .cx { overflow: visible; }
 .cx-bar__from { font-size: var(--t-caption); line-height: var(--t-caption-lh); color: var(--c-text-2); }
+
+/* AM-476: what the client's paper replaces in our paper — closed by default; the client's
+   sentence once, then each clause of ours it reaches (round 2) */
+.op-panel > summary { cursor: pointer; display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--ws-s2); }
+.op-panel__title { display: inline; margin: 0; font-size: var(--t-dense); font-weight: 500; }
+.op-pins { margin: var(--ws-s2) 0 0; padding-inline-start: var(--ws-s5); font-size: var(--t-dense); overflow-wrap: anywhere; }
+.op-detail summary { cursor: pointer; color: var(--c-text-3); font-size: var(--t-caption); }
+.op-sha { overflow-wrap: anywhere; }
+.op-list { margin: var(--ws-s3) 0 0; padding: 0; list-style: none; display: grid; gap: var(--ws-s4); }
+.op-group { border-top: 1px solid var(--c-line); padding-top: var(--ws-s3); min-width: 0; }
+.op-group__title { margin: 0 0 var(--ws-s2); font-size: var(--t-dense); font-weight: 600; }
+.op-quote--theirs { margin: 0; padding: var(--ws-s2) var(--ws-s3); border-inline-start: 2px solid var(--c-line-strong);
+  background: var(--c-page); font-size: var(--t-dense); max-inline-size: 68ch; overflow-wrap: anywhere; }
+.op-rows { margin: var(--ws-s3) 0 0; padding: 0 0 0 var(--ws-s4); list-style: none; display: grid; gap: var(--ws-s3); }
+.op-row { min-width: 0; }
+.op-row__head, .op-row__reason { margin: 0 0 var(--ws-s1); font-size: var(--t-dense); }
+.op-quote { margin: var(--ws-s1) 0 0; min-width: 0; }
+.op-quote--ours blockquote { margin: var(--ws-s1) 0 0; padding-inline-start: var(--ws-s3); border-inline-start: 2px solid var(--c-action);
+  font-family: var(--font-serif); font-size: var(--t-body); max-inline-size: 68ch; overflow-wrap: anywhere; }
+.op-clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; overflow: hidden; }
+.op-fact { margin: var(--ws-s2) 0 0; font-size: var(--t-dense); }
+.op-pick { display: flex; flex-wrap: wrap; gap: var(--ws-s2); align-items: center; margin-top: var(--ws-s3); }
+.op-pick select { max-inline-size: 100%; }
+.op-brief { margin: 0 0 var(--ws-s2); font-size: var(--t-dense); }
+.op-brief p { margin: 0; }
+.op-also { margin: var(--ws-s2) 0; font-size: var(--t-dense); }

@@ -799,3 +799,148 @@ def observe(clauses: list[Clause],
                            *_our_cin(clauses), *_quantities(clauses),
                            *_blank_fields(clauses), *_totals(clauses)],
             "additional": [*_cross_references(idx), *_definition_targets(idx)]}
+
+
+# ---- Lawyer judgement P1: a reference into OUR paper (MSA, TOS, SLA, AUP) ------------
+# One parser, beside `_REF`: "MSA clause 17.2", "MSA clauses 17.2, 17.3 and 17.7",
+# "despite MSA clause 8.4 (no set-off)", the inverted "section 13 of the Terms of
+# Service", and DESCRIBED — an unnumbered passage named by its words ("the provision of
+# the SLA under which credits lapse"). Observations only: never a Finding, a route, an
+# effect or an answer; never read by `observe` (nothing it counts changes).
+PAPER_DOCS = ("MSA", "TOS", "SLA", "AUP")
+_DOC_NAMES = (r"(?P<doc>MSA|Master\s+Services?\s+Agreement|Terms\s+of\s+Service|TOS|"
+              r"SLA|Service\s+Level\s+Agreement|AUP|Acceptable\s+Us(?:e|age)\s+Policy)")
+_ONE = rf"{_NUM}(?:\([a-z]{{1,3}}\))?(?:\s*\([^()]{{3,80}}\))?"
+_LIST = rf"{_ONE}(?:(?:\s*,\s*(?:and\s+|or\s+)?|\s+(?:and|or)\s+){_ONE})*"
+_UNIT = r"(?:clauses?|sections?|paragraphs?|§§?)"
+_FORWARD = re.compile(rf"\b{_DOC_NAMES}\s+{_UNIT}\s*(?P<list>{_LIST})", re.I)
+_INVERTED = re.compile(rf"\b{_UNIT}\s*(?P<list>{_LIST})\s+of\s+(?:the\s+)?"
+                       rf"(?:(?!this\b)\w+\s+)?(?<!this\s)"
+                       rf"{_DOC_NAMES}\b", re.I)
+_EACH = re.compile(rf"(?P<n>{_NUM})(?:\((?P<sub>[a-z]{{1,3}})\))?"
+                   r"(?:\s*\((?P<title>[^()]{3,80})\))?")
+#: DESCRIBED: "the provision / statement / term of (or in) the SLA …" and the words
+#: that name the passage. Each entry: what the client says, and what our passage says
+#: (every pattern must match one paragraph of ours). Lexical aids, not positions.
+_DESCRIBED_LEAD = re.compile(rf"\b(?:provision|statement|term|wording|sentence)s?\s+"
+                             rf"(?:of|in)\s+(?:the\s+)?{_DOC_NAMES}\b", re.I)
+DESCRIBED = (
+    ("credits lapse", re.compile(r"\b(?:laps|nullif|forfeit|expir)\w*", re.I),
+     (re.compile(r"\bcredit", re.I), re.compile(r"\b(?:laps|nullif|forfeit)\w*", re.I),
+      re.compile(r"\b(?:terminat|expir)\w*", re.I))),
+    ("exclusive remedy", re.compile(r"\b(?:exclusive|sole)\s+remed", re.I),
+     (re.compile(r"\b(?:exclusive|sole)\s+remed", re.I),)),
+)
+
+
+def paper_doc(name: str) -> str:
+    low = " ".join(name.lower().split())
+    return ("MSA" if low.startswith(("msa", "master")) else
+            "TOS" if low.startswith(("tos", "terms")) else
+            "SLA" if low.startswith(("sla", "service level")) else "AUP")
+
+
+# A verb binds to the reference's own clause, never to the sentence (round 2): each
+# reference is masked as a token, the sentence split at ";", ":" and ", and/but/while",
+# and the verb read only where the reference is its object ("replaces MSA clause 7.1",
+# "despite MSA clause 8.4") or its subject ("MSA clause 15.3 is subject to this", "MSA
+# clause 4.5 … does not apply"). Anything else names the clause: REFERS.
+_T = "\x00"
+_JOIN = r"(?:\s*,\s*(?:and\s+|or\s+)?|\s+(?:and|or)\s+)"
+_TOKEN = rf"{_T}\d+{_T}(?:\s*\([^()]*\))?"
+_BEFORE = rf"(?:{_TOKEN}{_JOIN})*"
+_AFTER = rf"(?:\s*\([^()]*\))?(?:{_JOIN}{_TOKEN})*"
+_SPLIT = re.compile(r"[;:]|,\s+(?=(?:and|but|while|whereas)\b)", re.I)
+#: a finite verb between a subject reference and "does not apply": the reference is
+#: then not its subject ("MSA clause 9 remains in force; … does not apply")
+_FINITE = re.compile(r"\b(?:is|are|was|were|shall|will|may|must|can|has|have|remains?|"
+                     r"applies|apply|replaces?|includes?|survives?)\b", re.I)
+#: what may come before a reference that opens its clause: a clause number, a conjunction
+_OPENS = r"\s*(?:\d+(?:\.\d+)*\.?\s+)?(?:(?:and|but|while|whereas)\s+)?"
+_NOT_APPLY = r"\b(?:do|does|shall|will)\s+not\s+apply\b"
+
+
+def _verb_in(segment: str, i: int, described: bool) -> str:
+    t = re.escape(f"{_T}{i}{_T}")
+    if re.search(rf"\b(?:despite|notwithstanding)\s+(?:the\s+provisions\s+of\s+)?"
+                 rf"{_BEFORE}{t}", segment, re.I):
+        return "DESPITE"
+    if re.search(rf"\b(?:replac|supersed)\w*\s+(?:the\s+[\w' -]{{1,40}}?\s+in\s+)?"
+                 rf"{_BEFORE}{t}", segment, re.I):
+        return "REPLACES"
+    for pattern, verb in (
+            (r"\s+(?:is|are)\s+(?:hereby\s+)?(?:deleted\s+and\s+)?(?:replaced|superseded)\b",
+             "REPLACES"),
+            (r"\s+(?:is|are)\s+subject\s+to\b", "SUBJECT_TO"),
+            (r"\s+includes?\b", "INCLUDES"),
+            (r"\s+(?:shall\s+|will\s+)?survives?\b", "SURVIVES")):
+        # the reference is the subject: it opens its clause ("MSA clause 15.3 is …"),
+        # never "the right under MSA clause 13.2 includes …"
+        if re.match(rf"{_OPENS}{_BEFORE}{t}{_AFTER}{pattern}", segment, re.I):
+            return verb
+    m = re.search(rf"{t}(.*?){_NOT_APPLY}", segment, re.I | re.S)
+    if m and (described or not _FINITE.search(m.group(1))):
+        return "DOES_NOT_APPLY"   # a described passage is the sentence's own subject
+    return "REFERS"
+
+
+def _verbs(sentence: str, spans: list[tuple[int, int]], described: set[int]
+           ) -> dict[int, str]:
+    masked = sentence
+    for i, (a, b) in sorted(enumerate(spans), key=lambda x: -x[1][0]):
+        masked = f"{masked[:a]}{_T}{i}{_T}{masked[b:]}"
+    out: dict[int, str] = {}
+    for segment in _SPLIT.split(masked):
+        for m in re.finditer(rf"{_T}(\d+){_T}", segment):
+            i = int(m.group(1))
+            out[i] = _verb_in(segment, i, i in described)
+    return out
+
+
+def paper_references(clauses: list[Clause]) -> list[dict[str, Any]]:
+    """Every reference this document makes into one of our documents, in order, one
+    per (clause, document, number or described passage). Each: the client's clause and
+    evidence, the document, the mode (NUMBERED / DESCRIBED), the number (and lettered
+    sub-item), any title the client gave it, the verb and the client's sentence."""
+    out: list[dict[str, Any]] = []
+    seen: set[tuple] = set()
+    units: list[tuple[str | None, dict[str, Any]]] = list(_index(clauses).items()) or [
+        (None, {"text": "\n".join(c.content or "" for c in clauses),
+                "evidence_id": None})]
+    for source, unit in units:
+        for sentence in re.split(r"(?<=[.;])\s+(?=[A-Z(])|\n", unit["text"]):
+            found = [(m, m.group("list")) for m in _FORWARD.finditer(sentence)]
+            found += [(m, m.group("list")) for m in _INVERTED.finditer(sentence)
+                      if not any(f.start() <= m.start() < f.end() for f, _ in found)]
+            found.sort(key=lambda f: f[0].start())
+            lead = _DESCRIBED_LEAD.search(sentence)
+            if lead and any(f.start() <= lead.start() < f.end() for f, _ in found):
+                lead = None
+            spans = [m.span() for m, _ in found] + ([lead.span()] if lead else [])
+            verbs = _verbs(sentence, spans, {len(found)} if lead else set())
+            for k, (m, listed) in enumerate(found):
+                doc = paper_doc(m.group("doc"))
+                for each in _EACH.finditer(listed):
+                    key = (source, doc, each.group("n").rstrip("."))
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    out.append({"source": source, "evidence_id": unit["evidence_id"],
+                                "doc": doc, "mode": "NUMBERED", "number": key[2],
+                                "sub": each.group("sub"), "title": each.group("title"),
+                                "verb": verbs.get(k, "REFERS"),
+                                "quote": " ".join(sentence.split())})
+            for name, said, _ours in DESCRIBED:
+                if lead is None:
+                    break
+                key = (source, paper_doc(lead.group("doc")), name)
+                if said.search(sentence[lead.end():]) and key not in seen:
+                    seen.add(key)
+                    out.append({"source": source, "evidence_id": unit["evidence_id"],
+                                "doc": key[1], "mode": "DESCRIBED", "number": None,
+                                "sub": None, "title": None, "described": name,
+                                "verb": verbs.get(len(found), "REFERS"),
+                                "quote": " ".join(sentence.split())})
+    for r in out:
+        r["evidence_id"] = None if r["evidence_id"] is None else str(r["evidence_id"])
+    return out

@@ -33,6 +33,7 @@ import { USER_STATUS_LABELS, requirementTitle } from "./findingLanguage";
 import { IconCheck, IconClock, IconLock } from "./icons";
 import { OfferLine } from "./OfferPlaybook";
 import { FromOurStandard, LetteredPoints, standardSilent } from "./LawyerView";
+import { AlsoInOurPaper } from "./OurPaper";
 import { WordComments } from "./WordComments";
 
 /** THE status of a change, the same words on its row and its card (one per row). */
@@ -299,6 +300,7 @@ export function AnswerCard({ change, list, contractId, onAnswered, onReload, inP
           ) : null}
         </div>
       ) : null}
+      <AlsoInOurPaper contractId={contractId} clause={change.clause.number} />
       <LetteredPoints change={change} />
       {legal && actions.length ? <FromOurStandard change={change} /> : null}
       {change.triage?.reasons.length ? (

@@ -478,6 +478,12 @@ def ingest(db: DBSession, policy: Policy, html: str, *,
                  "a": AUTHORITY, "b": it.breadcrumb})
         _embed(db, [(ids[i.ordinal], f"{i.breadcrumb}\n{i.content}") for i in rows
                     if i.kind == "PARAGRAPH"])
+    # AM-477: the period this version is in force from — append-only, so an A → B → A
+    # revival is a new period of A, never A's first period stretched over B's
+    db.execute(text(f"""
+        INSERT INTO "{schema}".knowledge_source_periods
+          (source_type, source_id, started_on) VALUES (:t, :s, :d)"""),
+        {"t": policy.source_type, "s": source_id, "d": read_on})
     _save(policy, html, read_on)
     from legalmind.security import audit
     audit.record(db, action=audit.PUBLISHED_POLICY_UPDATED,
@@ -523,3 +529,30 @@ def refresh(db: DBSession, *, fetcher=fetch,
             out.append({"policy": policy.key, "changed": False,
                         "error": f"{type(exc).__name__}: {exc}"[:300]})
     return out
+
+
+# ------------------------------------------------------------- version on a date
+def in_force(periods: list[dict], on: datetime.date) -> dict:
+    """`AM-477`: from a policy's periods in the order they began (each ``started_on``,
+    running until the next one's), the one in force on ``on`` (``pinned``, else None),
+    the newest when it is another version (``newer``) and the first date any is stored
+    from (``earliest``). A pure function: the review lane and the offline harness share
+    it."""
+    pinned = next((p for p in reversed(periods) if p["started_on"] <= on), None)
+    newest = periods[-1] if periods else None
+    return {"pinned": pinned, "earliest": periods[0]["started_on"] if periods else None,
+            "newer": newest if pinned is not None and newest is not None
+            and newest["source_id"] != pinned["source_id"] else None}
+
+
+def version_on(db: DBSession, source_type: str, on: datetime.date) -> dict:
+    """The stored version of a published policy in force on ``on`` — by its periods
+    (`knowledge_source_periods`), never the live page and never another brand's."""
+    schema = config.assist_schema()
+    rows = db.execute(text(f"""
+        SELECT p.source_id, p.started_on, s.version, s.title, s.source_file,
+               s.file_sha256 FROM "{schema}".knowledge_source_periods p
+          JOIN "{schema}".knowledge_sources s ON s.id = p.source_id
+         WHERE p.source_type = :t ORDER BY p.started_on, p.created_at"""),
+        {"t": source_type}).mappings().all()
+    return in_force([dict(r) for r in rows], on)

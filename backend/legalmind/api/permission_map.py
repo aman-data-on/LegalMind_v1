@@ -321,6 +321,10 @@ IMPLEMENTATION_ADDED_ENDPOINTS: Final[dict[tuple[str, str], str]] = {
     ("POST", f"{API_PREFIX}/contracts/{{contract_id}}/positions"): P.LEGAL_DECISION,
     ("POST", f"{API_PREFIX}/contracts/{{contract_id}}/positions/{{position_key}}"):
         P.LEGAL_DECISION,
+    # Lawyer judgement P1 (`AM-476`): what the client's paper replaces in our paper, read
+    # like the brief; which MSA it means is Legal's pick.
+    ("GET", f"{API_PREFIX}/contracts/{{contract_id}}/our-paper"): P.DOCUMENT_VIEW,
+    ("POST", f"{API_PREFIX}/contracts/{{contract_id}}/our-paper/msa"): P.LEGAL_DECISION,
     # CLM flow 5 (`AM-292`/`AM-297`): the execution record is read like the contract and
     # written like any negotiation write; a signed copy's differences are a holder's.
     ("GET", f"{API_PREFIX}/contracts/{{contract_id}}/execution"): P.CONTRACT_VIEW,

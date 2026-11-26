@@ -15,6 +15,7 @@
 
 import type { AcceptableEffect, Answer, ChangeList, ClientChange, ManualRow, PreparedReply, ReplyGate } from "./changes";
 import type { DealBrief, TellBody, Told } from "./dealBrief";
+import type { OurPaper } from "./ourPaper";
 import type { ConvertPlan, PackageBlocker, PackageForm, PackagePlan, PreparedPackage, SpecialConditions } from "./package";
 import type { Playbook } from "./playbook";
 import type { ClauseVersionRow, OutlineLine, TemplateCheck, TemplateDetail, TemplateSummary } from "./templates";
@@ -936,6 +937,10 @@ export const api = {
     request<Pick<ReviewAssignments, "assigned" | "notes">>(
       p`/reviews/${reviewId}/assignments/${userId}`, { method: "DELETE" }),
 
+  /** `AM-476`: what the client's paper replaces in our paper (read only). */
+  ourPaper: (contractId: string) => request<OurPaper>(p`/contracts/${contractId}/our-paper`),
+  pickMsa: (contractId: string, body: { template_version_id?: string; contract_id?: string }) =>
+    request<unknown>(p`/contracts/${contractId}/our-paper/msa`, { method: "POST", body }),
   /** R2 S9: the internal review table — preview rows, then the Word file. */
   reviewTable: (contractId: string) =>
     request<{ head: string[]; rows: string[][]; internal: string }>(

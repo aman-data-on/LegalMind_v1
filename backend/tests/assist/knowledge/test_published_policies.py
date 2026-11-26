@@ -296,3 +296,28 @@ def test_a_lead_paragraph_inside_the_policy_is_policy_text():
             '<p class="lead">Customer means the person who orders.</p></main>')
     assert "Customer means the person who orders." in published.policy_text(
         published.extract(html))
+
+
+def test_a_to_b_to_a_keeps_bs_period_and_the_version_on_each_date(db, material):
+    """`AM-477`: a page that goes A → B → A revives A's row, but B's period stays — the
+    version in force on a date inside B is B, not A; and the periods are append-only."""
+    b_text = LEAPSWITCH.replace("sixty (60)", "thirty (30)")
+    days = [datetime.date(2026, 10, 9), datetime.date(2026, 10, 20),
+            datetime.date(2026, 11, 2)]
+    a = published.ingest(db, SLA_LS, LEAPSWITCH, read_on=days[0])["version"]
+    b = published.ingest(db, SLA_LS, b_text, read_on=days[1])["version"]
+    assert published.ingest(db, SLA_LS, LEAPSWITCH, read_on=days[2])["version"] == a
+
+    def on(day):
+        got = published.version_on(db, SLA_LS.source_type, day)
+        return got["pinned"] and got["pinned"]["version"]
+    assert [on(datetime.date(2026, 10, 8)), on(days[0]), on(datetime.date(2026, 10, 25)),
+            on(days[2])] == [None, a, b, a]
+    inside_b = published.version_on(db, SLA_LS.source_type, datetime.date(2026, 10, 25))
+    assert inside_b["newer"]["version"] == a and inside_b["earliest"] == days[0]
+    # the other brand has no stored copy: nothing, never Leapswitch's
+    cloudpe = next(p for p in published.POLICIES if p.key == "SLA-cloudpe")
+    assert published.version_on(db, cloudpe.source_type, days[2])["pinned"] is None
+    with pytest.raises(Exception, match="append-only"), db.begin_nested():
+        db.execute(text(f'DELETE FROM "{config.assist_schema()}".'
+                        "knowledge_source_periods"))

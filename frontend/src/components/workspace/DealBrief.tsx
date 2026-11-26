@@ -27,6 +27,7 @@ import { AttentionLine } from "./AnalysisPanel";
 import { IconAlertCircle, IconPanelRight, IconX } from "./icons";
 import { useMinWidth } from "./WorkspaceLayout";
 import { Dialog, hasTypedText, rememberInitial } from "@/components/Dialog";
+import { OurPaperLine } from "./OurPaper";
 import { NotMarked } from "./NotMarked";
 import { AlreadyAgreed, CheckedAgainst } from "./PriorAndStandards";
 import { useFindingsStateOptional } from "./findingsState";
@@ -227,6 +228,7 @@ export function BriefView({ brief, contractId, points, stale = null, expanded, o
                   <CheckedAgainst brief={brief} legal={!!legal} />
                 </div>
               ) : null}
+              <OurPaperLine contractId={contractId} checking={brief.status === "CHECKING"} onChanges={onChanges} />
               {legal ? <LegalPart brief={brief} contractId={contractId} onOpen={onOpen} onChanged={onChanged} />
                 : <SalesPart brief={brief} onChanges={onChanges} />}
             </div>
