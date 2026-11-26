@@ -1165,3 +1165,25 @@ export const RETURNED_COPY = {
   ourDraftHint: "Did our contract come back with the client’s tracked changes?",
   ourDraftLink: "Use “Our contract came back marked up”",
 };
+
+/** Source integrity B1: the check before text leaves for a client. The server decides
+ *  every problem and whether it blocks; these are the words around it. */
+export const SOURCE_CHECK = {
+  checking: "Checking against our published policies…",
+  blockedTitle: "Not copied: check these points first",
+  warnTitle: "Copied. Check these points before sending",
+  guardNote: "This check runs when you press Copy. Text selected by hand is not checked, so use Copy.",
+  currentSays: "The current text says:",
+  askLegal: "Ask Legal to approve sending it as it is, or rewrite it against the current text.",
+  overrideLabel: "Why it can go as it is (Legal only)",
+  overrideButton: "Approve and copy",
+  overrideNeedsReason: "Write why it can go as it is.",
+  overridden: "Approved and copied. Your reason is on the record.",
+  failed: "The check could not run, so nothing was copied. Try again.",
+  pasteTitle: "Check a draft before sending",
+  pasteHelp: "Paste an email or reply. We check its policy figures and quotes against the current published policies.",
+  pasteLabel: "Draft to check",
+  pasteButton: "Check draft",
+  pasteClear: "No problems found in the policy figures and quotes.",
+  pasteFound: "Check these points before sending",
+} as const;

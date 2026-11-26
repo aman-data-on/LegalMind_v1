@@ -2373,6 +2373,83 @@
     "title": "OurSignatory",
     "type": "object"
    },
+   "OutgoingCheckRequest": {
+    "properties": {
+     "conversation_id": {
+      "anyOf": [
+       {
+        "format": "uuid",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Conversation Id"
+     },
+     "document_version_id": {
+      "anyOf": [
+       {
+        "format": "uuid",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Document Version Id"
+     },
+     "keys": {
+      "items": {
+       "type": "string"
+      },
+      "maxItems": 60,
+      "title": "Keys",
+      "type": "array"
+     },
+     "override_reason": {
+      "anyOf": [
+       {
+        "maxLength": 1000,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Override Reason"
+     },
+     "surface": {
+      "enum": [
+       "copy_email",
+       "copy_wording",
+       "deal_review",
+       "signing_note",
+       "paste_check",
+       "download"
+      ],
+      "title": "Surface",
+      "type": "string"
+     },
+     "text": {
+      "anyOf": [
+       {
+        "maxLength": 60000,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Text"
+     }
+    },
+    "required": [
+     "surface"
+    ],
+    "title": "OutgoingCheckRequest",
+    "type": "object"
+   },
    "PackageRequest": {
     "additionalProperties": false,
     "description": "Prepare the final contract (`AM-307`): the ``entries_sha256`` the dry run\n(``GET /contracts/{id}/package``) showed \u2014 anything else is 409 STALE_PREVIEW.\nOn an amendment (`AM-310`): ``form`` ``changes_only`` (the default \u2014 the instrument)\nor ``restated`` (the whole contract, a `legal.approve_customization` holder only),\nand the instrument's ``effective_date``.",
@@ -8831,6 +8908,50 @@
     "summary": "Read One",
     "tags": [
      "notifications"
+    ]
+   }
+  },
+  "/api/v1/outgoing/check": {
+   "post": {
+    "description": "Check text (or a client file) before it leaves: ``problems`` in order, each with\n``code``, ``blocks`` and ``message``; ``blocked`` when any blocks and no override.\nWith ``override_reason`` a `legal.review` holder passes it, recorded; anyone else\nis refused 403. Every copy attempt is recorded; a paste-to-check is not.",
+    "operationId": "check_outgoing_api_v1_outgoing_check_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/OutgoingCheckRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Check Outgoing Api V1 Outgoing Check Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Check Outgoing",
+    "tags": [
+     "outgoing"
     ]
    }
   },

@@ -71,6 +71,7 @@ from legalmind.api.errors import (
     ReplyUndecided,
 )
 from legalmind.api.export_render import MEDIA_TYPES, Block, render_docx
+from legalmind.api.routers import outgoing
 from legalmind.api.routers.decisions import _advance_if_resolved
 from legalmind.api.routers.documents import CHANGED_BY_A_COLLEAGUE, download_name
 from legalmind.api.routers.reviews import held_by, open_review, sent_to_legal
@@ -1082,7 +1083,8 @@ def accept_by_effect(contract_id: UUID, body: AcceptByEffect,
 
 
 @router.post("/document-versions/{document_version_id}/mark-sent")
-def mark_sent(document_version_id: UUID, guard: Guard = Depends(get_guard)) -> dict:
+def mark_sent(document_version_id: UUID, guard: Guard = Depends(get_guard),
+              storage: StorageBackend = Depends(get_storage)) -> dict:
     """Record that one of OUR versions went to the client (`AM-260` r1) — by the owner,
     a collaborator or the Lead (`AM-259` r2), once: a version is sent at one moment, so
     a second call — or a concurrent one — is 409 rather than a moved date (one
@@ -1107,7 +1109,11 @@ def mark_sent(document_version_id: UUID, guard: Guard = Depends(get_guard)) -> d
                  entity_type="document_version", entity_id=version.id,
                  actor_id=guard.user_id, request_id=guard.request_id,
                  after={"sent_at": version.sent_at.isoformat(),
-                        "version_number": version.version_number})
+                        "version_number": version.version_number,
+                        # source integrity B1 (S5): the policy versions and figures
+                        # that went out — so Legal can list them later; no text
+                        **(outgoing.sent_record(guard, storage, version)
+                           if storage.exists(version.storage_key) else {})})
     return data(serialize_document_version(version))
 
 
@@ -1520,6 +1526,7 @@ def download_pdf(document_version_id: UUID, guard: Guard = Depends(get_guard),
     if kind is None or not storage.exists(version.storage_key):
         raise NotVisible("document content not available")
     _require_decided(guard, version)
+    outgoing.require_clear(guard, storage, version)     # source integrity B1
     if version.mime_type == PDF_MIME:          # a final copy of the client's own PDF
         name = download_name(guard.db, version, "pdf")
         return Response(content=storage.get(version.storage_key),

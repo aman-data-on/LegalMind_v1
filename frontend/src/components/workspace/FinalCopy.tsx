@@ -13,6 +13,7 @@
  * Everything that decides is the server's; these only show it (rule 18).
  */
 
+import { useCheckedCopy } from "./SourceCheck";
 import { useCallback, useEffect, useState } from "react";
 
 import { Dialog } from "@/components/Dialog";
@@ -242,7 +243,6 @@ type NoteLoad = { kind: "loading" } | { kind: "ready"; text: string } | { kind: 
 export function SigningNoteBox({ versionId }: { versionId: string }) {
   const [load, setLoad] = useState<NoteLoad>({ kind: "loading" });
   const [attempt, setAttempt] = useState(0);
-  const [copyError, setCopyError] = useState(false);
   useEffect(() => {
     let live = true;
     api.signingNote(versionId).then(
@@ -250,9 +250,9 @@ export function SigningNoteBox({ versionId }: { versionId: string }) {
       (error: unknown) => { if (live) setLoad({ kind: "error", error }); });
     return () => { live = false; };
   }, [versionId, attempt]);
+  const check = useCheckedCopy("signing_note");
   async function copy(text: string) {
-    setCopyError(false);
-    if (!(await copyNote(text))) setCopyError(true);
+    if (await check.copy(text)) toast(FINAL_CARD.copied);
   }
   return (
     <section className="lm-final__note" aria-labelledby="lm-final-note">
@@ -266,7 +266,7 @@ export function SigningNoteBox({ versionId }: { versionId: string }) {
         <>
           <pre className="lm-final__notetext" tabIndex={0}>{load.text}</pre>
           <button type="button" className="ws-btn ws-btn--sm" onClick={() => void copy(load.text)}>{FINAL_CARD.copy}</button>
-          {copyError ? <p className="cx-error" role="alert">{FINAL_CARD.copyFailed}</p> : null}
+          <div aria-live="polite">{check.panel}</div>
         </>
       ) : null}
     </section>

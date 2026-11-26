@@ -183,6 +183,11 @@ ASSIST_ENDPOINTS: Final[dict[tuple[str, str], str]] = {
     # AM-273 m3 (AB-150): the caller's own notifications — addressed to them, no grant.
     ("GET", f"{API_PREFIX}/notifications"): AUTHENTICATED_ONLY,
     ("POST", f"{API_PREFIX}/notifications/read-all"): AUTHENTICATED_ONLY,
+    # Source integrity B1 (AM-273/AB-150 gate): checking text before it is copied for a
+    # client. No grant of its own — the text is the caller's; a conversation is gated
+    # inside by assist.ask + ownership, a file by document.download on its contract,
+    # and an override by legal.review.
+    ("POST", f"{API_PREFIX}/outgoing/check"): AUTHENTICATED_ONLY,
     ("POST", f"{API_PREFIX}/notifications/{{notification_id}}/read"): AUTHENTICATED_ONLY,
     # AM-259 r1 (AB-150): who works on a contract — read in its read scope; changed by
     # the owner or the department Lead only.

@@ -1425,14 +1425,13 @@ def source_views(db: DBSession, items: list[tuple]) -> list[dict]:
     """The Sources list as data (owner's manager, 2026-10-07: read at the end, click to
     see where it came from): per legend key its kind, location, scope and the text the
     turn cited; a document clause also names its evidence row and version, so the
-    reader can open it in place. `items` are (key, text, location, ref, scope, state).
+    reader can open it in place. `items` are (key, text, location, ref, scope, state
+    [, passage]).
     Built only from records the caller may read — live from the turn, on replay from
     `ledger.refetch` under current permissions; an unreadable one is never passed in,
     so it is absent, not blank (SEC-07)."""
-    chunk_ids = [ref[4:] for _, _, _, ref, _, _ in items
-                 if (ref or "").startswith("DOC:")]
-    att_ids = [ref[4:] for _, _, _, ref, _, _ in items
-               if (ref or "").startswith("ATT:")]
+    chunk_ids = [i[3][4:] for i in items if (i[3] or "").startswith("DOC:")]
+    att_ids = [i[3][4:] for i in items if (i[3] or "").startswith("ATT:")]
     # a chat file's OCR provenance too, from its chunk's own annotation (F7/F8)
     att_read_by: dict[str, str | None] = {str(r[0]): r[1] for r in db.execute(text(
         "SELECT id::text, annotations->>'read_by' FROM "
@@ -1447,9 +1446,11 @@ def source_views(db: DBSession, items: list[tuple]) -> list[dict]:
         "JOIN document_evidence e ON e.id = c.evidence_id WHERE c.id::text = ANY(:i)"),
         {"i": chunk_ids}).all()} if chunk_ids else {}
     out = []
-    for key, body, location, ref, scope, state in items:
+    for key, body, location, ref, scope, state, *passage in items:
         view = {"key": key, "kind": _SOURCE_KIND.get(key[:1], "document"),
                 "location": location, "text": body}
+        if passage and passage[0]:      # a published policy's passage now (B1)
+            view["passage"] = passage[0]
         if scope:
             view["scope"] = scope
         if state and state != "current":

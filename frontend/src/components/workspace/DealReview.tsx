@@ -8,6 +8,7 @@
  * shown in words beside its icon, never by colour alone. Points that are fine can be
  * hidden; the client's changes no rule checks are listed for a person to read.
  */
+import { useCheckedCopy } from "./SourceCheck";
 import { useId, useState } from "react";
 
 import { Dialog } from "@/components/Dialog";
@@ -184,6 +185,7 @@ export function DealReview({ files, rows, counts }: {
 }) {
   const [allRows, setAllRows] = useState(false);
   const [copied, setCopied] = useState(false);
+  const check = useCheckedCopy("deal_review");
   const [full, setFull] = useState(false);
   const titleId = useId();
   const shown = allRows ? rows : rows.filter((r) => r.needs !== "FINE");
@@ -218,12 +220,13 @@ export function DealReview({ files, rows, counts }: {
             <IconMaximize size={14} />Full screen
           </button>
           <button type="button" className="ws-btn ws-btn--sm" onClick={() => {
-            void navigator.clipboard?.writeText(asMarkdown(files, rows)).then(() => setCopied(true));
+            void check.copy(asMarkdown(files, rows)).then(setCopied);
           }}>
             <IconCopy size={14} />{copied ? "Copied" : "Copy as table"}
           </button>
         </span>
       </div>
+      <div aria-live="polite">{check.panel}</div>
       {full ? (
         <Dialog onClose={() => setFull(false)} titleId={titleId} overlayClassName="ws-modal--deal">
           <h2 id={titleId}>Side-by-side review</h2>
@@ -330,6 +333,7 @@ export function ContractMemo({ file, rows, answers, busy, onCorrect, onDraft }: 
   const [more, setMore] = useState(false);
   const [matching, setMatching] = useState(false);
   const [copied, setCopied] = useState(false);
+  const check = useCheckedCopy("deal_review");
   const buyer = answers.side === BUYER;
   const open = rows.filter((r) => ATTENTION.includes(r.needs));
   const fine = rows.filter((r) => r.needs === "FINE");
@@ -425,7 +429,7 @@ export function ContractMemo({ file, rows, answers, busy, onCorrect, onDraft }: 
             Dashboard and use Send to Legal.</span>
           <span className="ws-deal__btns">
             <button type="button" className="ws-btn ws-btn--sm" onClick={() => {
-              void navigator.clipboard?.writeText(memoMarkdown(file, open)).then(() => setCopied(true));
+              void check.copy(memoMarkdown(file, open)).then(setCopied);
             }}>
               <IconCopy size={14} />{copied ? "Copied" : "Copy"}
             </button>
@@ -436,6 +440,7 @@ export function ContractMemo({ file, rows, answers, busy, onCorrect, onDraft }: 
               </button>
             ) : null}
           </span>
+          <div aria-live="polite">{check.panel}</div>
         </div>
       ) : null}
     </section>

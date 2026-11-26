@@ -62,6 +62,7 @@
  * exactly that (`AI-03` item 16, rule 12).
  */
 
+import { AskConversation } from "./SourceCheck";
 import { AssistantRuntimeProvider } from "@assistant-ui/react";
 import Link from "@/components/AppLink";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
@@ -409,6 +410,7 @@ export function AskDock({
   const turnCount = turns.filter((turn) => turn.role === "USER").length;
 
   return (
+    <AskConversation.Provider value={conversationId}>
     <div className="ws-dock" data-open={open} data-in-tabs={controlled || undefined}>
       {/* Narrow viewports only (CSS): a tap outside closes the sheet, the
           expected touch gesture. Decorative — Escape and the close button are
@@ -578,6 +580,7 @@ export function AskDock({
         </AssistantRuntimeProvider>
       </section>
     </div>
+    </AskConversation.Provider>
   );
 }
 

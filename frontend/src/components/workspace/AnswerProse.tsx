@@ -1,5 +1,7 @@
 "use client";
 
+import { SOURCE_CHECK } from "@/lib/labels";
+import { useCheckedCopy } from "./SourceCheck";
 import Link from "@/components/AppLink";
 import { Fragment, type ReactNode, useId, useState } from "react";
 
@@ -152,16 +154,15 @@ const DRAFT_LABEL = "Draft for review — not approved company wording:";
 
 /** An e-mail Ask drafted (Ask audit H1, 2026-10-29): one card, set apart from the
  *  explanation around it, with a Copy that takes the e-mail alone. */
-function DraftCard({ text }: { text: string }) {
-  const [copied, setCopied] = useState<"" | "done" | "failed">("");
+function DraftCard({ text, keys }: { text: string; keys: string[] }) {
+  const check = useCheckedCopy("copy_email", keys);
   return (
     <section className="ws-draft" aria-label="Draft email">
       <header className="ws-draft__head">
         <span>Draft email · for review, not approved wording</span>
-        <button type="button" className="ws-btn ws-btn--sm ws-btn--primary" onClick={() => {
-          void navigator.clipboard?.writeText(text).then(() => setCopied("done"), () => setCopied("failed"));
-        }}>
-          {copied === "done" ? "Copied" : "Copy email"}
+        <button type="button" className="ws-btn ws-btn--sm ws-btn--primary" disabled={check.busy}
+                aria-busy={check.busy || undefined} onClick={() => void check.copy(text)}>
+          {check.busy ? SOURCE_CHECK.checking : check.copied ? "Copied" : "Copy email"}
         </button>
       </header>
       <div className="ws-draft__body">
@@ -169,7 +170,7 @@ function DraftCard({ text }: { text: string }) {
           <p key={i} className={/^subject:/i.test(p) ? "ws-draft__subject" : undefined}>{p}</p>
         ))}
       </div>
-      {copied === "failed" ? <p className="ws-draft__note" role="status">Copy was blocked by the browser. Select the text above instead.</p> : null}
+      <div aria-live="polite">{check.panel}</div>
     </section>
   );
 }
@@ -252,7 +253,7 @@ export function AnswerProse({
   return (
     <>
       {text.split(FENCE).map((segment, s, pieces) => (s % 3 === 1 ? null : s % 3 === 2 ? (
-        pieces[s - 1] === "draft" ? <DraftCard key={s} text={segment} />
+        pieces[s - 1] === "draft" ? <DraftCard key={s} text={segment} keys={(sources ?? []).map((x) => x.key)} />
           : <pre key={s} className="ws-ask__pre"><code>{segment}</code></pre>
       ) : segment.split(/\n{2,}/).filter((block) => block.trim().length > 0
                                              && block.trim() !== DRAFT_LABEL).map((block, index) => {

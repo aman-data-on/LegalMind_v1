@@ -32,7 +32,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session as DBSession
 
 from legalmind import config
-from legalmind.assist.knowledge import authority, positions
+from legalmind.assist.knowledge import authority, positions, source_check
 from legalmind.security import permissions as P
 
 CURRENT, STALE, UNAVAILABLE = "current", "stale", "unavailable"
@@ -64,6 +64,9 @@ class Fetched:
     source_ref: str | None = None
     authority: str | None = None
     location: str | None = None
+    #: a published policy's passage against the version in force NOW (source integrity
+    #: B1): `source_check.passage_status` — None for every other record
+    passage: dict | None = None
 
 
 def text_hash(content: str) -> str:
@@ -176,6 +179,7 @@ def refetch(db: DBSession, *, conversation_id: UUID, keys: Iterable[str],
          WHERE conversation_id = :c AND evidence_key = ANY(:k)"""),
         {"c": conversation_id, "k": list(keys)}).all()}
     out = []
+    versions = None             # the published policies, read once and only if cited
     for key in keys:
         row = rows.get(key)
         live = _live(db, row, conversation_id, permissions, contract_id) if row else None
@@ -188,8 +192,13 @@ def refetch(db: DBSession, *, conversation_id: UUID, keys: Iterable[str],
             if shown is not None and text_hash(shown) == row.text_hash:
                 content = shown
         state = STALE if superseded or text_hash(content) != row.text_hash else CURRENT
+        passage = None
+        if row.domain == "CONSTITUTION" and row.knowledge_item_id is not None:
+            versions = source_check.load(db) if versions is None else versions
+            passage = source_check.passage_status(db, row.knowledge_item_id,
+                                                  versions=versions)
         out.append(Fetched(key, state, content, row.source_ref, row.authority,
-                           row.location))
+                           row.location, passage))
     return out
 
 

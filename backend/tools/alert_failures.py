@@ -20,7 +20,8 @@ import urllib.request
 from collections import Counter
 from pathlib import Path
 
-UNITS = ("legalmind-api", "legalmind-worker", "legalmind-hard-benchmark")
+UNITS = ("legalmind-api", "legalmind-worker", "legalmind-hard-benchmark",
+         "legalmind-published-policies")
 SAFE = ("model", "kind", "status", "error")          # the only fields that leave
 STATE = Path(os.environ.get("LEGALMIND_ALERT_STATE", "/var/lib/legalmind/alerts.json"))
 REPEAT_S = 6 * 3600

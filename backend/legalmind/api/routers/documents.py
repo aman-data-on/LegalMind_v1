@@ -25,7 +25,7 @@ from legalmind.api.deps import CommitBeforeResponse, Guard, get_guard
 from legalmind.api.envelope import attachment_headers, data, paginated
 from legalmind.api.errors import BusinessRuleRejected, Conflict, ReplyUndecided
 from legalmind.api.pagination import Page, page_params, run
-from legalmind.api.routers import execution
+from legalmind.api.routers import execution, outgoing
 from legalmind.api.schemas import ComparisonChoices, DocumentVersionDeclare
 from legalmind.api.serializers import serialize_document_version, serialize_evidence
 from legalmind.api.storage import get_storage
@@ -359,6 +359,8 @@ def download_document_version(
     gate = negotiation.reply_open_points(guard.db, version)
     if gate is not None:
         raise ReplyUndecided(gate)
+    # source integrity B1: a file for the client never quotes a policy not in force
+    outgoing.require_clear(guard, storage, version)
     return Response(
         content=storage.get(version.storage_key),
         media_type=version.mime_type,

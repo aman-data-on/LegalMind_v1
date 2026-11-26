@@ -31928,3 +31928,62 @@ r9  Landscape (≤ 500 px tall): the answer tray is a 44 px sticky handle "Your 
     a sheet (Escape closes it) — supersedes r3's "scrolls with the page" for the tray. Below 900 px the Changes
     tab shows the list or one change, never a list scrolling inside the page (M-19).
 ```
+
+## AMENDMENT BATCH AB-229 — `AM-480`, `AM-481` (2026-11-26): source integrity, Batch 1
+
+Owner, 2026-11-26: "yes go with source integrity batch 1" — the explicit yes for the send-gate amendment (it
+touches authorization and the audit trail, which no delegation covers), with these decisions: a "changed since"
+quote blocks; only Legal overrides, by the existing `legal.review`, server-side, with a required reason and an
+append-only audit row, never `legal.decision`; sales replies quote the version live at the time of sending; client
+corrections are Legal's call, LegalMind only records what was sent; the website's own "last updated" date may
+appear in client replies; a link is dead only if the FINAL page fails after redirects, checked twice (one retry as
+a browser). Design and critique: local R&D notes (source-integrity-rnd). IDs scanned: AB-228..AB-229 and
+AM-478..AM-481 on origin/main 0436e72a, every remote branch and every worktree (lawyer-p1 holds AB-227,
+AM-476..AM-478): AB-229, AM-480, AM-481 free.
+
+`AM-480` — PUBLISHED POLICIES: CHECKED, DATED, PASSAGE STATUS (extends `AM-130` / AB-74; Ask/RAG delegation).
+```text
+r1  The refresh follows redirects (only to the two allowed hosts, as before) and records, on the version in
+    force, the final URL and HTTP status. A page is gone only when the FINAL response is 404/410 as LegalMind and
+    again on one re-probe with a browser User-Agent (the only request-header change to AM-130 r7); gone on two
+    runs in a row is an operational alert. 403/429/5xx/timeouts are transient. A .php 302 chain ending 200 is live.
+r2  `last_checked_ok_at` is set only when a live fetch succeeded and matched or replaced the version; a saved
+    copy proves nothing about the website. A page the size guards refuse changes nothing, keeps its last good
+    check and raises an operational alert.
+r3  `page_updated_on` is the page's own "Last updated" date, NULL when it gives none that parses. The day
+    LegalMind first read a version (`effective_from`) is never shown to a client.
+r4  One normaliser for stored and pasted text (NFKC; zero-width and soft hyphen removed; curly quotes straight;
+    every dash a hyphen; bullets and clause numbers off a line's start; whitespace collapsed; case and digits
+    kept) and an EXACT substring matcher. No fuzzy match.
+r5  A cited published-policy record has a passage status against the version in force now: in_force ·
+    wording_same · changed · unverifiable — names of a citation, sharing none with knowledge_sources.status or
+    the answer state (AM-29 unchanged). The ledger stores no text (AM-110 r4 unchanged).
+r6  Policy figures (%, durations, ₹ amounts) are read only from sentences naming a policy term (uptime,
+    availability, SLA, service credit, power, network, response time, notice, refund, termination). A figure
+    found only in an older stored version is an old figure; one found in no version has no source attached.
+    These are facts about stored text, never a judgement that anything is wrong (rule 7).
+r7  A policy not confirmed against the live page in 26 hours is "not re-checked since <date>".
+r8  Proposed, NOT built: an on-demand single-page re-check at send time (same 8 URLs, GET only).
+r9  "The version in force on date X" is read through `published.version_on` (AM-477) once that merges; until
+    then the version in force today is the CURRENT row.
+```
+
+`AM-481` — ONE SOURCE CHECK ON WHAT LEAVES FOR A CLIENT (amends `AM-273` / `AM-274` / AB-150; owner yes 2026-11-26).
+```text
+r1  Text leaves LegalMind by copy and by download; mail stays AM-273 m3 (a fixed sentence and a link — a test
+    asserts no figure or clause text). One server check covers: Ask "Copy email", "Copy wording", the deal-review
+    copy, the signing note, a paste-to-check box in Ask, and the downloads of the reply DOCX/PDF, the final
+    package, the final copy and the contract as amended.
+r2  Blocks: an old figure, a cited or quoted policy passage changed since or not found in any stored version, a
+    policy not re-checked (AM-480 r7), and on a client copy any internal record (Constitution, house view,
+    company position — LEGAL-02) or internal identifier (ledger key, record id, hash). Warns only: a figure in
+    no version. The deal-review copy is internal and only warns.
+r3  A blocked download is refused server-side, 409 SOURCE_CHECK_BLOCKED, naming each item (rule 18). A copy
+    button is a guard, not a control: the browser can still select text, and the UI says so.
+r4  Override: a `legal.review` holder only, checked server-side, with a required reason, for one item and its
+    exact problems (their digest), written as an append-only audit row holding the policy versions' SHA-256.
+    Never `legal.decision`: whether a quote is current is not a Legal Decision (rule 13). Anyone else: 403.
+r5  Every copy attempt is recorded (surface, problem codes, figures' version hashes, the text's SHA-256 — never
+    the text); a paste-to-check is not recorded. Mark-sent records the policy versions in force and the policy
+    figures in the file, so Legal can later list what a client received; any correction is Legal's call.
+```

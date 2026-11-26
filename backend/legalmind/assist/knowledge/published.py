@@ -215,19 +215,80 @@ class _Redirects(urllib.request.HTTPRedirectHandler):
 _OPENER = urllib.request.build_opener(_Redirects)
 
 
-def fetch(policy: Policy) -> str:
-    """The page, by GET over HTTPS from an allowed host — the only request made."""
-    if not _allowed(policy.url):
-        raise ValueError(f"not an allowed policy URL: {policy.url}")
-    req = urllib.request.Request(policy.url, headers={
-        "User-Agent": "LegalMind-policy-refresh/1 (+https://leapswitch.com)"})
+#: who we are, said honestly first; a WAF that refuses bots gets one re-probe as a
+#: browser before a page is called dead (source integrity B1, critique M6)
+HONEST_UA = "LegalMind-policy-refresh/1 (+https://leapswitch.com)"
+BROWSER_UA = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
+              "Chrome/124.0 Safari/537.36")
+#: the final statuses that mean the page is gone — every other failure is transient
+GONE = (404, 410)
+
+
+@dataclasses.dataclass(frozen=True)
+class Page:
+    html: str
+    final_url: str
+    status: int
+
+
+class PageGone(Exception):
+    """The FINAL response after redirects was 404/410, as ourselves and as a browser."""
+
+    def __init__(self, url: str, status: int) -> None:
+        super().__init__(f"HTTP {status} at {url} (after redirects, twice)")
+        self.url, self.status = url, status
+
+
+def _get(url: str, agent: str) -> Page:
+    req = urllib.request.Request(url, headers={"User-Agent": agent})
     with _OPENER.open(req, timeout=TIMEOUT_S) as r:
         if not _allowed(r.geturl()):
             raise ValueError(f"ended off the allowed hosts: {r.geturl()}")
         raw = r.read(MAX_BYTES + 1)
         if len(raw) > MAX_BYTES:
-            raise ValueError(f"{policy.key}: page larger than {MAX_BYTES} bytes")
-        return raw.decode(r.headers.get_content_charset() or "utf-8", "replace")
+            raise ValueError(f"page larger than {MAX_BYTES} bytes — refused")
+        return Page(raw.decode(r.headers.get_content_charset() or "utf-8", "replace"),
+                    r.geturl(), r.status)
+
+
+def fetch(policy: Policy) -> Page:
+    """The page, by GET over HTTPS from an allowed host, redirects followed (only to the
+    allowed hosts). A 403/404/410 is re-probed once as a browser; a FINAL 404/410 both
+    times raises `PageGone` — a 302 chain that ends 200 is a live page."""
+    if not _allowed(policy.url):
+        raise ValueError(f"not an allowed policy URL: {policy.url}")
+    try:
+        return _get(policy.url, HONEST_UA)
+    except urllib.error.HTTPError as exc:
+        if exc.code not in (403, *GONE):
+            raise
+    try:
+        return _get(policy.url, BROWSER_UA)
+    except urllib.error.HTTPError as exc:
+        if exc.code in GONE:
+            raise PageGone(exc.geturl() or policy.url, exc.code) from exc
+        raise
+
+
+#: the page's own "Last updated" line — "17 August 2026", "February 5, 2026"
+_UPDATED = re.compile(r"last\s+updated\s*:?\s*(\d{1,2}\s+[a-z]+\.?\s+\d{4}"
+                      r"|[a-z]+\.?\s+\d{1,2},?\s+\d{4}|\d{4}-\d{2}-\d{2})", re.I)
+
+
+def page_updated_on(blocks: list[tuple[str, str]]) -> datetime.date | None:
+    """The date the page says it was last updated (decision 5: shown to clients), or
+    None when it gives none that parses — never a guess."""
+    for _, t in blocks[:12]:
+        m = _UPDATED.search(t)
+        if not m:
+            continue
+        found = re.sub(r"[.,]", "", m[1])
+        for fmt in ("%d %B %Y", "%B %d %Y", "%d %b %Y", "%b %d %Y", "%Y-%m-%d"):
+            try:
+                return datetime.datetime.strptime(found, fmt).date()
+            except ValueError:
+                continue
+    return None
 
 
 # ------------------------------------------------------------------- extraction
@@ -512,14 +573,64 @@ def _save(policy: Policy, html: str, read_on: datetime.date) -> None:
 def refresh(db: DBSession, *, fetcher=fetch,
             read_on: datetime.date | None = None) -> list[dict]:
     """Every policy, each in its own transaction: one site down never blocks the
-    other's update."""
+    other's update. ``fetcher`` returns a `Page` (or the bare HTML of a saved copy).
+
+    On success the CURRENT version records the check (`last_checked_ok_at`, final URL,
+    status, the page's own date). On failure nothing is replaced and the version keeps
+    its last good check, so the send gate says "not re-checked" after `source_check.
+    RECHECK_HOURS`; a page the size guards refused, or one gone (final 404/410) on two
+    runs in a row, is an operational failure the alerts timer reports."""
     out = []
     for policy in POLICIES:
         try:
-            out.append(ingest(db, policy, fetcher(policy), read_on=read_on))
+            got = fetcher(policy)
+            page = got if isinstance(got, Page) else None     # None: a saved copy
+            result = ingest(db, policy, page.html if page else got, read_on=read_on)
+            _checked(db, policy, page, got)
             db.commit()
+            out.append(result)
         except Exception as exc:  # reported; the last good version stands
             db.rollback()
             out.append({"policy": policy.key, "changed": False,
                         "error": f"{type(exc).__name__}: {exc}"[:300]})
+            _failed(db, policy, exc)
     return out
+
+
+def _checked(db: DBSession, policy: Policy, page: Page | None, html: str | Page) -> None:
+    """The page's own date always; the live check only for a page read live — a saved
+    copy (``page`` None) proves nothing about the website today."""
+    live = page is not None
+    db.execute(text(f"""
+        UPDATE "{config.assist_schema()}".knowledge_sources
+           SET page_updated_on = :d,
+               last_checked_ok_at = CASE WHEN :live THEN now()
+                                         ELSE last_checked_ok_at END,
+               final_url = coalesce(:u, final_url),
+               http_status = coalesce(:s, http_status)
+         WHERE source_type = :t AND status = 'CURRENT'"""),
+        {"live": live, "u": page.final_url[:512] if page else None,
+         "s": page.status if page else None,
+         "d": page_updated_on(extract(page.html if page else str(html))),
+         "t": policy.source_type})
+
+
+def _failed(db: DBSession, policy: Policy, exc: Exception) -> None:
+    from legalmind.observability import log_event
+    schema = config.assist_schema()
+    if isinstance(exc, PageGone):
+        before = db.execute(text(
+            f'SELECT http_status FROM "{schema}".knowledge_sources '
+            "WHERE source_type = :t AND status = 'CURRENT'"),
+            {"t": policy.source_type}).scalar()
+        db.execute(text(
+            f'UPDATE "{schema}".knowledge_sources SET http_status = :s, final_url = :u '
+            "WHERE source_type = :t AND status = 'CURRENT'"),
+            {"s": exc.status, "u": exc.url[:512], "t": policy.source_type})
+        db.commit()
+        if before in GONE:          # the final page gone on two runs: ours moved or died
+            log_event("published_policy.page_gone", kind=policy.key, status=exc.status,
+                      operational_failure=True)
+    elif "refused" in str(exc) or "not a policy page" in str(exc):
+        log_event("published_policy.refused", kind=policy.key,
+                  error=type(exc).__name__, operational_failure=True)

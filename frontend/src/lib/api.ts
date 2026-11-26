@@ -840,6 +840,9 @@ export const api = {
     request<SpecialConditions>(p`/document-versions/${versionId}/special-conditions`),
   markSent: (versionId: string) =>
     request<DocumentVersion>(p`/document-versions/${versionId}/mark-sent`, { method: "POST" }),
+  /** Source integrity B1: text checked before it leaves for a client (recorded). */
+  checkOutgoing: (body: OutgoingCheckRequest) =>
+    request<OutgoingCheck>("/outgoing/check", { method: "POST", body }),
   /** CLM flow 5 (`AM-292`): the execution record, what still stops "Mark signed", and the
    *  signed copy compared with the agreed version. Every gate is the server's. */
   execution: (contractId: string) => request<ExecutionState>(p`/contracts/${contractId}/execution`),
@@ -1225,3 +1228,15 @@ export interface BlankValues {
 export async function pageHtml(path: string): Promise<string> {
   return (await fetch(path, { credentials: "same-origin" })).text();
 }
+
+export type OutgoingSurface = "copy_email" | "copy_wording" | "deal_review" | "signing_note"
+  | "paste_check" | "download";
+export interface OutgoingCheckRequest {
+  surface: OutgoingSurface; text?: string; conversation_id?: string | null; keys?: string[];
+  document_version_id?: string; override_reason?: string;
+}
+/** One problem, worded by the server; the UI never decides what blocks. */
+export interface OutgoingProblem { code: string; blocks: boolean; message: string;
+  current_wording?: string | null }
+export interface OutgoingCheck { problems: OutgoingProblem[]; blocked: boolean;
+  overridden: boolean; can_override: boolean }

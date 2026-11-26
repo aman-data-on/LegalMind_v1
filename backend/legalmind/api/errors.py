@@ -89,6 +89,24 @@ class ReplyUndecided(Conflict):
         self.extra = {k: v for k, v in gate.items() if k != "final"}
 
 
+class SourceCheckBlocked(Conflict):
+    """409 — source integrity B1 (`AM-273`/`AB-150` gate): a file for the client quotes
+    a policy figure or passage that is not the version in force, or a policy not
+    re-checked against the website. ``problems`` (code, message, current wording —
+    public policy text only) travel with the refusal; a `legal.review` holder may
+    override it with a reason (`POST /outgoing/check`)."""
+
+    code = "SOURCE_CHECK_BLOCKED"
+
+    def __init__(self, problems: list[dict[str, Any]]) -> None:
+        n = sum(p["blocks"] for p in problems)
+        super().__init__(f"This file cannot leave LegalMind yet: {n} quoted policy "
+                         f"point{'s' if n != 1 else ''} need{'s' if n == 1 else ''} "
+                         "checking against the current published text. "
+                         + " ".join(p["message"] for p in problems if p["blocks"]))
+        self.extra = {"problems": problems}
+
+
 def _json(status: int, body: dict[str, Any], request_id: str) -> JSONResponse:
     return JSONResponse(status_code=status, content=body,
                         headers={REQUEST_ID_HEADER: request_id})

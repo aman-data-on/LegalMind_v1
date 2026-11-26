@@ -561,7 +561,7 @@ def get_conversation(conversation_id: UUID,
         if key in fetched:
             f = fetched[key]
             sources_by_answer.setdefault(answer_id, []).append(
-                (key, f.text, f.location, f.source_ref, None, f.state))
+                (key, f.text, f.location, f.source_ref, None, f.state, f.passage))
 
     # `AM-149` on replay: a routed turn's quoted clause, recomputed from the question
     # before it against the contract's newest version (the one the pane opens on) —

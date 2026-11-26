@@ -8133,3 +8133,22 @@ html:has(.ws-workmain[data-phone]):not(:has(.cx-card .cx-compose)) {
   .ws-workmain[data-phone] .ws-cl__headmenu .ws-menu__list { bottom: calc(var(--s-7) + env(safe-area-inset-bottom)); }
   .ws-workmain[data-phone] .ws-dock { bottom: calc(var(--s-7) + env(safe-area-inset-bottom)); }
 }
+
+/* Source integrity B1: the check before a copy for a client (SourceCheck.tsx). A
+   warning hue, never a point status and never the system-error red. */
+.ws-srccheck { margin: var(--s-3) var(--s-4); padding: var(--s-3) var(--s-4); border: 1px solid var(--c-warning);
+  border-radius: var(--r-card); background: var(--c-warning-tint); color: var(--c-text); font-size: var(--t-dense); }
+.ws-srccheck__title { margin: 0 0 var(--s-2); font-weight: 600; }
+.ws-srccheck__list { margin: 0; padding-inline-start: var(--s-5); display: grid; gap: var(--s-2); }
+.ws-srccheck__says { color: var(--c-text); }
+.ws-srccheck__quote { font-family: var(--font-serif, serif); }
+.ws-srccheck__help { margin: var(--s-2) 0 0; font-size: var(--t-caption); color: var(--c-text); }
+.ws-srccheck__error { margin: var(--s-2) 0 0; color: var(--c-error); font-size: var(--t-caption); }
+.ws-srccheck__ok { margin: var(--s-2) 0 0; font-size: var(--t-dense); }
+.ws-srccheck__override { display: grid; gap: var(--s-2); margin-top: var(--s-3); }
+.ws-srccheck__override textarea, .ws-srccheck__paste textarea { width: 100%; font: inherit; padding: var(--s-2);
+  border: 1px solid var(--c-line-strong); border-radius: var(--r-control); background: var(--c-surface); }
+.ws-srccheck__override .ws-btn, .ws-srccheck__paste .ws-btn { justify-self: start; }
+.ws-srccheck__paste { margin: var(--s-3) var(--s-4); font-size: var(--t-dense); }
+.ws-srccheck__paste summary { cursor: pointer; min-block-size: 40px; display: flex; align-items: center; color: var(--c-action); }
+.ws-srccheck__paste form { display: grid; gap: var(--s-2); margin-top: var(--s-2); }

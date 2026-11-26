@@ -210,6 +210,11 @@ CONTRACT_SIGNED = "contract.signed"
 DEAL_POSITION_RECORDED = "contract.position_recorded"
 # AM-269 r2 (AB-150): a file attached in Ask, filed by the reader as a contract's version
 ASSIST_ATTACHMENT_FILED = "assist.attachment_filed"
+# Source integrity B1 (AM-273/AB-150 gate): each copy for a client checked against the
+# published policies in force (codes, figures, version hashes — never the text), and a
+# `legal.review` holder's override of one item's exact problems, with its reason
+OUTGOING_CHECKED = "outgoing.checked"
+OUTGOING_OVERRIDDEN = "outgoing.overridden"
 
 
 def record(db: DBSession, *, action: str, entity_type: str,

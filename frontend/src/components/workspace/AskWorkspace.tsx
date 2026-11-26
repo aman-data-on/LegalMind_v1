@@ -44,6 +44,7 @@
  * document) keeps it, its citations and its Findings table.
  */
 
+import { AskConversation, PasteCheck } from "./SourceCheck";
 import { AssistantRuntimeProvider, useAuiState } from "@assistant-ui/react";
 import Link from "@/components/AppLink";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -1038,6 +1039,7 @@ export function AskWorkspace() {
         </header>
         )}
 
+        <AskConversation.Provider value={activeId}>
         <Thread
           empty={!loadingChat && !notFound && turns.length === 0 && shownPending === null}
           welcome={{ title: scope.contractId ? "Ask about this contract"
@@ -1257,6 +1259,8 @@ export function AskWorkspace() {
           ) : null}
           <p className="ws-visually-hidden" role="status" aria-atomic="true">{announce}</p>
         </Thread>
+        </AskConversation.Provider>
+        <PasteCheck />
       </section>
       </AssistantRuntimeProvider>
 

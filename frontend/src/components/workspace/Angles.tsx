@@ -8,6 +8,8 @@
  * language — so this file renders and never decides (rule 18). One fetch per Review,
  * shared by the Summary, every finding card and the Ask clause view.
  */
+import { SOURCE_CHECK } from "@/lib/labels";
+import { useCheckedCopy } from "./SourceCheck";
 import { useEffect, useState } from "react";
 
 import { api } from "@/lib/api";
@@ -330,15 +332,16 @@ export function CounterProposalCard({ proposal }: { proposal: CounterProposal })
 
 /** The server's wording, copied verbatim; the result is said in a status line. */
 function CopyWording({ text }: { text: string }) {
-  const [said, setSaid] = useState<string | null>(null);
+  const check = useCheckedCopy("copy_wording");
   return (
-    <p className="ws-counter__copy">
-      <button type="button" className="ws-btn ws-btn--sm" onClick={() => {
-        void navigator.clipboard.writeText(text).then(() => setSaid("Copied"),
-          () => setSaid("Couldn't copy — select the wording instead"));
-      }}>Copy wording</button>
-      <span role="status">{said}</span>
-    </p>
+    <div className="ws-counter__copy">
+      <button type="button" className="ws-btn ws-btn--sm" disabled={check.busy}
+              aria-busy={check.busy || undefined} onClick={() => void check.copy(text)}>
+        {check.busy ? SOURCE_CHECK.checking : "Copy wording"}
+      </button>
+      <span role="status">{check.copied ? "Copied" : null}</span>
+      <div aria-live="polite">{check.panel}</div>
+    </div>
   );
 }
 
