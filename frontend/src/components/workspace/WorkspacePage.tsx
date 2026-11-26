@@ -54,6 +54,7 @@ import { AMENDMENT_PLACE, convertOffered, packageLine } from "@/lib/package";
 import { WEBSITE_KEY_BY_TYPE } from "@/components/diff-talk/text";
 import { DocumentPane } from "./DocumentPane";
 import { FindingsPane } from "./FindingsPane";
+import { primeEvidence } from "./evidenceLoad";
 import { FindingsProvider, primeReviews } from "./findingsState";
 import { HighlightProvider } from "./highlight";
 import { contractHref, contractTabFromPath, phoneView, pickVersion, stageViewer, versionRoleLabel } from "./model";
@@ -197,6 +198,7 @@ export function WorkspacePage({ contractId }: { contractId: string }) {
       primeReviews(contractId);       // with the contract, not after its version (the findings' first read)
       const contract = await api.contract(contractId);
       const summary = pickVersion(contract.document_versions ?? [], requestedVersionId());
+      if (summary) primeEvidence(summary.id);   // W3-3: the text's first page beside the version read
       const version = summary ? await api.documentVersion(summary.id) : null;
       setState({ kind: "ready", contract, version });
     } catch (error) {

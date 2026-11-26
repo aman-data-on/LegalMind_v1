@@ -166,6 +166,26 @@ test.describe("the new UI is the entire post-login experience (2026-08-30 cleanu
       await expect(page.locator(".topbar")).toHaveCount(0);
     });
 
+    // W3 r2 (verifier, 2026-11-26): a deep link opened signed out, then ONE form sign-in,
+    // lands in that contract — no stale 401 replayed from a preload, one session read.
+    test("a signed-out deep link signs in once and lands in the contract", async ({ page, browser }) => {
+      const f = fixture();
+      const owner = await browser.newContext({ storageState: storageStatePath("owner") });
+      const { contractId } = await createAnalysedReview(await owner.newPage());
+      await owner.close();
+      await page.goto(`/contracts/${contractId}`);
+      await page.waitForURL(/\/login/, { timeout: 20_000 });
+      let sessions = 0;
+      page.on("request", (r) => { if (new URL(r.url()).pathname === "/api/v1/auth/session") sessions += 1; });
+      await page.getByLabel("Work email").fill(f.accounts.owner.email);
+      await page.getByLabel("Password", { exact: true }).fill(f.accounts.owner.password);
+      await page.getByRole("button", { name: /sign in/i }).click();
+      await page.waitForURL(new RegExp(`/contracts/${contractId}`), { timeout: 20_000 });
+      await expect(page.locator(".ws-row__text").first()).toBeVisible({ timeout: 20_000 });
+      await expect(page).toHaveURL(new RegExp(`/contracts/${contractId}`));
+      expect(sessions).toBe(1);
+    });
+
     test("a signed-out visit ends at /login — never a restricted flash (owner ruling, 2026-08-31)", async ({ page }) => {
       // Before this ruling a signed-out visit to /dashboard rendered the shell
       // with an empty nav and "Access restricted" — which reads as an RBAC

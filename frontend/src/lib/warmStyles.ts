@@ -18,36 +18,7 @@ export function warmStylesAfterLoad(path: string): () => void {
   // only a same-origin page route (`next=` is reader-supplied): never the API or another origin
   if (!/^\/(?!\/|\\|api\/)/.test(path)) return () => undefined;
   let cancelled = false;
-  const warm = async () => {
-    if (cancelled) return;
-    try {
-      const html = await pageHtml(path);
-      if (cancelled) return;
-      const doc = new DOMParser().parseFromString(html, "text/html");
-      const have = new Set([...document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')].map((l) => l.href));
-      for (const sheet of doc.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"][href], link[rel="preload"][as="style"][href]')) {
-        const href = new URL(sheet.getAttribute("href")!, location.href).href;
-        if (have.has(href) || new URL(href).origin !== location.origin) continue;
-        const link = document.createElement("link");
-        // media "not all": downloaded AND parsed now, applied never — the navigation's own
-        // <link rel="stylesheet"> for the same URL reuses Chrome's parsed copy (a prefetch only
-        // saved the download; the parse of the 276 KB sheet stayed on the navigation's path)
-        link.rel = "stylesheet"; link.media = "not all"; link.href = href;
-        document.head.appendChild(link);
-      }
-      // …and its scripts, downloaded only (never run): the shell's chunks used to arrive with
-      // /login when the root 404 pulled them in (W2-1/W2-2 took them off /login's first load)
-      const scripts = new Set([...document.scripts].map((x) => x.src));
-      for (const el of doc.querySelectorAll<HTMLElement>('script[src], link[rel="preload"][as="script"][href]')) {
-        const href = new URL(el.getAttribute("src") ?? el.getAttribute("href")!, location.href).href;
-        if (scripts.has(href) || new URL(href).origin !== location.origin) continue;
-        scripts.add(href);
-        const link = document.createElement("link");
-        link.rel = "prefetch"; link.as = "script"; link.href = href;
-        document.head.appendChild(link);
-      }
-    } catch { /* a warm-up only: the navigation loads them anyway */ }
-  };
+  const warm = () => warmPageAssets(path, () => cancelled);
   const idle = () => {
     if ("requestIdleCallback" in window) window.requestIdleCallback(() => void warm(), { timeout: 3000 });
     else setTimeout(() => void warm(), 200);
@@ -55,4 +26,38 @@ export function warmStylesAfterLoad(path: string): () => void {
   if (document.readyState === "complete") idle();
   else window.addEventListener("load", idle, { once: true });
   return () => { cancelled = true; window.removeEventListener("load", idle); };
+}
+
+/** One page's stylesheets (parsed, never applied) and scripts (downloaded, never run), read
+ *  from its server-rendered HTML. W3-4: the workspace warms Ask this way — a router prefetch
+ *  also RAN Ask's 440 KB chunk, a 160–240 ms task on a phone after the page had loaded. */
+export async function warmPageAssets(path: string, cancelled: () => boolean = () => false): Promise<void> {
+  if (cancelled()) return;
+  try {
+    const html = await pageHtml(path);
+    if (cancelled()) return;
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const have = new Set([...document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')].map((l) => l.href));
+    for (const sheet of doc.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"][href], link[rel="preload"][as="style"][href]')) {
+      const href = new URL(sheet.getAttribute("href")!, location.href).href;
+      if (have.has(href) || new URL(href).origin !== location.origin) continue;
+      const link = document.createElement("link");
+      // media "not all": downloaded AND parsed now, applied never — the navigation's own
+      // <link rel="stylesheet"> for the same URL reuses Chrome's parsed copy (a prefetch only
+      // saved the download; the parse of the 276 KB sheet stayed on the navigation's path)
+      link.rel = "stylesheet"; link.media = "not all"; link.href = href;
+      document.head.appendChild(link);
+    }
+    // …and its scripts, downloaded only (never run): the shell's chunks used to arrive with
+    // /login when the root 404 pulled them in (W2-1/W2-2 took them off /login's first load)
+    const scripts = new Set([...document.scripts].map((x) => x.src));
+    for (const el of doc.querySelectorAll<HTMLElement>('script[src], link[rel="preload"][as="script"][href]')) {
+      const href = new URL(el.getAttribute("src") ?? el.getAttribute("href")!, location.href).href;
+      if (scripts.has(href) || new URL(href).origin !== location.origin) continue;
+      scripts.add(href);
+      const link = document.createElement("link");
+      link.rel = "prefetch"; link.as = "script"; link.href = href;
+      document.head.appendChild(link);
+    }
+  } catch { /* a warm-up only: the navigation loads them anyway */ }
 }

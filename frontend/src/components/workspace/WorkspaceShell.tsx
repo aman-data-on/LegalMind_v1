@@ -24,6 +24,7 @@ import { activeNavHref, navItemsFor } from "./model";
 import { SANS_FACES, useStartFaces } from "./faces";
 import { BellToggle, NotificationPanel, useNotifications } from "./Notifications";
 import { LoadingState } from "@/components/Feedback";
+import { warmPageAssets } from "@/lib/warmStyles";
 
 /** The floating Ask button steps aside while the reader scrolls down a list and comes back
  *  on the way up or at the top (the standard FAB behaviour) — so it never sits over the
@@ -120,7 +121,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const items = navItemsFor(can);
-  useWarmAsk(!!identity && can(P.ASSIST_ASK), useCallback(() => router.prefetch("/dashboard/ask"), [router]));
+  useWarmAsk(!!identity && can(P.ASSIST_ASK), useCallback(() => void warmPageAssets("/dashboard/ask"), []));   // W3-4: download, never run
   // One popover open at a time: the bell's panel or the account menu.
   const [open, setOpen] = useState<"bell" | "user" | null>(null);
   /** page 2 — on a phone the sections are a menu, not a strip clipped at "Asi" */

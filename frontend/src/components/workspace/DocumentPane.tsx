@@ -17,7 +17,7 @@
  */
 
 import { POINT_STATUS, PointStatusIcon, PointStatusLegend } from "./PointStatus";
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { FileDiff, PanelLeftClose, PanelLeftOpen, SlidersHorizontal } from "lucide-react";
 import { pointAnswer, pointState, readerWord } from "./findingLanguage";
 
@@ -35,7 +35,7 @@ import { hasTable, isFigure, textBlocks, type TableCell } from "./tableText";
 const HOUSE_KIND: Record<string, "title" | "heading"> = {
   "LM Title": "title", "LM Schedule Title": "title", "LM Heading 1": "heading" };
 import { useFindingsStateOptional } from "./findingsState";
-import { EVIDENCE_PAGE_SIZE, chunkRows, loadEvidence, plainRow, type EvidencePages } from "./evidenceLoad";
+import { EVIDENCE_PAGE_SIZE, chunkRows, loadEvidence, plainRow, takePrimedEvidence, type EvidencePages } from "./evidenceLoad";
 import { useHighlight } from "./highlight";
 import { useMinWidth, useSideTabs } from "./WorkspaceLayout";
 import {
@@ -239,6 +239,11 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
     };
   }
 
+  /* W3-5: one handler for every row, so a memoised row is not re-drawn because the pane was
+     (a finding, the brief or a scroll landing re-rendered the whole document; each row re-split
+     its text into pieces). `cardPoint` reads only a ref. */
+  const openAnnotationAt = useCallback((id: string, el: HTMLElement) => setOpenAnnotation({ id, ...cardPoint(el.getBoundingClientRect()) }), []);
+
   function onTextSelect() {
     // Wait for the browser to settle the selection this event concluded.
     window.setTimeout(() => {
@@ -262,7 +267,8 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
     const mine = (abort.current = new AbortController());
     if (fresh) { got.current = { pages: [], total: null }; setRows(null); setTotal(null); }
     setError(null);
-    loadEvidence((page) => api.documentEvidence(version.id, page, EVIDENCE_PAGE_SIZE, mine.signal), got.current,
+    const primed = fresh ? takePrimedEvidence(version.id) : null;   // W3-3
+    loadEvidence((page) => (page === 1 && primed) || api.documentEvidence(version.id, page, EVIDENCE_PAGE_SIZE, mine.signal), got.current,
                  (loaded, count) => { setRows(loaded); setTotal(count); }, () => !mine.signal.aborted)
       .catch((cause: unknown) => { if (!mine.signal.aborted) setError(cause); });
   }, [version.id]);
@@ -1093,9 +1099,8 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
                       </p>
                     ) : null}
                     <RowText row={row} line={lines.get(row.id)} marks={showMarks}
-                             annotations={annotationsByRow.get(row.id) ?? []}
-                             onOpen={(id, el) => setOpenAnnotation({
-                               id, ...cardPoint(el.getBoundingClientRect()) })} />
+                             annotations={annotationsByRow.get(row.id) ?? NO_ANNOTATIONS}
+                             onOpen={openAnnotationAt} />
                   </article>
                 ))}
                 </div>
@@ -1171,7 +1176,8 @@ export function DocumentPane({ version }: { version: DocumentVersion }) {
  * `<strong>`, a change an `<ins>` whose replaced words are drawn by CSS — so selection
  * offsets and highlights address the unmodified evidence string (rule 17).
  */
-function RowText({ row, line, marks, annotations, onOpen }: {
+const NO_ANNOTATIONS: Annotation[] = [];
+const RowText = memo(function RowText({ row, line, marks, annotations, onOpen }: {
   row: EvidenceRow;
   line: ReadingLine | undefined;
   marks: boolean;
@@ -1268,7 +1274,7 @@ function RowText({ row, line, marks, annotations, onOpen }: {
       ) : null}
     </>
   );
-}
+});
 
 function isFurniture(row: EvidenceRow): boolean {
   return row.part === "header" || row.part === "footer";

@@ -1,3 +1,4 @@
+import { api } from "@/lib/api";
 import type { EvidenceRow, Pagination } from "@/lib/types";
 
 /** The server's page-size cap (locked 49.6): a bigger page is not on offer. */
@@ -72,4 +73,20 @@ export function chunkRows<T>(rows: T[], plain: (row: T) => boolean, size = CHUNK
     else chunks.push([row]);
   }
   return chunks;
+}
+
+/** W3-3: page 1 of a version's text, asked for by the page as soon as the contract names the
+ *  version — beside the version read, not after it (one round trip off the first paint of the
+ *  text). Taken once, by the pane's first load, and only while fresh; `primeReviews`' pattern. */
+const primed = new Map<string, { at: number; asked: ReturnType<typeof api.documentEvidence> }>();
+const PRIMED_FRESH_MS = 10_000;
+export function primeEvidence(versionId: string): void {
+  const asked = api.documentEvidence(versionId, 1, EVIDENCE_PAGE_SIZE);
+  asked.catch(() => undefined);       // a failure is read, and reported, by the pane's load
+  primed.set(versionId, { at: Date.now(), asked });
+}
+export function takePrimedEvidence(versionId: string): ReturnType<typeof api.documentEvidence> | null {
+  const got = primed.get(versionId);
+  primed.delete(versionId);
+  return got && Date.now() - got.at < PRIMED_FRESH_MS ? got.asked : null;
 }
